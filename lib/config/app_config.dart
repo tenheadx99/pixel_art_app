@@ -8,5 +8,5 @@ class AppConfig {
   static const double minCellSize = 12.0;
   static const double maxCellSize = 60.0;
   static const Duration autoSaveDelay = Duration(milliseconds: 700);
-  static const double completionThreshold = 0.95;
+  static const double completionThreshold = 1.0;
 }

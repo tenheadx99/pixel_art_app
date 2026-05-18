@@ -28,6 +28,36 @@ class ColoringProvider extends ChangeNotifier {
   int? get highlightedNumber => _highlightedNumber;
   bool get canUndo => _undoStack.isNotEmpty;
 
+  String get _saveKey => 'pixelart_progress_${_currentArt?.id ?? ''}';
+
+  void saveProgress() {
+    if (_currentArt == null) return;
+    final data = _filledGrid.map((row) => row.join(',')).join(';');
+    _storageService.setString(_saveKey, data);
+  }
+
+  void loadProgress() {
+    if (_currentArt == null) return;
+    final raw = _storageService.getString(_saveKey);
+    if (raw.isEmpty) return;
+    final rows = raw.split(';');
+    if (rows.length != _currentArt!.gridHeight) return;
+    final loaded = <List<int>>[];
+    for (var r = 0; r < rows.length; r++) {
+      final cols = rows[r].split(',');
+      if (cols.length != _currentArt!.gridWidth) return;
+      loaded.add(cols.map((v) => int.tryParse(v) ?? 0).toList());
+    }
+    _filledGrid = loaded;
+    _calculateProgress();
+    _isComplete = _progress >= AppConfig.completionThreshold;
+  }
+
+  void clearProgress() {
+    if (_currentArt == null) return;
+    _storageService.setString(_saveKey, '');
+  }
+
   bool cellIsFilled(int row, int col) {
     if (row < 0 || row >= _filledGrid.length) return false;
     if (col < 0 || col >= _filledGrid[0].length) return false;
@@ -50,6 +80,7 @@ class ColoringProvider extends ChangeNotifier {
     _progress = 0.0;
     _isComplete = false;
     _undoStack = [];
+    loadProgress();
     notifyListeners();
   }
 
@@ -71,7 +102,6 @@ class ColoringProvider extends ChangeNotifier {
 
   bool tryFillCell(int row, int col) {
     if (_currentArt == null) return false;
-    if (_isComplete) return false;
     if (row < 0 || row >= _currentArt!.gridHeight) return false;
     if (col < 0 || col >= _currentArt!.gridWidth) return false;
 
@@ -89,8 +119,29 @@ class ColoringProvider extends ChangeNotifier {
     _filledGrid[row][col] = expectedNumber;
     _calculateProgress();
     _checkCompletion();
+    saveProgress();
     notifyListeners();
     return true;
+  }
+
+  void fillAllRemaining() {
+    if (_currentArt == null) return;
+    bool changed = false;
+    _pushUndoState();
+    for (var row = 0; row < _currentArt!.gridHeight; row++) {
+      for (var col = 0; col < _currentArt!.gridWidth; col++) {
+        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] == 0) {
+          _filledGrid[row][col] = _currentArt!.grid[row][col];
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      _calculateProgress();
+      _checkCompletion();
+      saveProgress();
+      notifyListeners();
+    }
   }
 
   void fillAllOfSelectedNumber() {
@@ -111,6 +162,7 @@ class ColoringProvider extends ChangeNotifier {
     if (changed) {
       _calculateProgress();
       _checkCompletion();
+      saveProgress();
       notifyListeners();
     }
   }
@@ -120,6 +172,7 @@ class ColoringProvider extends ChangeNotifier {
     _filledGrid = _undoStack.removeLast();
     _calculateProgress();
     _isComplete = false;
+    saveProgress();
     notifyListeners();
   }
 
@@ -132,6 +185,7 @@ class ColoringProvider extends ChangeNotifier {
     _progress = 0.0;
     _isComplete = false;
     _undoStack = [];
+    clearProgress();
     notifyListeners();
   }
 

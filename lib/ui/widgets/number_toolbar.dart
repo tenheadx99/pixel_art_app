@@ -70,6 +70,13 @@ class NumberToolbar extends StatelessWidget {
             color: AppStyle.mint,
             onTap: onSave,
           ),
+          _buildDivider(),
+          _ToolButton(
+            icon: Icons.done_all_rounded,
+            label: 'Auto',
+            color: const Color(0xFF00B894),
+            onTap: () => provider.fillAllRemaining(),
+          ),
         ],
       ),
     );

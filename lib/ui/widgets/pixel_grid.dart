@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../providers/coloring_provider.dart';
 
-class PixelGrid extends StatelessWidget {
+class PixelGrid extends StatefulWidget {
   final ColoringProvider provider;
   final double cellSize;
   final void Function(int row, int col) onCellTap;
@@ -15,18 +15,26 @@ class PixelGrid extends StatelessWidget {
   });
 
   @override
+  State<PixelGrid> createState() => _PixelGridState();
+}
+
+class _PixelGridState extends State<PixelGrid> {
+  final _gridKey = GlobalKey();
+
+  @override
   Widget build(BuildContext context) {
-    final art = provider.currentArt;
+    final art = widget.provider.currentArt;
     if (art == null) return const SizedBox.shrink();
 
     return GestureDetector(
       onTapUp: (details) {
-        final renderBox = context.findRenderObject() as RenderBox;
+        final renderBox = _gridKey.currentContext?.findRenderObject() as RenderBox?;
+        if (renderBox == null || renderBox.size.width <= 0 || renderBox.size.height <= 0) return;
         final localPos = renderBox.globalToLocal(details.globalPosition);
-        final col = (localPos.dx / cellSize).floor();
-        final row = (localPos.dy / cellSize).floor();
+        final col = (localPos.dx / renderBox.size.width * art.gridWidth).floor();
+        final row = (localPos.dy / renderBox.size.height * art.gridHeight).floor();
         if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth) {
-          onCellTap(row, col);
+          widget.onCellTap(row, col);
         }
       },
       child: Container(
@@ -43,15 +51,16 @@ class PixelGrid extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(8),
           child: CustomPaint(
-            size: Size(art.gridWidth * cellSize, art.gridHeight * cellSize),
+            key: _gridKey,
+            size: Size(art.gridWidth * widget.cellSize, art.gridHeight * widget.cellSize),
             painter: _PixelGridPainter(
               art: art,
-              filledGrid: provider.filledGrid,
-              filledColors: provider.filledColors,
-              selectedNumber: provider.selectedNumber,
-              showNumbers: provider.showNumbers,
-              highlightedNumber: provider.highlightedNumber,
-              cellSize: cellSize,
+              filledGrid: widget.provider.filledGrid,
+              filledColors: widget.provider.filledColors,
+              selectedNumber: widget.provider.selectedNumber,
+              showNumbers: widget.provider.showNumbers,
+              highlightedNumber: widget.provider.highlightedNumber,
+              cellSize: widget.cellSize,
             ),
           ),
         ),
@@ -83,6 +92,9 @@ class _PixelGridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
+
+    final cw = size.width / gridWidth;
+    final ch = size.height / gridHeight;
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(
@@ -116,10 +128,10 @@ class _PixelGridPainter extends CustomPainter {
             highlightedNumber != null && expectedNumber == highlightedNumber;
 
         final rect = Rect.fromLTWH(
-          col * cellSize + cellGap,
-          row * cellSize + cellGap,
-          cellSize - cellGap * 2,
-          cellSize - cellGap * 2,
+          col * cw + cellGap,
+          row * ch + cellGap,
+          cw - cellGap * 2,
+          ch - cellGap * 2,
         );
 
         if (isFilled) {
@@ -157,7 +169,7 @@ class _PixelGridPainter extends CustomPainter {
         }
 
         if (showNumbers && !isFilled && expectedNumber > 0) {
-          final textScale = min(1.0, cellSize / 28);
+          final textScale = min(1.0, cw / 28);
           final fontSize = (11.0 * textScale).clamp(6.0, 14.0);
 
           final textPainter = TextPainter(
@@ -175,8 +187,8 @@ class _PixelGridPainter extends CustomPainter {
           textPainter.paint(
             canvas,
             Offset(
-              col * cellSize + (cellSize - textPainter.width) / 2,
-              row * cellSize + (cellSize - textPainter.height) / 2,
+              col * cw + (cw - textPainter.width) / 2,
+              row * ch + (ch - textPainter.height) / 2,
             ),
           );
         }
