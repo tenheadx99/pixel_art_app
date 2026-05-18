@@ -44,9 +44,10 @@ class _ColoringScreenState extends State<ColoringScreen>
   void _adjustCellSize() {
     final screenSize = MediaQuery.of(context).size;
     final maxGridWidth = (screenSize.width - 32).clamp(16, double.infinity);
+    if (widget.art.gridWidth <= 0) return;
     final cellW = maxGridWidth / widget.art.gridWidth;
     _cellSize = cellW.clamp(AppConfig.minCellSize, AppConfig.maxCellSize);
-    if (_cellSize.isNaN || _cellSize.isInfinite) {
+    if (!_cellSize.isFinite) {
       _cellSize = AppConfig.defaultCellSize;
     }
   }
@@ -68,54 +69,25 @@ class _ColoringScreenState extends State<ColoringScreen>
 
         return Scaffold(
           extendBodyBehindAppBar: true,
-          body: Stack(
-            children: [
-              Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      Theme.of(context).brightness == Brightness.light
-                          ? const Color(0xFFF8F9FF)
-                          : const Color(0xFF1A1A2E),
-                      Theme.of(context).brightness == Brightness.light
-                          ? const Color(0xFFE8E5FF)
-                          : const Color(0xFF16213E),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
-                ),
+          body: Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: Theme.of(context).brightness == Brightness.light
+                    ? [const Color(0xFFF8F9FF), const Color(0xFFE8E5FF)]
+                    : [const Color(0xFF1A1A2E), const Color(0xFF16213E)],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
               ),
-              SafeArea(
-                child: Column(
-                  children: [
-                    _buildTopBar(context, provider),
-                    Expanded(
-                      child: InteractiveViewer(
-                        transformationController: _transformController,
-                        minScale: 0.5,
-                        maxScale: 4.0,
-                        child: RepaintBoundary(
-                          key: _repaintKey,
-                          child: Center(
-                            child: PixelGrid(
-                              provider: provider,
-                              cellSize: _cellSize,
-                              onCellTap: (row, col) {
-                                provider.tryFillCell(row, col);
-                              },
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    _buildBottomSection(context, provider),
-                  ],
-                ),
+            ),
+            child: SafeArea(
+              child: Column(
+                children: [
+                  _buildTopBar(context, provider),
+                  Expanded(child: _buildGrid(provider)),
+                  _buildBottomSection(context, provider),
+                ],
               ),
-              if (provider.isComplete)
-                _ConfettiOverlay(controller: _confettiController),
-            ],
+            ),
           ),
         );
       },
@@ -126,7 +98,14 @@ class _ColoringScreenState extends State<ColoringScreen>
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: AppStyle.glassmorphism(context),
+      decoration: BoxDecoration(
+        color: Colors.white.withAlpha(230),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withAlpha(60)),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 20, offset: Offset(0, 8)),
+        ],
+      ),
       child: Row(
         children: [
           GestureDetector(
@@ -145,26 +124,43 @@ class _ColoringScreenState extends State<ColoringScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.art.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
+                Text(widget.art.name,
+                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                const SizedBox(height: 4),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: Container(
+                    height: 8,
+                    child: Stack(
+                      children: [
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        FractionallySizedBox(
+                          widthFactor: provider.progress.clamp(0.0, 1.0),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(6),
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF6C5CE7), Color(0xFFFD79A8), Color(0xFFFFD700)],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 4),
-                _buildProgressBar(provider.progress),
               ],
             ),
           ),
           const SizedBox(width: 8),
           Text(
             '${(provider.progress * 100).toInt()}%',
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-              color: AppStyle.primary,
-            ),
+            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppStyle.primary),
           ),
           const SizedBox(width: 4),
           GestureDetector(
@@ -172,16 +168,10 @@ class _ColoringScreenState extends State<ColoringScreen>
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppStyle.primary, AppStyle.secondary],
-                ),
+                gradient: const LinearGradient(colors: [AppStyle.primary, AppStyle.secondary]),
                 borderRadius: BorderRadius.circular(12),
-                boxShadow: [
-                  BoxShadow(
-                    color: AppStyle.primary.withAlpha(60),
-                    blurRadius: 8,
-                    offset: const Offset(0, 3),
-                  ),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x3D6C5CE7), blurRadius: 8, offset: Offset(0, 3)),
                 ],
               ),
               child: const Icon(Icons.save, color: Colors.white, size: 20),
@@ -192,33 +182,21 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildProgressBar(double progress) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        height: 8,
-        decoration: BoxDecoration(
-          color: Colors.grey.shade200,
-          borderRadius: BorderRadius.circular(6),
-        ),
-        child: Stack(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              curve: Curves.easeOutCubic,
-              width: double.infinity * progress.clamp(0.0, 1.0),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [
-                    Color(0xFF6C5CE7),
-                    Color(0xFFFD79A8),
-                    Color(0xFFFFD700),
-                  ],
-                ),
-                borderRadius: BorderRadius.circular(6),
-              ),
-            ),
-          ],
+  Widget _buildGrid(ColoringProvider provider) {
+    return InteractiveViewer(
+      transformationController: _transformController,
+      minScale: 0.5,
+      maxScale: 4.0,
+      child: RepaintBoundary(
+        key: _repaintKey,
+        child: Center(
+          child: PixelGrid(
+            provider: provider,
+            cellSize: _cellSize,
+            onCellTap: (row, col) {
+              provider.tryFillCell(row, col);
+            },
+          ),
         ),
       ),
     );
@@ -237,9 +215,16 @@ class _ColoringScreenState extends State<ColoringScreen>
           ),
           const SizedBox(height: 8),
           Container(
-            constraints: const BoxConstraints(maxHeight: 130),
+            height: 120,
             padding: const EdgeInsets.all(8),
-            decoration: AppStyle.glassmorphism(context),
+            decoration: BoxDecoration(
+              color: Colors.white.withAlpha(230),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withAlpha(60)),
+              boxShadow: const [
+                BoxShadow(color: Color(0x0A000000), blurRadius: 20, offset: Offset(0, 8)),
+              ],
+            ),
             child: NumberPalette(provider: provider),
           ),
         ],
@@ -260,13 +245,11 @@ class _ColoringScreenState extends State<ColoringScreen>
       context.read<GalleryProvider>().markCompleted(widget.art.id);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 12),
-              Text('Artwork saved!'),
-            ],
-          ),
+          content: const Row(children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 12),
+            Text('Artwork saved!'),
+          ]),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           backgroundColor: const Color(0xFF00B894),
@@ -284,127 +267,17 @@ class _ColoringScreenState extends State<ColoringScreen>
         title: const Text('Reset Artwork'),
         content: const Text('This will clear all your progress. Are you sure?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
             onPressed: () {
               provider.resetArt();
               Navigator.pop(ctx);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Reset'),
           ),
         ],
       ),
     );
   }
-}
-
-class _ConfettiOverlay extends StatefulWidget {
-  final AnimationController controller;
-
-  const _ConfettiOverlay({required this.controller});
-
-  @override
-  State<_ConfettiOverlay> createState() => _ConfettiOverlayState();
-}
-
-class _ConfettiOverlayState extends State<_ConfettiOverlay>
-    with SingleTickerProviderStateMixin {
-  late List<_ConfettiParticle> _particles;
-  final _random = Random();
-
-  @override
-  void initState() {
-    super.initState();
-    _particles = List.generate(
-      60,
-      (i) => _ConfettiParticle(
-        x: _random.nextDouble(),
-        y: -0.2 - _random.nextDouble() * 0.5,
-        speed: 0.3 + _random.nextDouble() * 0.5,
-        size: 6 + _random.nextDouble() * 8,
-        color: AppColors.categoryColors[i % AppColors.categoryColors.length],
-        angle: _random.nextDouble() * 2 * pi,
-        rotationSpeed: (_random.nextDouble() - 0.5) * 4,
-      ),
-    );
-    widget.controller.addListener(() {
-      if (widget.controller.isAnimating) setState(() {});
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final progress = widget.controller.value;
-    return IgnorePointer(
-      child: CustomPaint(
-        size: MediaQuery.of(context).size,
-        painter: _ConfettiPainter(particles: _particles, progress: progress),
-      ),
-    );
-  }
-}
-
-class _ConfettiParticle {
-  double x, y, speed, size, angle, rotationSpeed;
-  final Color color;
-
-  _ConfettiParticle({
-    required this.x,
-    required this.y,
-    required this.speed,
-    required this.size,
-    required this.color,
-    required this.angle,
-    required this.rotationSpeed,
-  });
-}
-
-class _ConfettiPainter extends CustomPainter {
-  final List<_ConfettiParticle> particles;
-  final double progress;
-
-  _ConfettiPainter({required this.particles, required this.progress});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    for (final p in particles) {
-      final currentY = (p.y + p.speed * progress) * size.height;
-      final sway = sin(progress * 8 + p.x * 10) * 15;
-      final currentX = (p.x * size.width + sway);
-      final opacity = (1 - progress).clamp(0.0, 1.0);
-      final currentAngle = p.angle + p.rotationSpeed * progress;
-
-      canvas.save();
-      canvas.translate(currentX, currentY);
-      canvas.rotate(currentAngle);
-
-      final paint = Paint()
-        ..color = p.color.withAlpha((opacity * 255).toInt())
-        ..style = PaintingStyle.fill;
-
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromCenter(
-            center: Offset.zero,
-            width: p.size * 0.6,
-            height: p.size,
-          ),
-          const Radius.circular(2),
-        ),
-        paint,
-      );
-
-      canvas.restore();
-    }
-  }
-
-  @override
-  bool shouldRepaint(_ConfettiPainter oldDelegate) => progress != oldDelegate.progress;
 }
