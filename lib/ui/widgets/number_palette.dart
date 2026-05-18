@@ -16,8 +16,6 @@ class NumberPalette extends StatelessWidget {
     if (art == null) return const SizedBox.shrink();
 
     final numbers = art.sortedNumbers;
-    final rows = ((numbers.length - 1) ~/ 6) + 1;
-    final gridHeight = rows * 52.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -68,19 +66,16 @@ class NumberPalette extends StatelessWidget {
             ],
           ),
         ),
-        SizedBox(
-          height: gridHeight.clamp(44, 350),
-          child: GridView.builder(
+        Expanded(
+          child: GridView(
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 6,
               crossAxisSpacing: 6,
               mainAxisSpacing: 6,
               childAspectRatio: 1,
             ),
-            itemCount: numbers.length,
             physics: const ClampingScrollPhysics(),
-            itemBuilder: (context, index) {
-              final number = numbers[index];
+            children: numbers.map((number) {
               final color = art.colorForNumber(number) ?? AppStyle.numberToColor(number);
               final isSelected = provider.selectedNumber == number;
               final fillPercent = _getFillPercent(number);
@@ -157,7 +152,7 @@ class NumberPalette extends StatelessWidget {
                   ),
                 ),
               );
-            },
+            }).toList(),
           ),
         ),
       ],

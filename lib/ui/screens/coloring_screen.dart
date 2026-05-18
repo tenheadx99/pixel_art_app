@@ -43,9 +43,12 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   void _adjustCellSize() {
     final screenSize = MediaQuery.of(context).size;
-    final maxGridWidth = screenSize.width - 32;
+    final maxGridWidth = (screenSize.width - 32).clamp(16, double.infinity);
     final cellW = maxGridWidth / widget.art.gridWidth;
     _cellSize = cellW.clamp(AppConfig.minCellSize, AppConfig.maxCellSize);
+    if (_cellSize.isNaN || _cellSize.isInfinite) {
+      _cellSize = AppConfig.defaultCellSize;
+    }
   }
 
   @override
