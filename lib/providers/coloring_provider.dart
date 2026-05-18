@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
@@ -15,6 +16,7 @@ class ColoringProvider extends ChangeNotifier {
   List<List<List<int>>> _undoStack = [];
   bool _showNumbers = true;
   int? _highlightedNumber;
+  Timer? _saveTimer;
 
   ColoringProvider(this._storageService);
 
@@ -34,6 +36,17 @@ class ColoringProvider extends ChangeNotifier {
     if (_currentArt == null) return;
     final data = _filledGrid.map((row) => row.join(',')).join(';');
     _storageService.setString(_saveKey, data);
+  }
+
+  void _debouncedSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(AppConfig.autoSaveDelay, saveProgress);
+  }
+
+  @override
+  void dispose() {
+    _saveTimer?.cancel();
+    super.dispose();
   }
 
   void loadProgress() {
@@ -111,7 +124,6 @@ class ColoringProvider extends ChangeNotifier {
     if (expectedNumber != _selectedNumber) return false;
 
     _pushUndoState();
-
     if (_undoStack.length > AppConfig.maxUndoSteps) {
       _undoStack.removeAt(0);
     }
@@ -119,7 +131,7 @@ class ColoringProvider extends ChangeNotifier {
     _filledGrid[row][col] = expectedNumber;
     _calculateProgress();
     _checkCompletion();
-    saveProgress();
+    _debouncedSave();
     notifyListeners();
     return true;
   }

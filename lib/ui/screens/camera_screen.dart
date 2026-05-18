@@ -157,10 +157,7 @@ class _CameraScreenBody extends StatelessWidget {
             top: 12,
             right: 12,
             child: GestureDetector(
-              onTap: () {
-                camera.clear();
-                Navigator.pop(context);
-              },
+              onTap: () => camera.clear(),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -435,7 +432,19 @@ class _CameraScreenBody extends StatelessWidget {
   }
 
   Future<void> _convert(BuildContext context, CameraProvider camera) async {
-    await camera.convertImage('My Pixel Art');
+    try {
+      await camera.convertImage('My Pixel Art');
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Conversion failed: $e'),
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.red.shade400,
+          ),
+        );
+      }
+    }
   }
 
   void _startColoring(BuildContext context, art) {

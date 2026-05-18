@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../config/app_config.dart';
 import '../../data/models/pixel_art.dart';
@@ -11,6 +12,7 @@ import '../../ui/theme/app_style.dart';
 import '../../ui/widgets/pixel_grid.dart';
 import '../../ui/widgets/number_palette.dart';
 import '../../ui/widgets/number_toolbar.dart';
+import '../../ui/widgets/confetti_overlay.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -88,7 +90,16 @@ class _ColoringScreenState extends State<ColoringScreen>
               child: Column(
                 children: [
                   _buildTopBar(context, provider),
-                  Expanded(child: _buildGrid(provider)),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        _buildGrid(provider),
+                        ConfettiOverlay(
+                          animation: _confettiController,
+                        ),
+                      ],
+                    ),
+                  ),
                   _buildBottomSection(context, provider),
                 ],
               ),
@@ -199,7 +210,8 @@ class _ColoringScreenState extends State<ColoringScreen>
             provider: provider,
             cellSize: _cellSize,
             onCellTap: (row, col) {
-              provider.tryFillCell(row, col);
+              final filled = provider.tryFillCell(row, col);
+              if (filled) HapticFeedback.lightImpact();
             },
           ),
         ),

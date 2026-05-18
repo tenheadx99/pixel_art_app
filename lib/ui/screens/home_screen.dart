@@ -5,6 +5,8 @@ import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/services/iap_service.dart';
+import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
 import '../../ui/screens/camera_screen.dart';
@@ -78,7 +80,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
             ],
           ),
-          bottomNavigationBar: _buildBottomNav(context),
+          bottomNavigationBar: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _BannerAdWidget(),
+              _buildBottomNav(context),
+            ],
+          ),
         );
       },
     );
@@ -352,6 +360,37 @@ class _HeaderIconButton extends StatelessWidget {
         ),
         child: Icon(icon, color: Colors.white, size: 22),
       ),
+    );
+  }
+}
+
+class _BannerAdWidget extends StatefulWidget {
+  @override
+  State<_BannerAdWidget> createState() => _BannerAdWidgetState();
+}
+
+class _BannerAdWidgetState extends State<_BannerAdWidget> {
+  BannerAd? _banner;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final adService = context.read<AdService>();
+      adService.loadBannerAd();
+      setState(() {
+        _banner = adService.bannerAd;
+      });
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_banner == null) return const SizedBox.shrink();
+    return SizedBox(
+      width: _banner!.size.width.toDouble(),
+      height: _banner!.size.height.toDouble(),
+      child: AdWidget(ad: _banner!),
     );
   }
 }

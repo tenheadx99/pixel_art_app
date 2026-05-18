@@ -73,7 +73,7 @@ class AppStyle {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
-      fontFamily: 'Poppins',
+
     );
   }
 

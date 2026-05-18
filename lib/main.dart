@@ -113,6 +113,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
         Provider<IAPService>.value(
           value: _dependencies!.iapService,
         ),
+        Provider<AdService>.value(
+          value: AdService(),
+        ),
         ChangeNotifierProvider<AppSettingsProvider>(
           create: (_) {
             final provider = AppSettingsProvider(_dependencies!.localStorageService);
@@ -190,7 +193,12 @@ class _IntroFlow extends StatelessWidget {
       loadingMessage: 'Loading your next canvas...',
       onFinished: () {
         Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
+          PageRouteBuilder(
+            pageBuilder: (_, __, ___) => const HomeScreen(),
+            transitionDuration: const Duration(milliseconds: 600),
+            transitionsBuilder: (_, animation, __, child) =>
+                FadeTransition(opacity: animation, child: child),
+          ),
         );
       },
     );
