@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_config.dart';
 import '../../data/models/pixel_art.dart';
 import '../../providers/coloring_provider.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
@@ -24,19 +25,20 @@ class ColoringScreen extends StatefulWidget {
 }
 
 class _ColoringScreenState extends State<ColoringScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   double _cellSize = AppConfig.defaultCellSize;
   final TransformationController _transformController = TransformationController();
   final GlobalKey _repaintKey = GlobalKey();
   late AnimationController _confettiController;
+  late AnimationController _replayController;
+  List<(int, int)> _replayActions = [];
+  int _replayIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _confettiController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    );
+    _confettiController = AnimationController(vsync: this, duration: const Duration(seconds: 3));
+    _replayController = AnimationController(vsync: this, duration: const Duration(seconds: 5));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ColoringProvider>().loadArt(widget.art);
       _adjustCellSize();
@@ -53,9 +55,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     final fromH = availableHeight / widget.art.gridHeight;
     final cell = fromW < fromH ? fromW : fromH;
     _cellSize = cell.clamp(AppConfig.minCellSize, AppConfig.maxCellSize);
-    if (!_cellSize.isFinite) {
-      _cellSize = AppConfig.defaultCellSize;
-    }
+    if (!_cellSize.isFinite) _cellSize = AppConfig.defaultCellSize;
     if (mounted) setState(() {});
   }
 
@@ -63,13 +63,14 @@ class _ColoringScreenState extends State<ColoringScreen>
   void dispose() {
     _transformController.dispose();
     _confettiController.dispose();
+    _replayController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<ColoringProvider>(
-      builder: (context, provider, _) {
+    return Consumer2<ColoringProvider, AppSettingsProvider>(
+      builder: (context, provider, settings, _) {
         if (provider.isComplete && !_confettiController.isAnimating) {
           _confettiController.forward();
         }
@@ -93,14 +94,14 @@ class _ColoringScreenState extends State<ColoringScreen>
                   Expanded(
                     child: Stack(
                       children: [
-                        _buildGrid(provider),
-                        ConfettiOverlay(
-                          animation: _confettiController,
-                        ),
+                        _buildGrid(provider, settings),
+                        ConfettiOverlay(animation: _confettiController),
+                        if (provider.isComplete)
+                          _buildReplayButton(provider),
                       ],
                     ),
                   ),
-                  _buildBottomSection(context, provider),
+                  _buildBottomSection(context, provider, settings),
                 ],
               ),
             ),
@@ -108,6 +109,57 @@ class _ColoringScreenState extends State<ColoringScreen>
         );
       },
     );
+  }
+
+  Widget _buildReplayButton(ColoringProvider provider) {
+    return Positioned(
+      bottom: 8,
+      right: 8,
+      child: GestureDetector(
+        onTap: () => _startTimeLapse(provider),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.black.withAlpha(160),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(_replayController.isAnimating ? Icons.stop : Icons.replay, color: Colors.white, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                _replayController.isAnimating ? 'Replaying...' : 'Replay',
+                style: const TextStyle(color: Colors.white, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _startTimeLapse(ColoringProvider provider) {
+    if (provider.timeLapse.isEmpty) return;
+    if (_replayController.isAnimating) {
+      _replayController.reset();
+      provider.resetArt();
+      setState(() {});
+      return;
+    }
+    provider.resetArt();
+    _replayActions = List.from(provider.timeLapse);
+    _replayIndex = 0;
+    _replayController.duration = Duration(milliseconds: max(1000, _replayActions.length * 30));
+    _replayController.addListener(() {
+      final target = (_replayController.value * _replayActions.length).floor();
+      while (_replayIndex < target && _replayIndex < _replayActions.length) {
+        final (r, c) = _replayActions[_replayIndex];
+        provider.timeLapseStep(r, c);
+        _replayIndex++;
+      }
+    });
+    _replayController.forward();
   }
 
   Widget _buildTopBar(BuildContext context, ColoringProvider provider) {
@@ -140,8 +192,7 @@ class _ColoringScreenState extends State<ColoringScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.art.name,
-                    style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                Text(widget.art.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
                 const SizedBox(height: 4),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
@@ -174,10 +225,8 @@ class _ColoringScreenState extends State<ColoringScreen>
             ),
           ),
           const SizedBox(width: 8),
-          Text(
-            '${(provider.progress * 100).toInt()}%',
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppStyle.primary),
-          ),
+          Text('${(provider.progress * 100).toInt()}%',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppStyle.primary)),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: () => _saveArtwork(context, provider),
@@ -198,7 +247,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildGrid(ColoringProvider provider) {
+  Widget _buildGrid(ColoringProvider provider, AppSettingsProvider settings) {
     return InteractiveViewer(
       transformationController: _transformController,
       minScale: 0.5,
@@ -209,9 +258,15 @@ class _ColoringScreenState extends State<ColoringScreen>
           child: PixelGrid(
             provider: provider,
             cellSize: _cellSize,
+            brushSize: provider.brushSize,
+            isEraseMode: provider.isEraseMode,
+            colorblindMode: settings.colorblindMode,
             onCellTap: (row, col) {
               final filled = provider.tryFillCell(row, col);
               if (filled) HapticFeedback.lightImpact();
+            },
+            onCellLongPress: (row, col) {
+              _showColorPreview(context, provider, row, col);
             },
           ),
         ),
@@ -219,7 +274,53 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildBottomSection(BuildContext context, ColoringProvider provider) {
+  void _showColorPreview(BuildContext context, ColoringProvider provider, int row, int col) {
+    final art = provider.currentArt;
+    if (art == null) return;
+    final num = art.grid[row][col];
+    if (num == 0) return;
+    final color = provider.filledColors[num] ?? AppStyle.numberToColor(num);
+    final isFilled = provider.filledGrid[row][col] > 0;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        contentPadding: const EdgeInsets.all(20),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 60, height: 60,
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.black.withAlpha(30)),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text('Number $num', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 4),
+            Text(isFilled ? 'Already filled' : 'Tap to fill this color',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          if (!isFilled)
+            ElevatedButton(
+              onPressed: () {
+                provider.selectNumber(num);
+                Navigator.pop(ctx);
+              },
+              child: const Text('Select'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBottomSection(BuildContext context, ColoringProvider provider, AppSettingsProvider settings) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Column(
@@ -227,6 +328,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         children: [
           NumberToolbar(
             provider: provider,
+            settings: settings,
             onSave: () => _saveArtwork(context, provider),
             onReset: () => _confirmReset(context, provider),
           ),
@@ -254,19 +356,13 @@ class _ColoringScreenState extends State<ColoringScreen>
     final screenshotService = ScreenshotService(storageService);
     final pngBytes = await screenshotService.captureAsPng(_repaintKey);
     if (pngBytes == null) return;
-
     final path = await screenshotService.saveArtwork(pngBytes, widget.art.name);
     if (path == null) return;
-
     if (context.mounted) {
       context.read<GalleryProvider>().markCompleted(widget.art.id);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(children: [
-            Icon(Icons.check_circle, color: Colors.white),
-            SizedBox(width: 12),
-            Text('Artwork saved!'),
-          ]),
+          content: const Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 12), Text('Artwork saved!')]),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           backgroundColor: const Color(0xFF00B894),
@@ -286,10 +382,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () {
-              provider.resetArt();
-              Navigator.pop(ctx);
-            },
+            onPressed: () { provider.resetArt(); Navigator.pop(ctx); },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Reset'),
           ),

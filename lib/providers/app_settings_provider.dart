@@ -7,15 +7,21 @@ class AppSettingsProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   bool _isProUser = false;
   bool _isDarkMode = false;
+  bool _colorblindMode = false;
+  int _hintsAvailable = 0;
 
   AppSettingsProvider(this._storageService);
 
   bool get isProUser => _isProUser;
   bool get isDarkMode => _isDarkMode;
+  bool get colorblindMode => _colorblindMode;
+  int get hintsAvailable => _hintsAvailable;
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
     _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey);
+    _colorblindMode = _storageService.getBool('colorblind_mode');
+    _hintsAvailable = _storageService.getInt('hints_available');
     notifyListeners();
   }
 
@@ -31,12 +37,34 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void toggleColorblindMode() {
+    _colorblindMode = !_colorblindMode;
+    _storageService.setBool('colorblind_mode', _colorblindMode);
+    notifyListeners();
+  }
+
+  void addHints(int count) {
+    _hintsAvailable += count;
+    _storageService.setInt('hints_available', _hintsAvailable);
+    notifyListeners();
+  }
+
+  bool useHint() {
+    if (_hintsAvailable <= 0) return false;
+    _hintsAvailable--;
+    _storageService.setInt('hints_available', _hintsAvailable);
+    notifyListeners();
+    return true;
+  }
+
   void listenToIAP(Stream<List<PurchaseDetails>> stream) {
     stream.listen((purchaseDetailsList) {
       for (final purchase in purchaseDetailsList) {
         if (purchase.status == PurchaseStatus.purchased) {
           if (purchase.productID == AppConstants.proProductId) {
             setProUser(true);
+          } else if (purchase.productID == AppConstants.hintProductId) {
+            addHints(5);
           }
         }
       }
