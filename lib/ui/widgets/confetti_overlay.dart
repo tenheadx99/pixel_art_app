@@ -10,7 +10,7 @@ class ConfettiOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedBuilder(
       animation: animation,
-      builder: (_, __) {
+      builder: (_, _) {
         if (!animation.isAnimating) return const SizedBox.shrink();
         return CustomPaint(
           size: Size.infinite,
@@ -40,7 +40,12 @@ class _ConfettiPainter extends CustomPainter {
       final y = (py + speed * progress) * size.height;
       if (y > size.height + 20) continue;
       final hue = (px * 360).round();
-      final color = HSLColor.fromAHSL(1.0 - progress * 0.6, hue.toDouble(), 0.8, 0.6).toColor();
+      final color = HSLColor.fromAHSL(
+        1.0 - progress * 0.6,
+        hue.toDouble(),
+        0.8,
+        0.6,
+      ).toColor();
       final rot = progress * 20 + px * 30;
       canvas.save();
       canvas.translate(x, y);
@@ -54,5 +59,6 @@ class _ConfettiPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_ConfettiPainter oldDelegate) => oldDelegate.progress != progress;
+  bool shouldRepaint(_ConfettiPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

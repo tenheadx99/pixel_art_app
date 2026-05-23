@@ -116,7 +116,9 @@ class ColoringProvider extends ChangeNotifier {
       (_) => List.filled(art.gridWidth, 0),
     );
     _filledColors = Map.from(art.colorMap);
-    _selectedNumber = art.sortedNumbers.isNotEmpty ? art.sortedNumbers.first : 1;
+    _selectedNumber = art.sortedNumbers.isNotEmpty
+        ? art.sortedNumbers.first
+        : 1;
     _progress = 0.0;
     _isComplete = false;
     _undoStack = [];
@@ -161,7 +163,8 @@ class ColoringProvider extends ChangeNotifier {
     }
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] == _selectedNumber && _filledGrid[row][col] == 0) {
+        if (_currentArt!.grid[row][col] == _selectedNumber &&
+            _filledGrid[row][col] == 0) {
           _nextFillable = (row, col);
           return;
         }
@@ -265,7 +268,8 @@ class ColoringProvider extends ChangeNotifier {
     _pushUndoState();
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] == _selectedNumber && _filledGrid[row][col] == 0) {
+        if (_currentArt!.grid[row][col] == _selectedNumber &&
+            _filledGrid[row][col] == 0) {
           _filledGrid[row][col] = _selectedNumber;
           _timeLapse.add((row, col));
           changed = true;
@@ -322,7 +326,8 @@ class ColoringProvider extends ChangeNotifier {
     int filled = 0;
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] > 0) filled++;
+        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] > 0)
+          filled++;
       }
     }
     _progress = filled / total;

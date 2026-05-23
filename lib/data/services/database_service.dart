@@ -66,14 +66,21 @@ class DatabaseService {
 
   Future<void> insertCatalogItem(Map<String, dynamic> item) async {
     final db = await database;
-    await db.insert('pixel_art_catalog', item,
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'pixel_art_catalog',
+      item,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<void> toggleFavorite(String id, bool isFavorite) async {
     final db = await database;
-    await db.update('pixel_art_catalog', {'is_favorite': isFavorite ? 1 : 0},
-        where: 'id = ?', whereArgs: [id]);
+    await db.update(
+      'pixel_art_catalog',
+      {'is_favorite': isFavorite ? 1 : 0},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
   }
 
   Future<void> incrementCompleted(String id) async {
@@ -86,8 +93,11 @@ class DatabaseService {
 
   Future<void> saveArtwork(Map<String, dynamic> artwork) async {
     final db = await database;
-    await db.insert('saved_artworks', artwork,
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'saved_artworks',
+      artwork,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<List<Map<String, dynamic>>> getSavedArtworks() async {
@@ -102,20 +112,30 @@ class DatabaseService {
 
   Future<void> saveInProgress(Map<String, dynamic> data) async {
     final db = await database;
-    await db.insert('in_progress', data,
-        conflictAlgorithm: ConflictAlgorithm.replace);
+    await db.insert(
+      'in_progress',
+      data,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
   }
 
   Future<Map<String, dynamic>?> getInProgress(String pixelArtId) async {
     final db = await database;
-    final results = await db.query('in_progress',
-        where: 'pixel_art_id = ?', whereArgs: [pixelArtId]);
+    final results = await db.query(
+      'in_progress',
+      where: 'pixel_art_id = ?',
+      whereArgs: [pixelArtId],
+    );
     if (results.isEmpty) return null;
     return results.first;
   }
 
   Future<void> deleteInProgress(String pixelArtId) async {
     final db = await database;
-    await db.delete('in_progress', where: 'pixel_art_id = ?', whereArgs: [pixelArtId]);
+    await db.delete(
+      'in_progress',
+      where: 'pixel_art_id = ?',
+      whereArgs: [pixelArtId],
+    );
   }
 }

@@ -11,7 +11,10 @@ class AppStyle {
   static const Color peach = Color(0xFFFFEAA7);
   static const Color sky = Color(0xFF74B9FF);
 
-  static const List<Color> gradientStart = [Color(0xFF6C5CE7), Color(0xFFFD79A8)];
+  static const List<Color> gradientStart = [
+    Color(0xFF6C5CE7),
+    Color(0xFFFD79A8),
+  ];
   static const List<Color> gradientEnd = [Color(0xFF00CEC9), Color(0xFF6C5CE7)];
   static const List<Color> headerGradient = [
     Color(0xFF6C5CE7),
@@ -64,7 +67,9 @@ class AppStyle {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: 4,
           shadowColor: primary.withAlpha(80),
         ),
@@ -73,7 +78,6 @@ class AppStyle {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       ),
-
     );
   }
 
@@ -96,7 +100,9 @@ class AppStyle {
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
     );
@@ -126,10 +132,7 @@ class AppStyle {
           ? Colors.white.withAlpha(230)
           : Colors.white.withAlpha(25),
       borderRadius: BorderRadius.circular(20),
-      border: Border.all(
-        color: Colors.white.withAlpha(60),
-        width: 1.5,
-      ),
+      border: Border.all(color: Colors.white.withAlpha(60), width: 1.5),
       boxShadow: [
         BoxShadow(
           color: Colors.black.withAlpha(10),
@@ -141,9 +144,9 @@ class AppStyle {
   }
 
   static Shader get shimmerGradient => const LinearGradient(
-        colors: [Color(0x33FFFFFF), Color(0x66FFFFFF), Color(0x33FFFFFF)],
-        stops: [0.0, 0.5, 1.0],
-      ).createShader(Rect.fromLTWH(0, 0, 200, 100));
+    colors: [Color(0x33FFFFFF), Color(0x66FFFFFF), Color(0x33FFFFFF)],
+    stops: [0.0, 0.5, 1.0],
+  ).createShader(Rect.fromLTWH(0, 0, 200, 100));
 }
 
 class AppColors {

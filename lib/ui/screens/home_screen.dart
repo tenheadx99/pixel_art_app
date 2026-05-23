@@ -48,44 +48,41 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Center(child: CircularProgressIndicator()),
                     )
                   : gallery.filteredCatalog.isEmpty
-                      ? const SliverFillRemaining(
-                          child: Center(child: Text('No pixel art available')),
-                        )
-                      : SliverPadding(
-                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
-                          sliver: SliverGrid(
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
+                  ? const SliverFillRemaining(
+                      child: Center(child: Text('No pixel art available')),
+                    )
+                  : SliverPadding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                      sliver: SliverGrid(
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 2,
                               crossAxisSpacing: 14,
                               mainAxisSpacing: 14,
                               childAspectRatio: 0.78,
                             ),
-                            delegate: SliverChildBuilderDelegate(
-                              (context, index) {
-                                final art = gallery.filteredCatalog[index];
-                                return _PixelArtCard(
-                                  art: art,
-                                  index: index,
-                                  isCompleted: gallery.isCompleted(art.id),
-                                  isFavorite: gallery.isFavorite(art.id),
-                                  isUnlocked: gallery.isUnlocked(art, settings.isProUser),
-                                  onTap: () => _openColoring(context, art),
-                                  onFavorite: () => gallery.toggleFavorite(art.id),
-                                );
-                              },
-                              childCount: gallery.filteredCatalog.length,
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final art = gallery.filteredCatalog[index];
+                          return _PixelArtCard(
+                            art: art,
+                            index: index,
+                            isCompleted: gallery.isCompleted(art.id),
+                            isFavorite: gallery.isFavorite(art.id),
+                            isUnlocked: gallery.isUnlocked(
+                              art,
+                              settings.isProUser,
                             ),
-                          ),
-                        ),
+                            onTap: () => _openColoring(context, art),
+                            onFavorite: () => gallery.toggleFavorite(art.id),
+                          );
+                        }, childCount: gallery.filteredCatalog.length),
+                      ),
+                    ),
             ],
           ),
           bottomNavigationBar: Column(
             mainAxisSize: MainAxisSize.min,
-            children: [
-              _BannerAdWidget(),
-              _buildBottomNav(context),
-            ],
+            children: [_BannerAdWidget(), _buildBottomNav(context)],
           ),
         );
       },
@@ -94,7 +91,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Widget _buildHeader(BuildContext context, GalleryProvider gallery) {
     return SliverAppBar(
-      expandedHeight: 180,
+      expandedHeight: 240,
       pinned: false,
       floating: true,
       backgroundColor: Colors.transparent,
@@ -186,16 +183,23 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.all(12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withAlpha(25),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.emoji_events, color: Colors.amber.shade300, size: 20),
+                          Icon(
+                            Icons.emoji_events,
+                            color: Colors.amber.shade300,
+                            size: 18,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             '${gallery.catalog.length} artworks available',
@@ -216,6 +220,97 @@ class _HomeScreenState extends State<HomeScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Container(
+                            height: 42,
+                            decoration: BoxDecoration(
+                              color: Colors.white.withAlpha(40),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: TextField(
+                              onChanged: (val) => gallery.setSearchQuery(val),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                              ),
+                              decoration: InputDecoration(
+                                hintText: 'Search artworks...',
+                                hintStyle: TextStyle(
+                                  color: Colors.white.withAlpha(160),
+                                  fontSize: 13,
+                                ),
+                                prefixIcon: const Icon(
+                                  Icons.search,
+                                  color: Colors.white70,
+                                  size: 20,
+                                ),
+                                border: InputBorder.none,
+                                contentPadding: const EdgeInsets.symmetric(
+                                  vertical: 11,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Container(
+                          height: 42,
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(40),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: DropdownButtonHideUnderline(
+                            child: Theme(
+                              data: Theme.of(
+                                context,
+                              ).copyWith(canvasColor: AppStyle.primary),
+                              child: DropdownButton<String>(
+                                value: gallery.sortBy,
+                                icon: const Icon(
+                                  Icons.sort,
+                                  color: Colors.white,
+                                  size: 20,
+                                ),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                onChanged: (val) {
+                                  if (val != null) gallery.setSortBy(val);
+                                },
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: 'Default',
+                                    child: Text('Sort: Default'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Difficulty (Easy)',
+                                    child: Text('Easy First'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Difficulty (Hard)',
+                                    child: Text('Hard First'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Colors (Few)',
+                                    child: Text('Few Colors'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: 'Colors (Many)',
+                                    child: Text('Many Colors'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),
@@ -230,10 +325,7 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       width: size,
       height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: color,
-      ),
+      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
   }
 
@@ -459,16 +551,16 @@ class _CategoryFilter extends StatelessWidget {
           final cat = categories[index];
           final isSelected = gallery.selectedCategory == cat;
           return Padding(
-            padding: EdgeInsets.only(
-              right: 10,
-              left: index == 0 ? 0 : 0,
-            ),
+            padding: EdgeInsets.only(right: 10, left: index == 0 ? 0 : 0),
             child: GestureDetector(
               onTap: () => gallery.setCategory(cat),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 300),
                 curve: Curves.easeOutCubic,
-                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 10,
+                ),
                 decoration: BoxDecoration(
                   gradient: isSelected
                       ? LinearGradient(
@@ -487,8 +579,9 @@ class _CategoryFilter extends StatelessWidget {
                   boxShadow: isSelected
                       ? [
                           BoxShadow(
-                            color: AppColors.categoryColors[
-                                    index % AppColors.categoryColors.length]
+                            color: AppColors
+                                .categoryColors[index %
+                                    AppColors.categoryColors.length]
                                 .withAlpha(80),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
@@ -593,36 +686,28 @@ class _PixelArtCardState extends State<_PixelArtCard>
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [colors[0].withAlpha(60), colors[1].withAlpha(40)],
+                              colors: [
+                                colors[0].withAlpha(60),
+                                colors[1].withAlpha(40),
+                              ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
                           ),
                           child: Center(
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Icon(
-                                  Icons.grid_on,
-                                  size: 56,
-                                  color: colors[0].withAlpha(80),
+                            child: Padding(
+                              padding: const EdgeInsets.all(12.0),
+                              child: AspectRatio(
+                                aspectRatio:
+                                    widget.art.gridWidth /
+                                    widget.art.gridHeight,
+                                child: CustomPaint(
+                                  painter: _PixelArtPreviewPainter(
+                                    art: widget.art,
+                                    isCompleted: widget.isCompleted,
+                                  ),
                                 ),
-                                Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const Icon(Icons.colorize, size: 24, color: Colors.white70),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '${widget.art.gridWidth}×${widget.art.gridHeight}',
-                                      style: const TextStyle(
-                                        color: Colors.white54,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w500,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
@@ -650,7 +735,8 @@ class _PixelArtCardState extends State<_PixelArtCard>
                                       : widget.art.sortedNumbers.length,
                                   (i) {
                                     final num = widget.art.sortedNumbers[i];
-                                    final color = widget.art.colorForNumber(num) ??
+                                    final color =
+                                        widget.art.colorForNumber(num) ??
                                         AppStyle.numberToColor(num);
                                     return Align(
                                       widthFactor: 0.7,
@@ -682,7 +768,11 @@ class _PixelArtCardState extends State<_PixelArtCard>
                                     ),
                                   ),
                                 const Spacer(),
-                                Icon(Icons.grid_on, size: 12, color: Colors.grey.shade400),
+                                Icon(
+                                  Icons.grid_on,
+                                  size: 12,
+                                  color: Colors.grey.shade400,
+                                ),
                                 const SizedBox(width: 3),
                                 Text(
                                   '${widget.art.gridWidth}',
@@ -741,7 +831,11 @@ class _PixelArtCardState extends State<_PixelArtCard>
                             ),
                           ],
                         ),
-                        child: const Icon(Icons.check, color: Colors.white, size: 14),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 14,
+                        ),
                       ),
                     ),
                   Positioned(
@@ -759,7 +853,9 @@ class _PixelArtCardState extends State<_PixelArtCard>
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          widget.isFavorite ? Icons.favorite : Icons.favorite_border,
+                          widget.isFavorite
+                              ? Icons.favorite
+                              : Icons.favorite_border,
                           color: widget.isFavorite ? Colors.red : Colors.white,
                           size: 16,
                         ),
@@ -774,4 +870,32 @@ class _PixelArtCardState extends State<_PixelArtCard>
       ),
     );
   }
+}
+
+class _PixelArtPreviewPainter extends CustomPainter {
+  final PixelArt art;
+  final bool isCompleted;
+
+  _PixelArtPreviewPainter({required this.art, required this.isCompleted});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cw = size.width / art.gridWidth;
+    final ch = size.height / art.gridHeight;
+    final paint = Paint();
+
+    for (var r = 0; r < art.gridHeight; r++) {
+      for (var c = 0; c < art.gridWidth; c++) {
+        final val = art.grid[r][c];
+        if (val > 0) {
+          final color = art.colorForNumber(val) ?? Colors.transparent;
+          paint.color = isCompleted ? color : color.withAlpha(90);
+          canvas.drawRect(Rect.fromLTWH(c * cw, r * ch, cw, ch), paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

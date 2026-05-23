@@ -22,9 +22,9 @@ class IAPService {
 
   Future<void> buyPro() async {
     if (AppConfig.disableIap) return;
-    final productDetails = await _purchase.queryProductDetails(
-      {AppConstants.proProductId},
-    );
+    final productDetails = await _purchase.queryProductDetails({
+      AppConstants.proProductId,
+    });
     if (productDetails.productDetails.isEmpty) return;
     final purchaseParam = PurchaseParam(
       productDetails: productDetails.productDetails.first,

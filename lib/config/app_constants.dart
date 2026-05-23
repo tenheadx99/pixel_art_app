@@ -4,7 +4,8 @@ class AppConstants {
   AppConstants._();
 
   static const String appStoreId = 'com.europosit.pixelart';
-  static const String appStoreUrl = 'https://play.google.com/store/apps/details?id=com.europosit.pixelart';
+  static const String appStoreUrl =
+      'https://play.google.com/store/apps/details?id=com.europosit.pixelart';
   static const String privacyPolicyUrl = 'https://easybrain.com/privacy';
   static const String termsUrl = 'https://easybrain.com/terms';
 
@@ -39,9 +40,12 @@ class AppConstants {
   };
 
   static const String bannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
-  static const String interstitialAdUnitId = 'ca-app-pub-3940256099942544/1033173712';
-  static const String rewardedAdUnitId = 'ca-app-pub-3940256099942544/5224354917';
-  static const String appOpenAdUnitId = 'ca-app-pub-3940256099942544/3419835294';
+  static const String interstitialAdUnitId =
+      'ca-app-pub-3940256099942544/1033173712';
+  static const String rewardedAdUnitId =
+      'ca-app-pub-3940256099942544/5224354917';
+  static const String appOpenAdUnitId =
+      'ca-app-pub-3940256099942544/3419835294';
 
   static const String proProductId = 'pixel_art_pro';
   static const String hintProductId = 'pixel_art_hints_5';

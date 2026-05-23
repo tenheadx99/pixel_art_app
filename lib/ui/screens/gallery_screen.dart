@@ -55,29 +55,32 @@ class _GalleryScreenState extends State<GalleryScreen> {
         ),
         child: SafeArea(
           child: _isLoading
-              ? const Center(child: CircularProgressIndicator(color: Colors.white))
+              ? const Center(
+                  child: CircularProgressIndicator(color: Colors.white),
+                )
               : _artworks.isEmpty
-                  ? _buildEmptyState()
-                  : Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
-                      child: GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              ? _buildEmptyState()
+              : Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 80),
+                  child: GridView.builder(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: 2,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
                           childAspectRatio: 0.75,
                         ),
-                        itemCount: _artworks.length,
-                        itemBuilder: (context, index) {
-                          final artwork = _artworks[index];
-                          return _ArtworkCard(
-                            artwork: artwork,
-                            onDelete: () => _deleteArtwork(artwork),
-                            onShare: () => _shareArtwork(artwork),
-                          );
-                        },
-                      ),
-                    ),
+                    itemCount: _artworks.length,
+                    itemBuilder: (context, index) {
+                      final artwork = _artworks[index];
+                      return _ArtworkCard(
+                        artwork: artwork,
+                        onDelete: () => _deleteArtwork(artwork),
+                        onShare: () => _shareArtwork(artwork),
+                      );
+                    },
+                  ),
+                ),
         ),
       ),
     );
@@ -94,7 +97,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
               shape: BoxShape.circle,
               color: Colors.white.withAlpha(20),
             ),
-            child: const Icon(Icons.photo_library_outlined, size: 56, color: Colors.white38),
+            child: const Icon(
+              Icons.photo_library_outlined,
+              size: 56,
+              color: Colors.white38,
+            ),
           ),
           const SizedBox(height: 20),
           const Text(
@@ -108,10 +115,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
           const SizedBox(height: 8),
           Text(
             'Complete a pixel art and save it!',
-            style: TextStyle(
-              color: Colors.white.withAlpha(100),
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 14),
           ),
         ],
       ),
@@ -155,10 +159,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
   void _shareArtwork(UserArtwork artwork) {
     final file = File(artwork.filePath);
     if (file.existsSync()) {
-      Share.shareXFiles(
-        [XFile(artwork.filePath)],
-        text: '🎨 Check out my Pixel Art! Created with Pixel Art app.',
-      );
+      Share.shareXFiles([
+        XFile(artwork.filePath),
+      ], text: '🎨 Check out my Pixel Art! Created with Pixel Art app.');
     }
   }
 }
@@ -190,9 +193,13 @@ class _ArtworkCard extends StatelessWidget {
             child: Image.file(
               File(artwork.filePath),
               fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => Container(
+              errorBuilder: (_, _, _) => Container(
                 color: Colors.white.withAlpha(10),
-                child: const Icon(Icons.broken_image, color: Colors.white38, size: 40),
+                child: const Icon(
+                  Icons.broken_image,
+                  color: Colors.white38,
+                  size: 40,
+                ),
               ),
             ),
           ),
@@ -230,10 +237,7 @@ class _ArtworkCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    _SmallIconButton(
-                      icon: Icons.share,
-                      onTap: onShare,
-                    ),
+                    _SmallIconButton(icon: Icons.share, onTap: onShare),
                     const SizedBox(width: 4),
                     _SmallIconButton(
                       icon: Icons.delete,
@@ -251,7 +255,20 @@ class _ArtworkCard extends StatelessWidget {
   }
 
   String _formatDate(DateTime date) {
-    final months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
 }
@@ -261,11 +278,7 @@ class _SmallIconButton extends StatelessWidget {
   final VoidCallback onTap;
   final Color? color;
 
-  const _SmallIconButton({
-    required this.icon,
-    required this.onTap,
-    this.color,
-  });
+  const _SmallIconButton({required this.icon, required this.onTap, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -277,11 +290,7 @@ class _SmallIconButton extends StatelessWidget {
           color: Colors.white.withAlpha(15),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(
-          icon,
-          size: 16,
-          color: color ?? Colors.white70,
-        ),
+        child: Icon(icon, size: 16, color: color ?? Colors.white70),
       ),
     );
   }

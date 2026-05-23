@@ -21,9 +21,62 @@ class GalleryProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String get selectedCategory => _selectedCategory;
 
+  String _searchQuery = '';
+  String _sortBy =
+      'Default'; // Options: Default, Difficulty (Easy), Difficulty (Hard), Colors (Few), Colors (Many)
+
+  String get searchQuery => _searchQuery;
+  String get sortBy => _sortBy;
+
+  void setSearchQuery(String query) {
+    _searchQuery = query;
+    notifyListeners();
+  }
+
+  void setSortBy(String option) {
+    _sortBy = option;
+    notifyListeners();
+  }
+
   List<PixelArt> get filteredCatalog {
-    if (_selectedCategory == 'All') return _catalog;
-    return _catalog.where((a) => a.category == _selectedCategory).toList();
+    var list = _catalog;
+    if (_selectedCategory != 'All') {
+      list = list.where((a) => a.category == _selectedCategory).toList();
+    }
+    if (_searchQuery.isNotEmpty) {
+      final q = _searchQuery.toLowerCase();
+      list = list
+          .where(
+            (a) =>
+                a.name.toLowerCase().contains(q) ||
+                a.category.toLowerCase().contains(q),
+          )
+          .toList();
+    }
+
+    if (_sortBy == 'Difficulty (Easy)') {
+      list = List.from(list)
+        ..sort(
+          (a, b) => (a.gridWidth * a.gridHeight).compareTo(
+            b.gridWidth * b.gridHeight,
+          ),
+        );
+    } else if (_sortBy == 'Difficulty (Hard)') {
+      list = List.from(list)
+        ..sort(
+          (a, b) => (b.gridWidth * b.gridHeight).compareTo(
+            a.gridWidth * a.gridHeight,
+          ),
+        );
+    } else if (_sortBy == 'Colors (Few)') {
+      list = List.from(list)
+        ..sort((a, b) => a.colorCount.compareTo(b.colorCount));
+    } else if (_sortBy == 'Colors (Many)') {
+      list = List.from(list)
+        ..sort((a, b) => b.colorCount.compareTo(a.colorCount));
+    }
+
+    return list;
   }
 
   List<String> get categories {
@@ -39,7 +92,9 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
 
     _catalog = preMade;
-    _completedIds = _storageService.getStringSet(AppConstants.completedIdsPrefKey);
+    _completedIds = _storageService.getStringSet(
+      AppConstants.completedIdsPrefKey,
+    );
     _favoriteIds = _storageService.getStringSet('favorite_ids');
 
     _isLoading = false;

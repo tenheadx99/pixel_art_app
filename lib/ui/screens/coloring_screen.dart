@@ -27,7 +27,8 @@ class ColoringScreen extends StatefulWidget {
 class _ColoringScreenState extends State<ColoringScreen>
     with TickerProviderStateMixin {
   double _cellSize = AppConfig.defaultCellSize;
-  final TransformationController _transformController = TransformationController();
+  final TransformationController _transformController =
+      TransformationController();
   final GlobalKey _repaintKey = GlobalKey();
   late AnimationController _confettiController;
   late AnimationController _replayController;
@@ -37,8 +38,14 @@ class _ColoringScreenState extends State<ColoringScreen>
   @override
   void initState() {
     super.initState();
-    _confettiController = AnimationController(vsync: this, duration: const Duration(seconds: 3));
-    _replayController = AnimationController(vsync: this, duration: const Duration(seconds: 5));
+    _confettiController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 3),
+    );
+    _replayController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 5),
+    );
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ColoringProvider>().loadArt(widget.art);
       _adjustCellSize();
@@ -96,8 +103,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       children: [
                         _buildGrid(provider, settings),
                         ConfettiOverlay(animation: _confettiController),
-                        if (provider.isComplete)
-                          _buildReplayButton(provider),
+                        if (provider.isComplete) _buildReplayButton(provider),
                       ],
                     ),
                   ),
@@ -126,7 +132,11 @@ class _ColoringScreenState extends State<ColoringScreen>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(_replayController.isAnimating ? Icons.stop : Icons.replay, color: Colors.white, size: 16),
+              Icon(
+                _replayController.isAnimating ? Icons.stop : Icons.replay,
+                color: Colors.white,
+                size: 16,
+              ),
               const SizedBox(width: 6),
               Text(
                 _replayController.isAnimating ? 'Replaying...' : 'Replay',
@@ -150,7 +160,9 @@ class _ColoringScreenState extends State<ColoringScreen>
     provider.resetArt();
     _replayActions = List.from(provider.timeLapse);
     _replayIndex = 0;
-    _replayController.duration = Duration(milliseconds: max(1000, _replayActions.length * 30));
+    _replayController.duration = Duration(
+      milliseconds: max(1000, _replayActions.length * 30),
+    );
     _replayController.addListener(() {
       final target = (_replayController.value * _replayActions.length).floor();
       while (_replayIndex < target && _replayIndex < _replayActions.length) {
@@ -166,14 +178,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(230),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withAlpha(60)),
-        boxShadow: const [
-          BoxShadow(color: Color(0x0A000000), blurRadius: 20, offset: Offset(0, 8)),
-        ],
-      ),
+      decoration: AppStyle.glassmorphism(context),
       child: Row(
         children: [
           GestureDetector(
@@ -184,7 +189,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                 color: AppStyle.primary.withAlpha(20),
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.arrow_back_ios_new, size: 18, color: AppStyle.primary),
+              child: const Icon(
+                Icons.arrow_back_ios_new,
+                size: 18,
+                color: AppStyle.primary,
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -192,11 +201,17 @@ class _ColoringScreenState extends State<ColoringScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.art.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                Text(
+                  widget.art.name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 16,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  child: Container(
+                  child: SizedBox(
                     height: 8,
                     child: Stack(
                       children: [
@@ -212,7 +227,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(6),
                               gradient: const LinearGradient(
-                                colors: [Color(0xFF6C5CE7), Color(0xFFFD79A8), Color(0xFFFFD700)],
+                                colors: [
+                                  Color(0xFF6C5CE7),
+                                  Color(0xFFFD79A8),
+                                  Color(0xFFFFD700),
+                                ],
                               ),
                             ),
                           ),
@@ -225,18 +244,30 @@ class _ColoringScreenState extends State<ColoringScreen>
             ),
           ),
           const SizedBox(width: 8),
-          Text('${(provider.progress * 100).toInt()}%',
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 18, color: AppStyle.primary)),
+          Text(
+            '${(provider.progress * 100).toInt()}%',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: AppStyle.primary,
+            ),
+          ),
           const SizedBox(width: 4),
           GestureDetector(
             onTap: () => _saveArtwork(context, provider),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(colors: [AppStyle.primary, AppStyle.secondary]),
+                gradient: const LinearGradient(
+                  colors: [AppStyle.primary, AppStyle.secondary],
+                ),
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: const [
-                  BoxShadow(color: Color(0x3D6C5CE7), blurRadius: 8, offset: Offset(0, 3)),
+                  BoxShadow(
+                    color: Color(0x3D6C5CE7),
+                    blurRadius: 8,
+                    offset: Offset(0, 3),
+                  ),
                 ],
               ),
               child: const Icon(Icons.save, color: Colors.white, size: 20),
@@ -274,7 +305,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  void _showColorPreview(BuildContext context, ColoringProvider provider, int row, int col) {
+  void _showColorPreview(
+    BuildContext context,
+    ColoringProvider provider,
+    int row,
+    int col,
+  ) {
     final art = provider.currentArt;
     if (art == null) return;
     final num = art.grid[row][col];
@@ -291,7 +327,8 @@ class _ColoringScreenState extends State<ColoringScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 60, height: 60,
+              width: 60,
+              height: 60,
               decoration: BoxDecoration(
                 color: color,
                 borderRadius: BorderRadius.circular(16),
@@ -299,14 +336,22 @@ class _ColoringScreenState extends State<ColoringScreen>
               ),
             ),
             const SizedBox(height: 12),
-            Text('Number $num', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            Text(
+              'Number $num',
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 4),
-            Text(isFilled ? 'Already filled' : 'Tap to fill this color',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            Text(
+              isFilled ? 'Already filled' : 'Tap to fill this color',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           if (!isFilled)
             ElevatedButton(
               onPressed: () {
@@ -320,7 +365,11 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildBottomSection(BuildContext context, ColoringProvider provider, AppSettingsProvider settings) {
+  Widget _buildBottomSection(
+    BuildContext context,
+    ColoringProvider provider,
+    AppSettingsProvider settings,
+  ) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
       child: Column(
@@ -336,14 +385,7 @@ class _ColoringScreenState extends State<ColoringScreen>
           Container(
             height: 120,
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.white.withAlpha(230),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withAlpha(60)),
-              boxShadow: const [
-                BoxShadow(color: Color(0x0A000000), blurRadius: 20, offset: Offset(0, 8)),
-              ],
-            ),
+            decoration: AppStyle.glassmorphism(context),
             child: NumberPalette(provider: provider),
           ),
         ],
@@ -351,7 +393,10 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Future<void> _saveArtwork(BuildContext context, ColoringProvider provider) async {
+  Future<void> _saveArtwork(
+    BuildContext context,
+    ColoringProvider provider,
+  ) async {
     final storageService = context.read<LocalStorageService>();
     final screenshotService = ScreenshotService(storageService);
     final pngBytes = await screenshotService.captureAsPng(_repaintKey);
@@ -362,9 +407,17 @@ class _ColoringScreenState extends State<ColoringScreen>
       context.read<GalleryProvider>().markCompleted(widget.art.id);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(children: [Icon(Icons.check_circle, color: Colors.white), SizedBox(width: 12), Text('Artwork saved!')]),
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 12),
+              Text('Artwork saved!'),
+            ],
+          ),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           backgroundColor: const Color(0xFF00B894),
           duration: const Duration(seconds: 2),
         ),
@@ -380,10 +433,19 @@ class _ColoringScreenState extends State<ColoringScreen>
         title: const Text('Reset Artwork'),
         content: const Text('This will clear all your progress. Are you sure?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            onPressed: () { provider.resetArt(); Navigator.pop(ctx); },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              provider.resetArt();
+              Navigator.pop(ctx);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             child: const Text('Reset'),
           ),
         ],

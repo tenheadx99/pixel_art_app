@@ -34,12 +34,21 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     );
-    _fadeIn = CurvedAnimation(parent: _controller, curve: const Interval(0, 0.6, curve: Curves.easeOut));
+    _fadeIn = CurvedAnimation(
+      parent: _controller,
+      curve: const Interval(0, 0.6, curve: Curves.easeOut),
+    );
     _scaleAnim = Tween<double>(begin: 0.5, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0, 0.5, curve: Curves.elasticOut)),
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0, 0.5, curve: Curves.elasticOut),
+      ),
     );
     _slideUp = Tween<double>(begin: 30, end: 0).animate(
-      CurvedAnimation(parent: _controller, curve: const Interval(0.3, 0.8, curve: Curves.easeOut)),
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.3, 0.8, curve: Curves.easeOut),
+      ),
     );
 
     _controller.forward();
@@ -78,10 +87,8 @@ class _SplashScreenState extends State<SplashScreen>
                 opacity: _fadeIn,
                 child: AnimatedBuilder(
                   animation: _scaleAnim,
-                  builder: (context, child) => Transform.scale(
-                    scale: _scaleAnim.value,
-                    child: child,
-                  ),
+                  builder: (context, child) =>
+                      Transform.scale(scale: _scaleAnim.value, child: child),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -91,7 +98,10 @@ class _SplashScreenState extends State<SplashScreen>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(32),
                           gradient: LinearGradient(
-                            colors: [Colors.white.withAlpha(200), Colors.white.withAlpha(100)],
+                            colors: [
+                              Colors.white.withAlpha(200),
+                              Colors.white.withAlpha(100),
+                            ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),

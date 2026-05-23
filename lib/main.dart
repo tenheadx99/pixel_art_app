@@ -96,9 +96,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
   Widget build(BuildContext context) {
     if (!_ready || _dependencies == null) {
       return const _AppShell(
-        child: SplashScreen(
-          loadingMessage: 'Preparing Pixel Art...',
-        ),
+        child: SplashScreen(loadingMessage: 'Preparing Pixel Art...'),
       );
     }
 
@@ -107,18 +105,14 @@ class _AppBootstrapState extends State<AppBootstrap> {
         Provider<LocalStorageService>.value(
           value: _dependencies!.localStorageService,
         ),
-        Provider<DatabaseService>.value(
-          value: _dependencies!.databaseService,
-        ),
-        Provider<IAPService>.value(
-          value: _dependencies!.iapService,
-        ),
-        Provider<AdService>.value(
-          value: AdService(),
-        ),
+        Provider<DatabaseService>.value(value: _dependencies!.databaseService),
+        Provider<IAPService>.value(value: _dependencies!.iapService),
+        Provider<AdService>.value(value: AdService()),
         ChangeNotifierProvider<AppSettingsProvider>(
           create: (_) {
-            final provider = AppSettingsProvider(_dependencies!.localStorageService);
+            final provider = AppSettingsProvider(
+              _dependencies!.localStorageService,
+            );
             provider.loadSettings();
             provider.listenToIAP(_dependencies!.iapService.purchaseStream);
             return provider;
@@ -135,9 +129,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
           },
         ),
         ChangeNotifierProvider<ColoringProvider>(
-          create: (context) => ColoringProvider(
-            _dependencies!.localStorageService,
-          ),
+          create: (context) =>
+              ColoringProvider(_dependencies!.localStorageService),
         ),
       ],
       child: const _AppShellWithDeps(),
@@ -194,9 +187,9 @@ class _IntroFlow extends StatelessWidget {
       onFinished: () {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
-            pageBuilder: (_, __, ___) => const HomeScreen(),
+            pageBuilder: (_, _, _) => const HomeScreen(),
             transitionDuration: const Duration(milliseconds: 600),
-            transitionsBuilder: (_, animation, __, child) =>
+            transitionsBuilder: (_, animation, _, child) =>
                 FadeTransition(opacity: animation, child: child),
           ),
         );

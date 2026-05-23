@@ -15,7 +15,11 @@ class PixelConverterService {
     int maxColors = 16,
   }) async {
     final imgSrc = _imageProcessing.loadImageFromBytes(imageBytes);
-    final resized = _imageProcessing.downscaleToGrid(imgSrc, gridWidth, gridHeight);
+    final resized = _imageProcessing.downscaleToGrid(
+      imgSrc,
+      gridWidth,
+      gridHeight,
+    );
     final quantizedMap = _imageProcessing.quantizeColors(resized, maxColors);
     final grid = _imageProcessing.buildGridFromImage(resized, quantizedMap);
     final colorMap = _imageProcessing.buildColorMap(quantizedMap);
@@ -52,7 +56,9 @@ class PixelConverterService {
   Future<List<PixelArt>> loadPreMadeAssets() async {
     final arts = <PixelArt>[];
     try {
-      final manifestJson = await rootBundle.loadString('assets/pixel_art/manifest.json');
+      final manifestJson = await rootBundle.loadString(
+        'assets/pixel_art/manifest.json',
+      );
       final manifest = jsonDecode(manifestJson) as List<dynamic>;
       for (final entry in manifest) {
         final path = entry as String;

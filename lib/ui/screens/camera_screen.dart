@@ -27,7 +27,10 @@ class _CameraScreenBody extends StatelessWidget {
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: AppBar(
-            title: const Text('Pixel Art Camera', style: TextStyle(color: Colors.white)),
+            title: const Text(
+              'Pixel Art Camera',
+              style: TextStyle(color: Colors.white),
+            ),
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
               onPressed: () => Navigator.pop(context),
@@ -114,10 +117,7 @@ class _CameraScreenBody extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Choose from gallery or take a photo',
-            style: TextStyle(
-              color: Colors.white.withAlpha(120),
-              fontSize: 13,
-            ),
+            style: TextStyle(color: Colors.white.withAlpha(120), fontSize: 13),
           ),
           const SizedBox(height: 24),
           Row(
@@ -216,9 +216,12 @@ class _CameraScreenBody extends StatelessWidget {
           _buildSettingRow(
             context,
             label: 'Colors',
-            options: [8, 12, 16, 24]
-                .map((c) => _Option(label: '$c', value: c))
-                .toList(),
+            options: [
+              8,
+              12,
+              16,
+              24,
+            ].map((c) => _Option(label: '$c', value: c)).toList(),
             selectedValue: camera.maxColors,
             onSelected: (v) => camera.setMaxColors(v as int),
           ),
@@ -258,7 +261,10 @@ class _CameraScreenBody extends StatelessWidget {
                 onTap: () => onSelected(opt.value),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     gradient: isSelected
                         ? const LinearGradient(
@@ -278,7 +284,9 @@ class _CameraScreenBody extends StatelessWidget {
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 13,
-                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: isSelected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                   ),
                 ),
@@ -292,9 +300,7 @@ class _CameraScreenBody extends StatelessWidget {
 
   Widget _buildConvertButton(BuildContext context, CameraProvider camera) {
     return GestureDetector(
-      onTap: camera.isConverting
-          ? null
-          : () => _convert(context, camera),
+      onTap: camera.isConverting ? null : () => _convert(context, camera),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 18),
         decoration: BoxDecoration(
@@ -350,7 +356,10 @@ class _CameraScreenBody extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         gradient: LinearGradient(
-          colors: [const Color(0xFF00B894).withAlpha(40), const Color(0xFF00CEC9).withAlpha(30)],
+          colors: [
+            const Color(0xFF00B894).withAlpha(40),
+            const Color(0xFF00CEC9).withAlpha(30),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -421,9 +430,16 @@ class _CameraScreenBody extends StatelessWidget {
   }
 
   Future<void> _pickImage(
-      BuildContext context, CameraProvider camera, ImageSource source) async {
+    BuildContext context,
+    CameraProvider camera,
+    ImageSource source,
+  ) async {
     final picker = ImagePicker();
-    final picked = await picker.pickImage(source: source, maxWidth: 1024, maxHeight: 1024);
+    final picked = await picker.pickImage(
+      source: source,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    );
     if (picked == null) return;
     final bytes = await picked.readAsBytes();
     if (context.mounted) {

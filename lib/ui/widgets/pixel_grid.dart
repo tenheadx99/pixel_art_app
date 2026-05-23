@@ -73,7 +73,10 @@ class _PixelGridState extends State<PixelGrid> {
             borderRadius: BorderRadius.circular(8),
             child: CustomPaint(
               key: _gridKey,
-              size: Size(art.gridWidth * widget.cellSize, art.gridHeight * widget.cellSize),
+              size: Size(
+                art.gridWidth * widget.cellSize,
+                art.gridHeight * widget.cellSize,
+              ),
               painter: _PixelGridPainter(
                 art: art,
                 filledGrid: widget.provider.filledGrid,
@@ -98,11 +101,15 @@ class _PixelGridState extends State<PixelGrid> {
 
   (int, int)? _gridPos(Offset globalPos, dynamic art) {
     final renderBox = _gridKey.currentContext?.findRenderObject() as RenderBox?;
-    if (renderBox == null || renderBox.size.width <= 0 || renderBox.size.height <= 0) return null;
+    if (renderBox == null ||
+        renderBox.size.width <= 0 ||
+        renderBox.size.height <= 0)
+      return null;
     final localPos = renderBox.globalToLocal(globalPos);
     final col = (localPos.dx / renderBox.size.width * art.gridWidth).floor();
     final row = (localPos.dy / renderBox.size.height * art.gridHeight).floor();
-    if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth) return (row, col);
+    if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth)
+      return (row, col);
     return null;
   }
 }
@@ -147,7 +154,13 @@ class _PixelGridPainter extends CustomPainter {
     [12, 0],
   ];
 
-  void _drawPattern(Canvas canvas, Rect rect, int number, double cw, double ch) {
+  void _drawPattern(
+    Canvas canvas,
+    Rect rect,
+    int number,
+    double cw,
+    double ch,
+  ) {
     final idx = (number - 1) % _patterns.length;
     final pattern = _patterns[idx];
     final patPaint = Paint()..color = Colors.black.withAlpha(30);
@@ -181,8 +194,7 @@ class _PixelGridPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 
-    final highlightPaint = Paint()
-      ..color = const Color(0x336C63FF);
+    final highlightPaint = Paint()..color = const Color(0x336C63FF);
 
     final selectedBorderPaint = Paint()
       ..color = isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF)
@@ -196,7 +208,8 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final isFilled = filledGrid[row][col] > 0;
         final isSelected = expectedNumber == selectedNumber;
-        final isHighlighted = highlightedNumber != null && expectedNumber == highlightedNumber;
+        final isHighlighted =
+            highlightedNumber != null && expectedNumber == highlightedNumber;
 
         final rect = Rect.fromLTWH(
           col * cw + cellGap,
@@ -208,7 +221,8 @@ class _PixelGridPainter extends CustomPainter {
         if (isFilled) {
           final fillColor = filledColors[expectedNumber] ?? Colors.grey;
           canvas.drawRect(rect, Paint()..color = fillColor);
-          if (colorblindMode) _drawPattern(canvas, rect, expectedNumber, cw, ch);
+          if (colorblindMode)
+            _drawPattern(canvas, rect, expectedNumber, cw, ch);
 
           final hl = Paint()..color = Colors.white.withAlpha(30);
           canvas.drawRect(
@@ -219,7 +233,8 @@ class _PixelGridPainter extends CustomPainter {
           canvas.drawRect(rect, Paint()..color = const Color(0xFFE8E8E8));
         } else {
           canvas.drawRect(rect, Paint()..color = Colors.white);
-          if (colorblindMode) _drawPattern(canvas, rect, expectedNumber, cw, ch);
+          if (colorblindMode)
+            _drawPattern(canvas, rect, expectedNumber, cw, ch);
         }
 
         if (isHighlighted && !isFilled && expectedNumber > 0) {
@@ -231,7 +246,11 @@ class _PixelGridPainter extends CustomPainter {
         if (isSelected && !isFilled && expectedNumber > 0) {
           canvas.drawRect(rect.deflate(1), selectedBorderPaint);
           final glow = Paint()
-            ..color = (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF)).withAlpha(30)
+            ..color =
+                (isEraseMode
+                        ? const Color(0xFFFF6B6B)
+                        : const Color(0xFF6C63FF))
+                    .withAlpha(30)
             ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
           canvas.drawRect(rect.deflate(1), glow);
         }
@@ -242,23 +261,44 @@ class _PixelGridPainter extends CustomPainter {
           final tp = TextPainter(
             text: TextSpan(
               text: '$expectedNumber',
-              style: TextStyle(color: const Color(0xFF999999), fontSize: fontSize, fontWeight: FontWeight.w600),
+              style: TextStyle(
+                color: const Color(0xFF999999),
+                fontSize: fontSize,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             textDirection: TextDirection.ltr,
           )..layout();
-          tp.paint(canvas, Offset(col * cw + (cw - tp.width) / 2, row * ch + (ch - tp.height) / 2));
+          tp.paint(
+            canvas,
+            Offset(
+              col * cw + (cw - tp.width) / 2,
+              row * ch + (ch - tp.height) / 2,
+            ),
+          );
         }
       }
     }
 
     if (nextFillable != null && !isEraseMode) {
       final (nr, nc) = nextFillable!;
-      final nRect = Rect.fromLTWH(nc * cw + cellGap, nr * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+      final nRect = Rect.fromLTWH(
+        nc * cw + cellGap,
+        nr * ch + cellGap,
+        cw - cellGap * 2,
+        ch - cellGap * 2,
+      );
       final pulse = Paint()
         ..color = const Color(0xFF6C63FF).withAlpha(80)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawRRect(RRect.fromRectAndRadius(nRect, const Radius.circular(3)), pulse);
-      canvas.drawRect(nRect.deflate(2), Paint()..color = Colors.white.withAlpha(60));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(nRect, const Radius.circular(3)),
+        pulse,
+      );
+      canvas.drawRect(
+        nRect.deflate(2),
+        Paint()..color = Colors.white.withAlpha(60),
+      );
     }
 
     if (hoverRow != null && hoverCol != null) {
@@ -268,9 +308,18 @@ class _PixelGridPainter extends CustomPainter {
           final hr = hoverRow! + dr;
           final hc = hoverCol! + dc;
           if (hr < 0 || hr >= gridHeight || hc < 0 || hc >= gridWidth) continue;
-          final hRect = Rect.fromLTWH(hc * cw + cellGap, hr * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+          final hRect = Rect.fromLTWH(
+            hc * cw + cellGap,
+            hr * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
           final cursorPaint = Paint()
-            ..color = (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF)).withAlpha(50);
+            ..color =
+                (isEraseMode
+                        ? const Color(0xFFFF6B6B)
+                        : const Color(0xFF6C63FF))
+                    .withAlpha(50);
           canvas.drawRect(hRect, cursorPaint);
         }
       }

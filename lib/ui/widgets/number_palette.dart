@@ -5,10 +5,7 @@ import '../theme/app_style.dart';
 class NumberPalette extends StatelessWidget {
   final ColoringProvider provider;
 
-  const NumberPalette({
-    super.key,
-    required this.provider,
-  });
+  const NumberPalette({super.key, required this.provider});
 
   @override
   Widget build(BuildContext context) {
@@ -18,120 +15,160 @@ class NumberPalette extends StatelessWidget {
     final numbers = art.sortedNumbers;
     if (numbers.isEmpty) return const SizedBox.shrink();
 
-    return Container(
-      width: double.infinity,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: Row(
-              children: [
-                Text('Select a number',
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.onSurface.withAlpha(130))),
-                const Spacer(),
-                GestureDetector(
-                  onTap: provider.toggleNumbers,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppStyle.primary.withAlpha(15),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(provider.showNumbers ? Icons.visibility : Icons.visibility_off,
-                            size: 12, color: AppStyle.primary),
-                        const SizedBox(width: 4),
-                        Text(provider.showNumbers ? 'Show' : 'Hide',
-                            style: const TextStyle(fontSize: 10, color: AppStyle.primary, fontWeight: FontWeight.w500)),
-                      ],
-                    ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          child: Row(
+            children: [
+              Text(
+                'Select a Color',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const Spacer(),
+              GestureDetector(
+                onTap: provider.toggleNumbers,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: AppStyle.primary.withAlpha(20),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        provider.showNumbers
+                            ? Icons.visibility
+                            : Icons.visibility_off,
+                        size: 14,
+                        color: AppStyle.primary,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        provider.showNumbers ? 'Show Nums' : 'Hide Nums',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppStyle.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          SingleChildScrollView(
-            child: Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: numbers.map((number) {
-                final color = art.colorForNumber(number) ?? AppStyle.numberToColor(number);
-                final isSelected = provider.selectedNumber == number;
-                final fillPercent = _getFillPercent(number);
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 76,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: numbers.length,
+            itemBuilder: (context, index) {
+              final number = numbers[index];
+              final color =
+                  art.colorForNumber(number) ?? AppStyle.numberToColor(number);
+              final isSelected = provider.selectedNumber == number;
+              final fillPercent = _getFillPercent(number);
+              final isCompleted = fillPercent >= 1.0;
 
-                return GestureDetector(
-                  onTap: () => provider.selectNumber(number),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    curve: Curves.easeOutBack,
-                    width: 44,
-                    height: 44,
-                    decoration: BoxDecoration(
-                      color: color,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: isSelected ? Colors.white : Colors.black.withAlpha(25),
-                        width: isSelected ? 3 : 1,
-                      ),
-                      boxShadow: isSelected
-                          ? [BoxShadow(color: color.withAlpha(120), blurRadius: 10, spreadRadius: 1, offset: const Offset(0, 3))]
-                          : [BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 4, offset: const Offset(0, 2))],
+              return GestureDetector(
+                onTap: () => provider.selectNumber(number),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutBack,
+                  margin: EdgeInsets.only(
+                    left: index == 0 ? 8 : 6,
+                    right: index == numbers.length - 1 ? 8 : 6,
+                    bottom: isSelected ? 8 : 4,
+                    top: isSelected ? 2 : 6,
+                  ),
+                  width: isSelected ? 56 : 50,
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isSelected
+                          ? (Theme.of(context).brightness == Brightness.dark
+                                ? Colors.white
+                                : AppStyle.primary)
+                          : Colors.white.withAlpha(200),
+                      width: isSelected ? 4 : 2,
                     ),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text('$number', style: TextStyle(color: _textColorForBg(color), fontSize: 16, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 2),
-                        if (fillPercent > 0)
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: isSelected
+                            ? color.withAlpha(160)
+                            : Colors.black.withAlpha(20),
+                        blurRadius: isSelected ? 12 : 6,
+                        spreadRadius: isSelected ? 1 : 0,
+                        offset: Offset(0, isSelected ? 4 : 2),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (isCompleted)
+                        Icon(
+                          Icons.check_rounded,
+                          color: _textColorForBg(color),
+                          size: isSelected ? 28 : 24,
+                        )
+                      else ...[
+                        Text(
+                          '$number',
+                          style: TextStyle(
+                            color: _textColorForBg(color),
+                            fontSize: isSelected ? 18 : 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (fillPercent > 0.0)
+                          Positioned(
+                            bottom: 4,
                             child: Container(
-                              width: 20, height: 3,
-                              color: Colors.black.withAlpha(40),
-                              alignment: Alignment.centerLeft,
-                              child: FractionallySizedBox(
-                                widthFactor: fillPercent.clamp(0.0, 1.0),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: _textColorForBg(color).withAlpha(150),
-                                    borderRadius: BorderRadius.circular(2),
-                                  ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 4,
+                                vertical: 1.5,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withAlpha(80),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                '${(fillPercent * 100).toInt()}%',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
                                 ),
                               ),
                             ),
-                          )
-                        else
-                          Text('${_getCellCount(number)}',
-                              style: TextStyle(fontSize: 9, color: _textColorForBg(color).withAlpha(100))),
+                          ),
                       ],
-                    ),
+                    ],
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+              );
+            },
           ),
-        ],
-      ),
+        ),
+      ],
     );
-  }
-
-  int _getCellCount(int number) {
-    final art = provider.currentArt;
-    if (art == null) return 0;
-    int count = 0;
-    for (var row = 0; row < art.gridHeight; row++) {
-      for (var col = 0; col < art.gridWidth; col++) {
-        if (art.grid[row][col] == number) count++;
-      }
-    }
-    return count;
   }
 
   double _getFillPercent(int number) {

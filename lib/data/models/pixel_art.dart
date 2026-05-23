@@ -75,10 +75,14 @@ class PixelArt {
   factory PixelArt.fromJson(Map<String, dynamic> json) {
     final gridStr = json['grid'] as String;
     final rows = gridStr.split(';');
-    final grid = rows.map((row) => row.split(',').map(int.parse).toList()).toList();
+    final grid = rows
+        .map((row) => row.split(',').map(int.parse).toList())
+        .toList();
 
     final colorMapRaw = json['colorMap'] as Map<String, dynamic>;
-    final colorMap = colorMapRaw.map((k, v) => MapEntry(int.parse(k), Color(int.parse(v.toString()))));
+    final colorMap = colorMapRaw.map(
+      (k, v) => MapEntry(int.parse(k), Color(int.parse(v.toString()))),
+    );
 
     return PixelArt(
       id: json['id'] as String,

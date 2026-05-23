@@ -21,8 +21,12 @@ class ImageProcessingService {
   }
 
   img.Image downscaleToGrid(img.Image source, int gridWidth, int gridHeight) {
-    return img.copyResize(source,
-        width: gridWidth, height: gridHeight, interpolation: img.Interpolation.average);
+    return img.copyResize(
+      source,
+      width: gridWidth,
+      height: gridHeight,
+      interpolation: img.Interpolation.average,
+    );
   }
 
   Map<int, int> quantizeColors(img.Image image, int maxColors) {
@@ -35,7 +39,8 @@ class ImageProcessingService {
         final b = pixel.b.toInt();
         final a = pixel.a.toInt();
         if (a < 128) continue;
-        final quantized = _quantizeChannel(r) << 16 |
+        final quantized =
+            _quantizeChannel(r) << 16 |
             _quantizeChannel(g) << 8 |
             _quantizeChannel(b);
         colorCounts[quantized] = (colorCounts[quantized] ?? 0) + 1;
@@ -56,7 +61,10 @@ class ImageProcessingService {
   }
 
   List<List<int>> buildGridFromImage(img.Image image, Map<int, int> colorMap) {
-    final grid = List.generate(image.height, (_) => List.filled(image.width, 0));
+    final grid = List.generate(
+      image.height,
+      (_) => List.filled(image.width, 0),
+    );
     for (var y = 0; y < image.height; y++) {
       for (var x = 0; x < image.width; x++) {
         final pixel = image.getPixel(x, y);
@@ -68,7 +76,8 @@ class ImageProcessingService {
           grid[y][x] = 0;
           continue;
         }
-        final quantized = _quantizeChannel(r) << 16 |
+        final quantized =
+            _quantizeChannel(r) << 16 |
             _quantizeChannel(g) << 8 |
             _quantizeChannel(b);
         grid[y][x] = colorMap[quantized] ?? 0;

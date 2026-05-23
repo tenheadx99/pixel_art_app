@@ -87,9 +87,11 @@ class AdService {
         _rewardedAd = null;
       },
     );
-    _rewardedAd?.show(onUserEarnedReward: (ad, reward) {
-      onRewarded();
-    });
+    _rewardedAd?.show(
+      onUserEarnedReward: (ad, reward) {
+        onRewarded();
+      },
+    );
     _rewardedAd = null;
   }
 
