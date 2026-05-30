@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
@@ -17,6 +18,8 @@ class ColoringProvider extends ChangeNotifier {
   bool _showNumbers = true;
   int? _highlightedNumber;
   Timer? _saveTimer;
+  bool _isMagicWandMode = false;
+  int _magicWandsCount = 5;
   bool _isEraseMode = false;
   int _brushSize = 1;
   (int, int)? _nextFillable;
@@ -25,6 +28,15 @@ class ColoringProvider extends ChangeNotifier {
   int _consecutiveFills = 0;
   List<(int, int)> _timeLapse = [];
   Set<String> _achievements = {};
+
+  bool get isMagicWandMode => _isMagicWandMode;
+  int get magicWandsCount => _magicWandsCount;
+
+  void toggleMagicWandMode() {
+    _isMagicWandMode = !_isMagicWandMode;
+    if (_isMagicWandMode) _isEraseMode = false;
+    notifyListeners();
+  }
 
   ColoringProvider(this._storageService);
 
@@ -57,6 +69,7 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setInt('${_saveKey}_fills', _totalFillCount);
     _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
     _storageService.setString(_achieveKey, _achievements.join(','));
+    _storageService.setInt('magic_wands_count', _magicWandsCount);
   }
 
   void _debouncedSave() {
@@ -87,6 +100,8 @@ class ColoringProvider extends ChangeNotifier {
     _totalEraseCount = _storageService.getInt('${_saveKey}_erases');
     final ach = _storageService.getString(_achieveKey);
     if (ach.isNotEmpty) _achievements = ach.split(',').toSet();
+    final wands = _storageService.getInt('magic_wands_count');
+    _magicWandsCount = wands > 0 ? wands : 5;
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
   }
@@ -178,6 +193,10 @@ class ColoringProvider extends ChangeNotifier {
     if (row < 0 || row >= _currentArt!.gridHeight) return false;
     if (col < 0 || col >= _currentArt!.gridWidth) return false;
 
+    if (_isMagicWandMode) {
+      return _tryMagicWandFill(row, col);
+    }
+
     if (_isEraseMode) {
       return tryEraseCell(row, col);
     }
@@ -207,6 +226,8 @@ class ColoringProvider extends ChangeNotifier {
       _undoStack.removeLast();
       return false;
     }
+
+    HapticFeedback.lightImpact(); // Tactile feedback on success!
 
     _totalFillCount += anyFilled ? 1 : 0;
     _consecutiveFills = anyFilled ? _consecutiveFills + 1 : 0;
@@ -326,8 +347,9 @@ class ColoringProvider extends ChangeNotifier {
     int filled = 0;
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] > 0)
+        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] > 0) {
           filled++;
+        }
       }
     }
     _progress = filled / total;
@@ -389,5 +411,64 @@ class ColoringProvider extends ChangeNotifier {
     if (_progress >= AppConfig.completionThreshold) _isComplete = true;
     _updateNextFillable();
     notifyListeners();
+  }
+
+  bool _tryMagicWandFill(int row, int col) {
+    if (_magicWandsCount <= 0) {
+      _isMagicWandMode = false;
+      notifyListeners();
+      return false;
+    }
+    final targetNum = _currentArt!.grid[row][col];
+    if (targetNum == 0 || _filledGrid[row][col] > 0) return false;
+
+    _pushUndoState();
+    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+
+    final queue = <(int, int)>[(row, col)];
+    final visited = <(int, int)>{};
+    bool changed = false;
+
+    while (queue.isNotEmpty) {
+      final curr = queue.removeAt(0);
+      final r = curr.$1;
+      final c = curr.$2;
+
+      if (r < 0 ||
+          r >= _currentArt!.gridHeight ||
+          c < 0 ||
+          c >= _currentArt!.gridWidth)
+        continue;
+      if (visited.contains((r, c))) continue;
+      visited.add((r, c));
+
+      if (_currentArt!.grid[r][c] == targetNum && _filledGrid[r][c] == 0) {
+        _filledGrid[r][c] = targetNum;
+        _timeLapse.add((r, c));
+        changed = true;
+
+        queue.add((r + 1, c));
+        queue.add((r - 1, c));
+        queue.add((r, c + 1));
+        queue.add((r, c - 1));
+      }
+    }
+
+    if (changed) {
+      _magicWandsCount--;
+      _isMagicWandMode = false;
+      _totalFillCount++;
+      HapticFeedback.mediumImpact(); // Stronger tactile feel for magical booster!
+      _calculateProgress();
+      _checkCompletion();
+      _checkAchievements();
+      _updateNextFillable();
+      saveProgress();
+      notifyListeners();
+      return true;
+    } else {
+      _undoStack.removeLast();
+      return false;
+    }
   }
 }

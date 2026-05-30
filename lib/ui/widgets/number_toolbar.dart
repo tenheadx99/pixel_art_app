@@ -59,6 +59,15 @@ class NumberToolbar extends StatelessWidget {
           ),
           _divider(),
           _ToolButton(
+            icon: Icons.auto_fix_high_rounded,
+            label: 'Wand (${provider.magicWandsCount})',
+            color: provider.isMagicWandMode
+                ? const Color(0xFF9C27B0)
+                : const Color(0xFFCE93D8),
+            onTap: provider.toggleMagicWandMode,
+          ),
+          _divider(),
+          _ToolButton(
             icon: provider.showNumbers
                 ? Icons.format_list_numbered_rtl
                 : Icons.format_size,

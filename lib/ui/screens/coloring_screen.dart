@@ -383,7 +383,7 @@ class _ColoringScreenState extends State<ColoringScreen>
           ),
           const SizedBox(height: 8),
           Container(
-            height: 120,
+            height: 132,
             padding: const EdgeInsets.all(8),
             decoration: AppStyle.glassmorphism(context),
             child: NumberPalette(provider: provider),

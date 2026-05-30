@@ -1,7 +1,7 @@
 import 'dart:ui' show VoidCallback;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:pixel_art_app/config/app_config.dart';
-import 'package:pixel_art_app/config/app_constants.dart';
+import 'package:pixel_art_app/data/services/remote_config_service.dart';
 
 class AdService {
   static final AdService _instance = AdService._();
@@ -16,7 +16,7 @@ class AdService {
 
   Future<void> initialize() async {
     if (_initialized) return;
-    if (AppConfig.disableAds) return;
+    if (AppConfig.disableAds || !AppConfig.showAds) return;
     await MobileAds.instance.initialize();
     _initialized = true;
   }
@@ -24,10 +24,10 @@ class AdService {
   BannerAd? get bannerAd => _bannerAd;
 
   void loadBannerAd() {
-    if (AppConfig.disableAds) return;
+    if (AppConfig.disableAds || !AppConfig.showAds) return;
     _bannerAd?.dispose();
     _bannerAd = BannerAd(
-      adUnitId: AppConstants.bannerAdUnitId,
+      adUnitId: RemoteConfigService().bannerAdUnitId,
       size: AdSize.banner,
       request: const AdRequest(),
       listener: BannerAdListener(
@@ -40,10 +40,10 @@ class AdService {
   }
 
   void loadInterstitialAd({VoidCallback? onLoaded}) {
-    if (AppConfig.disableAds) return;
+    if (AppConfig.disableAds || !AppConfig.showAds) return;
     _interstitialAd?.dispose();
     InterstitialAd.load(
-      adUnitId: AppConstants.interstitialAdUnitId,
+      adUnitId: RemoteConfigService().interstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
@@ -61,10 +61,10 @@ class AdService {
   }
 
   void loadRewardedAd({VoidCallback? onLoaded}) {
-    if (AppConfig.disableAds) return;
+    if (AppConfig.disableAds || !AppConfig.showAds) return;
     _rewardedAd?.dispose();
     RewardedAd.load(
-      adUnitId: AppConstants.rewardedAdUnitId,
+      adUnitId: RemoteConfigService().rewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {

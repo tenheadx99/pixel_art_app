@@ -1,8 +1,10 @@
 class AppConfig {
   static bool disableAds = false;
   static bool disableIap = false;
+  static bool showAds = false;
 
-  static const String appName = 'Pixel Art';
+
+  static const String appName = 'PixelyArt';
   static const int maxUndoSteps = 20;
   static const double defaultCellSize = 24.0;
   static const double minCellSize = 12.0;

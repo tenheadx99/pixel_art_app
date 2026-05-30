@@ -1,0 +1,87 @@
+{
+  "project_info": {
+    "project_number": "433057017992",
+    "project_id": "om108-5c015",
+    "storage_bucket": "om108-5c015.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:7dc29c0d62d2431e55af3d",
+        "android_client_info": {
+          "package_name": "com.krishanvachan.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:aab219586e1979cc55af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.mycolorbook.my_coloring_book"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      },
+      "admob_app_id": "ca-app-pub-9064606616675657~7094953933"
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:f9a922b4c41a0a2255af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.pixelyart"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:73e309f29187bf1155af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.resumebuilder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

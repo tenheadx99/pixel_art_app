@@ -1,0 +1,71 @@
+{
+  "parameters": {
+    "baby_color_ad_isenable": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "description": "baby color pop app ad check",
+      "valueType": "BOOLEAN"
+    },
+    "coloring_screen_inter_ad": {
+      "defaultValue": {
+        "value": "ca-app-pub-9064606616675657/2696543924"
+      },
+      "description": "coloring_screen_inter_ad",
+      "valueType": "STRING"
+    },
+    "home_screen_reward_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-9064606616675657/1279003558"
+      },
+      "valueType": "STRING"
+    },
+    "open_app_ad_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-9064606616675657/6560926802"
+      },
+      "valueType": "STRING"
+    },
+    "home_screen_banner_ads": {
+      "defaultValue": {
+        "value": "ca-app-pub-9064606616675657/5019454938"
+      },
+      "description": "home_screen_banner_ads",
+      "valueType": "STRING"
+    },
+    "gallery_screen_banner": {
+      "defaultValue": {
+        "value": "ca-app-pub-9064606616675657/9717634885"
+      },
+      "valueType": "STRING"
+    },
+    "pixelyart_show_ads": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Global switch to show/hide ads in PixelyArt",
+      "valueType": "BOOLEAN"
+    },
+    "pixelyart_banner_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/6300978111"
+      },
+      "description": "Banner ad ID for PixelyArt",
+      "valueType": "STRING"
+    },
+    "pixelyart_interstitial_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/1033173712"
+      },
+      "description": "Interstitial ad ID for PixelyArt",
+      "valueType": "STRING"
+    },
+    "pixelyart_rewarded_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/5224354917"
+      },
+      "description": "Rewarded ad ID for PixelyArt",
+      "valueType": "STRING"
+    }
+  }
+}

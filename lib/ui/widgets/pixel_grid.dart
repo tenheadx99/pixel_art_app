@@ -103,13 +103,15 @@ class _PixelGridState extends State<PixelGrid> {
     final renderBox = _gridKey.currentContext?.findRenderObject() as RenderBox?;
     if (renderBox == null ||
         renderBox.size.width <= 0 ||
-        renderBox.size.height <= 0)
+        renderBox.size.height <= 0) {
       return null;
+    }
     final localPos = renderBox.globalToLocal(globalPos);
     final col = (localPos.dx / renderBox.size.width * art.gridWidth).floor();
     final row = (localPos.dy / renderBox.size.height * art.gridHeight).floor();
-    if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth)
+    if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth) {
       return (row, col);
+    }
     return null;
   }
 }
@@ -221,8 +223,9 @@ class _PixelGridPainter extends CustomPainter {
         if (isFilled) {
           final fillColor = filledColors[expectedNumber] ?? Colors.grey;
           canvas.drawRect(rect, Paint()..color = fillColor);
-          if (colorblindMode)
+          if (colorblindMode) {
             _drawPattern(canvas, rect, expectedNumber, cw, ch);
+          }
 
           final hl = Paint()..color = Colors.white.withAlpha(30);
           canvas.drawRect(
@@ -233,8 +236,9 @@ class _PixelGridPainter extends CustomPainter {
           canvas.drawRect(rect, Paint()..color = const Color(0xFFE8E8E8));
         } else {
           canvas.drawRect(rect, Paint()..color = Colors.white);
-          if (colorblindMode)
+          if (colorblindMode) {
             _drawPattern(canvas, rect, expectedNumber, cw, ch);
+          }
         }
 
         if (isHighlighted && !isFilled && expectedNumber > 0) {

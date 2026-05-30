@@ -2,6 +2,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'data/services/remote_config_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
 import 'data/services/ad_service.dart';
@@ -64,6 +66,14 @@ class _AppBootstrapState extends State<AppBootstrap> {
   Future<void> _bootstrap() async {
     final localStorageService = LocalStorageService();
     await localStorageService.init();
+
+    // Initialize Firebase and Remote Config before setting up dependencies and ads
+    try {
+      await Firebase.initializeApp();
+      await RemoteConfigService().initialize();
+    } catch (e) {
+      // Safe fallback if Firebase is not fully configured yet
+    }
 
     final deps = AppDependencies(
       localStorageService: localStorageService,
@@ -146,7 +156,7 @@ class _AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pixel Art',
+      title: 'PixelyArt',
       debugShowCheckedModeBanner: false,
       theme: AppStyle.lightTheme(),
       darkTheme: AppStyle.darkTheme(),
@@ -163,7 +173,7 @@ class _AppShellWithDeps extends StatelessWidget {
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return MaterialApp(
-          title: 'Pixel Art',
+          title: 'PixelyArt',
           debugShowCheckedModeBanner: false,
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           theme: AppStyle.lightTheme(),
