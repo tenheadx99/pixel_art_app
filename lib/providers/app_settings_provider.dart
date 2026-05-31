@@ -58,14 +58,20 @@ class AppSettingsProvider extends ChangeNotifier {
   }
 
   void listenToIAP(Stream<List<PurchaseDetails>> stream) {
-    stream.listen((purchaseDetailsList) {
+    stream.listen((purchaseDetailsList) async {
       for (final purchase in purchaseDetailsList) {
-        if (purchase.status == PurchaseStatus.purchased) {
+        if (purchase.status == PurchaseStatus.purchased ||
+            purchase.status == PurchaseStatus.restored) {
           if (purchase.productID == AppConstants.proProductId) {
             setProUser(true);
           } else if (purchase.productID == AppConstants.hintProductId) {
-            addHints(5);
+            if (purchase.status == PurchaseStatus.purchased) {
+              addHints(5);
+            }
           }
+        }
+        if (purchase.pendingCompletePurchase) {
+          await InAppPurchase.instance.completePurchase(purchase);
         }
       }
     });

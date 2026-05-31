@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 class AppConstants {
   AppConstants._();
 
-  static const String appStoreId = 'com.europosit.pixelart';
+  static const String appStoreId = 'com.tenhead.pixelyart';
   static const String appStoreUrl =
-      'https://play.google.com/store/apps/details?id=com.europosit.pixelart';
+      'https://play.google.com/store/apps/details?id=com.tenhead.pixelyart';
   static const String privacyPolicyUrl = 'https://easybrain.com/privacy';
   static const String termsUrl = 'https://easybrain.com/terms';
 

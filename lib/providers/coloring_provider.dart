@@ -60,7 +60,6 @@ class ColoringProvider extends ChangeNotifier {
 
   String get _saveKey => 'pixelart_progress_${_currentArt?.id ?? ''}';
   String get _achieveKey => 'pixelart_achievements';
-  String get _statsKey => 'pixelart_stats';
 
   void saveProgress() {
     if (_currentArt == null) return;
@@ -437,8 +436,9 @@ class ColoringProvider extends ChangeNotifier {
       if (r < 0 ||
           r >= _currentArt!.gridHeight ||
           c < 0 ||
-          c >= _currentArt!.gridWidth)
+          c >= _currentArt!.gridWidth) {
         continue;
+      }
       if (visited.contains((r, c))) continue;
       visited.add((r, c));
 

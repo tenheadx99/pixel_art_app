@@ -146,7 +146,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
       ),
     );
 
-    if (confirmed == true && context.mounted) {
+    if (confirmed == true && mounted) {
       final storage = context.read<LocalStorageService>();
       final db = context.read<DatabaseService>();
       final fileName = artwork.filePath.split('/').last;
