@@ -1,0 +1,34 @@
+{
+  "violence": {
+    "questionId": "violence",
+    "answerId": "violence_none"
+  },
+  "sexuality": {
+    "questionId": "sexuality",
+    "answerId": "sexuality_none"
+  },
+  "alcohol_tobacco_drugs": {
+    "questionId": "alcohol_tobacco_drugs",
+    "answerId": "alcohol_tobacco_drugs_none"
+  },
+  "gambling": {
+    "questionId": "gambling",
+    "answerId": "gambling_none"
+  },
+  "user_generated_content": {
+    "questionId": "user_generated_content",
+    "answerId": "user_generated_content_no"
+  },
+  "digital_purchases": {
+    "questionId": "digital_purchases",
+    "answerId": "digital_purchases_no"
+  },
+  "sharing_location": {
+    "questionId": "sharing_location",
+    "answerId": "sharing_location_no"
+  },
+  "sharing_personal_info": {
+    "questionId": "sharing_personal_info",
+    "answerId": "sharing_personal_info_no"
+  }
+}

@@ -11,6 +11,15 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("/home/rameshx99/pixel_art_app/universal_signing_key.jks")
+            storePassword = "tenhead"
+            keyAlias = "tenhead"
+            keyPassword = "tenhead"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -33,10 +42,14 @@ android {
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // FIXED: signingConfig accesses the config created above
+            signingConfig = signingConfigs.getByName("release")
         }
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 

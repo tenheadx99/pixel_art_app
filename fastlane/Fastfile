@@ -1,0 +1,293 @@
+require 'fileutils'
+require 'json'
+require 'pathname'
+
+default_platform(:android)
+
+# Global project root path
+PROJECT_ROOT = File.expand_path("..", __dir__)
+
+platform :android do
+  desc "Build signed release AAB"
+  lane :build_signed do
+    sh("flutter", "pub", "get")
+    sh("flutter", "build", "appbundle", "--release")
+  end
+
+  desc "Build signed APK"
+  lane :build_signed_apk do
+    sh("flutter", "pub", "get")
+    sh("flutter", "build", "apk", "--release")
+  end
+
+  desc "Sync text metadata from Metadata.json"
+  lane :sync_text_metadata do
+    metadata_file = File.join(PROJECT_ROOT, "fastlane", "Metadata.json")
+    unless File.exist?(metadata_file)
+      UI.user_error!("Metadata.json not found at #{metadata_file}")
+    end
+
+    metadata = JSON.parse(File.read(metadata_file))
+    
+    metadata.each do |locale, data|
+      locale_dir = File.join(PROJECT_ROOT, "fastlane", "metadata", "android", locale)
+      FileUtils.mkdir_p(locale_dir)
+
+      # Write individual text files
+      {
+        "title" => "title.txt",
+        "short_description" => "short_description.txt",
+        "full_description" => "full_description.txt",
+        "whats_new" => "whats_new.txt"
+      }.each do |key, filename|
+        if data[key] && !data[key].strip.empty?
+          File.write(File.join(locale_dir, filename), data[key].strip)
+          UI.message("Updated #{filename} for #{locale}")
+        end
+      end
+    end
+    UI.success("Text metadata successfully updated from Metadata.json!")
+  end
+
+  desc "Sync manually placed screenshots into metadata folders"
+  lane :sync_screenshots do
+    locales = ["en-US", "de-DE", "es-ES", "fr-FR", "hi-IN"]
+    locales.each do |locale|
+      src = File.join(PROJECT_ROOT, "screenshots", locale)
+      dst = File.join(PROJECT_ROOT, "fastlane", "metadata", "android", locale, "images", "phoneScreenshots")
+      if Dir.exist?(src)
+        FileUtils.mkdir_p(dst)
+        # Remove existing screenshots to avoid duplicate or stale items
+        FileUtils.rm_f(Dir.glob(File.join(dst, "*")))
+        
+        files = Dir.glob(File.join(src, "*.{png,jpg,jpeg}")).sort
+        files.each_with_index do |f, i|
+          ext = File.extname(f)
+          FileUtils.cp(f, File.join(dst, "#{format('%02d', i + 1)}_screenshot#{ext}"))
+        end
+        UI.message("Synced #{files.length} screenshots for #{locale}")
+      end
+    end
+    UI.success("Screenshots synced to metadata folders")
+  end
+
+  desc "Sync all metadata (text and screenshots)"
+  lane :sync_metadata do
+    sync_text_metadata
+    sync_screenshots
+  end
+
+  desc "Deploy to production: build + upload bundle + update listing & screenshots"
+  lane :deploy do
+    # Validate Google Play credentials
+    play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
+    unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
+      UI.user_error!("Play credentials not found. Set PLAY_JSON_KEY env var or add play-store-key.json to the project root.")
+    end
+
+    # Sync metadata and screenshots first
+    sync_metadata
+
+    # Build the signed release AAB
+    build_signed
+
+    # Dynamic credential handling
+    upload_params = {
+      track: "production",
+      release_status: "completed",
+      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "release", "app-release.aab"),
+      skip_upload_apk: true,
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata", "android")
+    }
+
+    if play_key
+      if play_key.strip.start_with?("{")
+        upload_params[:json_key_data] = play_key
+      else
+        upload_params[:json_key] = play_key
+      end
+    end
+
+    # Upload AAB and metadata to production
+    upload_to_play_store(upload_params)
+  end
+
+  desc "Upload build to production only (skip metadata and screenshots)"
+  lane :upload_only do
+    # Validate Google Play credentials
+    play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
+    unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
+      UI.user_error!("Play credentials not found. Set PLAY_JSON_KEY env var or add play-store-key.json to the project root.")
+    end
+
+    # Build the signed release AAB if it does not exist
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+    if File.exist?(aab_path)
+      UI.message("Signed App Bundle (.aab) already exists at #{aab_path}. Skipping rebuild!")
+    else
+      build_signed
+    end
+
+    # Dynamic credential handling
+    upload_params = {
+      track: "production",
+      release_status: "completed",
+      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "release", "app-release.aab"),
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    }
+
+    if play_key
+      if play_key.strip.start_with?("{")
+        upload_params[:json_key_data] = play_key
+      else
+        upload_params[:json_key] = play_key
+      end
+    end
+
+    # Upload AAB only to production
+    upload_to_play_store(upload_params)
+  end
+
+  desc "Full deploy to production: build + upload + content rating"
+  lane :deploy_all do
+    # Validates and uploads everything
+    deploy
+    submit_content_rating
+  end
+
+  desc "Submit content rating questionnaire"
+  lane :submit_content_rating do
+    play_key = ENV["PLAY_JSON_KEY"]
+    params = {
+      track: "production",
+      content_rating: true,
+      content_rating_answers_file: File.join(PROJECT_ROOT, "fastlane", "content_rating_answers.json")
+    }
+
+    if play_key
+      if play_key.strip.start_with?("{")
+        params[:json_key_data] = play_key
+      else
+        params[:json_key] = play_key
+      end
+    end
+
+    supply(params)
+  end
+
+  desc "Fetch latest metadata from Play Store and update Metadata.json"
+  lane :pull_metadata do
+    # Validate Google Play credentials
+    play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
+    unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
+      UI.user_error!("Play credentials not found. Set PLAY_JSON_KEY env var or add play-store-key.json to the project root.")
+    end
+    play_key_path = ""
+    if play_key.strip.start_with?("{")
+      # Write JSON to a temp file since supply init CLI needs a file path
+      temp_key_file = File.join(PROJECT_ROOT, "fastlane", "temp_play_key.json")
+      File.write(temp_key_file, play_key)
+      play_key_path = temp_key_file
+    else
+      play_key_path = play_key
+    end
+
+    # Clear the existing metadata directory to guarantee a fresh download from Play Store
+    metadata_parent_dir = File.join(PROJECT_ROOT, "fastlane", "metadata")
+    if Dir.exist?(metadata_parent_dir)
+      UI.message("Cleaning existing metadata directory to ensure fresh download...")
+      FileUtils.rm_rf(metadata_parent_dir)
+    end
+
+    # Fetch metadata using fastlane supply init
+    begin
+      UI.message("Downloading latest metadata from Google Play Store...")
+      sh("fastlane supply init --json_key #{play_key_path} --package_name com.tenhead.pixelyart --metadata_path #{metadata_parent_dir}")
+    ensure
+      # Clean up temp key file if created
+      if play_key.strip.start_with?("{") && File.exist?(play_key_path)
+        File.delete(play_key_path)
+      end
+    end
+
+    # Parse and update Metadata.json
+    metadata_dir = File.join(PROJECT_ROOT, "fastlane", "metadata")
+    unless Dir.exist?(metadata_dir)
+      UI.user_error!("Metadata directory not found at #{metadata_dir}")
+    end
+
+    metadata_json = {}
+    metadata_file = File.join(PROJECT_ROOT, "fastlane", "Metadata.json")
+
+    # List all locales and populate text metadata
+    locales = Dir.children(metadata_dir).select { |f| File.directory?(File.join(metadata_dir, f)) }
+    locales.each do |locale|
+      locale_path = File.join(metadata_dir, locale)
+      metadata_json[locale] ||= {}
+      
+      {
+        "title" => "title.txt",
+        "short_description" => "short_description.txt",
+        "full_description" => "full_description.txt",
+        "whats_new" => "whats_new.txt"
+      }.each do |key, filename|
+        file_path = File.join(locale_path, filename)
+        if File.exist?(file_path)
+          metadata_json[locale][key] = File.read(file_path).strip
+        end
+      end
+
+      # Dynamically map screenshots if they exist
+      screenshots_dir = File.join(locale_path, "images", "phoneScreenshots")
+      if Dir.exist?(screenshots_dir)
+        metadata_json[locale]["screenshots"] = Dir.glob(File.join(screenshots_dir, "*")).sort.map do |file|
+          relative_path = Pathname.new(file).relative_path_from(Pathname.new(PROJECT_ROOT)).to_s
+          {
+            "path" => relative_path,
+            "type" => "phoneScreenshots"
+          }
+        end
+      end
+    end
+
+    # Write back to Metadata.json formatted beautifully
+    File.write(metadata_file, JSON.pretty_generate(metadata_json))
+    UI.success("Successfully fetched metadata from Play Store and updated Metadata.json!")
+  end
+
+  desc "Upload only store metadata and screenshots to Play Store (skip AAB build)"
+  lane :upload_metadata do
+    # Validate Google Play credentials
+    play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
+    unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
+      UI.user_error!("Play credentials not found. Set PLAY_JSON_KEY env var or add play-store-key.json to the project root.")
+    end
+    params = {
+      track: "production",
+      skip_upload_apk: true,
+      skip_upload_aab: true,
+      skip_upload_metadata: false,
+      skip_upload_images: false,
+      skip_upload_screenshots: false,
+      skip_upload_changelogs: true,
+      metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata", "android")
+    }
+
+    if play_key
+      if play_key.strip.start_with?("{")
+        params[:json_key_data] = play_key
+      else
+        params[:json_key] = play_key
+      end
+    end
+
+    # Commits metadata only
+    upload_to_play_store(params)
+  end
+end

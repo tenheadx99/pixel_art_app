@@ -1,0 +1,6 @@
+# Package name (applicationId from build.gradle)
+package_name("com.tenhead.pixelyart")
+
+# Path to the service account JSON key (set via env var PLAY_JSON_KEY in CI)
+# For local usage, uncomment and set the path to your downloaded key:
+json_key_file(File.expand_path("../play-store-key.json", __dir__))
