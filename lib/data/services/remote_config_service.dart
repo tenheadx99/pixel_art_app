@@ -23,6 +23,8 @@ class RemoteConfigService {
         'pixelyart_banner_ad_unit_id': 'ca-app-pub-3940256099942544/6300978111',
         'pixelyart_interstitial_ad_unit_id': 'ca-app-pub-3940256099942544/1033173712',
         'pixelyart_rewarded_ad_unit_id': 'ca-app-pub-3940256099942544/5224354917',
+        'pixelyart_min_version': '1.0.0',
+        'pixelyart_force_update_url': '',
       });
 
       // Fetch and activate config parameters
@@ -42,6 +44,13 @@ class RemoteConfigService {
   // Getters for dynamic configurations
   bool get showAds => _remoteConfig.getBool('pixelyart_show_ads');
   
+  String get minRequiredVersion {
+    final version = _remoteConfig.getString('pixelyart_min_version');
+    return version.isNotEmpty ? version : '1.0.0';
+  }
+
+  String get forceUpdateUrl => _remoteConfig.getString('pixelyart_force_update_url');
+
   String get bannerAdUnitId {
     final id = _remoteConfig.getString('pixelyart_banner_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/6300978111';

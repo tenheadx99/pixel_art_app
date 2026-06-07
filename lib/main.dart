@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'data/services/remote_config_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
@@ -16,7 +17,32 @@ import 'providers/coloring_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/screens/home_screen.dart';
+import 'ui/screens/force_update_screen.dart';
 import 'ui/theme/app_style.dart';
+
+bool isVersionOlder(String current, String required) {
+  final currentClean = current.split('+')[0];
+  final requiredClean = required.split('+')[0];
+
+  final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+  final requiredParts = requiredClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+  while (currentParts.length < 3) {
+    currentParts.add(0);
+  }
+  while (requiredParts.length < 3) {
+    requiredParts.add(0);
+  }
+
+  for (int i = 0; i < 3; i++) {
+    if (currentParts[i] < requiredParts[i]) {
+      return true;
+    } else if (currentParts[i] > requiredParts[i]) {
+      return false;
+    }
+  }
+  return false;
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +82,8 @@ class _AppBootstrapState extends State<AppBootstrap> {
   AppDependencies? _dependencies;
   List<PixelArt> _preMadeArts = [];
   bool _ready = false;
+  bool _forceUpdateRequired = false;
+  String _updateUrl = '';
 
   @override
   void initState() {
@@ -70,9 +98,20 @@ class _AppBootstrapState extends State<AppBootstrap> {
     // Initialize Firebase and Remote Config before setting up dependencies and ads
     try {
       await Firebase.initializeApp();
-      await RemoteConfigService().initialize();
+      final remoteConfig = RemoteConfigService();
+      await remoteConfig.initialize();
+
+      // Check for force update
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final minVersion = remoteConfig.minRequiredVersion;
+
+      if (isVersionOlder(currentVersion, minVersion)) {
+        _forceUpdateRequired = true;
+        _updateUrl = remoteConfig.forceUpdateUrl;
+      }
     } catch (e) {
-      // Safe fallback if Firebase is not fully configured yet
+      // Safe fallback if Firebase or PackageInfo is not fully configured yet
     }
 
     final deps = AppDependencies(
@@ -107,6 +146,12 @@ class _AppBootstrapState extends State<AppBootstrap> {
     if (!_ready || _dependencies == null) {
       return const _AppShell(
         child: SplashScreen(loadingMessage: 'Preparing Pixel Art...'),
+      );
+    }
+
+    if (_forceUpdateRequired) {
+      return _AppShell(
+        child: ForceUpdateScreen(updateUrl: _updateUrl),
       );
     }
 
