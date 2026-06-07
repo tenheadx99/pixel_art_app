@@ -156,7 +156,7 @@ class _AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PixelyArt',
+      title: 'PixelPause',
       debugShowCheckedModeBanner: false,
       theme: AppStyle.lightTheme(),
       darkTheme: AppStyle.darkTheme(),
@@ -173,7 +173,7 @@ class _AppShellWithDeps extends StatelessWidget {
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return MaterialApp(
-          title: 'PixelyArt',
+          title: 'PixelPause',
           debugShowCheckedModeBanner: false,
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           theme: AppStyle.lightTheme(),
