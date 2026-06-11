@@ -8,9 +8,6 @@ class IAPService {
   IAPService._();
 
   final InAppPurchase _purchase = InAppPurchase.instance;
-  bool _isProUser = false;
-
-  bool get isProUser => AppConfig.disableIap || _isProUser;
 
   Stream<List<PurchaseDetails>> get purchaseStream => _purchase.purchaseStream;
 
@@ -18,6 +15,15 @@ class IAPService {
     if (AppConfig.disableIap) return true;
     final available = await _purchase.isAvailable();
     return available;
+  }
+
+  /// Re-delivers past non-consumable purchases (e.g. Pro) through
+  /// [purchaseStream] as [PurchaseStatus.restored] events. Call after a
+  /// listener is attached, or the events are lost.
+  Future<void> restorePurchases() async {
+    if (AppConfig.disableIap) return;
+    if (!await _purchase.isAvailable()) return;
+    await _purchase.restorePurchases();
   }
 
   Future<void> buyPro() async {
@@ -40,21 +46,6 @@ class IAPService {
       productDetails: productDetails.productDetails.first,
     );
     await _purchase.buyConsumable(purchaseParam: purchaseParam);
-  }
-
-  void handlePurchase(PurchaseDetails purchase) {
-    if (purchase.status == PurchaseStatus.purchased) {
-      if (purchase.productID == AppConstants.proProductId) {
-        _isProUser = true;
-      }
-      if (purchase.pendingCompletePurchase) {
-        _purchase.completePurchase(purchase);
-      }
-    }
-  }
-
-  void setProUser(bool value) {
-    _isProUser = value;
   }
 
   void dispose() {}

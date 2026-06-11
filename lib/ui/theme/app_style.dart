@@ -1,30 +1,30 @@
 import 'package:flutter/material.dart';
 
 class AppStyle {
-  static const Color primary = Color(0xFF6C5CE7);
-  static const Color secondary = Color(0xFFFD79A8);
-  static const Color accent = Color(0xFF00CEC9);
+  static const Color primary = Color(0xFF8A2BE2); // Indigo/Purple
+  static const Color secondary = Color(0xFFFF007F); // Neon Pink
+  static const Color accent = Color(0xFF00F0FF); // Cyber Cyan
   static const Color gold = Color(0xFFFFD700);
-  static const Color coral = Color(0xFFFF6B6B);
-  static const Color lavender = Color(0xFFA29BFE);
-  static const Color mint = Color(0xFF55EFC4);
-  static const Color peach = Color(0xFFFFEAA7);
-  static const Color sky = Color(0xFF74B9FF);
+  static const Color coral = Color(0xFFFF4757);
+  static const Color lavender = Color(0xFFBD93F9);
+  static const Color mint = Color(0xFF2ED573);
+  static const Color peach = Color(0xFFFFBE2E);
+  static const Color sky = Color(0xFF70A1FF);
 
   static const List<Color> gradientStart = [
-    Color(0xFF6C5CE7),
-    Color(0xFFFD79A8),
+    Color(0xFF8A2BE2),
+    Color(0xFFFF007F),
   ];
-  static const List<Color> gradientEnd = [Color(0xFF00CEC9), Color(0xFF6C5CE7)];
+  static const List<Color> gradientEnd = [Color(0xFF00F0FF), Color(0xFF8A2BE2)];
   static const List<Color> headerGradient = [
-    Color(0xFF6C5CE7),
-    Color(0xFFA29BFE),
-    Color(0xFFFD79A8),
+    Color(0xFF0A0A16),
+    Color(0xFF241442),
+    Color(0xFF5B0E68),
   ];
   static const List<Color> sunsetGradient = [
-    Color(0xFFFF6B6B),
-    Color(0xFFFFD93D),
-    Color(0xFF6BCB77),
+    Color(0xFFFF007F),
+    Color(0xFFFF5E36),
+    Color(0xFFFFD700),
   ];
 
   static const List<Color> paletteColors = [
@@ -52,16 +52,16 @@ class AppStyle {
       useMaterial3: true,
       brightness: Brightness.light,
       colorSchemeSeed: primary,
-      scaffoldBackgroundColor: const Color(0xFFF8F9FF),
+      scaffoldBackgroundColor: const Color(0xFFF3F4F6), // Premium Platinum
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        foregroundColor: Colors.black87,
       ),
       cardTheme: CardThemeData(
-        elevation: 4,
-        shadowColor: primary.withAlpha(60),
+        elevation: 2,
+        shadowColor: primary.withAlpha(30),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -70,8 +70,8 @@ class AppStyle {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          elevation: 4,
-          shadowColor: primary.withAlpha(80),
+          elevation: 2,
+          shadowColor: primary.withAlpha(40),
         ),
       ),
       chipTheme: ChipThemeData(
@@ -86,7 +86,7 @@ class AppStyle {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorSchemeSeed: primary,
-      scaffoldBackgroundColor: const Color(0xFF1A1A2E),
+      scaffoldBackgroundColor: const Color(0xFF0A0A16), // Midnight Carbon
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -95,6 +95,7 @@ class AppStyle {
       ),
       cardTheme: CardThemeData(
         elevation: 4,
+        color: const Color(0xFF16162A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -103,6 +104,8 @@ class AppStyle {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
+          backgroundColor: primary,
+          foregroundColor: Colors.white,
         ),
       ),
     );
@@ -151,14 +154,14 @@ class AppStyle {
 
 class AppColors {
   static const List<Color> categoryColors = [
-    Color(0xFF6C5CE7),
-    Color(0xFFFD79A8),
-    Color(0xFF00CEC9),
-    Color(0xFFFF6B6B),
-    Color(0xFFA29BFE),
-    Color(0xFF55EFC4),
-    Color(0xFFFFD93D),
-    Color(0xFF74B9FF),
+    Color(0xFF8A2BE2), // Indigo
+    Color(0xFFFF007F), // Neon Pink
+    Color(0xFF00F0FF), // Cyber Cyan
+    Color(0xFFFF5E36), // Sunset Orange
+    Color(0xFFBD93F9), // Lavender
+    Color(0xFF50FA7B), // Pastel Emerald
+    Color(0xFFFFB86C), // Pastel Amber
+    Color(0xFF8BE9FD), // Electric Blue
   ];
 
   static List<Color> gradientForIndex(int index) {

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
@@ -5,6 +7,7 @@ import 'package:pixel_art_app/config/app_constants.dart';
 
 class AppSettingsProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
+  StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
   bool _isProUser = false;
   bool _isDarkMode = false;
   bool _colorblindMode = false;
@@ -19,9 +22,9 @@ class AppSettingsProvider extends ChangeNotifier {
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
-    _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey);
+    _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey, defaultValue: true);
     _colorblindMode = _storageService.getBool('colorblind_mode');
-    _hintsAvailable = _storageService.getInt('hints_available');
+    _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
     notifyListeners();
   }
 
@@ -45,20 +48,32 @@ class AppSettingsProvider extends ChangeNotifier {
 
   void addHints(int count) {
     _hintsAvailable += count;
-    _storageService.setInt('hints_available', _hintsAvailable);
+    _storageService.setInt(AppConstants.hintsPrefKey, _hintsAvailable);
+    notifyListeners();
+  }
+
+  /// Credits purchased wands directly into storage. ColoringProvider owns the
+  /// in-memory count; an open coloring screen re-syncs via this notification.
+  void addWands(int count) {
+    final current = _storageService.getInt(
+      AppConstants.magicWandsPrefKey,
+      defaultValue: 5,
+    );
+    _storageService.setInt(AppConstants.magicWandsPrefKey, current + count);
     notifyListeners();
   }
 
   bool useHint() {
     if (_hintsAvailable <= 0) return false;
     _hintsAvailable--;
-    _storageService.setInt('hints_available', _hintsAvailable);
+    _storageService.setInt(AppConstants.hintsPrefKey, _hintsAvailable);
     notifyListeners();
     return true;
   }
 
   void listenToIAP(Stream<List<PurchaseDetails>> stream) {
-    stream.listen((purchaseDetailsList) async {
+    _purchaseSub?.cancel();
+    _purchaseSub = stream.listen((purchaseDetailsList) async {
       for (final purchase in purchaseDetailsList) {
         if (purchase.status == PurchaseStatus.purchased ||
             purchase.status == PurchaseStatus.restored) {
@@ -66,14 +81,30 @@ class AppSettingsProvider extends ChangeNotifier {
             setProUser(true);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addHints(5);
+              addHints(AppConstants.hintsPerPurchase);
+            }
+          } else if (purchase.productID == AppConstants.wandPackProductId) {
+            if (purchase.status == PurchaseStatus.purchased) {
+              addWands(AppConstants.wandsPerPurchase);
             }
           }
+        } else if (purchase.status == PurchaseStatus.error) {
+          developer.log(
+            'Purchase failed for ${purchase.productID}',
+            name: 'IAP',
+            error: purchase.error,
+          );
         }
         if (purchase.pendingCompletePurchase) {
           await InAppPurchase.instance.completePurchase(purchase);
         }
       }
     });
+  }
+
+  @override
+  void dispose() {
+    _purchaseSub?.cancel();
+    super.dispose();
   }
 }

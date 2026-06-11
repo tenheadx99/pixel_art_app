@@ -8,6 +8,8 @@ class NumberToolbar extends StatelessWidget {
   final AppSettingsProvider settings;
   final VoidCallback onSave;
   final VoidCallback onReset;
+  final VoidCallback? onHint;
+  final VoidCallback? onWandEmpty;
 
   const NumberToolbar({
     super.key,
@@ -15,6 +17,8 @@ class NumberToolbar extends StatelessWidget {
     required this.settings,
     required this.onSave,
     required this.onReset,
+    this.onHint,
+    this.onWandEmpty,
   });
 
   @override
@@ -64,7 +68,16 @@ class NumberToolbar extends StatelessWidget {
             color: provider.isMagicWandMode
                 ? const Color(0xFF9C27B0)
                 : const Color(0xFFCE93D8),
-            onTap: provider.toggleMagicWandMode,
+            onTap: provider.magicWandsCount > 0
+                ? provider.toggleMagicWandMode
+                : (onWandEmpty ?? provider.toggleMagicWandMode),
+          ),
+          _divider(),
+          _ToolButton(
+            icon: Icons.lightbulb_rounded,
+            label: 'Hint (${settings.hintsAvailable})',
+            color: const Color(0xFFFFB300),
+            onTap: onHint,
           ),
           _divider(),
           _ToolButton(

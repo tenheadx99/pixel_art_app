@@ -8,8 +8,15 @@ class PixelGrid extends StatefulWidget {
   final int brushSize;
   final bool isEraseMode;
   final bool colorblindMode;
+
+  /// 1.0 shows the working grid (lines, gaps, gloss); 0.0 renders the art as
+  /// a clean picture. Animated on completion.
+  final double gridLineOpacity;
   final void Function(int row, int col) onCellTap;
   final void Function(int row, int col)? onCellLongPress;
+  final VoidCallback? onCellDragStart;
+  final void Function(int row, int col)? onCellDrag;
+  final VoidCallback? onCellDragEnd;
 
   const PixelGrid({
     super.key,
@@ -18,8 +25,12 @@ class PixelGrid extends StatefulWidget {
     required this.brushSize,
     required this.isEraseMode,
     required this.colorblindMode,
+    this.gridLineOpacity = 1.0,
     required this.onCellTap,
     this.onCellLongPress,
+    this.onCellDragStart,
+    this.onCellDrag,
+    this.onCellDragEnd,
   });
 
   @override
@@ -46,6 +57,25 @@ class _PixelGridState extends State<PixelGrid> {
         final pos = _gridPos(details.globalPosition, art);
         if (pos != null) widget.onCellLongPress!(pos.$1, pos.$2);
       },
+      onPanStart: widget.onCellDrag == null
+          ? null
+          : (details) {
+              widget.onCellDragStart?.call();
+              final pos = _gridPos(details.globalPosition, art);
+              if (pos != null) widget.onCellDrag!(pos.$1, pos.$2);
+            },
+      onPanUpdate: widget.onCellDrag == null
+          ? null
+          : (details) {
+              final pos = _gridPos(details.globalPosition, art);
+              if (pos != null) widget.onCellDrag!(pos.$1, pos.$2);
+            },
+      onPanEnd: widget.onCellDrag == null
+          ? null
+          : (_) => widget.onCellDragEnd?.call(),
+      onPanCancel: widget.onCellDrag == null
+          ? null
+          : () => widget.onCellDragEnd?.call(),
       child: MouseRegion(
         onHover: (event) {
           final pos = _gridPos(event.position, art);
@@ -89,6 +119,7 @@ class _PixelGridState extends State<PixelGrid> {
                 isEraseMode: widget.isEraseMode,
                 brushSize: widget.brushSize,
                 colorblindMode: widget.colorblindMode,
+                gridLineOpacity: widget.gridLineOpacity,
                 hoverRow: _hoverRow,
                 hoverCol: _hoverCol,
               ),
@@ -128,6 +159,7 @@ class _PixelGridPainter extends CustomPainter {
   final bool isEraseMode;
   final int brushSize;
   final bool colorblindMode;
+  final double gridLineOpacity;
   final int? hoverRow;
   final int? hoverCol;
 
@@ -143,6 +175,7 @@ class _PixelGridPainter extends CustomPainter {
     required this.isEraseMode,
     required this.brushSize,
     required this.colorblindMode,
+    this.gridLineOpacity = 1.0,
     this.hoverRow,
     this.hoverCol,
   });
@@ -192,7 +225,7 @@ class _PixelGridPainter extends CustomPainter {
     );
 
     final borderPaint = Paint()
-      ..color = const Color(0x22000000)
+      ..color = Color.fromARGB((0x22 * gridLineOpacity).round(), 0, 0, 0)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.5;
 
@@ -203,7 +236,7 @@ class _PixelGridPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
 
-    final cellGap = 0.5;
+    final cellGap = 0.5 * gridLineOpacity;
 
     for (var row = 0; row < gridHeight; row++) {
       for (var col = 0; col < gridWidth; col++) {
@@ -227,7 +260,8 @@ class _PixelGridPainter extends CustomPainter {
             _drawPattern(canvas, rect, expectedNumber, cw, ch);
           }
 
-          final hl = Paint()..color = Colors.white.withAlpha(30);
+          final hl = Paint()
+            ..color = Colors.white.withAlpha((30 * gridLineOpacity).round());
           canvas.drawRect(
             Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.3),
             hl,

@@ -6,8 +6,10 @@ class AppConstants {
   static const String appStoreId = 'com.tenhead.pixelyart';
   static const String appStoreUrl =
       'https://play.google.com/store/apps/details?id=com.tenhead.pixelyart';
-  static const String privacyPolicyUrl = 'https://easybrain.com/privacy';
-  static const String termsUrl = 'https://easybrain.com/terms';
+  static const String privacyPolicyUrl =
+      'https://pixelcolorapps.web.app/privacy-policy.html';
+  static const String termsUrl =
+      'https://pixelcolorapps.web.app/terms-of-service.html';
 
   static const List<int> supportedGridSizes = [16, 24, 32, 48];
 
@@ -49,4 +51,13 @@ class AppConstants {
 
   static const String proProductId = 'pixel_art_pro';
   static const String hintProductId = 'pixel_art_hints_5';
+  static const String wandPackProductId = 'pixel_art_wands_10';
+
+  static const int hintsPerPurchase = 5;
+  static const int wandsPerPurchase = 10;
+  static const int hintsPerRewardedAd = 3;
+  static const int wandsPerRewardedAd = 2;
+
+  static const String magicWandsPrefKey = 'magic_wands_count';
+  static const String hintsPrefKey = 'hints_available';
 }

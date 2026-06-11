@@ -170,6 +170,9 @@ class _AppBootstrapState extends State<AppBootstrap> {
             );
             provider.loadSettings();
             provider.listenToIAP(_dependencies!.iapService.purchaseStream);
+            // Re-deliver past purchases (e.g. Pro after a reinstall); must
+            // run after listenToIAP so the restored events are observed.
+            _dependencies!.iapService.restorePurchases();
             return provider;
           },
         ),

@@ -39,8 +39,11 @@ class AdService {
     )..load();
   }
 
-  void loadInterstitialAd({VoidCallback? onLoaded}) {
-    if (AppConfig.disableAds || !AppConfig.showAds) return;
+  void loadInterstitialAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
+    if (AppConfig.disableAds || !AppConfig.showAds) {
+      onFailed?.call();
+      return;
+    }
     _interstitialAd?.dispose();
     InterstitialAd.load(
       adUnitId: RemoteConfigService().interstitialAdUnitId,
@@ -50,7 +53,7 @@ class AdService {
           _interstitialAd = ad;
           onLoaded?.call();
         },
-        onAdFailedToLoad: (error) {},
+        onAdFailedToLoad: (error) => onFailed?.call(),
       ),
     );
   }
@@ -60,8 +63,11 @@ class AdService {
     _interstitialAd = null;
   }
 
-  void loadRewardedAd({VoidCallback? onLoaded}) {
-    if (AppConfig.disableAds || !AppConfig.showAds) return;
+  void loadRewardedAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
+    if (AppConfig.disableAds || !AppConfig.showAds) {
+      onFailed?.call();
+      return;
+    }
     _rewardedAd?.dispose();
     RewardedAd.load(
       adUnitId: RemoteConfigService().rewardedAdUnitId,
@@ -71,7 +77,7 @@ class AdService {
           _rewardedAd = ad;
           onLoaded?.call();
         },
-        onAdFailedToLoad: (error) {},
+        onAdFailedToLoad: (error) => onFailed?.call(),
       ),
     );
   }

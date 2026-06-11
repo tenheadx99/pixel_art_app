@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
+import 'package:pixel_art_app/config/app_constants.dart';
 
 class ColoringProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
@@ -28,6 +29,9 @@ class ColoringProvider extends ChangeNotifier {
   int _consecutiveFills = 0;
   List<(int, int)> _timeLapse = [];
   Set<String> _achievements = {};
+  String? _lastUnlockedAchievement;
+  bool _inStroke = false;
+  bool _strokeChanged = false;
 
   bool get isMagicWandMode => _isMagicWandMode;
   int get magicWandsCount => _magicWandsCount;
@@ -36,6 +40,22 @@ class ColoringProvider extends ChangeNotifier {
     _isMagicWandMode = !_isMagicWandMode;
     if (_isMagicWandMode) _isEraseMode = false;
     notifyListeners();
+  }
+
+  void addMagicWands(int count) {
+    _magicWandsCount += count;
+    _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
+    notifyListeners();
+  }
+
+  /// Re-reads the wand count after an external write (e.g. an IAP credit
+  /// applied by AppSettingsProvider while this screen is open).
+  void syncWandsFromStorage() {
+    final wands = _storageService.getInt(AppConstants.magicWandsPrefKey, defaultValue: -1);
+    if (wands >= 0 && wands != _magicWandsCount) {
+      _magicWandsCount = wands;
+      notifyListeners();
+    }
   }
 
   ColoringProvider(this._storageService);
@@ -57,6 +77,11 @@ class ColoringProvider extends ChangeNotifier {
   int get consecutiveFills => _consecutiveFills;
   List<(int, int)> get timeLapse => _timeLapse;
   Set<String> get achievements => _achievements;
+  String? get lastUnlockedAchievement => _lastUnlockedAchievement;
+
+  void clearLastUnlockedAchievement() {
+    _lastUnlockedAchievement = null;
+  }
 
   String get _saveKey => 'pixelart_progress_${_currentArt?.id ?? ''}';
   String get _achieveKey => 'pixelart_achievements';
@@ -68,7 +93,7 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setInt('${_saveKey}_fills', _totalFillCount);
     _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
     _storageService.setString(_achieveKey, _achievements.join(','));
-    _storageService.setInt('magic_wands_count', _magicWandsCount);
+    _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
   }
 
   void _debouncedSave() {
@@ -84,6 +109,12 @@ class ColoringProvider extends ChangeNotifier {
 
   void loadProgress() {
     if (_currentArt == null) return;
+    final ach = _storageService.getString(_achieveKey);
+    if (ach.isNotEmpty) _achievements = ach.split(',').toSet();
+    // -1 means "never saved": only then grant the starting wands. A stored 0
+    // must stay 0, otherwise spent wands come back on every reload.
+    final wands = _storageService.getInt(AppConstants.magicWandsPrefKey, defaultValue: -1);
+    _magicWandsCount = wands >= 0 ? wands : 5;
     final raw = _storageService.getString(_saveKey);
     if (raw.isEmpty) return;
     final rows = raw.split(';');
@@ -97,10 +128,6 @@ class ColoringProvider extends ChangeNotifier {
     _filledGrid = loaded;
     _totalFillCount = _storageService.getInt('${_saveKey}_fills');
     _totalEraseCount = _storageService.getInt('${_saveKey}_erases');
-    final ach = _storageService.getString(_achieveKey);
-    if (ach.isNotEmpty) _achievements = ach.split(',').toSet();
-    final wands = _storageService.getInt('magic_wands_count');
-    _magicWandsCount = wands > 0 ? wands : 5;
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
   }
@@ -228,15 +255,152 @@ class ColoringProvider extends ChangeNotifier {
 
     HapticFeedback.lightImpact(); // Tactile feedback on success!
 
-    _totalFillCount += anyFilled ? 1 : 0;
-    _consecutiveFills = anyFilled ? _consecutiveFills + 1 : 0;
+    _totalFillCount++;
+    _consecutiveFills++;
     _calculateProgress();
     _checkCompletion();
     _checkAchievements();
     _updateNextFillable();
+    _autoAdvanceIfDone();
     _debouncedSave();
     notifyListeners();
     return true;
+  }
+
+  /// Starts a drag stroke: one undo entry covers the whole stroke and the
+  /// stroke counts as a single fill for stats/streaks.
+  void beginStroke() {
+    if (_currentArt == null || _inStroke) return;
+    _pushUndoState();
+    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+    _inStroke = true;
+    _strokeChanged = false;
+  }
+
+  void strokeFill(int row, int col) {
+    if (!_inStroke || _currentArt == null) return;
+    if (row < 0 || row >= _currentArt!.gridHeight) return;
+    if (col < 0 || col >= _currentArt!.gridWidth) return;
+
+    bool changed = false;
+    final half = _brushSize ~/ 2;
+    for (var dr = -half; dr <= half; dr++) {
+      for (var dc = -half; dc <= half; dc++) {
+        final r = row + dr;
+        final c = col + dc;
+        if (r < 0 || r >= _currentArt!.gridHeight) continue;
+        if (c < 0 || c >= _currentArt!.gridWidth) continue;
+        if (_isEraseMode) {
+          if (_filledGrid[r][c] <= 0) continue;
+          _filledGrid[r][c] = 0;
+          changed = true;
+        } else {
+          final expectedNumber = _currentArt!.grid[r][c];
+          if (expectedNumber == 0) continue;
+          if (_filledGrid[r][c] > 0) continue;
+          if (expectedNumber != _selectedNumber) continue;
+          _filledGrid[r][c] = expectedNumber;
+          _timeLapse.add((r, c));
+          changed = true;
+        }
+      }
+    }
+    if (changed) {
+      _strokeChanged = true;
+      _calculateProgress();
+      notifyListeners();
+    }
+  }
+
+  void endStroke() {
+    if (!_inStroke) return;
+    _inStroke = false;
+    if (!_strokeChanged) {
+      _undoStack.removeLast();
+      return;
+    }
+    if (_isEraseMode) {
+      _totalEraseCount++;
+      _consecutiveFills = 0;
+      _isComplete = false;
+    } else {
+      HapticFeedback.lightImpact();
+      _totalFillCount++;
+      _consecutiveFills++;
+      _checkCompletion();
+    }
+    _checkAchievements();
+    _updateNextFillable();
+    _autoAdvanceIfDone();
+    _debouncedSave();
+    notifyListeners();
+  }
+
+  /// Fills one correct cell as a hint and returns its position, or null if
+  /// nothing is left to fill. Prefers the selected number, then any number.
+  (int, int)? applyHint() {
+    if (_currentArt == null) return null;
+    _updateNextFillable();
+    var target = _nextFillable;
+    if (target == null) {
+      outer:
+      for (var row = 0; row < _currentArt!.gridHeight; row++) {
+        for (var col = 0; col < _currentArt!.gridWidth; col++) {
+          if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] == 0) {
+            target = (row, col);
+            break outer;
+          }
+        }
+      }
+    }
+    if (target == null) return null;
+    final (r, c) = target;
+    final number = _currentArt!.grid[r][c];
+    _pushUndoState();
+    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+    _selectedNumber = number;
+    _highlightedNumber = number;
+    _filledGrid[r][c] = number;
+    _timeLapse.add((r, c));
+    HapticFeedback.lightImpact();
+    _totalFillCount++;
+    _calculateProgress();
+    _checkCompletion();
+    _checkAchievements();
+    _updateNextFillable();
+    _autoAdvanceIfDone();
+    _debouncedSave();
+    notifyListeners();
+    return target;
+  }
+
+  /// When the selected number has no cells left, moves the selection to the
+  /// next number that still has unfilled cells.
+  void _autoAdvanceIfDone() {
+    if (_currentArt == null || _nextFillable != null || _isComplete) return;
+    final numbers = _currentArt!.sortedNumbers;
+    final start = numbers.indexOf(_selectedNumber);
+    for (var i = 1; i <= numbers.length; i++) {
+      final candidate = numbers[(start + i) % numbers.length];
+      if (_hasUnfilled(candidate)) {
+        _selectedNumber = candidate;
+        _highlightedNumber = candidate;
+        _updateNextFillable();
+        return;
+      }
+    }
+  }
+
+  bool _hasUnfilled(int number) {
+    for (var row = 0; row < _currentArt!.gridHeight; row++) {
+      for (var col = 0; col < _currentArt!.gridWidth; col++) {
+        if (_currentArt!.grid[row][col] == number &&
+            _filledGrid[row][col] == 0) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   bool tryEraseCell(int row, int col) {
@@ -374,6 +538,7 @@ class ColoringProvider extends ChangeNotifier {
   void _addAchievement(String id) {
     if (_achievements.contains(id)) return;
     _achievements.add(id);
+    _lastUnlockedAchievement = id;
     saveProgress();
     notifyListeners();
   }
@@ -463,6 +628,7 @@ class ColoringProvider extends ChangeNotifier {
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
+      _autoAdvanceIfDone();
       saveProgress();
       notifyListeners();
       return true;

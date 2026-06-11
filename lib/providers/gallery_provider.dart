@@ -96,10 +96,63 @@ class GalleryProvider extends ChangeNotifier {
       AppConstants.completedIdsPrefKey,
     );
     _favoriteIds = _storageService.getStringSet('favorite_ids');
+    _loadStreak();
 
     _isLoading = false;
     notifyListeners();
   }
+
+  // --- Daily Pixel ---
+
+  static const String _streakPrefKey = 'daily_streak';
+  static const String _streakDatePrefKey = 'daily_last_date';
+  int _dailyStreak = 0;
+
+  int get dailyStreak => _dailyStreak;
+
+  /// Deterministic featured artwork for [date]: same pick for everyone all
+  /// day, rotating through the whole catalog. No backend needed.
+  static PixelArt? dailyArtFor(DateTime date, List<PixelArt> catalog) {
+    if (catalog.isEmpty) return null;
+    final dayNumber = DateTime(date.year, date.month, date.day)
+        .difference(DateTime(2026))
+        .inDays;
+    return catalog[dayNumber.abs() % catalog.length];
+  }
+
+  PixelArt? get dailyArt => dailyArtFor(DateTime.now(), _catalog);
+
+  bool get dailyCompletedToday =>
+      _storageService.getString(_streakDatePrefKey) == _dateKey(DateTime.now());
+
+  void _loadStreak() {
+    _dailyStreak = _storageService.getInt(_streakPrefKey);
+    final last = _storageService.getString(_streakDatePrefKey);
+    final today = DateTime.now();
+    final yesterday = today.subtract(const Duration(days: 1));
+    // Missed a day (or more): the streak is broken.
+    if (last.isNotEmpty &&
+        last != _dateKey(today) &&
+        last != _dateKey(yesterday)) {
+      _dailyStreak = 0;
+      _storageService.setInt(_streakPrefKey, 0);
+    }
+  }
+
+  void _registerDailyCompletion() {
+    final today = _dateKey(DateTime.now());
+    final last = _storageService.getString(_streakDatePrefKey);
+    if (last == today) return;
+    final yesterday = _dateKey(
+      DateTime.now().subtract(const Duration(days: 1)),
+    );
+    _dailyStreak = last == yesterday ? _dailyStreak + 1 : 1;
+    _storageService.setInt(_streakPrefKey, _dailyStreak);
+    _storageService.setString(_streakDatePrefKey, today);
+  }
+
+  static String _dateKey(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
   bool isCompleted(String id) => _completedIds.contains(id);
 
@@ -119,6 +172,7 @@ class GalleryProvider extends ChangeNotifier {
     _completedIds.add(id);
     _storageService.addToStringSet(AppConstants.completedIdsPrefKey, id);
     _databaseService.incrementCompleted(id);
+    if (id == dailyArt?.id) _registerDailyCompletion();
     notifyListeners();
   }
 

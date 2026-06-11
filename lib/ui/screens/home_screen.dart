@@ -37,6 +37,16 @@ class _HomeScreenState extends State<HomeScreen> {
             controller: _scrollController,
             slivers: [
               _buildHeader(context, gallery),
+              if (gallery.dailyArt != null)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _DailyPixelBanner(
+                      gallery: gallery,
+                      onPlay: () => _openColoring(context, gallery.dailyArt!),
+                    ),
+                  ),
+                ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 sliver: SliverToBoxAdapter(
@@ -153,7 +163,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Pixel Art',
+                              'PixelPause Zen',
                               style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.bold,
@@ -162,11 +172,11 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             Text(
-                              'Color by Number',
+                              'Mindful Canvas',
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 13,
                                 color: Colors.white70,
-                                letterSpacing: 2,
+                                letterSpacing: 1.5,
                               ),
                             ),
                           ],
@@ -429,6 +439,129 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('Upgrade ✨'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DailyPixelBanner extends StatelessWidget {
+  final GalleryProvider gallery;
+  final VoidCallback onPlay;
+
+  const _DailyPixelBanner({required this.gallery, required this.onPlay});
+
+  @override
+  Widget build(BuildContext context) {
+    final art = gallery.dailyArt!;
+    final done = gallery.dailyCompletedToday;
+    return GestureDetector(
+      onTap: onPlay,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFFFF9966), Color(0xFFFF5E62)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFF5E62).withAlpha(70),
+              blurRadius: 12,
+              offset: const Offset(0, 5),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(220),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: CustomPaint(
+                painter: _PixelArtPreviewPainter(art: art, isCompleted: true),
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'DAILY PIXEL',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    art.name,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.local_fire_department,
+                        color: Colors.amber,
+                        size: 16,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '${gallery.dailyStreak} day streak',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    done ? Icons.check_circle : Icons.play_arrow_rounded,
+                    color: const Color(0xFFFF5E62),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    done ? 'Done' : 'Play',
+                    style: const TextStyle(
+                      color: Color(0xFFFF5E62),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
