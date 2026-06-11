@@ -12,7 +12,7 @@ class PixelArt {
   final int difficulty;
   final bool isPremium;
 
-  const PixelArt({
+  PixelArt({
     required this.id,
     required this.name,
     required this.gridWidth,
@@ -27,29 +27,29 @@ class PixelArt {
 
   int get totalCells => gridWidth * gridHeight;
 
-  int get fillableCells {
-    int count = 0;
-    for (final row in grid) {
-      for (final cell in row) {
-        if (cell > 0) count++;
-      }
-    }
-    return count;
-  }
-
-  Set<int> get usedNumbers {
-    final numbers = <int>{};
-    for (final row in grid) {
-      for (final cell in row) {
-        if (cell > 0) numbers.add(cell);
-      }
-    }
-    return numbers;
-  }
+  // Grid-derived values are cached: these are hit on every palette/card
+  // rebuild, and rescanning a 128x128 grid each time is a 16k-cell loop.
+  late final int fillableCells = _scanGrid().$1;
+  late final Set<int> usedNumbers = _scanGrid().$2;
+  late final List<int> sortedNumbers = List.unmodifiable(
+    usedNumbers.toList()..sort(),
+  );
 
   int get colorCount => usedNumbers.length;
 
-  List<int> get sortedNumbers => usedNumbers.toList()..sort();
+  (int, Set<int>) _scanGrid() {
+    int count = 0;
+    final numbers = <int>{};
+    for (final row in grid) {
+      for (final cell in row) {
+        if (cell > 0) {
+          count++;
+          numbers.add(cell);
+        }
+      }
+    }
+    return (count, numbers);
+  }
 
   int numberAt(int row, int col) {
     if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return 0;

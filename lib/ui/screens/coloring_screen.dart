@@ -185,7 +185,9 @@ class _ColoringScreenState extends State<ColoringScreen>
       return;
     }
     final current = _transformController.value.getMaxScaleOnAxis();
-    final next = (current * factor).clamp(0.5, 4.0);
+    final next = (current * factor)
+        .clamp(0.5, max(4.0, 28.0 / _cellSize))
+        .toDouble();
     final center = Offset(_viewerSize.width / 2, _viewerSize.height / 2);
     final scene = _transformController.toScene(center);
     _animateZoomTo(
@@ -520,7 +522,9 @@ class _ColoringScreenState extends State<ColoringScreen>
           transformationController: _transformController,
           panEnabled: false,
           minScale: 0.5,
-          maxScale: 4.0,
+          // Large grids fit the screen with tiny cells; allow zooming until a
+          // cell is ~28px so every artwork stays comfortably tappable.
+          maxScale: max(4.0, 28.0 / _cellSize),
           child: RepaintBoundary(
             key: _repaintKey,
             child: Center(

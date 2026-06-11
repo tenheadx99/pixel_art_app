@@ -6,7 +6,7 @@ import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';
 
-PixelArt _testArt() => const PixelArt(
+PixelArt _testArt() => PixelArt(
   id: 'test_art',
   name: 'Test',
   gridWidth: 2,
@@ -49,7 +49,7 @@ void main() {
   });
 
   group('auto-advance', () {
-    PixelArt twoColorArt() => const PixelArt(
+    PixelArt twoColorArt() => PixelArt(
       id: 'two_color',
       name: 'Two Color',
       gridWidth: 2,

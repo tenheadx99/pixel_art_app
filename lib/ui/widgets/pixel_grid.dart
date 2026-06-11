@@ -1,4 +1,6 @@
 import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' show PointMode;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
@@ -342,7 +344,10 @@ class _PixelGridPainter extends CustomPainter {
     // Numbers share one font size per artwork; quantize the fade so cached
     // TextPainters can be reused across frames.
     final textScale = min(1.0, cw / 28);
-    final fontSize = (11.0 * textScale).clamp(6.0, 14.0);
+    // XL grids (96+) zoom deeper, so their labels render proportionally
+    // bigger on screen; pull them back one point.
+    final xlGrid = max(gridWidth, gridHeight) >= 96;
+    final fontSize = (9.0 * textScale).clamp(4.0, 12.0) - (xlGrid ? 1.0 : 0.0);
     final detailStep = (detail * 4).round();
 
     // Only paint cells inside the visible (transformed) clip — when zoomed
@@ -352,6 +357,17 @@ class _PixelGridPainter extends CustomPainter {
     final lastRow = min(gridHeight - 1, (clip.bottom / ch).ceil());
     final firstCol = max(0, (clip.left / cw).floor());
     final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
+
+    // Fully zoomed out there are no numbers, borders are sub-pixel, and on
+    // 96/128 grids every cell is visible — per-cell drawRect would be ~50k
+    // ops per pinch frame. Batch cells by color into one drawRawPoints call
+    // each (~a dozen draw calls total) instead.
+    if (detailStep == 0 && !colorblindMode) {
+      _paintLowDetail(canvas, cw, ch, firstRow, lastRow, firstCol, lastCol);
+      _paintNextFillable(canvas, cw, ch, cellGap);
+      _paintEdge(canvas, size);
+      return;
+    }
 
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
@@ -418,26 +434,7 @@ class _PixelGridPainter extends CustomPainter {
       }
     }
 
-    if (nextFillable != null && !isEraseMode) {
-      final (nr, nc) = nextFillable!;
-      final nRect = Rect.fromLTWH(
-        nc * cw + cellGap,
-        nr * ch + cellGap,
-        cw - cellGap * 2,
-        ch - cellGap * 2,
-      );
-      final pulse = Paint()
-        ..color = const Color(0xFF6C63FF).withAlpha(80)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(nRect, const Radius.circular(3)),
-        pulse,
-      );
-      canvas.drawRect(
-        nRect.deflate(2),
-        Paint()..color = Colors.white.withAlpha(60),
-      );
-    }
+    _paintNextFillable(canvas, cw, ch, cellGap);
 
     if (hoverRow != null && hoverCol != null) {
       final half = brushSize ~/ 2;
@@ -463,6 +460,91 @@ class _PixelGridPainter extends CustomPainter {
       }
     }
 
+    _paintEdge(canvas, size);
+  }
+
+  /// Zoomed-out fast path: one drawRawPoints call per distinct color
+  /// (square stroke caps render each point as a cell-sized square).
+  void _paintLowDetail(
+    Canvas canvas,
+    double cw,
+    double ch,
+    int firstRow,
+    int lastRow,
+    int firstCol,
+    int lastCol,
+  ) {
+    final batches = <int, List<double>>{};
+    final highlightPoints = <double>[];
+
+    for (var row = firstRow; row <= lastRow; row++) {
+      for (var col = firstCol; col <= lastCol; col++) {
+        final expectedNumber = art.grid[row][col] as int;
+        final int colorValue;
+        if (filledGrid[row][col] > 0) {
+          colorValue = (filledColors[expectedNumber] ?? Colors.grey)
+              .toARGB32();
+        } else if (expectedNumber == 0) {
+          colorValue = 0xFFE8E8E8;
+        } else {
+          colorValue = _grayscalePreview(expectedNumber).toARGB32();
+          if (highlightedNumber != null &&
+              expectedNumber == highlightedNumber) {
+            highlightPoints
+              ..add(col * cw + cw / 2)
+              ..add(row * ch + ch / 2);
+          }
+        }
+        batches.putIfAbsent(colorValue, () => <double>[])
+          ..add(col * cw + cw / 2)
+          ..add(row * ch + ch / 2);
+      }
+    }
+
+    final paint = Paint()
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = min(cw, ch);
+    for (final entry in batches.entries) {
+      paint.color = Color(entry.key);
+      canvas.drawRawPoints(
+        PointMode.points,
+        Float32List.fromList(entry.value),
+        paint,
+      );
+    }
+    if (highlightPoints.isNotEmpty) {
+      paint.color = const Color(0x336C63FF);
+      canvas.drawRawPoints(
+        PointMode.points,
+        Float32List.fromList(highlightPoints),
+        paint,
+      );
+    }
+  }
+
+  void _paintNextFillable(Canvas canvas, double cw, double ch, double cellGap) {
+    if (nextFillable == null || isEraseMode) return;
+    final (nr, nc) = nextFillable!;
+    final nRect = Rect.fromLTWH(
+      nc * cw + cellGap,
+      nr * ch + cellGap,
+      cw - cellGap * 2,
+      ch - cellGap * 2,
+    );
+    final pulse = Paint()
+      ..color = const Color(0xFF6C63FF).withAlpha(80)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(nRect, const Radius.circular(3)),
+      pulse,
+    );
+    canvas.drawRect(
+      nRect.deflate(2),
+      Paint()..color = Colors.white.withAlpha(60),
+    );
+  }
+
+  void _paintEdge(Canvas canvas, Size size) {
     final edgePaint = Paint()
       ..color = const Color(0x44000000)
       ..style = PaintingStyle.stroke

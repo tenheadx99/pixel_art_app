@@ -11,7 +11,7 @@ class AppConstants {
   static const String termsUrl =
       'https://pixelcolorapps.web.app/terms-of-service.html';
 
-  static const List<int> supportedGridSizes = [16, 24, 32, 48];
+  static const List<int> supportedGridSizes = [16, 24, 32, 48, 64];
 
   static const String dbName = 'pixel_art.db';
   static const int dbVersion = 1;

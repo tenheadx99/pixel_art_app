@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'dart:typed_data';
+import 'dart:ui' show PointMode;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
@@ -32,6 +35,9 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Consumer2<GalleryProvider, AppSettingsProvider>(
       builder: (context, gallery, settings, _) {
+        // Filter + sort once per rebuild; the getter recomputes on each call
+        // and the grid delegate would otherwise hit it per item.
+        final catalog = gallery.filteredCatalog;
         return Scaffold(
           body: CustomScrollView(
             controller: _scrollController,
@@ -57,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? const SliverFillRemaining(
                       child: Center(child: CircularProgressIndicator()),
                     )
-                  : gallery.filteredCatalog.isEmpty
+                  : catalog.isEmpty
                   ? const SliverFillRemaining(
                       child: Center(child: Text('No pixel art available')),
                     )
@@ -72,7 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               childAspectRatio: 0.78,
                             ),
                         delegate: SliverChildBuilderDelegate((context, index) {
-                          final art = gallery.filteredCatalog[index];
+                          final art = catalog[index];
                           return _PixelArtCard(
                             art: art,
                             index: index,
@@ -85,15 +91,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             onTap: () => _openColoring(context, art),
                             onFavorite: () => gallery.toggleFavorite(art.id),
                           );
-                        }, childCount: gallery.filteredCatalog.length),
+                        }, childCount: catalog.length),
                       ),
                     ),
             ],
           ),
-          bottomNavigationBar: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [_BannerAdWidget(), _buildBottomNav(context)],
-          ),
+          // Camera/Gallery stay reachable via the header icons; the bottom
+          // slot is dedicated to the banner ad.
+          bottomNavigationBar: SafeArea(child: _BannerAdWidget()),
         );
       },
     );
@@ -339,43 +344,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNav(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).padding.bottom + 8,
-        top: 8,
-        left: 20,
-        right: 20,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(15),
-            blurRadius: 20,
-            offset: const Offset(0, -5),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _NavItem(icon: Icons.home_filled, label: 'Home', isActive: true),
-          _NavItem(
-            icon: Icons.photo_camera_outlined,
-            label: 'Camera',
-            onTap: () => _openCamera(context),
-          ),
-          _NavItem(
-            icon: Icons.photo_library_outlined,
-            label: 'Gallery',
-            onTap: () => _openGallery(context),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _openColoring(BuildContext context, PixelArt art) {
     final gallery = context.read<GalleryProvider>();
     final settings = context.read<AppSettingsProvider>();
@@ -483,8 +451,10 @@ class _DailyPixelBanner extends StatelessWidget {
                 color: Colors.white.withAlpha(220),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: CustomPaint(
-                painter: _PixelArtPreviewPainter(art: art, isCompleted: true),
+              child: RepaintBoundary(
+                child: CustomPaint(
+                  painter: _PixelArtPreviewPainter(art: art, isCompleted: true),
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -620,53 +590,6 @@ class _BannerAdWidgetState extends State<_BannerAdWidget> {
   }
 }
 
-class _NavItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool isActive;
-  final VoidCallback? onTap;
-
-  const _NavItem({
-    required this.icon,
-    required this.label,
-    this.isActive = false,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: isActive ? AppStyle.primary.withAlpha(20) : null,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: isActive ? AppStyle.primary : Colors.grey,
-              size: 24,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 11,
-                color: isActive ? AppStyle.primary : Colors.grey,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _CategoryFilter extends StatelessWidget {
   final GalleryProvider gallery;
 
@@ -739,7 +662,10 @@ class _CategoryFilter extends StatelessWidget {
   }
 }
 
-class _PixelArtCard extends StatefulWidget {
+// Stateless on purpose: a per-card entrance AnimationController repainted
+// every card for 400ms each time it scrolled into view, which made the
+// listing stutter.
+class _PixelArtCard extends StatelessWidget {
   final PixelArt art;
   final int index;
   final bool isCompleted;
@@ -759,245 +685,211 @@ class _PixelArtCard extends StatefulWidget {
   });
 
   @override
-  State<_PixelArtCard> createState() => _PixelArtCardState();
-}
-
-class _PixelArtCardState extends State<_PixelArtCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
-  late Animation<double> _scaleAnim;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 400),
-    );
-    _scaleAnim = Tween<double>(begin: 0.9, end: 1.0).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOutBack),
-    );
-    _animController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final colors = AppColors.gradientForIndex(widget.index);
+    final colors = AppColors.gradientForIndex(index);
 
-    return AnimatedBuilder(
-      animation: _scaleAnim,
-      builder: (context, _) => Transform.scale(
-        scale: _scaleAnim.value,
-        child: GestureDetector(
-          onTap: widget.isUnlocked ? widget.onTap : null,
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(20),
-              color: Theme.of(context).cardColor,
-              boxShadow: [
-                BoxShadow(
-                  color: AppStyle.primary.withAlpha(25),
-                  blurRadius: 15,
-                  offset: const Offset(0, 5),
-                ),
-              ],
+    return GestureDetector(
+      onTap: isUnlocked ? onTap : null,
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: Theme.of(context).cardColor,
+          boxShadow: [
+            BoxShadow(
+              color: AppStyle.primary.withAlpha(25),
+              blurRadius: 15,
+              offset: const Offset(0, 5),
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Stack(
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(20),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Expanded(
-                        child: Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                colors[0].withAlpha(60),
-                                colors[1].withAlpha(40),
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
-                          ),
-                          child: Center(
-                            child: Padding(
-                              padding: const EdgeInsets.all(12.0),
-                              child: AspectRatio(
-                                aspectRatio:
-                                    widget.art.gridWidth /
-                                    widget.art.gridHeight,
-                                child: CustomPaint(
-                                  painter: _PixelArtPreviewPainter(
-                                    art: widget.art,
-                                    isCompleted: widget.isCompleted,
-                                  ),
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            colors[0].withAlpha(60),
+                            colors[1].withAlpha(40),
+                          ],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12.0),
+                          child: AspectRatio(
+                            aspectRatio: art.gridWidth / art.gridHeight,
+                            // Own layer: the card's entrance animation
+                            // must not re-rasterize the preview.
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: _PixelArtPreviewPainter(
+                                  art: art,
+                                  isCompleted: isCompleted,
                                 ),
                               ),
                             ),
                           ),
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          art.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Row(
                           children: [
-                            Text(
-                              widget.art.name,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Row(
-                              children: [
-                                ...List.generate(
-                                  widget.art.sortedNumbers.length > 4
-                                      ? 4
-                                      : widget.art.sortedNumbers.length,
-                                  (i) {
-                                    final num = widget.art.sortedNumbers[i];
-                                    final color =
-                                        widget.art.colorForNumber(num) ??
-                                        AppStyle.numberToColor(num);
-                                    return Align(
-                                      widthFactor: 0.7,
-                                      child: Container(
-                                        width: 14,
-                                        height: 14,
-                                        decoration: BoxDecoration(
-                                          color: color,
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: Colors.white,
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                                if (widget.art.colorCount > 4)
-                                  Padding(
-                                    padding: const EdgeInsets.only(left: 4),
-                                    child: Text(
-                                      '+${widget.art.colorCount - 4}',
-                                      style: TextStyle(
-                                        fontSize: 10,
-                                        color: Colors.grey.shade500,
-                                        fontWeight: FontWeight.w600,
+                            ...List.generate(
+                              art.sortedNumbers.length > 4
+                                  ? 4
+                                  : art.sortedNumbers.length,
+                              (i) {
+                                final num = art.sortedNumbers[i];
+                                final color =
+                                    art.colorForNumber(num) ??
+                                    AppStyle.numberToColor(num);
+                                return Align(
+                                  widthFactor: 0.7,
+                                  child: Container(
+                                    width: 14,
+                                    height: 14,
+                                    decoration: BoxDecoration(
+                                      color: color,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 1.5,
                                       ),
                                     ),
                                   ),
-                                const Spacer(),
-                                Icon(
-                                  Icons.grid_on,
-                                  size: 12,
-                                  color: Colors.grey.shade400,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  '${widget.art.gridWidth}',
+                                );
+                              },
+                            ),
+                            if (art.colorCount > 4)
+                              Padding(
+                                padding: const EdgeInsets.only(left: 4),
+                                child: Text(
+                                  '+${art.colorCount - 4}',
                                   style: TextStyle(
                                     fontSize: 10,
                                     color: Colors.grey.shade500,
+                                    fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ],
+                              ),
+                            const Spacer(),
+                            Icon(
+                              Icons.grid_on,
+                              size: 12,
+                              color: Colors.grey.shade400,
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (!widget.isUnlocked)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.black.withAlpha(140),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.lock, color: Colors.white, size: 32),
-                            SizedBox(height: 4),
+                            const SizedBox(width: 3),
                             Text(
-                              'Premium',
+                              '${art.gridWidth}',
                               style: TextStyle(
-                                color: Colors.white70,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                                fontSize: 10,
+                                color: Colors.grey.shade500,
                               ),
                             ),
                           ],
                         ),
-                      ),
-                    ),
-                  if (widget.isCompleted)
-                    Positioned(
-                      top: 8,
-                      left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF00B894), Color(0xFF00CEC9)],
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF00B894).withAlpha(100),
-                              blurRadius: 8,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.check,
-                          color: Colors.white,
-                          size: 14,
-                        ),
-                      ),
-                    ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: GestureDetector(
-                      onTap: widget.onFavorite,
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
-                        padding: const EdgeInsets.all(6),
-                        decoration: BoxDecoration(
-                          color: widget.isFavorite
-                              ? Colors.red.withAlpha(30)
-                              : Colors.black.withAlpha(30),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          widget.isFavorite
-                              ? Icons.favorite
-                              : Icons.favorite_border,
-                          color: widget.isFavorite ? Colors.red : Colors.white,
-                          size: 16,
-                        ),
-                      ),
+                      ],
                     ),
                   ),
                 ],
               ),
-            ),
+              if (!isUnlocked)
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black.withAlpha(140),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.lock, color: Colors.white, size: 32),
+                        SizedBox(height: 4),
+                        Text(
+                          'Premium',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              if (isCompleted)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF00B894), Color(0xFF00CEC9)],
+                      ),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF00B894).withAlpha(100),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      color: Colors.white,
+                      size: 14,
+                    ),
+                  ),
+                ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: GestureDetector(
+                  onTap: onFavorite,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: isFavorite
+                          ? Colors.red.withAlpha(30)
+                          : Colors.black.withAlpha(30),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      color: isFavorite ? Colors.red : Colors.white,
+                      size: 16,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1015,20 +907,36 @@ class _PixelArtPreviewPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final cw = size.width / art.gridWidth;
     final ch = size.height / art.gridHeight;
-    final paint = Paint();
 
+    // One drawRawPoints call per color instead of a drawRect per cell —
+    // a 128x128 preview is otherwise ~16k draw ops per card.
+    final batches = <int, List<double>>{};
     for (var r = 0; r < art.gridHeight; r++) {
       for (var c = 0; c < art.gridWidth; c++) {
         final val = art.grid[r][c];
-        if (val > 0) {
-          final color = art.colorForNumber(val) ?? Colors.transparent;
-          paint.color = isCompleted ? color : color.withAlpha(90);
-          canvas.drawRect(Rect.fromLTWH(c * cw, r * ch, cw, ch), paint);
-        }
+        if (val <= 0) continue;
+        final color = art.colorForNumber(val) ?? Colors.transparent;
+        final key = (isCompleted ? color : color.withAlpha(90)).toARGB32();
+        batches.putIfAbsent(key, () => <double>[])
+          ..add(c * cw + cw / 2)
+          ..add(r * ch + ch / 2);
       }
+    }
+
+    final paint = Paint()
+      ..strokeCap = StrokeCap.square
+      ..strokeWidth = max(cw, ch);
+    for (final entry in batches.entries) {
+      paint.color = Color(entry.key);
+      canvas.drawRawPoints(
+        PointMode.points,
+        Float32List.fromList(entry.value),
+        paint,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _PixelArtPreviewPainter oldDelegate) =>
+      oldDelegate.art != art || oldDelegate.isCompleted != isCompleted;
 }
