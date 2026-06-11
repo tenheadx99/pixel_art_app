@@ -86,8 +86,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       final provider = context.read<ColoringProvider>();
       provider.loadArt(widget.art);
       _adjustCellSize();
+      // Clear any carry-over from the previously opened artwork.
+      _confettiController.reset();
       _wasComplete = provider.isComplete;
-      if (_wasComplete) _gridFadeController.value = 1.0;
+      _gridFadeController.value = _wasComplete ? 1.0 : 0.0;
       _coloringProvider = provider..addListener(_onProviderChanged);
       _settings = context.read<AppSettingsProvider>()
         ..addListener(_onSettingsChanged);
@@ -206,7 +208,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   Widget build(BuildContext context) {
     return Consumer2<ColoringProvider, AppSettingsProvider>(
       builder: (context, provider, settings, _) {
-        if (provider.isComplete && !_confettiController.isAnimating) {
+        // The provider is app-scoped and loadArt runs post-frame, so the
+        // first frame still carries the PREVIOUS artwork's state. Never let
+        // stale completion trigger confetti/completion UI for this art.
+        final isCurrentArt = provider.currentArt?.id == widget.art.id;
+        final isComplete = isCurrentArt && provider.isComplete;
+        if (isComplete && !_confettiController.isAnimating) {
           _confettiController.forward();
         }
 
@@ -225,14 +232,14 @@ class _ColoringScreenState extends State<ColoringScreen>
             child: SafeArea(
               child: Column(
                 children: [
-                  _buildTopBar(context, provider),
+                  _buildTopBar(context, provider, isComplete),
                   Expanded(
                     child: Stack(
                       children: [
-                        _buildGrid(provider, settings),
+                        if (isCurrentArt) _buildGrid(provider, settings),
                         _buildZoomControls(),
                         ConfettiOverlay(animation: _confettiController),
-                        if (provider.isComplete) _buildCompletionBar(provider),
+                        if (isComplete) _buildCompletionBar(provider),
                       ],
                     ),
                   ),
@@ -399,7 +406,11 @@ class _ColoringScreenState extends State<ColoringScreen>
     if (mounted) setState(() {});
   }
 
-  Widget _buildTopBar(BuildContext context, ColoringProvider provider) {
+  Widget _buildTopBar(
+    BuildContext context,
+    ColoringProvider provider,
+    bool isComplete,
+  ) {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -410,7 +421,7 @@ class _ColoringScreenState extends State<ColoringScreen>
             onTap: () {
               // Completed artwork is a natural break: show the preloaded
               // interstitial on the way out (free users only).
-              if (provider.isComplete && !(_settings?.isProUser ?? true)) {
+              if (isComplete && !(_settings?.isProUser ?? true)) {
                 context.read<AdService>().showInterstitialAd();
               }
               Navigator.pop(context);
