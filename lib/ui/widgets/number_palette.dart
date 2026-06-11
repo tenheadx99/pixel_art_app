@@ -82,7 +82,7 @@ class NumberPalette extends StatelessWidget {
               final color =
                   art.colorForNumber(number) ?? AppStyle.numberToColor(number);
               final isSelected = provider.selectedNumber == number;
-              final fillPercent = _getFillPercent(number);
+              final fillPercent = provider.fillPercentForNumber(number);
               final isCompleted = fillPercent >= 1.0;
 
               return GestureDetector(
@@ -169,23 +169,6 @@ class NumberPalette extends StatelessWidget {
         ),
       ],
     );
-  }
-
-  double _getFillPercent(int number) {
-    final art = provider.currentArt;
-    if (art == null) return 0;
-    int total = 0;
-    int filled = 0;
-    for (var row = 0; row < art.gridHeight; row++) {
-      for (var col = 0; col < art.gridWidth; col++) {
-        if (art.grid[row][col] == number) {
-          total++;
-          if (provider.filledGrid[row][col] == number) filled++;
-        }
-      }
-    }
-    if (total == 0) return 0;
-    return filled / total;
   }
 
   Color _textColorForBg(Color bg) {

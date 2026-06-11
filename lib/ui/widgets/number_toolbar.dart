@@ -37,74 +37,85 @@ class NumberToolbar extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: Colors.white.withAlpha(60), width: 1),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          _ToolButton(
-            icon: Icons.undo_rounded,
-            label: 'Undo',
-            color: AppStyle.primary,
-            onTap: provider.canUndo ? provider.undo : null,
-          ),
-          _divider(),
-          _ToolButton(
-            icon: provider.isEraseMode
-                ? Icons.auto_fix_high_rounded
-                : Icons.auto_fix_high_rounded,
-            label: provider.isEraseMode ? 'Erase' : 'Fill',
-            color: provider.isEraseMode ? AppStyle.coral : AppStyle.accent,
-            onTap: () => provider.toggleEraseMode(),
-          ),
-          _divider(),
-          _BrushSelector(
-            current: provider.brushSize,
-            onChanged: provider.setBrushSize,
-            isErase: provider.isEraseMode,
-          ),
-          _divider(),
-          _ToolButton(
-            icon: Icons.auto_fix_high_rounded,
-            label: 'Wand (${provider.magicWandsCount})',
-            color: provider.isMagicWandMode
-                ? const Color(0xFF9C27B0)
-                : const Color(0xFFCE93D8),
-            onTap: provider.magicWandsCount > 0
-                ? provider.toggleMagicWandMode
-                : (onWandEmpty ?? provider.toggleMagicWandMode),
-          ),
-          _divider(),
-          _ToolButton(
-            icon: Icons.lightbulb_rounded,
-            label: 'Hint (${settings.hintsAvailable})',
-            color: const Color(0xFFFFB300),
-            onTap: onHint,
-          ),
-          _divider(),
-          _ToolButton(
-            icon: provider.showNumbers
-                ? Icons.format_list_numbered_rtl
-                : Icons.format_size,
-            label: 'Nums',
-            color: AppStyle.gold,
-            onTap: provider.toggleNumbers,
-          ),
-          _divider(),
-          _ToolButton(
-            icon: Icons.done_all_rounded,
-            label: 'Auto',
-            color: const Color(0xFF00B894),
-            onTap: () => provider.fillAllRemaining(),
-          ),
-          if (provider.achievements.isNotEmpty) ...[
-            _divider(),
-            _ToolButton(
-              icon: Icons.emoji_events_rounded,
-              label: '${provider.achievements.length}',
-              color: AppStyle.gold,
-              onTap: () => _showAchievements(context),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minWidth: constraints.maxWidth),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _ToolButton(
+                    icon: Icons.undo_rounded,
+                    label: 'Undo',
+                    color: AppStyle.primary,
+                    onTap: provider.canUndo ? provider.undo : null,
+                  ),
+                  _divider(),
+                  _ToolButton(
+                    icon: provider.isEraseMode
+                        ? Icons.auto_fix_high_rounded
+                        : Icons.auto_fix_high_rounded,
+                    label: provider.isEraseMode ? 'Erase' : 'Fill',
+                    color: provider.isEraseMode ? AppStyle.coral : AppStyle.accent,
+                    onTap: () => provider.toggleEraseMode(),
+                  ),
+                  _divider(),
+                  _BrushSelector(
+                    current: provider.brushSize,
+                    onChanged: provider.setBrushSize,
+                    isErase: provider.isEraseMode,
+                  ),
+                  _divider(),
+                  _ToolButton(
+                    icon: Icons.auto_fix_high_rounded,
+                    label: 'Wand (${provider.magicWandsCount})',
+                    color: provider.isMagicWandMode
+                        ? const Color(0xFF9C27B0)
+                        : const Color(0xFFCE93D8),
+                    onTap: provider.magicWandsCount > 0
+                        ? provider.toggleMagicWandMode
+                        : (onWandEmpty ?? provider.toggleMagicWandMode),
+                  ),
+                  _divider(),
+                  _ToolButton(
+                    icon: Icons.lightbulb_rounded,
+                    label: 'Hint (${settings.hintsAvailable})',
+                    color: const Color(0xFFFFB300),
+                    onTap: onHint,
+                  ),
+                  _divider(),
+                  _ToolButton(
+                    icon: provider.showNumbers
+                        ? Icons.format_list_numbered_rtl
+                        : Icons.format_size,
+                    label: 'Nums',
+                    color: AppStyle.gold,
+                    onTap: provider.toggleNumbers,
+                  ),
+                  _divider(),
+                  _ToolButton(
+                    icon: Icons.done_all_rounded,
+                    label: 'Auto',
+                    color: const Color(0xFF00B894),
+                    onTap: () => provider.fillAllRemaining(),
+                  ),
+                  if (provider.achievements.isNotEmpty) ...[
+                    _divider(),
+                    _ToolButton(
+                      icon: Icons.emoji_events_rounded,
+                      label: '${provider.achievements.length}',
+                      color: AppStyle.gold,
+                      onTap: () => _showAchievements(context),
+                    ),
+                  ],
+                ],
+              ),
             ),
-          ],
-        ],
+          );
+        },
       ),
     );
   }

@@ -42,6 +42,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   late AnimationController _confettiController;
   late AnimationController _replayController;
   late AnimationController _gridFadeController;
+  late AnimationController _zoomAnimController;
+  Matrix4Tween? _zoomTween;
   List<(int, int)> _replayActions = [];
   int _replayIndex = 0;
   List<List<int>>? _savedGridState;
@@ -69,7 +71,17 @@ class _ColoringScreenState extends State<ColoringScreen>
     _gridFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
-    )..addListener(() => setState(() {}));
+    );
+    _zoomAnimController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 350),
+    )..addListener(() {
+      final tween = _zoomTween;
+      if (tween == null) return;
+      _transformController.value = tween.evaluate(
+        CurvedAnimation(parent: _zoomAnimController, curve: Curves.easeOutCubic),
+      );
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ColoringProvider>();
       provider.loadArt(widget.art);
@@ -152,7 +164,40 @@ class _ColoringScreenState extends State<ColoringScreen>
     _confettiController.dispose();
     _replayController.dispose();
     _gridFadeController.dispose();
+    _zoomAnimController.dispose();
     super.dispose();
+  }
+
+  void _animateZoomTo(Matrix4 target) {
+    _zoomTween = Matrix4Tween(
+      begin: _transformController.value.clone(),
+      end: target,
+    );
+    _zoomAnimController.forward(from: 0);
+  }
+
+  /// Zooms by [factor] keeping the viewport center fixed. A factor of 0
+  /// resets to the fitted view.
+  void _zoomBy(double factor) {
+    if (_viewerSize == Size.zero) return;
+    if (factor == 0) {
+      _animateZoomTo(Matrix4.identity());
+      return;
+    }
+    final current = _transformController.value.getMaxScaleOnAxis();
+    final next = (current * factor).clamp(0.5, 4.0);
+    final center = Offset(_viewerSize.width / 2, _viewerSize.height / 2);
+    final scene = _transformController.toScene(center);
+    _animateZoomTo(
+      Matrix4.identity()
+        ..translateByDouble(
+          center.dx - next * scene.dx,
+          center.dy - next * scene.dy,
+          0,
+          1,
+        )
+        ..scaleByDouble(next, next, next, 1),
+    );
   }
 
   @override
@@ -183,6 +228,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     child: Stack(
                       children: [
                         _buildGrid(provider, settings),
+                        _buildZoomControls(),
                         ConfettiOverlay(animation: _confettiController),
                         if (provider.isComplete) _buildCompletionBar(provider),
                       ],
@@ -195,6 +241,25 @@ class _ColoringScreenState extends State<ColoringScreen>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildZoomControls() {
+    return Positioned(
+      top: 8,
+      right: 8,
+      child: Column(
+        children: [
+          _ZoomButton(icon: Icons.add, onTap: () => _zoomBy(1.4)),
+          const SizedBox(height: 6),
+          _ZoomButton(icon: Icons.remove, onTap: () => _zoomBy(1 / 1.4)),
+          const SizedBox(height: 6),
+          _ZoomButton(
+            icon: Icons.fit_screen_rounded,
+            onTap: () => _zoomBy(0),
+          ),
+        ],
+      ),
     );
   }
 
@@ -465,7 +530,8 @@ class _ColoringScreenState extends State<ColoringScreen>
                 brushSize: provider.brushSize,
                 isEraseMode: provider.isEraseMode,
                 colorblindMode: settings.colorblindMode,
-                gridLineOpacity: 1.0 - _gridFadeController.value,
+                gridFade: _gridFadeController,
+                transform: _transformController,
                 onCellTap: (row, col) => provider.tryFillCell(row, col),
                 onCellLongPress: (row, col) {
                   _showColorPreview(context, provider, row, col);
@@ -475,6 +541,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 },
                 onCellDrag: provider.strokeFill,
                 onCellDragEnd: provider.endStroke,
+                onCellDragCancel: provider.cancelStroke,
               ),
             ),
           ),
@@ -601,14 +668,16 @@ class _ColoringScreenState extends State<ColoringScreen>
     final gridTop = (_viewerSize.height - art.gridHeight * _cellSize) / 2;
     final cx = gridLeft + (col + 0.5) * _cellSize;
     final cy = gridTop + (row + 0.5) * _cellSize;
-    _transformController.value = Matrix4.identity()
-      ..translateByDouble(
-        _viewerSize.width / 2 - scale * cx,
-        _viewerSize.height / 2 - scale * cy,
-        0,
-        1,
-      )
-      ..scaleByDouble(scale, scale, scale, 1);
+    _animateZoomTo(
+      Matrix4.identity()
+        ..translateByDouble(
+          _viewerSize.width / 2 - scale * cx,
+          _viewerSize.height / 2 - scale * cy,
+          0,
+          1,
+        )
+        ..scaleByDouble(scale, scale, scale, 1),
+    );
   }
 
   void _showRefillDialog({
@@ -753,6 +822,38 @@ class _ColoringScreenState extends State<ColoringScreen>
             child: const Text('Reset'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _ZoomButton({required this.icon, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Theme.of(context).brightness == Brightness.light
+              ? Colors.white.withAlpha(220)
+              : Colors.black.withAlpha(160),
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(20),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Icon(icon, size: 20, color: AppStyle.primary),
       ),
     );
   }

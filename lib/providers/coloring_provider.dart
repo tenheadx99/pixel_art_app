@@ -32,6 +32,9 @@ class ColoringProvider extends ChangeNotifier {
   String? _lastUnlockedAchievement;
   bool _inStroke = false;
   bool _strokeChanged = false;
+  int _strokeTimeLapseStart = 0;
+  final Map<int, int> _totalPerNumber = {};
+  final Map<int, int> _filledPerNumber = {};
 
   bool get isMagicWandMode => _isMagicWandMode;
   int get magicWandsCount => _magicWandsCount;
@@ -166,6 +169,7 @@ class ColoringProvider extends ChangeNotifier {
     _timeLapse = [];
     _consecutiveFills = 0;
     loadProgress();
+    _calculateProgress();
     notifyListeners();
   }
 
@@ -275,6 +279,21 @@ class ColoringProvider extends ChangeNotifier {
     if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
     _inStroke = true;
     _strokeChanged = false;
+    _strokeTimeLapseStart = _timeLapse.length;
+  }
+
+  /// Reverts an in-progress stroke, e.g. when a drag turns into a two-finger
+  /// pinch and the painted cells should not stick.
+  void cancelStroke() {
+    if (!_inStroke) return;
+    _inStroke = false;
+    _filledGrid = _undoStack.removeLast();
+    _timeLapse.removeRange(_strokeTimeLapseStart, _timeLapse.length);
+    if (_strokeChanged) {
+      _calculateProgress();
+      _updateNextFillable();
+    }
+    notifyListeners();
   }
 
   void strokeFill(int row, int col) {
@@ -391,17 +410,8 @@ class ColoringProvider extends ChangeNotifier {
     }
   }
 
-  bool _hasUnfilled(int number) {
-    for (var row = 0; row < _currentArt!.gridHeight; row++) {
-      for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] == number &&
-            _filledGrid[row][col] == 0) {
-          return true;
-        }
-      }
-    }
-    return false;
-  }
+  bool _hasUnfilled(int number) =>
+      (_filledPerNumber[number] ?? 0) < (_totalPerNumber[number] ?? 0);
 
   bool tryEraseCell(int row, int col) {
     if (_currentArt == null) return false;
@@ -500,22 +510,34 @@ class ColoringProvider extends ChangeNotifier {
     _undoStack.add(_filledGrid.map((row) => List<int>.from(row)).toList());
   }
 
+  /// Recomputes overall progress and the per-number tallies in one pass.
+  /// The tallies feed the palette chips and auto-advance, which previously
+  /// rescanned the whole grid per color on every rebuild.
   void _calculateProgress() {
     if (_currentArt == null) return;
-    final total = _currentArt!.fillableCells;
-    if (total == 0) {
-      _progress = 1.0;
-      return;
-    }
+    _totalPerNumber.clear();
+    _filledPerNumber.clear();
     int filled = 0;
+    int total = 0;
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] > 0) {
+        final n = _currentArt!.grid[row][col];
+        if (n <= 0) continue;
+        total++;
+        _totalPerNumber[n] = (_totalPerNumber[n] ?? 0) + 1;
+        if (_filledGrid[row][col] > 0) {
           filled++;
+          _filledPerNumber[n] = (_filledPerNumber[n] ?? 0) + 1;
         }
       }
     }
-    _progress = filled / total;
+    _progress = total == 0 ? 1.0 : filled / total;
+  }
+
+  double fillPercentForNumber(int number) {
+    final total = _totalPerNumber[number] ?? 0;
+    if (total == 0) return 0;
+    return (_filledPerNumber[number] ?? 0) / total;
   }
 
   void _checkCompletion() {
