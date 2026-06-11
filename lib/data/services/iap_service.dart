@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import '../../config/app_config.dart';
 import '../../config/app_constants.dart';
@@ -7,45 +9,71 @@ class IAPService {
   factory IAPService() => _instance;
   IAPService._();
 
-  final InAppPurchase _purchase = InAppPurchase.instance;
+  bool _storeAvailable = false;
 
-  Stream<List<PurchaseDetails>> get purchaseStream => _purchase.purchaseStream;
+  bool get isStoreAvailable => _storeAvailable;
+
+  /// in_app_purchase only registers a platform implementation on
+  /// Android/iOS/macOS. Anywhere else (Linux/Windows desktop debug runs,
+  /// tests) touching InAppPurchase.instance throws a LateInitializationError,
+  /// so every entry point bails out first.
+  bool get _platformSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
+
+  bool get _enabled => !AppConfig.disableIap && _platformSupported;
+
+  Stream<List<PurchaseDetails>> get purchaseStream =>
+      _enabled ? InAppPurchase.instance.purchaseStream : const Stream.empty();
 
   Future<bool> initialize() async {
-    if (AppConfig.disableIap) return true;
-    final available = await _purchase.isAvailable();
-    return available;
+    if (!_enabled) return false;
+    try {
+      _storeAvailable = await InAppPurchase.instance.isAvailable();
+    } catch (e) {
+      developer.log('IAP unavailable', name: 'IAP', error: e);
+      _storeAvailable = false;
+    }
+    return _storeAvailable;
   }
 
   /// Re-delivers past non-consumable purchases (e.g. Pro) through
   /// [purchaseStream] as [PurchaseStatus.restored] events. Call after a
   /// listener is attached, or the events are lost.
   Future<void> restorePurchases() async {
-    if (AppConfig.disableIap) return;
-    if (!await _purchase.isAvailable()) return;
-    await _purchase.restorePurchases();
+    if (!_enabled) return;
+    try {
+      if (!await InAppPurchase.instance.isAvailable()) return;
+      await InAppPurchase.instance.restorePurchases();
+    } catch (e) {
+      developer.log('restorePurchases failed', name: 'IAP', error: e);
+    }
   }
 
-  Future<void> buyPro() async {
-    if (AppConfig.disableIap) return;
-    final productDetails = await _purchase.queryProductDetails({
-      AppConstants.proProductId,
-    });
-    if (productDetails.productDetails.isEmpty) return;
-    final purchaseParam = PurchaseParam(
-      productDetails: productDetails.productDetails.first,
-    );
-    await _purchase.buyNonConsumable(purchaseParam: purchaseParam);
-  }
+  Future<void> buyPro() => _buy(AppConstants.proProductId, consumable: false);
 
-  Future<void> buyConsumable(String productId) async {
-    if (AppConfig.disableIap) return;
-    final productDetails = await _purchase.queryProductDetails({productId});
-    if (productDetails.productDetails.isEmpty) return;
-    final purchaseParam = PurchaseParam(
-      productDetails: productDetails.productDetails.first,
-    );
-    await _purchase.buyConsumable(purchaseParam: purchaseParam);
+  Future<void> buyConsumable(String productId) =>
+      _buy(productId, consumable: true);
+
+  Future<void> _buy(String productId, {required bool consumable}) async {
+    if (!_enabled) return;
+    try {
+      final purchase = InAppPurchase.instance;
+      final response = await purchase.queryProductDetails({productId});
+      if (response.productDetails.isEmpty) return;
+      final param = PurchaseParam(
+        productDetails: response.productDetails.first,
+      );
+      if (consumable) {
+        await purchase.buyConsumable(purchaseParam: param);
+      } else {
+        await purchase.buyNonConsumable(purchaseParam: param);
+      }
+    } catch (e) {
+      developer.log('Purchase flow failed for $productId', name: 'IAP', error: e);
+    }
   }
 
   void dispose() {}

@@ -1,9 +1,18 @@
+import 'package:flutter/foundation.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path/path.dart' as p;
 import '../../config/app_constants.dart';
 
 class DatabaseService {
   Database? _db;
+
+  /// sqflite only ships implementations for Android/iOS/macOS; desktop debug
+  /// runs (Linux/Windows) must not crash on database access.
+  static bool get isSupported =>
+      !kIsWeb &&
+      (defaultTargetPlatform == TargetPlatform.android ||
+          defaultTargetPlatform == TargetPlatform.iOS ||
+          defaultTargetPlatform == TargetPlatform.macOS);
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -60,11 +69,13 @@ class DatabaseService {
   }
 
   Future<List<Map<String, dynamic>>> getCatalog() async {
+    if (!isSupported) return [];
     final db = await database;
     return db.query('pixel_art_catalog', orderBy: 'difficulty ASC, name ASC');
   }
 
   Future<void> insertCatalogItem(Map<String, dynamic> item) async {
+    if (!isSupported) return;
     final db = await database;
     await db.insert(
       'pixel_art_catalog',
@@ -74,6 +85,7 @@ class DatabaseService {
   }
 
   Future<void> toggleFavorite(String id, bool isFavorite) async {
+    if (!isSupported) return;
     final db = await database;
     await db.update(
       'pixel_art_catalog',
@@ -84,6 +96,7 @@ class DatabaseService {
   }
 
   Future<void> incrementCompleted(String id) async {
+    if (!isSupported) return;
     final db = await database;
     await db.rawUpdate(
       'UPDATE pixel_art_catalog SET times_completed = times_completed + 1, last_played = ? WHERE id = ?',
@@ -92,6 +105,7 @@ class DatabaseService {
   }
 
   Future<void> saveArtwork(Map<String, dynamic> artwork) async {
+    if (!isSupported) return;
     final db = await database;
     await db.insert(
       'saved_artworks',
@@ -101,16 +115,19 @@ class DatabaseService {
   }
 
   Future<List<Map<String, dynamic>>> getSavedArtworks() async {
+    if (!isSupported) return [];
     final db = await database;
     return db.query('saved_artworks', orderBy: 'date_created DESC');
   }
 
   Future<void> deleteArtwork(String id) async {
+    if (!isSupported) return;
     final db = await database;
     await db.delete('saved_artworks', where: 'id = ?', whereArgs: [id]);
   }
 
   Future<void> saveInProgress(Map<String, dynamic> data) async {
+    if (!isSupported) return;
     final db = await database;
     await db.insert(
       'in_progress',
@@ -120,6 +137,7 @@ class DatabaseService {
   }
 
   Future<Map<String, dynamic>?> getInProgress(String pixelArtId) async {
+    if (!isSupported) return null;
     final db = await database;
     final results = await db.query(
       'in_progress',
@@ -131,6 +149,7 @@ class DatabaseService {
   }
 
   Future<void> deleteInProgress(String pixelArtId) async {
+    if (!isSupported) return;
     final db = await database;
     await db.delete(
       'in_progress',
