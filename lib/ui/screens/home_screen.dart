@@ -6,9 +6,11 @@ import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
+import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/services/iap_service.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
+import '../widgets/ad_banner.dart';
+import '../widgets/settings_sheet.dart';
 import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
@@ -53,6 +55,16 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                 ),
+              if (gallery.inProgressArts.isNotEmpty)
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+                  sliver: SliverToBoxAdapter(
+                    child: _ContinueRow(
+                      gallery: gallery,
+                      onOpen: (art) => _openColoring(context, art),
+                    ),
+                  ),
+                ),
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 sliver: SliverToBoxAdapter(
@@ -88,6 +100,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               art,
                               settings.isProUser,
                             ),
+                            progressPercent: gallery.progressPercent(art.id),
                             onTap: () => _openColoring(context, art),
                             onFavorite: () => gallery.toggleFavorite(art.id),
                           );
@@ -97,8 +110,10 @@ class _HomeScreenState extends State<HomeScreen> {
             ],
           ),
           // Camera/Gallery stay reachable via the header icons; the bottom
-          // slot is dedicated to the banner ad.
-          bottomNavigationBar: SafeArea(child: _BannerAdWidget()),
+          // slot is dedicated to the banner ad (free users only).
+          bottomNavigationBar: settings.isProUser
+              ? null
+              : const SafeArea(child: AdBanner()),
         );
       },
     );
@@ -168,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'PixelPause Zen',
+                              'Pixely',
                               style: TextStyle(
                                 fontSize: 26,
                                 fontWeight: FontWeight.bold,
@@ -177,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ),
                             ),
                             Text(
-                              'Mindful Canvas',
+                              'Relaxing Pixel Art',
                               style: TextStyle(
                                 fontSize: 13,
                                 color: Colors.white70,
@@ -195,6 +210,11 @@ class _HomeScreenState extends State<HomeScreen> {
                         _HeaderIconButton(
                           icon: Icons.photo_library,
                           onTap: () => _openGallery(context),
+                        ),
+                        const SizedBox(width: 8),
+                        _HeaderIconButton(
+                          icon: Icons.settings_outlined,
+                          onTap: () => showSettingsSheet(context),
                         ),
                       ],
                     ),
@@ -348,7 +368,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final gallery = context.read<GalleryProvider>();
     final settings = context.read<AppSettingsProvider>();
     if (!gallery.isUnlocked(art, settings.isProUser)) {
-      _showLockedDialog(context);
+      _showLockedDialog(context, art);
       return;
     }
     Navigator.push(
@@ -359,7 +379,11 @@ class _HomeScreenState extends State<HomeScreen> {
           child: ColoringScreen(art: art),
         ),
       ),
-    );
+    ).then((_) {
+      // Progress badges and the continue row read prefs written while
+      // coloring; refresh them on return.
+      if (context.mounted) context.read<GalleryProvider>().refresh();
+    });
   }
 
   void _openCamera(BuildContext context) {
@@ -376,7 +400,29 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  void _showLockedDialog(BuildContext context) {
+  /// Lets the user watch a rewarded ad to try [art] for this session — both
+  /// a revenue source and a taste of premium content that feeds Pro sales.
+  void _tryPremiumWithAd(PixelArt art) {
+    final adService = context.read<AdService>();
+    final messenger = ScaffoldMessenger.of(context);
+    adService.loadRewardedAd(
+      onLoaded: () => adService.showRewardedAd(
+        onRewarded: () {
+          if (!mounted) return;
+          context.read<GalleryProvider>().unlockForSession(art.id);
+          _openColoring(context, art);
+        },
+      ),
+      onFailed: () => messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No ad available right now — try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+    );
+  }
+
+  void _showLockedDialog(BuildContext context, PixelArt art) {
     final iap = context.read<IAPService>();
     showDialog(
       context: context,
@@ -384,16 +430,53 @@ class _HomeScreenState extends State<HomeScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
         title: const Row(
           children: [
-            Icon(Icons.lock, color: AppStyle.primary),
+            Icon(Icons.workspace_premium, color: AppStyle.primary),
             SizedBox(width: 8),
-            Text('Premium'),
+            Text('Pixely Pro'),
           ],
         ),
-        content: const Text('Unlock all premium artworks and remove ads!'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _ProBenefit(
+              icon: Icons.palette_outlined,
+              text: 'Unlock every premium artwork',
+            ),
+            const _ProBenefit(icon: Icons.block, text: 'Remove all ads'),
+            const _ProBenefit(
+              icon: Icons.favorite_outline,
+              text: 'Support future artwork packs',
+            ),
+            const SizedBox(height: 8),
+            FutureBuilder<String?>(
+              future: iap.getPrice(AppConstants.proProductId),
+              builder: (context, snapshot) {
+                final price = snapshot.data;
+                if (price == null) return const SizedBox.shrink();
+                return Text(
+                  'One-time purchase · $price',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: AppStyle.primary,
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Not Now'),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.play_circle_outline, size: 18),
+            label: const Text('Try with Ad'),
+            onPressed: () {
+              Navigator.pop(ctx);
+              _tryPremiumWithAd(art);
+            },
           ),
           ElevatedButton(
             onPressed: () {
@@ -412,6 +495,108 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+class _ContinueRow extends StatelessWidget {
+  final GalleryProvider gallery;
+  final void Function(PixelArt art) onOpen;
+
+  const _ContinueRow({required this.gallery, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final arts = gallery.inProgressArts;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 20),
+          child: Text(
+            'Jump back in',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          ),
+        ),
+        const SizedBox(height: 8),
+        SizedBox(
+          height: 84,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: arts.length,
+            itemBuilder: (context, index) {
+              final art = arts[index];
+              final pct = gallery.progressPercent(art.id);
+              return GestureDetector(
+                onTap: () => onOpen(art),
+                child: Container(
+                  width: 200,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppStyle.primary.withAlpha(40)),
+                  ),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 56,
+                        height: 56,
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: _PixelArtPreviewPainter(
+                              art: art,
+                              isCompleted: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              art.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: pct / 100,
+                                minHeight: 5,
+                                backgroundColor: AppStyle.primary.withAlpha(25),
+                                color: AppStyle.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$pct% done',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey.shade500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _DailyPixelBanner extends StatelessWidget {
   final GalleryProvider gallery;
   final VoidCallback onPlay;
@@ -422,6 +607,12 @@ class _DailyPixelBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final art = gallery.dailyArt!;
     final done = gallery.dailyCompletedToday;
+    final now = DateTime.now();
+    final hoursToNext = DateTime(
+      now.year,
+      now.month,
+      now.day + 1,
+    ).difference(now).inHours;
     return GestureDetector(
       onTap: onPlay,
       child: Container(
@@ -492,7 +683,9 @@ class _DailyPixelBanner extends StatelessWidget {
                       ),
                       const SizedBox(width: 4),
                       Text(
-                        '${gallery.dailyStreak} day streak',
+                        done
+                            ? '${gallery.dailyStreak} day streak · new in ${hoursToNext}h'
+                            : '${gallery.dailyStreak} day streak',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -537,6 +730,27 @@ class _DailyPixelBanner extends StatelessWidget {
   }
 }
 
+class _ProBenefit extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _ProBenefit({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: AppStyle.primary),
+          const SizedBox(width: 10),
+          Expanded(child: Text(text)),
+        ],
+      ),
+    );
+  }
+}
+
 class _HeaderIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -555,37 +769,6 @@ class _HeaderIconButton extends StatelessWidget {
         ),
         child: Icon(icon, color: Colors.white, size: 22),
       ),
-    );
-  }
-}
-
-class _BannerAdWidget extends StatefulWidget {
-  @override
-  State<_BannerAdWidget> createState() => _BannerAdWidgetState();
-}
-
-class _BannerAdWidgetState extends State<_BannerAdWidget> {
-  BannerAd? _banner;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      final adService = context.read<AdService>();
-      adService.loadBannerAd();
-      setState(() {
-        _banner = adService.bannerAd;
-      });
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_banner == null) return const SizedBox.shrink();
-    return SizedBox(
-      width: _banner!.size.width.toDouble(),
-      height: _banner!.size.height.toDouble(),
-      child: AdWidget(ad: _banner!),
     );
   }
 }
@@ -671,6 +854,7 @@ class _PixelArtCard extends StatelessWidget {
   final bool isCompleted;
   final bool isFavorite;
   final bool isUnlocked;
+  final int progressPercent;
   final VoidCallback onTap;
   final VoidCallback onFavorite;
 
@@ -680,9 +864,13 @@ class _PixelArtCard extends StatelessWidget {
     required this.isCompleted,
     required this.isFavorite,
     required this.isUnlocked,
+    this.progressPercent = 0,
     required this.onTap,
     required this.onFavorite,
   });
+
+  bool get _inProgress =>
+      !isCompleted && progressPercent > 0 && progressPercent < 100;
 
   @override
   Widget build(BuildContext context) {
@@ -838,6 +1026,29 @@ class _PixelArtCard extends StatelessWidget {
                           ),
                         ),
                       ],
+                    ),
+                  ),
+                ),
+              if (_inProgress)
+                Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppStyle.primary,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$progressPercent%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
                 ),

@@ -10,37 +10,31 @@ class AdService {
 
   bool _initialized = false;
 
-  BannerAd? _bannerAd;
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
+  AppOpenAd? _appOpenAd;
+  bool _showingAppOpen = false;
+
+  DateTime? _lastInterstitialAt;
+  DateTime? _lastRewardedAt;
+  DateTime? _lastAppOpenAt;
+
+  /// Set during bootstrap; no full-screen ads in a user's very first session.
+  bool isFirstSession = false;
+
+  bool get _adsEnabled => !AppConfig.disableAds && AppConfig.showAds;
 
   Future<void> initialize() async {
     if (_initialized) return;
-    if (AppConfig.disableAds || !AppConfig.showAds) return;
+    if (!_adsEnabled) return;
     await MobileAds.instance.initialize();
     _initialized = true;
   }
 
-  BannerAd? get bannerAd => _bannerAd;
-
-  void loadBannerAd() {
-    if (AppConfig.disableAds || !AppConfig.showAds) return;
-    _bannerAd?.dispose();
-    _bannerAd = BannerAd(
-      adUnitId: RemoteConfigService().bannerAdUnitId,
-      size: AdSize.banner,
-      request: const AdRequest(),
-      listener: BannerAdListener(
-        onAdLoaded: (ad) {},
-        onAdFailedToLoad: (ad, error) {
-          ad.dispose();
-        },
-      ),
-    )..load();
-  }
+  // --- Interstitial (session-exit, frequency capped) ---
 
   void loadInterstitialAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
-    if (AppConfig.disableAds || !AppConfig.showAds) {
+    if (!_adsEnabled) {
       onFailed?.call();
       return;
     }
@@ -58,13 +52,46 @@ class AdService {
     );
   }
 
-  void showInterstitialAd() {
-    _interstitialAd?.show();
-    _interstitialAd = null;
+  /// Caps that keep the exit interstitial from feeling punishing: never in
+  /// the first session, only after real coloring time, with a cooldown and
+  /// never right on the heels of a rewarded ad. All tunable via RemoteConfig.
+  bool canShowSessionInterstitial(Duration sessionLength) {
+    if (!_adsEnabled || isFirstSession || _interstitialAd == null) {
+      return false;
+    }
+    final rc = RemoteConfigService();
+    if (sessionLength.inSeconds < rc.interstitialMinSessionSeconds) {
+      return false;
+    }
+    final now = DateTime.now();
+    if (_lastInterstitialAt != null &&
+        now.difference(_lastInterstitialAt!).inSeconds <
+            rc.interstitialCooldownSeconds) {
+      return false;
+    }
+    if (_lastRewardedAt != null &&
+        now.difference(_lastRewardedAt!).inSeconds < 60) {
+      return false;
+    }
+    return true;
   }
 
+  void showInterstitialAd() {
+    final ad = _interstitialAd;
+    _interstitialAd = null;
+    if (ad == null) return;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) => a.dispose(),
+      onAdFailedToShowFullScreenContent: (a, error) => a.dispose(),
+    );
+    _lastInterstitialAt = DateTime.now();
+    ad.show();
+  }
+
+  // --- Rewarded ---
+
   void loadRewardedAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
-    if (AppConfig.disableAds || !AppConfig.showAds) {
+    if (!_adsEnabled) {
       onFailed?.call();
       return;
     }
@@ -93,6 +120,7 @@ class AdService {
         _rewardedAd = null;
       },
     );
+    _lastRewardedAt = DateTime.now();
     _rewardedAd?.show(
       onUserEarnedReward: (ad, reward) {
         onRewarded();
@@ -101,9 +129,54 @@ class AdService {
     _rewardedAd = null;
   }
 
+  // --- App open (on resume, heavily capped) ---
+
+  void loadAppOpenAd() {
+    if (!_adsEnabled || _appOpenAd != null) return;
+    AppOpenAd.load(
+      adUnitId: RemoteConfigService().appOpenAdUnitId,
+      request: const AdRequest(),
+      orientation: AppOpenAd.orientationPortrait,
+      adLoadCallback: AppOpenAdLoadCallback(
+        onAdLoaded: (ad) => _appOpenAd = ad,
+        onAdFailedToLoad: (error) {},
+      ),
+    );
+  }
+
+  void showAppOpenAdIfAvailable({required bool isProUser}) {
+    if (!_adsEnabled || isProUser || _showingAppOpen || isFirstSession) return;
+    final now = DateTime.now();
+    if (_lastAppOpenAt != null &&
+        now.difference(_lastAppOpenAt!).inSeconds <
+            RemoteConfigService().appOpenCooldownSeconds) {
+      return;
+    }
+    final ad = _appOpenAd;
+    if (ad == null) {
+      loadAppOpenAd(); // be ready for the next resume
+      return;
+    }
+    _appOpenAd = null;
+    _showingAppOpen = true;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) {
+        a.dispose();
+        _showingAppOpen = false;
+        loadAppOpenAd();
+      },
+      onAdFailedToShowFullScreenContent: (a, error) {
+        a.dispose();
+        _showingAppOpen = false;
+      },
+    );
+    _lastAppOpenAt = now;
+    ad.show();
+  }
+
   void dispose() {
-    _bannerAd?.dispose();
     _interstitialAd?.dispose();
     _rewardedAd?.dispose();
+    _appOpenAd?.dispose();
   }
 }

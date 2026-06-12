@@ -89,12 +89,22 @@ class ColoringProvider extends ChangeNotifier {
   String get _saveKey => 'pixelart_progress_${_currentArt?.id ?? ''}';
   String get _achieveKey => 'pixelart_achievements';
 
+  /// Plays [haptic] unless the user disabled haptics in settings.
+  void _haptic(void Function() haptic) {
+    if (_storageService.getBool('haptics_enabled', defaultValue: true)) {
+      haptic();
+    }
+  }
+
   void saveProgress() {
     if (_currentArt == null) return;
     final data = _filledGrid.map((row) => row.join(',')).join(';');
     _storageService.setString(_saveKey, data);
     _storageService.setInt('${_saveKey}_fills', _totalFillCount);
     _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
+    // Lightweight percent so list screens can show progress without parsing
+    // the full grid string.
+    _storageService.setInt('${_saveKey}_pct', (_progress * 100).round());
     _storageService.setString(_achieveKey, _achievements.join(','));
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
   }
@@ -138,6 +148,7 @@ class ColoringProvider extends ChangeNotifier {
   void clearProgress() {
     if (_currentArt == null) return;
     _storageService.setString(_saveKey, '');
+    _storageService.setInt('${_saveKey}_pct', 0);
     _timeLapse = [];
     _consecutiveFills = 0;
   }
@@ -257,7 +268,7 @@ class ColoringProvider extends ChangeNotifier {
       return false;
     }
 
-    HapticFeedback.lightImpact(); // Tactile feedback on success!
+    _haptic(HapticFeedback.lightImpact);
 
     _totalFillCount++;
     _consecutiveFills++;
@@ -343,7 +354,7 @@ class ColoringProvider extends ChangeNotifier {
       _consecutiveFills = 0;
       _isComplete = false;
     } else {
-      HapticFeedback.lightImpact();
+      _haptic(HapticFeedback.lightImpact);
       _totalFillCount++;
       _consecutiveFills++;
       _checkCompletion();
@@ -381,7 +392,7 @@ class ColoringProvider extends ChangeNotifier {
     _highlightedNumber = number;
     _filledGrid[r][c] = number;
     _timeLapse.add((r, c));
-    HapticFeedback.lightImpact();
+    _haptic(HapticFeedback.lightImpact);
     _totalFillCount++;
     _calculateProgress();
     _checkCompletion();
@@ -645,7 +656,7 @@ class ColoringProvider extends ChangeNotifier {
       _magicWandsCount--;
       _isMagicWandMode = false;
       _totalFillCount++;
-      HapticFeedback.mediumImpact(); // Stronger tactile feel for magical booster!
+      _haptic(HapticFeedback.mediumImpact);
       _calculateProgress();
       _checkCompletion();
       _checkAchievements();

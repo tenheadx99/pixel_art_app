@@ -154,6 +154,19 @@ class GalleryProvider extends ChangeNotifier {
   static String _dateKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
+  /// Saved coloring progress (0-100) for [id]; written by ColoringProvider.
+  int progressPercent(String id) =>
+      _storageService.getInt('pixelart_progress_${id}_pct');
+
+  /// Artworks the user has started but not finished, for a "continue" row.
+  List<PixelArt> get inProgressArts => _catalog.where((a) {
+    final p = progressPercent(a.id);
+    return p > 0 && p < 100;
+  }).toList();
+
+  /// Re-reads derived state (e.g. after returning from the coloring screen).
+  void refresh() => notifyListeners();
+
   bool isCompleted(String id) => _completedIds.contains(id);
 
   bool isFavorite(String id) => _favoriteIds.contains(id);
@@ -181,8 +194,16 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Premium pieces a rewarded ad unlocked for this app session only.
+  final Set<String> _sessionUnlockedIds = {};
+
+  void unlockForSession(String id) {
+    _sessionUnlockedIds.add(id);
+    notifyListeners();
+  }
+
   bool isUnlocked(PixelArt art, bool isProUser) {
     if (!art.isPremium) return true;
-    return isProUser;
+    return isProUser || _sessionUnlockedIds.contains(art.id);
   }
 }

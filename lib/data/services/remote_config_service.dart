@@ -23,8 +23,13 @@ class RemoteConfigService {
         'pixelyart_banner_ad_unit_id': 'ca-app-pub-3940256099942544/6300978111',
         'pixelyart_interstitial_ad_unit_id': 'ca-app-pub-3940256099942544/1033173712',
         'pixelyart_rewarded_ad_unit_id': 'ca-app-pub-3940256099942544/5224354917',
+        'pixelyart_app_open_ad_unit_id': 'ca-app-pub-3940256099942544/9257395921',
         'pixelyart_min_version': '1.0.0',
         'pixelyart_force_update_url': '',
+        // Ad pacing — tune from the console without a release.
+        'pixelyart_interstitial_cooldown_s': 90,
+        'pixelyart_interstitial_min_session_s': 120,
+        'pixelyart_app_open_cooldown_s': 14400,
       });
 
       // Fetch and activate config parameters
@@ -65,4 +70,26 @@ class RemoteConfigService {
     final id = _remoteConfig.getString('pixelyart_rewarded_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/5224354917';
   }
+
+  String get appOpenAdUnitId {
+    final id = _remoteConfig.getString('pixelyart_app_open_ad_unit_id');
+    return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/9257395921';
+  }
+
+  int _intOr(String key, int fallback) {
+    final v = _remoteConfig.getInt(key);
+    return v > 0 ? v : fallback;
+  }
+
+  /// Minimum gap between two interstitials.
+  int get interstitialCooldownSeconds =>
+      _intOr('pixelyart_interstitial_cooldown_s', 90);
+
+  /// Coloring sessions shorter than this never trigger an exit interstitial.
+  int get interstitialMinSessionSeconds =>
+      _intOr('pixelyart_interstitial_min_session_s', 120);
+
+  /// Minimum gap between two app-open ads.
+  int get appOpenCooldownSeconds =>
+      _intOr('pixelyart_app_open_cooldown_s', 14400);
 }

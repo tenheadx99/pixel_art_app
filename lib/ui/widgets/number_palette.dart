@@ -2,10 +2,46 @@ import 'package:flutter/material.dart';
 import '../../providers/coloring_provider.dart';
 import '../theme/app_style.dart';
 
-class NumberPalette extends StatelessWidget {
+class NumberPalette extends StatefulWidget {
   final ColoringProvider provider;
 
   const NumberPalette({super.key, required this.provider});
+
+  @override
+  State<NumberPalette> createState() => _NumberPaletteState();
+}
+
+class _NumberPaletteState extends State<NumberPalette> {
+  final ScrollController _scrollController = ScrollController();
+  int? _lastSelected;
+
+  ColoringProvider get provider => widget.provider;
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  /// Keeps the selected chip visible — auto-advance can jump the selection
+  /// to a color that is scrolled off screen.
+  void _followSelection(List<int> numbers, int selected) {
+    if (_lastSelected == selected) return;
+    _lastSelected = selected;
+    final index = numbers.indexOf(selected);
+    if (index < 0 || !_scrollController.hasClients) return;
+    const itemExtent = 62.0; // chip width + margins, approximate
+    final viewport = _scrollController.position.viewportDimension;
+    final target = (index * itemExtent - (viewport - itemExtent) / 2).clamp(
+      0.0,
+      _scrollController.position.maxScrollExtent,
+    );
+    _scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -14,6 +50,10 @@ class NumberPalette extends StatelessWidget {
 
     final numbers = art.sortedNumbers;
     if (numbers.isEmpty) return const SizedBox.shrink();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _followSelection(numbers, provider.selectedNumber);
+    });
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -74,6 +114,7 @@ class NumberPalette extends StatelessWidget {
         SizedBox(
           height: 76,
           child: ListView.builder(
+            controller: _scrollController,
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             itemCount: numbers.length,

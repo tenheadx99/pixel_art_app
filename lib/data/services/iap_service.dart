@@ -52,6 +52,21 @@ class IAPService {
     }
   }
 
+  /// Localized store price for [productId] (e.g. "₹250.00"), or null when
+  /// the store is unavailable.
+  Future<String?> getPrice(String productId) async {
+    if (!_enabled) return null;
+    try {
+      final response = await InAppPurchase.instance.queryProductDetails({
+        productId,
+      });
+      if (response.productDetails.isEmpty) return null;
+      return response.productDetails.first.price;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Future<void> buyPro() => _buy(AppConstants.proProductId, consumable: false);
 
   Future<void> buyConsumable(String productId) =>

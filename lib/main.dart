@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'config/app_constants.dart';
 import 'data/services/remote_config_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
@@ -78,7 +79,8 @@ class AppBootstrap extends StatefulWidget {
   State<AppBootstrap> createState() => _AppBootstrapState();
 }
 
-class _AppBootstrapState extends State<AppBootstrap> {
+class _AppBootstrapState extends State<AppBootstrap>
+    with WidgetsBindingObserver {
   AppDependencies? _dependencies;
   List<PixelArt> _preMadeArts = [];
   bool _ready = false;
@@ -88,7 +90,20 @@ class _AppBootstrapState extends State<AppBootstrap> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _bootstrap();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // App-open ad on return from background (never on cold start); AdService
+    // applies the pro/first-session/cooldown caps.
+    if (state == AppLifecycleState.resumed && _ready) {
+      final isPro =
+          _dependencies?.localStorageService.getBool(AppConstants.proPrefKey) ??
+          false;
+      AdService().showAppOpenAdIfAvailable(isProUser: isPro);
+    }
   }
 
   Future<void> _bootstrap() async {
@@ -125,7 +140,14 @@ class _AppBootstrapState extends State<AppBootstrap> {
 
     final preMade = await PixelConverterService().loadPreMadeAssets();
 
-    AdService().initialize();
+    // First-ever session: no full-screen ads (AdService checks this flag).
+    final hadFirstSession = localStorageService.getBool('had_first_session');
+    localStorageService.setBool('had_first_session', true);
+
+    await AdService().initialize();
+    AdService()
+      ..isFirstSession = !hadFirstSession
+      ..loadAppOpenAd();
 
     if (!mounted) return;
     setState(() {
@@ -137,6 +159,7 @@ class _AppBootstrapState extends State<AppBootstrap> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _dependencies?.dispose();
     super.dispose();
   }
@@ -204,7 +227,7 @@ class _AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'PixelPause',
+      title: 'Pixely',
       debugShowCheckedModeBanner: false,
       theme: AppStyle.lightTheme(),
       darkTheme: AppStyle.darkTheme(),
@@ -221,7 +244,7 @@ class _AppShellWithDeps extends StatelessWidget {
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return MaterialApp(
-          title: 'PixelPause',
+          title: 'Pixely',
           debugShowCheckedModeBanner: false,
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           theme: AppStyle.lightTheme(),

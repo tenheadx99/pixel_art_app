@@ -59,7 +59,9 @@ class NumberToolbar extends StatelessWidget {
                         ? Icons.auto_fix_high_rounded
                         : Icons.auto_fix_high_rounded,
                     label: provider.isEraseMode ? 'Erase' : 'Fill',
-                    color: provider.isEraseMode ? AppStyle.coral : AppStyle.accent,
+                    color: provider.isEraseMode
+                        ? AppStyle.coral
+                        : AppStyle.accent,
                     onTap: () => provider.toggleEraseMode(),
                   ),
                   _divider(),
@@ -100,7 +102,7 @@ class NumberToolbar extends StatelessWidget {
                     icon: Icons.done_all_rounded,
                     label: 'Auto',
                     color: const Color(0xFF00B894),
-                    onTap: () => provider.fillAllRemaining(),
+                    onTap: () => _confirmAutoFill(context),
                   ),
                   if (provider.achievements.isNotEmpty) ...[
                     _divider(),
@@ -116,6 +118,39 @@ class NumberToolbar extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  /// Auto-fill instantly completes the artwork — far too destructive to the
+  /// experience for a single accidental tap.
+  void _confirmAutoFill(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Finish artwork?'),
+        content: const Text(
+          'This fills every remaining cell for you and ends the coloring '
+          'session. There is no way back except resetting.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Keep Coloring'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              provider.fillAllRemaining();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF00B894),
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Fill All'),
+          ),
+        ],
       ),
     );
   }

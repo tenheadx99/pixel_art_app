@@ -11,6 +11,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _isProUser = false;
   bool _isDarkMode = false;
   bool _colorblindMode = false;
+  bool _hapticsEnabled = true;
   int _hintsAvailable = 0;
 
   AppSettingsProvider(this._storageService);
@@ -18,13 +19,24 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get isProUser => _isProUser;
   bool get isDarkMode => _isDarkMode;
   bool get colorblindMode => _colorblindMode;
+  bool get hapticsEnabled => _hapticsEnabled;
   int get hintsAvailable => _hintsAvailable;
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
     _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey, defaultValue: true);
     _colorblindMode = _storageService.getBool('colorblind_mode');
+    _hapticsEnabled = _storageService.getBool(
+      'haptics_enabled',
+      defaultValue: true,
+    );
     _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
+    notifyListeners();
+  }
+
+  void toggleHaptics() {
+    _hapticsEnabled = !_hapticsEnabled;
+    _storageService.setBool('haptics_enabled', _hapticsEnabled);
     notifyListeners();
   }
 

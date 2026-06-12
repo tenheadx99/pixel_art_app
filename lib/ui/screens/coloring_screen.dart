@@ -19,6 +19,7 @@ import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../data/services/timelapse_service.dart';
 import '../../ui/theme/app_style.dart';
+import '../../ui/widgets/ad_banner.dart';
 import '../../ui/widgets/pixel_grid.dart';
 import '../../ui/widgets/number_palette.dart';
 import '../../ui/widgets/number_toolbar.dart';
@@ -51,7 +52,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   bool _sharingGif = false;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
+  AdService? _adService;
   Size _viewerSize = Size.zero;
+  final DateTime _sessionStart = DateTime.now();
 
   @override
   void initState() {
@@ -72,16 +75,20 @@ class _ColoringScreenState extends State<ColoringScreen>
       vsync: this,
       duration: const Duration(milliseconds: 800),
     );
-    _zoomAnimController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 350),
-    )..addListener(() {
-      final tween = _zoomTween;
-      if (tween == null) return;
-      _transformController.value = tween.evaluate(
-        CurvedAnimation(parent: _zoomAnimController, curve: Curves.easeOutCubic),
-      );
-    });
+    _zoomAnimController =
+        AnimationController(
+          vsync: this,
+          duration: const Duration(milliseconds: 350),
+        )..addListener(() {
+          final tween = _zoomTween;
+          if (tween == null) return;
+          _transformController.value = tween.evaluate(
+            CurvedAnimation(
+              parent: _zoomAnimController,
+              curve: Curves.easeOutCubic,
+            ),
+          );
+        });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final provider = context.read<ColoringProvider>();
       provider.loadArt(widget.art);
@@ -93,6 +100,12 @@ class _ColoringScreenState extends State<ColoringScreen>
       _coloringProvider = provider..addListener(_onProviderChanged);
       _settings = context.read<AppSettingsProvider>()
         ..addListener(_onSettingsChanged);
+      _adService = context.read<AdService>();
+      // Preload the session-exit interstitial; the capping logic decides
+      // later whether it actually shows.
+      if (!(_settings?.isProUser ?? false)) {
+        _adService!.loadInterstitialAd();
+      }
     });
   }
 
@@ -119,7 +132,9 @@ class _ColoringScreenState extends State<ColoringScreen>
             ],
           ),
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
           backgroundColor: const Color(0xFF6C5CE7),
           duration: const Duration(seconds: 2),
         ),
@@ -129,9 +144,6 @@ class _ColoringScreenState extends State<ColoringScreen>
     if (provider.isComplete && !_wasComplete) {
       _wasComplete = true;
       _gridFadeController.forward();
-      if (!(_settings?.isProUser ?? false)) {
-        context.read<AdService>().loadInterstitialAd();
-      }
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -144,11 +156,24 @@ class _ColoringScreenState extends State<ColoringScreen>
     _coloringProvider?.syncWandsFromStorage();
   }
 
+  /// Leaving a coloring session is the one interruption point users accept.
+  /// AdService applies the caps (min session length, cooldown, first session,
+  /// recent rewarded); this just reports the session.
+  void _maybeShowExitInterstitial() {
+    final adService = _adService;
+    if (adService == null || (_settings?.isProUser ?? true)) return;
+    final session = DateTime.now().difference(_sessionStart);
+    if (adService.canShowSessionInterstitial(session)) {
+      adService.showInterstitialAd();
+    }
+  }
+
   void _adjustCellSize() {
     final screenSize = MediaQuery.of(context).size;
     final pad = MediaQuery.of(context).padding;
     final availableWidth = screenSize.width - 32;
-    final availableHeight = screenSize.height - pad.top - pad.bottom - 64 - 200;
+    // Top bar (~64) + toolbar/palette/banner (~250).
+    final availableHeight = screenSize.height - pad.top - pad.bottom - 64 - 250;
     if (widget.art.gridWidth <= 0 || widget.art.gridHeight <= 0) return;
     final fromW = availableWidth / widget.art.gridWidth;
     final fromH = availableHeight / widget.art.gridHeight;
@@ -217,9 +242,13 @@ class _ColoringScreenState extends State<ColoringScreen>
           _confettiController.forward();
         }
 
-        return Scaffold(
-          extendBodyBehindAppBar: true,
-          body: Container(
+        return PopScope(
+          onPopInvokedWithResult: (didPop, _) {
+            if (didPop) _maybeShowExitInterstitial();
+          },
+          child: Scaffold(
+            extendBodyBehindAppBar: true,
+            body: Container(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: Theme.of(context).brightness == Brightness.light
@@ -238,6 +267,8 @@ class _ColoringScreenState extends State<ColoringScreen>
                       children: [
                         if (isCurrentArt) _buildGrid(provider, settings),
                         _buildZoomControls(),
+                        if (provider.isEraseMode || provider.isMagicWandMode)
+                          _buildModePill(provider),
                         ConfettiOverlay(animation: _confettiController),
                         if (isComplete) _buildCompletionBar(provider),
                       ],
@@ -247,6 +278,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 ],
               ),
             ),
+          ),
           ),
         );
       },
@@ -263,12 +295,76 @@ class _ColoringScreenState extends State<ColoringScreen>
           const SizedBox(height: 6),
           _ZoomButton(icon: Icons.remove, onTap: () => _zoomBy(1 / 1.4)),
           const SizedBox(height: 6),
-          _ZoomButton(
-            icon: Icons.fit_screen_rounded,
-            onTap: () => _zoomBy(0),
-          ),
+          _ZoomButton(icon: Icons.fit_screen_rounded, onTap: () => _zoomBy(0)),
         ],
       ),
+    );
+  }
+
+  /// Clear feedback that a destructive/special mode is active — the toolbar
+  /// label alone is easy to miss.
+  Widget _buildModePill(ColoringProvider provider) {
+    final isErase = provider.isEraseMode;
+    return Positioned(
+      top: 8,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+          decoration: BoxDecoration(
+            color: isErase ? const Color(0xFFFF6B6B) : const Color(0xFF9C27B0),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                isErase ? Icons.cleaning_services : Icons.auto_fix_high_rounded,
+                color: Colors.white,
+                size: 14,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                isErase ? 'Eraser on' : 'Magic wand: tap an area',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Suggests another piece to color right after finishing one.
+  void _openNextArt() {
+    final gallery = context.read<GalleryProvider>();
+    final settings = context.read<AppSettingsProvider>();
+    final candidates = gallery.catalog
+        .where(
+          (a) =>
+              a.id != widget.art.id &&
+              !gallery.isCompleted(a.id) &&
+              gallery.isUnlocked(a, settings.isProUser),
+        )
+        .toList();
+    if (candidates.isEmpty) {
+      _showInfoSnack('You have completed everything — amazing!');
+      return;
+    }
+    final next = candidates.firstWhere(
+      (a) => a.category == widget.art.category,
+      orElse: () => candidates.first,
+    );
+    // pushReplacement bypasses PopScope, so cover this exit path too.
+    _maybeShowExitInterstitial();
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => ColoringScreen(art: next)),
     );
   }
 
@@ -302,6 +398,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                 label: _sharingGif ? 'Rendering…' : 'Share GIF',
                 onTap: _sharingGif ? null : () => _shareTimelapse(provider),
               ),
+              _CompletionAction(
+                icon: Icons.skip_next_rounded,
+                label: 'Next',
+                onTap: _openNextArt,
+              ),
             ],
           ),
         ),
@@ -315,14 +416,11 @@ class _ColoringScreenState extends State<ColoringScreen>
     final pngBytes = await screenshotService.captureAsPng(_repaintKey);
     if (pngBytes == null) return;
     final dir = await getTemporaryDirectory();
-    final file = File(
-      '${dir.path}/pixely_${widget.art.id}.png',
-    );
+    final file = File('${dir.path}/pixely_${widget.art.id}.png');
     await file.writeAsBytes(pngBytes);
-    await Share.shareXFiles(
-      [XFile(file.path, mimeType: 'image/png')],
-      text: 'I just finished "${widget.art.name}" in Pixely! 🎨',
-    );
+    await Share.shareXFiles([
+      XFile(file.path, mimeType: 'image/png'),
+    ], text: 'I just finished "${widget.art.name}" in Pixely! 🎨');
   }
 
   Future<void> _shareTimelapse(ColoringProvider provider) async {
@@ -343,10 +441,9 @@ class _ColoringScreenState extends State<ColoringScreen>
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/pixely_${widget.art.id}_timelapse.gif');
       await file.writeAsBytes(bytes);
-      await Share.shareXFiles(
-        [XFile(file.path, mimeType: 'image/gif')],
-        text: 'Watch me paint "${widget.art.name}" in Pixely! 🎨',
-      );
+      await Share.shareXFiles([
+        XFile(file.path, mimeType: 'image/gif'),
+      ], text: 'Watch me paint "${widget.art.name}" in Pixely! 🎨');
     } finally {
       if (mounted) setState(() => _sharingGif = false);
     }
@@ -418,14 +515,9 @@ class _ColoringScreenState extends State<ColoringScreen>
       child: Row(
         children: [
           GestureDetector(
-            onTap: () {
-              // Completed artwork is a natural break: show the preloaded
-              // interstitial on the way out (free users only).
-              if (isComplete && !(_settings?.isProUser ?? true)) {
-                context.read<AdService>().showInterstitialAd();
-              }
-              Navigator.pop(context);
-            },
+            // The PopScope around the Scaffold handles the exit interstitial
+            // for both this button and the system back gesture.
+            onTap: () => Navigator.pop(context),
             child: Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
@@ -458,9 +550,10 @@ class _ColoringScreenState extends State<ColoringScreen>
                     height: 8,
                     child: Stack(
                       children: [
-                         Container(
+                        Container(
                           decoration: BoxDecoration(
-                            color: Theme.of(context).brightness == Brightness.light
+                            color:
+                                Theme.of(context).brightness == Brightness.light
                                 ? Colors.grey.shade200
                                 : Colors.white.withAlpha(20),
                             borderRadius: BorderRadius.circular(6),
@@ -536,9 +629,11 @@ class _ColoringScreenState extends State<ColoringScreen>
           // Large grids fit the screen with tiny cells; allow zooming until a
           // cell is ~28px so every artwork stays comfortably tappable.
           maxScale: max(4.0, 28.0 / _cellSize),
-          child: RepaintBoundary(
-            key: _repaintKey,
-            child: Center(
+          child: Center(
+            // The boundary wraps only the grid so PNG exports are cropped to
+            // the artwork, not the whole viewport.
+            child: RepaintBoundary(
+              key: _repaintKey,
               child: PixelGrid(
                 provider: provider,
                 cellSize: _cellSize,
@@ -654,6 +749,13 @@ class _ColoringScreenState extends State<ColoringScreen>
             decoration: AppStyle.glassmorphism(context),
             child: NumberPalette(provider: provider),
           ),
+          // The coloring screen is where users spend their time — the banner
+          // lives here for free users.
+          if (!settings.isProUser)
+            const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: AdBanner(),
+            ),
         ],
       ),
     );
@@ -742,8 +844,9 @@ class _ColoringScreenState extends State<ColoringScreen>
                     _showInfoSnack('+$adAmount $label earned!');
                   },
                 ),
-                onFailed: () =>
-                    _showInfoSnack('No ad available right now — try again later.'),
+                onFailed: () => _showInfoSnack(
+                  'No ad available right now — try again later.',
+                ),
               );
             },
           ),

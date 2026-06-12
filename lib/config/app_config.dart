@@ -4,7 +4,7 @@ class AppConfig {
   static bool showAds = false;
 
 
-  static const String appName = 'PixelyArt';
+  static const String appName = 'Pixely';
   static const int maxUndoSteps = 20;
   static const double defaultCellSize = 24.0;
   // Small enough that even a 128x128 grid fits the screen at fit-zoom;
