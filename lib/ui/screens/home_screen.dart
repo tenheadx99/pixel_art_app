@@ -877,7 +877,9 @@ class _PixelArtCard extends StatelessWidget {
     final colors = AppColors.gradientForIndex(index);
 
     return GestureDetector(
-      onTap: isUnlocked ? onTap : null,
+      // Locked items must still be tappable so _openColoring can present the
+      // unlock dialog; gating onTap here is what made premium taps no-op.
+      onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
