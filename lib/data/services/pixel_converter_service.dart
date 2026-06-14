@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:pixel_art_app/config/flavor.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/image_processing_service.dart';
 
@@ -57,7 +58,7 @@ class PixelConverterService {
     final arts = <PixelArt>[];
     try {
       final manifestJson = await rootBundle.loadString(
-        'assets/pixel_art/manifest.json',
+        FlavorConfig.current.manifestPath,
       );
       final manifest = jsonDecode(manifestJson) as List<dynamic>;
       for (final entry in manifest) {

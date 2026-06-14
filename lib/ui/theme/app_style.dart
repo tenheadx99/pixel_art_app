@@ -1,9 +1,16 @@
 import 'package:flutter/material.dart';
+import '../../config/flavor.dart';
 
 class AppStyle {
+  // Default (original flavor) brand colors. The active Material 3 seed is
+  // resolved per-flavor via [brandSeed]; these constants remain for the many
+  // const gradient/shadow usages across the UI.
   static const Color primary = Color(0xFF8A2BE2); // Indigo/Purple
   static const Color secondary = Color(0xFFFF007F); // Neon Pink
   static const Color accent = Color(0xFF00F0FF); // Cyber Cyan
+
+  /// Material 3 seed color for the active flavor.
+  static Color get brandSeed => FlavorConfig.current.primary;
   static const Color gold = Color(0xFFFFD700);
   static const Color coral = Color(0xFFFF4757);
   static const Color lavender = Color(0xFFBD93F9);
@@ -51,7 +58,7 @@ class AppStyle {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
-      colorSchemeSeed: primary,
+      colorSchemeSeed: brandSeed,
       scaffoldBackgroundColor: const Color(0xFFF3F4F6), // Premium Platinum
       appBarTheme: const AppBarTheme(
         centerTitle: true,
@@ -85,7 +92,7 @@ class AppStyle {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
-      colorSchemeSeed: primary,
+      colorSchemeSeed: brandSeed,
       scaffoldBackgroundColor: const Color(0xFF0A0A16), // Midnight Carbon
       appBarTheme: const AppBarTheme(
         centerTitle: true,
@@ -104,7 +111,7 @@ class AppStyle {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          backgroundColor: primary,
+          backgroundColor: brandSeed,
           foregroundColor: Colors.white,
         ),
       ),

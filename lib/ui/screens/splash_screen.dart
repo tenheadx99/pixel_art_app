@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../theme/app_style.dart';
+import '../../config/flavor.dart';
 
 class SplashScreen extends StatefulWidget {
   final bool canContinue;
@@ -68,13 +68,14 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
+    final flavor = FlavorConfig.current;
     return Scaffold(
       body: Container(
         width: double.infinity,
         height: double.infinity,
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: AppStyle.gradientStart,
+            colors: flavor.brandGradient,
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -120,9 +121,9 @@ class _SplashScreenState extends State<SplashScreen>
                         ),
                       ),
                       const SizedBox(height: 28),
-                      const Text(
-                        'Pixel Art',
-                        style: TextStyle(
+                      Text(
+                        flavor.splashTitle,
+                        style: const TextStyle(
                           fontSize: 36,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
@@ -131,7 +132,7 @@ class _SplashScreenState extends State<SplashScreen>
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        'Color by Number',
+                        flavor.splashTagline,
                         style: TextStyle(
                           fontSize: 16,
                           color: Colors.white.withAlpha(200),

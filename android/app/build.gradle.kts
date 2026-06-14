@@ -47,6 +47,22 @@ android {
         }
     }
 
+    flavorDimensions += "app"
+    productFlavors {
+        // Original neon/synthwave pixel-art app.
+        create("original") {
+            dimension = "app"
+            applicationId = "com.tenhead.pixelyart"
+            resValue("string", "app_name", "PixelPause")
+        }
+        // "Divine Pixels" — Indian god & goddess devotional flavor.
+        create("devotional") {
+            dimension = "app"
+            applicationId = "com.tenhead.divinepixels"
+            resValue("string", "app_name", "Divine Pixels")
+        }
+    }
+
     lint {
         checkReleaseBuilds = false
         abortOnError = false

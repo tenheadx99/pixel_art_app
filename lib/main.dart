@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'config/app_constants.dart';
+import 'config/flavor.dart';
 import 'data/services/remote_config_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
@@ -46,6 +47,12 @@ bool isVersionOlder(String current, String required) {
 }
 
 Future<void> main() async {
+  await bootstrapApp();
+}
+
+/// Shared entrypoint logic used by every flavor's `main_*.dart`. The active
+/// flavor is resolved from the `FLAVOR` dart-define via [currentFlavor].
+Future<void> bootstrapApp() async {
   WidgetsFlutterBinding.ensureInitialized();
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
@@ -227,7 +234,7 @@ class _AppShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Pixely',
+      title: FlavorConfig.current.appName,
       debugShowCheckedModeBanner: false,
       theme: AppStyle.lightTheme(),
       darkTheme: AppStyle.darkTheme(),
@@ -244,7 +251,7 @@ class _AppShellWithDeps extends StatelessWidget {
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return MaterialApp(
-          title: 'Pixely',
+          title: FlavorConfig.current.appName,
           debugShowCheckedModeBanner: false,
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           theme: AppStyle.lightTheme(),

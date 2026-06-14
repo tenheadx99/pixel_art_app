@@ -1,0 +1,42 @@
+[
+  { "id": "ganesha",        "name": "Ganesha",            "category": "Deities",   "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "krishna_flute",  "name": "Krishna",            "category": "Deities",   "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "radha_krishna",  "name": "Radha-Krishna",      "category": "Deities",   "grid": 48, "difficulty": 4, "premium": true  },
+  { "id": "shiva",          "name": "Shiva",              "category": "Deities",   "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "nataraja",       "name": "Nataraja",           "category": "Deities",   "grid": 48, "difficulty": 4, "premium": true  },
+  { "id": "vishnu",         "name": "Vishnu",             "category": "Deities",   "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "brahma",         "name": "Brahma",             "category": "Deities",   "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "hanuman",        "name": "Hanuman",            "category": "Deities",   "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "rama",           "name": "Rama",               "category": "Deities",   "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "murugan",        "name": "Kartikeya (Murugan)","category": "Deities",   "grid": 48, "difficulty": 4, "premium": true  },
+  { "id": "kubera",         "name": "Kubera",             "category": "Deities",   "grid": 24, "difficulty": 2, "premium": true  },
+  { "id": "indra",          "name": "Indra",              "category": "Deities",   "grid": 48, "difficulty": 4, "premium": true  },
+
+  { "id": "lakshmi",        "name": "Lakshmi",            "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "saraswati",      "name": "Saraswati",          "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "durga",          "name": "Durga",              "category": "Goddesses", "grid": 48, "difficulty": 4, "premium": true  },
+  { "id": "kali",           "name": "Kali",               "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "parvati",        "name": "Parvati",            "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "sita",           "name": "Sita",               "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "ganga",          "name": "Ganga",              "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "annapurna",      "name": "Annapurna",          "category": "Goddesses", "grid": 32, "difficulty": 3, "premium": true  },
+
+  { "id": "matsya",         "name": "Matsya",             "category": "Avatars",   "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "kurma",          "name": "Kurma",              "category": "Avatars",   "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "varaha",         "name": "Varaha",             "category": "Avatars",   "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "narasimha",      "name": "Narasimha",          "category": "Avatars",   "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "vamana",         "name": "Vamana",             "category": "Avatars",   "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "parashurama",    "name": "Parashurama",        "category": "Avatars",   "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "buddha",         "name": "Buddha",             "category": "Avatars",   "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "kalki",          "name": "Kalki",              "category": "Avatars",   "grid": 48, "difficulty": 4, "premium": true  },
+
+  { "id": "nandi",          "name": "Nandi",              "category": "Sacred",    "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "garuda",         "name": "Garuda",             "category": "Sacred",    "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "kamadhenu",      "name": "Kamadhenu",          "category": "Sacred",    "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "naga",           "name": "Naga",               "category": "Sacred",    "grid": 24, "difficulty": 2, "premium": true  },
+
+  { "id": "diwali_diya",    "name": "Diwali Diyas",       "category": "Festivals", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "rangoli",        "name": "Rangoli",            "category": "Festivals", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "holi",           "name": "Holi",               "category": "Festivals", "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "navratri",       "name": "Navratri Garba",     "category": "Festivals", "grid": 32, "difficulty": 3, "premium": true  }
+]

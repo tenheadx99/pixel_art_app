@@ -1,0 +1,9 @@
+// Build settings for the "Divine Pixels" devotional iOS flavor.
+//
+// This file is referenced by the flavor-specific build configurations you
+// create in Xcode (see ios/DEVOTIONAL_FLAVOR_SETUP.md). Keeping the values
+// here means the Xcode configs just `#include` this file.
+#include "Generated.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.tenhead.divinepixels
+APP_DISPLAY_NAME = Divine Pixels

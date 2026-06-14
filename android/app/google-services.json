@@ -65,6 +65,25 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:a1b2c3d4e5f6a7b855af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.divinepixels"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:433057017992:android:73e309f29187bf1155af3d",
         "android_client_info": {
           "package_name": "com.tenhead.resumebuilder"

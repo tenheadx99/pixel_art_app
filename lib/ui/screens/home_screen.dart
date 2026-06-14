@@ -179,29 +179,34 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         const SizedBox(width: 14),
-                        const Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Pixely',
-                              style: TextStyle(
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                                letterSpacing: 0.5,
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Pixely',
+                                style: TextStyle(
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                  letterSpacing: 0.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            Text(
-                              'Relaxing Pixel Art',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: Colors.white70,
-                                letterSpacing: 1.5,
+                              Text(
+                                'Relaxing Pixel Art',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white70,
+                                  letterSpacing: 1.5,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        const Spacer(),
                         _HeaderIconButton(
                           icon: Icons.photo_camera,
                           onTap: () => _openCamera(context),
