@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'config/app_constants.dart';
+import 'config/app_config.dart';
 import 'config/flavor.dart';
 import 'data/services/remote_config_service.dart';
 import 'data/services/local_storage_service.dart';
@@ -54,6 +55,10 @@ Future<void> main() async {
 /// flavor is resolved from the `FLAVOR` dart-define via [currentFlavor].
 Future<void> bootstrapApp() async {
   WidgetsFlutterBinding.ensureInitialized();
+  // Apply per-flavor monetization toggles before Firebase/ad/IAP init.
+  final flavor = FlavorConfig.current;
+  AppConfig.disableAds = !flavor.adsEnabled;
+  AppConfig.disableIap = !flavor.iapEnabled;
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,

@@ -84,6 +84,44 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:b2c3d4e5f6a7b8c955af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.animepixels"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:c3d4e5f6a7b8c9da55af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.pixelcalm"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:433057017992:android:73e309f29187bf1155af3d",
         "android_client_info": {
           "package_name": "com.tenhead.resumebuilder"

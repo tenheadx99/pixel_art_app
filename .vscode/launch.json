@@ -53,6 +53,36 @@
             "flutterMode": "release",
             "program": "lib/main_devotional.dart",
             "toolArgs": ["--flavor", "devotional", "--dart-define=FLAVOR=devotional"]
+        },
+        {
+            "name": "Anime Pixels (anime)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_anime.dart",
+            "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
+        },
+        {
+            "name": "Anime Pixels (anime, release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "program": "lib/main_anime.dart",
+            "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
+        },
+        {
+            "name": "PixelCalm (pixelcalm)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_pixelcalm.dart",
+            "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
+        },
+        {
+            "name": "PixelCalm (pixelcalm, release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "program": "lib/main_pixelcalm.dart",
+            "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
         }
     ]
 }

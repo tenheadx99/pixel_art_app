@@ -61,6 +61,18 @@ android {
             applicationId = "com.tenhead.divinepixels"
             resValue("string", "app_name", "Divine Pixels")
         }
+        // "Anime Pixels" — anime/manga fan flavor.
+        create("anime") {
+            dimension = "app"
+            applicationId = "com.tenhead.animepixels"
+            resValue("string", "app_name", "Anime Pixels")
+        }
+        // "PixelCalm" — mindfulness / stress-relief flavor.
+        create("pixelcalm") {
+            dimension = "app"
+            applicationId = "com.tenhead.pixelcalm"
+            resValue("string", "app_name", "PixelCalm")
+        }
     }
 
     lint {

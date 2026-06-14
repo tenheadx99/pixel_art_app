@@ -1,0 +1,21 @@
+[
+  { "id": "chibi_hero",     "name": "Chibi Hero",     "category": "Chibi", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "chibi_girl",     "name": "Chibi Girl",     "category": "Chibi", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "chibi_catgirl",  "name": "Cat Girl",       "category": "Chibi", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "chibi_ninja",    "name": "Chibi Ninja",    "category": "Chibi", "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "chibi_mage",     "name": "Chibi Mage",     "category": "Chibi", "grid": 32, "difficulty": 3, "premium": true  },
+  { "id": "chibi_samurai",  "name": "Chibi Samurai",  "category": "Chibi", "grid": 48, "difficulty": 4, "premium": true  },
+
+  { "id": "anime_eye_blue", "name": "Blue Eye",       "category": "Eyes",  "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "anime_eye_red",  "name": "Crimson Eye",    "category": "Eyes",  "grid": 24, "difficulty": 2, "premium": false },
+  { "id": "anime_eye_green","name": "Emerald Eye",    "category": "Eyes",  "grid": 24, "difficulty": 2, "premium": true  },
+  { "id": "anime_eyes_pair","name": "Pair of Eyes",   "category": "Eyes",  "grid": 32, "difficulty": 3, "premium": true  },
+
+  { "id": "mecha_head",     "name": "Mecha Head",     "category": "Mecha", "grid": 32, "difficulty": 3, "premium": false },
+  { "id": "mecha_robot",    "name": "Battle Mecha",   "category": "Mecha", "grid": 48, "difficulty": 4, "premium": true  },
+  { "id": "mecha_pilot",    "name": "Mecha Pilot",    "category": "Mecha", "grid": 32, "difficulty": 3, "premium": true  },
+
+  { "id": "kawaii_sakura",  "name": "Sakura Blossom", "category": "Kawaii","grid": 16, "difficulty": 1, "premium": false },
+  { "id": "kawaii_bento",   "name": "Bento Box",      "category": "Kawaii","grid": 24, "difficulty": 2, "premium": false },
+  { "id": "kawaii_ramen",   "name": "Ramen Bowl",     "category": "Kawaii","grid": 24, "difficulty": 2, "premium": false }
+]

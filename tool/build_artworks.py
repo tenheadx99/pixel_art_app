@@ -1,22 +1,24 @@
 #!/usr/bin/env python3
-"""Batch image -> pixel-art JSON converter for the Divine Pixels flavor.
+"""Batch image -> pixel-art JSON converter for any flavor catalog.
 
 Replicates the in-app PixelConverterService / ImageProcessingService algorithm
 exactly (BOX-average downscale, 32-step per-channel quantization, top-N colors
 by frequency, +16 channel offset, alpha<128 = empty cell) so generated artworks
 look identical to ones produced by the app's photo->pixel feature.
 
-Workflow
---------
-1. Drop a source image for each artwork into tool/devotional_sources/, named
-   "<id>.png" (or .jpg) — e.g. ganesha.png, durga.png. Use clean, flat,
-   high-contrast art for the best low-res result.
-2. Run:  python3 tool/build_devotional_artworks.py
-   Every spec entry whose source image exists is converted; entries without an
-   image are reported as PENDING and skipped (safe to run repeatedly).
-3. The tool rewrites assets/pixel_art_devotional/manifest.json from ALL JSON in
-   that folder (authored symbols + reused mandalas + converted figures),
-   ordered by category.
+Usage
+-----
+    python3 tool/build_artworks.py <flavor>      # e.g. devotional | anime
+
+For flavor <f> it reads:
+    tool/<f>_artwork_spec.json     - list of artworks + metadata
+    tool/<f>_sources/<id>.png      - one source image per artwork id
+and writes:
+    assets/pixel_art_<f>/<id>.json - converted artwork
+    assets/pixel_art_<f>/manifest.json (rebuilt from ALL json in the folder)
+
+Entries whose source image is missing are reported as PENDING and skipped, so
+you can fill a catalog incrementally. Re-running is safe/idempotent.
 
 Requires: Pillow  (pip install Pillow)
 """
@@ -24,15 +26,13 @@ import json, os, sys
 from PIL import Image
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SPEC = os.path.join(ROOT, "tool", "devotional_artwork_spec.json")
-SRC_DIR = os.path.join(ROOT, "tool", "devotional_sources")
-OUT_DIR = os.path.join(ROOT, "assets", "pixel_art_devotional")
-ASSET_PREFIX = "assets/pixel_art_devotional"
 
-# Gallery grouping order (matches the plan's category list).
-CATEGORY_ORDER = [
-    "Symbols", "Deities", "Goddesses", "Avatars", "Sacred", "Festivals", "Mandalas",
-]
+# Gallery grouping order per flavor (unknown categories sort last).
+CATEGORY_ORDER = {
+    "devotional": ["Symbols", "Deities", "Goddesses", "Avatars", "Sacred", "Festivals", "Mandalas"],
+    "anime": ["Kawaii", "Chibi", "Eyes", "Mecha"],
+    "pixelcalm": ["Mandalas", "Patterns", "Nature"],
+}
 
 
 def quantize_channel(v):
@@ -75,61 +75,65 @@ def convert_image(path, gw, gh, max_colors=16):
     return grid, color_map
 
 
-def find_source(entry_id):
+def find_source(src_dir, entry_id):
     for ext in (".png", ".jpg", ".jpeg", ".webp"):
-        p = os.path.join(SRC_DIR, entry_id + ext)
+        p = os.path.join(src_dir, entry_id + ext)
         if os.path.exists(p):
             return p
     return None
 
 
-def main():
-    with open(SPEC) as f:
-        spec = json.load(f)
+def main(flavor):
+    spec_path = os.path.join(ROOT, "tool", f"{flavor}_artwork_spec.json")
+    src_dir = os.path.join(ROOT, "tool", f"{flavor}_sources")
+    out_dir = os.path.join(ROOT, "assets", f"pixel_art_{flavor}")
+    asset_prefix = f"assets/pixel_art_{flavor}"
+    os.makedirs(src_dir, exist_ok=True)
+    os.makedirs(out_dir, exist_ok=True)
+
+    if not os.path.exists(spec_path):
+        sys.exit(f"No spec file: {spec_path}")
+    spec = json.load(open(spec_path))
+    order = CATEGORY_ORDER.get(flavor, [])
 
     converted, pending = [], []
     for e in spec:
-        src = find_source(e["id"])
+        src = find_source(src_dir, e["id"])
         if not src:
             pending.append(e["id"])
             continue
         gw = gh = e["grid"]
         grid, color_map = convert_image(src, gw, gh, e.get("maxColors", 16))
         out = {
-            "id": e["id"],
-            "name": e["name"],
-            "gridWidth": gw,
-            "gridHeight": gh,
+            "id": e["id"], "name": e["name"],
+            "gridWidth": gw, "gridHeight": gh,
             "grid": ";".join(",".join(str(c) for c in row) for row in grid),
             "colorMap": {str(k): v for k, v in color_map.items()},
-            "category": e["category"],
-            "difficulty": e["difficulty"],
+            "category": e["category"], "difficulty": e["difficulty"],
             "isPremium": e.get("premium", False),
         }
-        with open(os.path.join(OUT_DIR, e["id"] + ".json"), "w") as f:
-            json.dump(out, f, indent=2)
+        json.dump(out, open(os.path.join(out_dir, e["id"] + ".json"), "w"), indent=2)
         converted.append(e["id"])
 
-    # Rebuild manifest from every artwork JSON in the folder, grouped by category.
-    files = [n for n in os.listdir(OUT_DIR) if n.endswith(".json") and n != "manifest.json"]
+    files = [n for n in os.listdir(out_dir) if n.endswith(".json") and n != "manifest.json"]
     def sort_key(n):
-        d = json.load(open(os.path.join(OUT_DIR, n)))
-        cat = d.get("category", "")
-        pri = CATEGORY_ORDER.index(cat) if cat in CATEGORY_ORDER else len(CATEGORY_ORDER)
+        d = json.load(open(os.path.join(out_dir, n)))
+        c = d.get("category", "")
+        pri = order.index(c) if c in order else len(order)
         return (pri, d.get("difficulty", 1), d.get("name", n))
     files.sort(key=sort_key)
-    with open(os.path.join(OUT_DIR, "manifest.json"), "w") as f:
-        json.dump([f"{ASSET_PREFIX}/{n}" for n in files], f, indent=2)
+    json.dump([f"{asset_prefix}/{n}" for n in files],
+              open(os.path.join(out_dir, "manifest.json"), "w"), indent=2)
 
-    print(f"Converted {len(converted)} image(s): {', '.join(converted) or '(none)'}")
-    print(f"Manifest now lists {len(files)} artworks.")
+    print(f"[{flavor}] converted {len(converted)}: {', '.join(converted) or '(none)'}")
+    print(f"[{flavor}] manifest now lists {len(files)} artworks.")
     if pending:
-        print(f"\nPENDING ({len(pending)}) — add a source image to tool/devotional_sources/<id>.png:")
+        print(f"\nPENDING ({len(pending)}) — add tool/{flavor}_sources/<id>.png:")
         for pid in pending:
             print("  -", pid)
 
 
 if __name__ == "__main__":
-    if not os.path.isdir(SRC_DIR):
-        os.makedirs(SRC_DIR, exist_ok=True)
-    main()
+    if len(sys.argv) != 2:
+        sys.exit("usage: python3 tool/build_artworks.py <flavor>   (e.g. devotional | anime)")
+    main(sys.argv[1])

@@ -9,7 +9,7 @@ Examples: `ganesha.png`, `durga.png`, `nataraja.png`, `diwali_diya.png`.
 Then run from the project root:
 
 ```bash
-python3 tool/build_devotional_artworks.py
+python3 tool/build_artworks.py devotional
 ```
 
 The tool converts every image present into `assets/pixel_art_devotional/<id>.json`

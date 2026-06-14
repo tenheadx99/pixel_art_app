@@ -44,4 +44,6 @@ flutter:
   assets:
     - assets/pixel_art/
     - assets/pixel_art_devotional/
+    - assets/pixel_art_anime/
+    - assets/pixel_art_pixelcalm/
     - assets/icons/
