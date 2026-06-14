@@ -31,7 +31,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CATEGORY_ORDER = {
     "devotional": ["Symbols", "Deities", "Goddesses", "Avatars", "Sacred", "Festivals", "Mandalas"],
     "anime": ["Kawaii", "Chibi", "Eyes", "Mecha"],
-    "pixelcalm": ["Mandalas", "Patterns", "Nature"],
+    "pixelcalm": ["Zen", "Mandalas", "Patterns", "Nature"],
 }
 
 

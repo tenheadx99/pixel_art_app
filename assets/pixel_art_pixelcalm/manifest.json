@@ -1,4 +1,10 @@
 [
+  "assets/pixel_art_pixelcalm/candle.json",
+  "assets/pixel_art_pixelcalm/crescent_moon.json",
+  "assets/pixel_art_pixelcalm/tea_cup.json",
+  "assets/pixel_art_pixelcalm/lantern.json",
+  "assets/pixel_art_pixelcalm/yin_yang.json",
+  "assets/pixel_art_pixelcalm/zen_stones.json",
   "assets/pixel_art_pixelcalm/kaleidoscope_burst.json",
   "assets/pixel_art_pixelcalm/lotus_mandala.json",
   "assets/pixel_art_pixelcalm/mystic_mandala.json",
@@ -9,6 +15,7 @@
   "assets/pixel_art_pixelcalm/aztec_sun.json",
   "assets/pixel_art_pixelcalm/persian_carpet.json",
   "assets/pixel_art_pixelcalm/dragon_scales.json",
+  "assets/pixel_art_pixelcalm/leaf.json",
   "assets/pixel_art_pixelcalm/peacock_eye.json",
   "assets/pixel_art_pixelcalm/galaxy_spiral.json",
   "assets/pixel_art_pixelcalm/ocean_interference.json",
