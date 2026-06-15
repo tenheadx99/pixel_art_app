@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
@@ -58,7 +59,9 @@ class NumberToolbar extends StatelessWidget {
                     icon: provider.isEraseMode
                         ? Icons.auto_fix_high_rounded
                         : Icons.auto_fix_high_rounded,
-                    label: provider.isEraseMode ? 'Erase' : 'Fill',
+                    label: provider.isEraseMode
+                        ? 'Erase'
+                        : FlavorConfig.current.placeVerb,
                     color: provider.isEraseMode
                         ? AppStyle.coral
                         : AppStyle.accent,
@@ -148,7 +151,7 @@ class NumberToolbar extends StatelessWidget {
               backgroundColor: const Color(0xFF00B894),
               foregroundColor: Colors.white,
             ),
-            child: const Text('Fill All'),
+            child: Text('${FlavorConfig.current.placeVerb} All'),
           ),
         ],
       ),

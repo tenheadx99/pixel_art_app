@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
 import '../theme/app_style.dart';
 
@@ -64,7 +65,7 @@ class _NumberPaletteState extends State<NumberPalette> {
           child: Row(
             children: [
               Text(
-                'Select a Color',
+                FlavorConfig.current.paletteLabel,
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,

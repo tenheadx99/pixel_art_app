@@ -83,6 +83,21 @@
             "flutterMode": "release",
             "program": "lib/main_pixelcalm.dart",
             "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
+        },
+        {
+            "name": "Gem Art (diamond)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_diamond.dart",
+            "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
+        },
+        {
+            "name": "Gem Art (diamond, release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "program": "lib/main_diamond.dart",
+            "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
         }
     ]
 }

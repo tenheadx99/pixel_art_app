@@ -4,6 +4,7 @@ import 'dart:ui' show PointMode;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
+import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
 
 class PixelGrid extends StatefulWidget {
@@ -166,6 +167,8 @@ class _PixelGridState extends State<PixelGrid> {
                   transform: widget.transform,
                   hoverRow: _hoverRow,
                   hoverCol: _hoverCol,
+                  gemStyle:
+                      FlavorConfig.current.cellStyle == CellRenderStyle.gem,
                 ),
               ),
             ),
@@ -209,6 +212,10 @@ class _PixelGridPainter extends CustomPainter {
   final int? hoverRow;
   final int? hoverCol;
 
+  /// When true, filled cells render as faceted gems (diamond-painting flavor)
+  /// instead of flat squares. Resolved once from [FlavorConfig] in build().
+  final bool gemStyle;
+
   _PixelGridPainter({
     required this.art,
     required this.filledGrid,
@@ -225,6 +232,7 @@ class _PixelGridPainter extends CustomPainter {
     this.transform,
     this.hoverRow,
     this.hoverCol,
+    this.gemStyle = false,
   }) : super(repaint: Listenable.merge([gridFade, transform]));
 
   /// Laid-out number labels, cached across frames and painter instances.
@@ -293,6 +301,55 @@ class _PixelGridPainter extends CustomPainter {
         }
       }
     }
+  }
+
+  // Gem rendering tuning — kept as named constants for quick visual iteration.
+  static const double _gemRingWidth = 0.18; // stroke width as fraction of radius
+  static const double _gemRingRadius = 0.9; // bevel-ring radius as fraction of r
+  static const double _gemHighlightOffset = 0.35; // specular dot offset from center
+  static const int _gemHighlightCoreAlpha = 160;
+  static const int _gemHighlightHaloAlpha = 90;
+
+  /// Paints a filled cell as a round faceted "drill": a colored circle, a
+  /// darker bevel ring for depth, and a stacked white specular highlight in the
+  /// upper-left. Reuses [cellPaint] (no per-cell Paint allocation) and uses only
+  /// cheap circle ops — no blur/shaders — to stay within the LOD draw budget.
+  void _drawGem(Canvas canvas, Rect rect, Color base, Paint cellPaint) {
+    final c = rect.center;
+    final r = rect.shortestSide / 2;
+
+    // 1. Body.
+    cellPaint
+      ..shader = null
+      ..style = PaintingStyle.fill
+      ..color = base;
+    canvas.drawCircle(c, r, cellPaint);
+
+    // 2. Bevel ring for depth.
+    cellPaint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = r * _gemRingWidth
+      ..color = _darken(base, 0.25);
+    canvas.drawCircle(c, r * _gemRingRadius, cellPaint);
+    cellPaint.style = PaintingStyle.fill;
+
+    // 3. Specular highlight (halo then core), upper-left.
+    final hl = Offset(c.dx - r * _gemHighlightOffset, c.dy - r * _gemHighlightOffset);
+    cellPaint.color = Colors.white.withAlpha(_gemHighlightHaloAlpha);
+    canvas.drawCircle(hl, r * 0.45, cellPaint);
+    cellPaint.color = Colors.white.withAlpha(_gemHighlightCoreAlpha);
+    canvas.drawCircle(hl, r * 0.28, cellPaint);
+  }
+
+  /// Scales an RGB color toward black by [amount] (0..1) for the bevel ring.
+  static Color _darken(Color color, double amount) {
+    final f = 1.0 - amount;
+    return Color.fromARGB(
+      (color.a * 255).round(),
+      (color.r * 255 * f).round().clamp(0, 255),
+      (color.g * 255 * f).round().clamp(0, 255),
+      (color.b * 255 * f).round().clamp(0, 255),
+    );
   }
 
   @override
@@ -385,16 +442,24 @@ class _PixelGridPainter extends CustomPainter {
         );
 
         if (isFilled) {
-          cellPaint.color = filledColors[expectedNumber] ?? Colors.grey;
-          canvas.drawRect(rect, cellPaint);
-          if (colorblindMode) {
-            _drawPattern(canvas, rect, expectedNumber, cw, ch);
-          }
+          final color = filledColors[expectedNumber] ?? Colors.grey;
+          if (gemStyle) {
+            _drawGem(canvas, rect, color, cellPaint);
+            if (colorblindMode) {
+              _drawPattern(canvas, rect, expectedNumber, cw, ch);
+            }
+          } else {
+            cellPaint.color = color;
+            canvas.drawRect(rect, cellPaint);
+            if (colorblindMode) {
+              _drawPattern(canvas, rect, expectedNumber, cw, ch);
+            }
 
-          canvas.drawRect(
-            Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.3),
-            glossPaint,
-          );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.3),
+              glossPaint,
+            );
+          }
         } else if (expectedNumber == 0) {
           cellPaint.color = const Color(0xFFE8E8E8);
           canvas.drawRect(rect, cellPaint);

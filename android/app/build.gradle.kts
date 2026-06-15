@@ -73,6 +73,12 @@ android {
             applicationId = "com.tenhead.pixelcalm"
             resValue("string", "app_name", "PixelCalm")
         }
+        // "Gem Art" — diamond-painting flavor (gem-rendered cells).
+        create("diamond") {
+            dimension = "app"
+            applicationId = "com.tenhead.gemart"
+            resValue("string", "app_name", "Gem Art")
+        }
     }
 
     lint {

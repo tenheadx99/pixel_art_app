@@ -32,6 +32,7 @@ CATEGORY_ORDER = {
     "devotional": ["Symbols", "Deities", "Goddesses", "Avatars", "Sacred", "Festivals", "Mandalas"],
     "anime": ["Kawaii", "Chibi", "Eyes", "Mecha"],
     "pixelcalm": ["Zen", "Mandalas", "Patterns", "Nature"],
+    "diamond": ["Gems", "Mandalas", "Floral", "Animals"],
 }
 
 

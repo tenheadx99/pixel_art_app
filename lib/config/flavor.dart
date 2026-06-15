@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 /// Build flavors of the app. Selected at build time via
 /// `--dart-define=FLAVOR=<name>` (defaults to [AppFlavor.original]).
-enum AppFlavor { original, devotional, anime, pixelcalm }
+enum AppFlavor { original, devotional, anime, pixelcalm, diamond }
+
+/// How filled cells are painted. [flat] is the classic color-by-number square;
+/// [gem] renders a faceted "drill" for the diamond-painting flavor.
+enum CellRenderStyle { flat, gem }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -18,6 +22,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.anime;
     case 'pixelcalm':
       return AppFlavor.pixelcalm;
+    case 'diamond':
+      return AppFlavor.diamond;
     case 'original':
     default:
       return AppFlavor.original;
@@ -48,6 +54,14 @@ class FlavorConfig {
   final bool adsEnabled;
   final bool iapEnabled;
 
+  /// How filled cells render. Defaults to the classic flat square so existing
+  /// flavors are unchanged; the diamond flavor opts into [CellRenderStyle.gem].
+  final CellRenderStyle cellStyle;
+
+  /// Flavor-aware UI copy: the palette header and the "fill" action verb.
+  final String paletteLabel;
+  final String placeVerb;
+
   const FlavorConfig({
     required this.appName,
     required this.splashTitle,
@@ -59,6 +73,9 @@ class FlavorConfig {
     required this.manifestPath,
     this.adsEnabled = true,
     this.iapEnabled = true,
+    this.cellStyle = CellRenderStyle.flat,
+    this.paletteLabel = 'Select a Color',
+    this.placeVerb = 'Fill',
   });
 
   static const Map<AppFlavor, FlavorConfig> _configs = {
@@ -103,6 +120,19 @@ class FlavorConfig {
       manifestPath: 'assets/pixel_art_pixelcalm/manifest.json',
       // Stress-relief audience: no ads, keep Pro/subscription IAP.
       adsEnabled: false,
+    ),
+    AppFlavor.diamond: FlavorConfig(
+      appName: 'Gem Art',
+      splashTitle: 'Gem Art',
+      splashTagline: 'Sparkle by Number',
+      primary: Color(0xFF12C2E9), // Jewel Cyan
+      secondary: Color(0xFFC471ED), // Amethyst
+      accent: Color(0xFFF64F59), // Ruby
+      brandGradient: [Color(0xFF12C2E9), Color(0xFFC471ED)],
+      manifestPath: 'assets/pixel_art_diamond/manifest.json',
+      cellStyle: CellRenderStyle.gem,
+      paletteLabel: 'Select a Drill',
+      placeVerb: 'Place',
     ),
   };
 
