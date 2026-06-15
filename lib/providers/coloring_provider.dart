@@ -41,7 +41,10 @@ class ColoringProvider extends ChangeNotifier {
 
   void toggleMagicWandMode() {
     _isMagicWandMode = !_isMagicWandMode;
-    if (_isMagicWandMode) _isEraseMode = false;
+    if (_isMagicWandMode) {
+      _isEraseMode = false;
+      _haptic(HapticFeedback.selectionClick);
+    }
     notifyListeners();
   }
 
@@ -204,6 +207,7 @@ class ColoringProvider extends ChangeNotifier {
 
   void toggleEraseMode() {
     _isEraseMode = !_isEraseMode;
+    if (_isEraseMode) _haptic(HapticFeedback.selectionClick);
     notifyListeners();
   }
 
@@ -550,6 +554,15 @@ class ColoringProvider extends ChangeNotifier {
     if (total == 0) return 0;
     return (_filledPerNumber[number] ?? 0) / total;
   }
+
+  /// Cells filled for [number] / total cells of that number — drives the
+  /// "18/50" count on the palette chips.
+  (int, int) cellCountsForNumber(int number) =>
+      (_filledPerNumber[number] ?? 0, _totalPerNumber[number] ?? 0);
+
+  /// Total coloured cells across all numbers (for completion stats).
+  int get filledCellCount =>
+      _filledPerNumber.values.fold(0, (sum, v) => sum + v);
 
   void _checkCompletion() {
     if (_progress >= AppConfig.completionThreshold) {

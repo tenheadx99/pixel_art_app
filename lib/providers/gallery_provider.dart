@@ -22,14 +22,34 @@ class GalleryProvider extends ChangeNotifier {
   String get selectedCategory => _selectedCategory;
 
   String _searchQuery = '';
+  bool _favoritesOnly = false;
   String _sortBy =
       'Default'; // Options: Default, Difficulty (Easy), Difficulty (Hard), Colors (Few), Colors (Many)
 
   String get searchQuery => _searchQuery;
   String get sortBy => _sortBy;
+  bool get favoritesOnly => _favoritesOnly;
+
+  /// True when the listing is narrowed by category, search or favorites — lets
+  /// the empty state distinguish "no matches" from "no catalog".
+  bool get hasActiveFilter =>
+      _selectedCategory != 'All' || _searchQuery.isNotEmpty || _favoritesOnly;
 
   void setSearchQuery(String query) {
     _searchQuery = query;
+    notifyListeners();
+  }
+
+  void toggleFavoritesOnly() {
+    _favoritesOnly = !_favoritesOnly;
+    notifyListeners();
+  }
+
+  /// Resets every listing filter back to the default "show all" view.
+  void clearFilters() {
+    _selectedCategory = 'All';
+    _searchQuery = '';
+    _favoritesOnly = false;
     notifyListeners();
   }
 
@@ -52,6 +72,9 @@ class GalleryProvider extends ChangeNotifier {
                 a.category.toLowerCase().contains(q),
           )
           .toList();
+    }
+    if (_favoritesOnly) {
+      list = list.where((a) => _favoriteIds.contains(a.id)).toList();
     }
 
     if (_sortBy == 'Difficulty (Easy)') {

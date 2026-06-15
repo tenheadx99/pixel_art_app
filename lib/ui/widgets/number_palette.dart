@@ -125,6 +125,8 @@ class _NumberPaletteState extends State<NumberPalette> {
               final isSelected = provider.selectedNumber == number;
               final fillPercent = provider.fillPercentForNumber(number);
               final isCompleted = fillPercent >= 1.0;
+              final (filledCells, totalCells) =
+                  provider.cellCountsForNumber(number);
 
               return GestureDetector(
                 onTap: () => provider.selectNumber(number),
@@ -191,7 +193,7 @@ class _NumberPaletteState extends State<NumberPalette> {
                                 borderRadius: BorderRadius.circular(4),
                               ),
                               child: Text(
-                                '${(fillPercent * 100).toInt()}%',
+                                '$filledCells/$totalCells',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 8,

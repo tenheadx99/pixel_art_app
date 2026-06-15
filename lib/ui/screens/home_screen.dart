@@ -71,13 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: _CategoryFilter(gallery: gallery),
                 ),
               ),
+              if (!gallery.isLoading && catalog.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: _ResultsCount(gallery: gallery, count: catalog.length),
+                ),
               gallery.isLoading
-                  ? const SliverFillRemaining(
-                      child: Center(child: CircularProgressIndicator()),
-                    )
+                  ? const _SkeletonGrid()
                   : catalog.isEmpty
-                  ? const SliverFillRemaining(
-                      child: Center(child: Text('No pixel art available')),
+                  ? SliverFillRemaining(
+                      hasScrollBody: false,
+                      child: _EmptyState(gallery: gallery),
                     )
                   : SliverPadding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
@@ -790,12 +793,52 @@ class _CategoryFilter extends StatelessWidget {
       height: 44,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
-        itemBuilder: (context, index) {
+        // Index 0 is the Favorites toggle; the rest are categories.
+        itemCount: categories.length + 1,
+        itemBuilder: (context, rawIndex) {
+          if (rawIndex == 0) {
+            final on = gallery.favoritesOnly;
+            return Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: GestureDetector(
+                onTap: () => gallery.toggleFavoritesOnly(),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeOutCubic,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: on ? Colors.red : Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(22),
+                    border: Border.all(
+                      color: on
+                          ? Colors.transparent
+                          : Theme.of(context).dividerColor.withAlpha(30),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(on ? Icons.favorite : Icons.favorite_border,
+                          size: 16, color: on ? Colors.white : null),
+                      const SizedBox(width: 6),
+                      Text('Favorites',
+                          style: TextStyle(
+                            color: on ? Colors.white : null,
+                            fontWeight:
+                                on ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 14,
+                          )),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+          final index = rawIndex - 1;
           final cat = categories[index];
           final isSelected = gallery.selectedCategory == cat;
           return Padding(
-            padding: EdgeInsets.only(right: 10, left: index == 0 ? 0 : 0),
+            padding: const EdgeInsets.only(right: 10),
             child: GestureDetector(
               onTap: () => gallery.setCategory(cat),
               child: AnimatedContainer(
@@ -1018,23 +1061,48 @@ class _PixelArtCard extends StatelessWidget {
                     color: Colors.black.withAlpha(140),
                     borderRadius: BorderRadius.circular(20),
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.lock, color: Colors.white, size: 32),
-                        SizedBox(height: 4),
-                        Text(
-                          'Premium',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                        const Icon(Icons.lock, color: Colors.white, size: 28),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppStyle.primary, AppStyle.secondary],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.lock_open_rounded,
+                                  color: Colors.white, size: 13),
+                              SizedBox(width: 4),
+                              Text(
+                                'Unlock',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
+                ),
+              if (!isUnlocked)
+                const Positioned(
+                  top: 8,
+                  left: 8,
+                  child: Icon(Icons.workspace_premium,
+                      color: Color(0xFFFFD54F), size: 20),
                 ),
               if (_inProgress)
                 Positioned(
@@ -1109,6 +1177,179 @@ class _PixelArtCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Live result count + a one-tap "Clear" affordance when filters are active.
+class _ResultsCount extends StatelessWidget {
+  final GalleryProvider gallery;
+  final int count;
+
+  const _ResultsCount({required this.gallery, required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final q = gallery.searchQuery;
+    final label = '$count artwork${count == 1 ? '' : 's'}'
+        '${q.isNotEmpty ? ' for "$q"' : ''}';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 6, 20, 0),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w600,
+              color: Theme.of(context).hintColor,
+            ),
+          ),
+          const Spacer(),
+          if (gallery.hasActiveFilter)
+            GestureDetector(
+              onTap: gallery.clearFilters,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.close_rounded,
+                      size: 14, color: AppStyle.primary),
+                  const SizedBox(width: 3),
+                  Text('Clear filters',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: AppStyle.primary,
+                      )),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Placeholder shimmer cards shown while the catalog loads, instead of a bare
+/// spinner — keeps the gallery's shape so the load feels faster.
+class _SkeletonGrid extends StatelessWidget {
+  const _SkeletonGrid();
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 14,
+          childAspectRatio: 0.78,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => _ShimmerCard(delayFraction: (index % 4) / 4),
+          childCount: 6,
+        ),
+      ),
+    );
+  }
+}
+
+class _ShimmerCard extends StatefulWidget {
+  final double delayFraction;
+  const _ShimmerCard({required this.delayFraction});
+
+  @override
+  State<_ShimmerCard> createState() => _ShimmerCardState();
+}
+
+class _ShimmerCardState extends State<_ShimmerCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final base = Theme.of(context).brightness == Brightness.light
+        ? Colors.grey.shade300
+        : Colors.white.withAlpha(20);
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = ((_c.value + widget.delayFraction) % 1.0);
+        final opacity = (0.45 + 0.45 * (0.5 - (t - 0.5).abs()) * 2)
+            .clamp(0.0, 1.0);
+        return Container(
+          decoration: BoxDecoration(
+            color: base.withValues(alpha: opacity),
+            borderRadius: BorderRadius.circular(20),
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Friendly empty state that distinguishes "no matches for current filters"
+/// from "the catalog itself is empty".
+class _EmptyState extends StatelessWidget {
+  final GalleryProvider gallery;
+  const _EmptyState({required this.gallery});
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = gallery.hasActiveFilter;
+    final q = gallery.searchQuery;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              filtered ? Icons.search_off_rounded : Icons.palette_outlined,
+              size: 56,
+              color: Theme.of(context).hintColor,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              filtered ? 'No matches found' : 'No artworks yet',
+              style: const TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              filtered
+                  ? (q.isNotEmpty
+                      ? 'Nothing matches "$q" with the current filters.'
+                      : 'No artworks match the current filters.')
+                  : 'Pull to refresh, or check back soon for new pieces.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13.5, color: Theme.of(context).hintColor),
+            ),
+            if (filtered) ...[
+              const SizedBox(height: 18),
+              ElevatedButton.icon(
+                onPressed: gallery.clearFilters,
+                icon: const Icon(Icons.close_rounded, size: 18),
+                label: const Text('Clear filters'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppStyle.primary,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );

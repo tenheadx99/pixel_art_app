@@ -106,6 +106,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       if (!(_settings?.isProUser ?? false)) {
         _adService!.loadInterstitialAd();
       }
+      _maybeShowLongPressTip();
     });
   }
 
@@ -156,6 +157,19 @@ class _ColoringScreenState extends State<ColoringScreen>
     _coloringProvider?.syncWandsFromStorage();
   }
 
+  /// Surfaces the otherwise-hidden long-press color preview, once ever.
+  void _maybeShowLongPressTip() {
+    final storage = context.read<LocalStorageService>();
+    const key = 'tip_longpress_shown';
+    if (storage.getBool(key)) return;
+    storage.setBool(key, true);
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (mounted) {
+        _showInfoSnack('Tip: long-press any cell to preview its color');
+      }
+    });
+  }
+
   /// Leaving a coloring session is the one interruption point users accept.
   /// AdService applies the caps (min session length, cooldown, first session,
   /// recent rewarded); this just reports the session.
@@ -185,6 +199,9 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   @override
   void dispose() {
+    // Flush any pending debounced autosave so the last few strokes before
+    // leaving are never lost (e.g. a quick back-press after painting).
+    _coloringProvider?.saveProgress();
     _coloringProvider?.removeListener(_onProviderChanged);
     _settings?.removeListener(_onSettingsChanged);
     _transformController.dispose();
@@ -375,14 +392,36 @@ class _ColoringScreenState extends State<ColoringScreen>
       right: 0,
       child: Center(
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: Colors.black.withAlpha(160),
             borderRadius: BorderRadius.circular(16),
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.celebration_rounded,
+                        color: Colors.amber, size: 14),
+                    const SizedBox(width: 6),
+                    Text(
+                      _completionStats(provider),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
               _CompletionAction(
                 icon: _replayController.isAnimating ? Icons.stop : Icons.replay,
                 label: _replayController.isAnimating ? 'Stop' : 'Replay',
@@ -403,11 +442,22 @@ class _ColoringScreenState extends State<ColoringScreen>
                 label: 'Next',
                 onTap: _openNextArt,
               ),
+                ],
+              ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  /// One-line celebration summary, e.g. "248 cells · 8 colors · 12 min".
+  String _completionStats(ColoringProvider provider) {
+    final cells = provider.filledCellCount;
+    final colors = widget.art.colorCount;
+    final mins = DateTime.now().difference(_sessionStart).inMinutes;
+    final timePart = mins < 1 ? 'under a min' : '$mins min';
+    return '$cells cells · $colors colors · $timePart';
   }
 
   Future<void> _sharePng(ColoringProvider provider) async {

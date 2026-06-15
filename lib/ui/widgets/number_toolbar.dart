@@ -234,13 +234,15 @@ class _BrushSelector extends StatelessWidget {
                 color: active ? Colors.transparent : Colors.black.withAlpha(30),
               ),
             ),
+            // Dot scales with brush size (1x1 / 2x2 / 3x3) so the footprint is
+            // obvious at a glance rather than an unlabelled "1/2/3".
             child: Center(
-              child: Text(
-                '$s',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
+              child: Container(
+                width: 4.0 + (s - 1) * 4,
+                height: 4.0 + (s - 1) * 4,
+                decoration: BoxDecoration(
                   color: active ? Colors.white : Colors.black54,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
             ),

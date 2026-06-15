@@ -117,6 +117,16 @@ class _GalleryScreenState extends State<GalleryScreen> {
             'Complete a pixel art and save it!',
             style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 14),
           ),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(context),
+            icon: const Icon(Icons.brush_rounded, size: 18),
+            label: const Text('Start coloring'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white,
+              foregroundColor: const Color(0xFF6C5CE7),
+            ),
+          ),
         ],
       ),
     );
