@@ -22,6 +22,7 @@ class ColoringProvider extends ChangeNotifier {
   bool _isMagicWandMode = false;
   int _magicWandsCount = 5;
   bool _isEraseMode = false;
+  bool _isPanMode = false;
   int _brushSize = 1;
   (int, int)? _nextFillable;
   int _totalFillCount = 0;
@@ -43,6 +44,7 @@ class ColoringProvider extends ChangeNotifier {
     _isMagicWandMode = !_isMagicWandMode;
     if (_isMagicWandMode) {
       _isEraseMode = false;
+      _isPanMode = false;
       _haptic(HapticFeedback.selectionClick);
     }
     notifyListeners();
@@ -76,6 +78,7 @@ class ColoringProvider extends ChangeNotifier {
   int? get highlightedNumber => _highlightedNumber;
   bool get canUndo => _undoStack.isNotEmpty;
   bool get isEraseMode => _isEraseMode;
+  bool get isPanMode => _isPanMode;
   int get brushSize => _brushSize;
   (int, int)? get nextFillable => _nextFillable;
   int get totalFillCount => _totalFillCount;
@@ -207,7 +210,23 @@ class ColoringProvider extends ChangeNotifier {
 
   void toggleEraseMode() {
     _isEraseMode = !_isEraseMode;
-    if (_isEraseMode) _haptic(HapticFeedback.selectionClick);
+    if (_isEraseMode) {
+      _isPanMode = false;
+      _haptic(HapticFeedback.selectionClick);
+    }
+    notifyListeners();
+  }
+
+  /// When on, a single finger drags (pans) the canvas instead of painting.
+  /// Two-finger pan/zoom works regardless. Mutually exclusive with erase and
+  /// magic-wand modes.
+  void togglePanMode() {
+    _isPanMode = !_isPanMode;
+    if (_isPanMode) {
+      _isEraseMode = false;
+      _isMagicWandMode = false;
+      _haptic(HapticFeedback.selectionClick);
+    }
     notifyListeners();
   }
 

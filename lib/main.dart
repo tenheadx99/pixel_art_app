@@ -7,6 +7,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 import 'config/app_constants.dart';
 import 'config/app_config.dart';
 import 'config/flavor.dart';
+import 'firebase_options.dart';
 import 'data/services/remote_config_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
@@ -124,7 +125,9 @@ class _AppBootstrapState extends State<AppBootstrap>
 
     // Initialize Firebase and Remote Config before setting up dependencies and ads
     try {
-      await Firebase.initializeApp();
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
       final remoteConfig = RemoteConfigService();
       await remoteConfig.initialize();
 

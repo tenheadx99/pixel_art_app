@@ -1,5 +1,26 @@
 {
   "parameters": {
+    "balbodh_ads_enabled": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Enable or disable ads globally for Balbodh app",
+      "valueType": "BOOLEAN"
+    },
+    "balbodh_ad_app_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544~3347511713"
+      },
+      "description": "AdMob App ID for Balbodh app",
+      "valueType": "STRING"
+    },
+    "pixelyart_interstitial_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/1033173712"
+      },
+      "description": "Interstitial ad ID for PixelyArt",
+      "valueType": "STRING"
+    },
     "baby_color_ad_isenable": {
       "defaultValue": {
         "value": "true"
@@ -14,10 +35,37 @@
       "description": "coloring_screen_inter_ad",
       "valueType": "STRING"
     },
+    "balbodh_ad_banner_home_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/6300978111"
+      },
+      "description": "Banner Home Ad ID for Balbodh app",
+      "valueType": "STRING"
+    },
     "home_screen_reward_id": {
       "defaultValue": {
         "value": "ca-app-pub-9064606616675657/1279003558"
       },
+      "valueType": "STRING"
+    },
+    "pixelyart_force_update_url": {
+      "defaultValue": {
+        "value": "https://play.google.com/store/apps/details?id=com.tenhead.pixelyart"
+      },
+      "valueType": "STRING"
+    },
+    "pixelyart_show_ads": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Global switch to show/hide ads in PixelyArt",
+      "valueType": "BOOLEAN"
+    },
+    "pixelyart_rewarded_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/5224354917"
+      },
+      "description": "Rewarded ad ID for PixelyArt",
       "valueType": "STRING"
     },
     "open_app_ad_id": {
@@ -33,19 +81,6 @@
       "description": "home_screen_banner_ads",
       "valueType": "STRING"
     },
-    "gallery_screen_banner": {
-      "defaultValue": {
-        "value": "ca-app-pub-9064606616675657/9717634885"
-      },
-      "valueType": "STRING"
-    },
-    "pixelyart_show_ads": {
-      "defaultValue": {
-        "value": "false"
-      },
-      "description": "Global switch to show/hide ads in PixelyArt",
-      "valueType": "BOOLEAN"
-    },
     "pixelyart_banner_ad_unit_id": {
       "defaultValue": {
         "value": "ca-app-pub-3940256099942544/6300978111"
@@ -53,19 +88,297 @@
       "description": "Banner ad ID for PixelyArt",
       "valueType": "STRING"
     },
-    "pixelyart_interstitial_ad_unit_id": {
+    "pixelyart_min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "valueType": "STRING"
+    },
+    "gallery_screen_banner": {
+      "defaultValue": {
+        "value": "ca-app-pub-9064606616675657/9717634885"
+      },
+      "valueType": "STRING"
+    },
+    "devotional_show_ads": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Global switch to show/hide ads for devotional",
+      "valueType": "BOOLEAN"
+    },
+    "devotional_banner_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/6300978111"
+      },
+      "description": "Banner ad ID for devotional",
+      "valueType": "STRING"
+    },
+    "devotional_interstitial_ad_unit_id": {
       "defaultValue": {
         "value": "ca-app-pub-3940256099942544/1033173712"
       },
-      "description": "Interstitial ad ID for PixelyArt",
+      "description": "Interstitial ad ID for devotional",
       "valueType": "STRING"
     },
-    "pixelyart_rewarded_ad_unit_id": {
+    "devotional_rewarded_ad_unit_id": {
       "defaultValue": {
         "value": "ca-app-pub-3940256099942544/5224354917"
       },
-      "description": "Rewarded ad ID for PixelyArt",
+      "description": "Rewarded ad ID for devotional",
       "valueType": "STRING"
+    },
+    "devotional_app_open_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/9257395921"
+      },
+      "description": "App open ad ID for devotional",
+      "valueType": "STRING"
+    },
+    "devotional_min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum required version for devotional",
+      "valueType": "STRING"
+    },
+    "devotional_force_update_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Force update URL for devotional",
+      "valueType": "STRING"
+    },
+    "devotional_interstitial_cooldown_s": {
+      "defaultValue": {
+        "value": "90"
+      },
+      "description": "Interstitial cooldown seconds for devotional",
+      "valueType": "NUMBER"
+    },
+    "devotional_interstitial_min_session_s": {
+      "defaultValue": {
+        "value": "120"
+      },
+      "description": "Interstitial minimum session seconds for devotional",
+      "valueType": "NUMBER"
+    },
+    "devotional_app_open_cooldown_s": {
+      "defaultValue": {
+        "value": "14400"
+      },
+      "description": "App open cooldown seconds for devotional",
+      "valueType": "NUMBER"
+    },
+    "anime_show_ads": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Global switch to show/hide ads for anime",
+      "valueType": "BOOLEAN"
+    },
+    "anime_banner_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/6300978111"
+      },
+      "description": "Banner ad ID for anime",
+      "valueType": "STRING"
+    },
+    "anime_interstitial_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/1033173712"
+      },
+      "description": "Interstitial ad ID for anime",
+      "valueType": "STRING"
+    },
+    "anime_rewarded_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/5224354917"
+      },
+      "description": "Rewarded ad ID for anime",
+      "valueType": "STRING"
+    },
+    "anime_app_open_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/9257395921"
+      },
+      "description": "App open ad ID for anime",
+      "valueType": "STRING"
+    },
+    "anime_min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum required version for anime",
+      "valueType": "STRING"
+    },
+    "anime_force_update_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Force update URL for anime",
+      "valueType": "STRING"
+    },
+    "anime_interstitial_cooldown_s": {
+      "defaultValue": {
+        "value": "90"
+      },
+      "description": "Interstitial cooldown seconds for anime",
+      "valueType": "NUMBER"
+    },
+    "anime_interstitial_min_session_s": {
+      "defaultValue": {
+        "value": "120"
+      },
+      "description": "Interstitial minimum session seconds for anime",
+      "valueType": "NUMBER"
+    },
+    "anime_app_open_cooldown_s": {
+      "defaultValue": {
+        "value": "14400"
+      },
+      "description": "App open cooldown seconds for anime",
+      "valueType": "NUMBER"
+    },
+    "pixelcalm_show_ads": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Global switch to show/hide ads for pixelcalm",
+      "valueType": "BOOLEAN"
+    },
+    "pixelcalm_banner_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/6300978111"
+      },
+      "description": "Banner ad ID for pixelcalm",
+      "valueType": "STRING"
+    },
+    "pixelcalm_interstitial_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/1033173712"
+      },
+      "description": "Interstitial ad ID for pixelcalm",
+      "valueType": "STRING"
+    },
+    "pixelcalm_rewarded_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/5224354917"
+      },
+      "description": "Rewarded ad ID for pixelcalm",
+      "valueType": "STRING"
+    },
+    "pixelcalm_app_open_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/9257395921"
+      },
+      "description": "App open ad ID for pixelcalm",
+      "valueType": "STRING"
+    },
+    "pixelcalm_min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum required version for pixelcalm",
+      "valueType": "STRING"
+    },
+    "pixelcalm_force_update_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Force update URL for pixelcalm",
+      "valueType": "STRING"
+    },
+    "pixelcalm_interstitial_cooldown_s": {
+      "defaultValue": {
+        "value": "90"
+      },
+      "description": "Interstitial cooldown seconds for pixelcalm",
+      "valueType": "NUMBER"
+    },
+    "pixelcalm_interstitial_min_session_s": {
+      "defaultValue": {
+        "value": "120"
+      },
+      "description": "Interstitial minimum session seconds for pixelcalm",
+      "valueType": "NUMBER"
+    },
+    "pixelcalm_app_open_cooldown_s": {
+      "defaultValue": {
+        "value": "14400"
+      },
+      "description": "App open cooldown seconds for pixelcalm",
+      "valueType": "NUMBER"
+    },
+    "diamond_show_ads": {
+      "defaultValue": {
+        "value": "false"
+      },
+      "description": "Global switch to show/hide ads for diamond",
+      "valueType": "BOOLEAN"
+    },
+    "diamond_banner_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/6300978111"
+      },
+      "description": "Banner ad ID for diamond",
+      "valueType": "STRING"
+    },
+    "diamond_interstitial_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/1033173712"
+      },
+      "description": "Interstitial ad ID for diamond",
+      "valueType": "STRING"
+    },
+    "diamond_rewarded_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/5224354917"
+      },
+      "description": "Rewarded ad ID for diamond",
+      "valueType": "STRING"
+    },
+    "diamond_app_open_ad_unit_id": {
+      "defaultValue": {
+        "value": "ca-app-pub-3940256099942544/9257395921"
+      },
+      "description": "App open ad ID for diamond",
+      "valueType": "STRING"
+    },
+    "diamond_min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum required version for diamond",
+      "valueType": "STRING"
+    },
+    "diamond_force_update_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Force update URL for diamond",
+      "valueType": "STRING"
+    },
+    "diamond_interstitial_cooldown_s": {
+      "defaultValue": {
+        "value": "90"
+      },
+      "description": "Interstitial cooldown seconds for diamond",
+      "valueType": "NUMBER"
+    },
+    "diamond_interstitial_min_session_s": {
+      "defaultValue": {
+        "value": "120"
+      },
+      "description": "Interstitial minimum session seconds for diamond",
+      "valueType": "NUMBER"
+    },
+    "diamond_app_open_cooldown_s": {
+      "defaultValue": {
+        "value": "14400"
+      },
+      "description": "App open cooldown seconds for diamond",
+      "valueType": "NUMBER"
     }
   }
 }

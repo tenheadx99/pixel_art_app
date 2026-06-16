@@ -140,4 +140,10 @@ class FlavorConfig {
 
   /// Convenience accessor for the active flavor's config.
   static FlavorConfig get current => of(currentFlavor);
+
+  /// Returns the RemoteConfig key for a given flavor and base key.
+  static String getFlavorKey(AppFlavor flavor, String baseKey) {
+    final prefix = flavor == AppFlavor.original ? 'pixelyart' : flavor.name;
+    return '${prefix}_$baseKey';
+  }
 }

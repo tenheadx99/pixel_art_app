@@ -14,6 +14,11 @@ class PixelGrid extends StatefulWidget {
   final bool isEraseMode;
   final bool colorblindMode;
 
+  /// When true, single-finger gestures are left to the InteractiveViewer to
+  /// pan the canvas; painting (tap/drag) is suppressed. Two-finger pan/zoom is
+  /// unaffected.
+  final bool panMode;
+
   /// Completion fade (0.0 = working grid, 1.0 = clean picture). Wired as a
   /// listenable so the canvas repaints without rebuilding the widget tree.
   final Animation<double>? gridFade;
@@ -36,6 +41,7 @@ class PixelGrid extends StatefulWidget {
     required this.brushSize,
     required this.isEraseMode,
     required this.colorblindMode,
+    this.panMode = false,
     this.gridFade,
     this.transform,
     required this.onCellTap,
@@ -78,6 +84,8 @@ class _PixelGridState extends State<PixelGrid> {
   void _onPointerMove(PointerMoveEvent event) {
     final art = widget.provider.currentArt;
     if (art == null || widget.onCellDrag == null) return;
+    // In pan mode the single finger drives the InteractiveViewer, not painting.
+    if (widget.panMode) return;
     if (_activePointers != 1) return;
     if (!_stroking) {
       final down = _downPosition;
@@ -112,6 +120,7 @@ class _PixelGridState extends State<PixelGrid> {
       onPointerCancel: _onPointerEnd,
       child: GestureDetector(
         onTapUp: (details) {
+          if (widget.panMode) return;
           final pos = _gridPos(details.globalPosition, art);
           if (pos != null) widget.onCellTap(pos.$1, pos.$2);
         },

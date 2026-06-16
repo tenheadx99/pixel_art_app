@@ -284,7 +284,9 @@ class _ColoringScreenState extends State<ColoringScreen>
                       children: [
                         if (isCurrentArt) _buildGrid(provider, settings),
                         _buildZoomControls(),
-                        if (provider.isEraseMode || provider.isMagicWandMode)
+                        if (provider.isEraseMode ||
+                            provider.isMagicWandMode ||
+                            provider.isPanMode)
                           _buildModePill(provider),
                         ConfettiOverlay(animation: _confettiController),
                         if (isComplete) _buildCompletionBar(provider),
@@ -321,7 +323,22 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// Clear feedback that a destructive/special mode is active — the toolbar
   /// label alone is easy to miss.
   Widget _buildModePill(ColoringProvider provider) {
-    final isErase = provider.isEraseMode;
+    final Color color;
+    final IconData icon;
+    final String text;
+    if (provider.isPanMode) {
+      color = AppStyle.primary;
+      icon = Icons.pan_tool_rounded;
+      text = 'Move mode: drag to pan';
+    } else if (provider.isEraseMode) {
+      color = const Color(0xFFFF6B6B);
+      icon = Icons.cleaning_services;
+      text = 'Eraser on';
+    } else {
+      color = const Color(0xFF9C27B0);
+      icon = Icons.auto_fix_high_rounded;
+      text = 'Magic wand: tap an area';
+    }
     return Positioned(
       top: 8,
       left: 0,
@@ -330,20 +347,16 @@ class _ColoringScreenState extends State<ColoringScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: isErase ? const Color(0xFFFF6B6B) : const Color(0xFF9C27B0),
+            color: color,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                isErase ? Icons.cleaning_services : Icons.auto_fix_high_rounded,
-                color: Colors.white,
-                size: 14,
-              ),
+              Icon(icon, color: Colors.white, size: 14),
               const SizedBox(width: 6),
               Text(
-                isErase ? 'Eraser on' : 'Magic wand: tap an area',
+                text,
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -674,7 +687,9 @@ class _ColoringScreenState extends State<ColoringScreen>
         // translation), so single-finger pan stays free for drag-to-paint.
         return InteractiveViewer(
           transformationController: _transformController,
-          panEnabled: false,
+          // In Move mode a single finger pans the canvas; otherwise it paints
+          // (two-finger pan/zoom works either way via scale gestures).
+          panEnabled: provider.isPanMode,
           minScale: 0.5,
           // Large grids fit the screen with tiny cells; allow zooming until a
           // cell is ~28px so every artwork stays comfortably tappable.
@@ -690,6 +705,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 brushSize: provider.brushSize,
                 isEraseMode: provider.isEraseMode,
                 colorblindMode: settings.colorblindMode,
+                panMode: provider.isPanMode,
                 gridFade: _gridFadeController,
                 transform: _transformController,
                 onCellTap: (row, col) => provider.tryFillCell(row, col),

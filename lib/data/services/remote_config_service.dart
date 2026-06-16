@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:pixel_art_app/config/app_config.dart';
+import 'package:pixel_art_app/config/flavor.dart';
 
 class RemoteConfigService {
   static final RemoteConfigService _instance = RemoteConfigService._();
@@ -46,50 +47,76 @@ class RemoteConfigService {
     }
   }
 
+  String _getFlavorKey(String baseKey) {
+    return FlavorConfig.getFlavorKey(currentFlavor, baseKey);
+  }
+
+  bool _getBool(String baseKey) {
+    final flavorKey = _getFlavorKey(baseKey);
+    if (_remoteConfig.getAll().containsKey(flavorKey)) {
+      return _remoteConfig.getBool(flavorKey);
+    }
+    return _remoteConfig.getBool('pixelyart_$baseKey');
+  }
+
+  String _getString(String baseKey) {
+    final flavorKey = _getFlavorKey(baseKey);
+    if (_remoteConfig.getAll().containsKey(flavorKey)) {
+      final value = _remoteConfig.getString(flavorKey);
+      if (value.isNotEmpty) return value;
+    }
+    return _remoteConfig.getString('pixelyart_$baseKey');
+  }
+
+  int _getInt(String baseKey, int fallback) {
+    final flavorKey = _getFlavorKey(baseKey);
+    if (_remoteConfig.getAll().containsKey(flavorKey)) {
+      final v = _remoteConfig.getInt(flavorKey);
+      if (v > 0) return v;
+    }
+    final defaultVal = _remoteConfig.getInt('pixelyart_$baseKey');
+    return defaultVal > 0 ? defaultVal : fallback;
+  }
+
   // Getters for dynamic configurations
-  bool get showAds => _remoteConfig.getBool('pixelyart_show_ads');
+  bool get showAds => _getBool('show_ads');
   
   String get minRequiredVersion {
-    final version = _remoteConfig.getString('pixelyart_min_version');
+    final version = _getString('min_version');
     return version.isNotEmpty ? version : '1.0.0';
   }
 
-  String get forceUpdateUrl => _remoteConfig.getString('pixelyart_force_update_url');
+  String get forceUpdateUrl => _getString('force_update_url');
 
   String get bannerAdUnitId {
-    final id = _remoteConfig.getString('pixelyart_banner_ad_unit_id');
+    final id = _getString('banner_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/6300978111';
   }
 
   String get interstitialAdUnitId {
-    final id = _remoteConfig.getString('pixelyart_interstitial_ad_unit_id');
+    final id = _getString('interstitial_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/1033173712';
   }
 
   String get rewardedAdUnitId {
-    final id = _remoteConfig.getString('pixelyart_rewarded_ad_unit_id');
+    final id = _getString('rewarded_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/5224354917';
   }
 
   String get appOpenAdUnitId {
-    final id = _remoteConfig.getString('pixelyart_app_open_ad_unit_id');
+    final id = _getString('app_open_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/9257395921';
-  }
-
-  int _intOr(String key, int fallback) {
-    final v = _remoteConfig.getInt(key);
-    return v > 0 ? v : fallback;
   }
 
   /// Minimum gap between two interstitials.
   int get interstitialCooldownSeconds =>
-      _intOr('pixelyart_interstitial_cooldown_s', 90);
+      _getInt('interstitial_cooldown_s', 90);
 
   /// Coloring sessions shorter than this never trigger an exit interstitial.
   int get interstitialMinSessionSeconds =>
-      _intOr('pixelyart_interstitial_min_session_s', 120);
+      _getInt('interstitial_min_session_s', 120);
 
   /// Minimum gap between two app-open ads.
   int get appOpenCooldownSeconds =>
-      _intOr('pixelyart_app_open_cooldown_s', 14400);
+      _getInt('app_open_cooldown_s', 14400);
 }
