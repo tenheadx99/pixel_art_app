@@ -68,15 +68,6 @@ class NumberToolbar extends StatelessWidget {
                     onTap: () => provider.toggleEraseMode(),
                   ),
                   _divider(),
-                  _ToolButton(
-                    icon: Icons.pan_tool_rounded,
-                    label: 'Move',
-                    color: provider.isPanMode
-                        ? AppStyle.primary
-                        : AppStyle.primary.withAlpha(110),
-                    onTap: () => provider.togglePanMode(),
-                  ),
-                  _divider(),
                   _BrushSelector(
                     current: provider.brushSize,
                     onChanged: provider.setBrushSize,
