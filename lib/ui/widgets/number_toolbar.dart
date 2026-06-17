@@ -293,9 +293,9 @@ class _ToolButtonState extends State<_ToolButton>
     super.initState();
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 150),
+      duration: const Duration(milliseconds: 200),
     );
-    _scaleAnim = Tween<double>(begin: 1.0, end: 0.9).animate(
+    _scaleAnim = Tween<double>(begin: 1.0, end: 0.92).animate(
       CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
     );
   }

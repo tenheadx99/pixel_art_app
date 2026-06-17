@@ -30,7 +30,7 @@ class _ConfettiPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (progress <= 0 || progress >= 1) return;
     final rng = Random(42);
-    final particles = 110;
+    final particles = 60;
     final paint = Paint();
     for (var i = 0; i < particles; i++) {
       final px = rng.nextDouble();
@@ -41,16 +41,19 @@ class _ConfettiPainter extends CustomPainter {
       final scale = 0.7 + rng.nextDouble() * 1.4; // 0.7x–2.1x
       final shape = rng.nextInt(3); // 0 rect, 1 circle, 2 thin streamer
       final swayAmp = 14 + rng.nextDouble() * 22;
-      final sway = sin(progress * 8 + px * 12) * swayAmp;
+      // Slower sway so the burst drifts down gently rather than fluttering.
+      final sway = sin(progress * 5 + px * 12) * swayAmp;
       final x = px * size.width + sway;
       final y = (py + speed * progress) * size.height;
       if (y > size.height + 24) continue;
       final hue = (px * 360).round();
+      // Soft, pastel tones (lower saturation, higher lightness) keep the
+      // celebration gentle rather than vivid and loud.
       final color = HSLColor.fromAHSL(
         1.0 - progress * 0.5,
         hue.toDouble(),
-        0.85,
-        0.62,
+        0.55,
+        0.72,
       ).toColor();
       paint.color = color;
       canvas.save();

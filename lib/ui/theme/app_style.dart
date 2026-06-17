@@ -23,15 +23,51 @@ class AppStyle {
     Color(0xFFFF007F),
   ];
   static const List<Color> gradientEnd = [Color(0xFF00F0FF), Color(0xFF8A2BE2)];
-  static const List<Color> headerGradient = [
-    Color(0xFF0A0A16),
-    Color(0xFF241442),
-    Color(0xFF5B0E68),
-  ];
+
+  /// Warm, near-black base used for the calm dark theme and chrome gradients.
+  static const Color darkBg = Color(0xFF14141F);
+
+  /// Calm header gradient derived from the active flavor's seed so each brand
+  /// keeps its identity, but desaturated + dimmed so it reads as restful rather
+  /// than a high-contrast neon ramp. Easing from the dark background into a
+  /// softened brand tone.
+  static List<Color> get headerGradient {
+    final calm = mute(brandSeed, saturation: 0.55, lightnessFactor: 0.6);
+    return [
+      darkBg,
+      Color.lerp(darkBg, calm, 0.7)!,
+      calm,
+    ];
+  }
+
+  /// Softened warm gradient (muted clay → peach → sand) for the daily banner.
   static const List<Color> sunsetGradient = [
-    Color(0xFFFF007F),
-    Color(0xFFFF5E36),
-    Color(0xFFFFD700),
+    Color(0xFFD98E73),
+    Color(0xFFE0A88B),
+    Color(0xFFE8C9A0),
+  ];
+
+  /// Desaturate + dim a brand color so it can be used as calm chrome without
+  /// losing its hue/identity.
+  static Color mute(
+    Color c, {
+    double saturation = 0.6,
+    double lightnessFactor = 1.0,
+  }) {
+    final h = HSLColor.fromColor(c);
+    return h
+        .withSaturation((h.saturation * saturation).clamp(0.0, 1.0))
+        .withLightness((h.lightness * lightnessFactor).clamp(0.0, 1.0))
+        .toColor();
+  }
+
+  /// Soft, neutral shadow for gentle depth instead of bright colored glows.
+  static List<BoxShadow> get softShadow => [
+    BoxShadow(
+      color: Colors.black.withAlpha(40),
+      blurRadius: 10,
+      offset: const Offset(0, 4),
+    ),
   ];
 
   static const List<Color> paletteColors = [
@@ -93,7 +129,7 @@ class AppStyle {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorSchemeSeed: brandSeed,
-      scaffoldBackgroundColor: const Color(0xFF0A0A16), // Midnight Carbon
+      scaffoldBackgroundColor: darkBg, // Warm deep slate (calm)
       appBarTheme: const AppBarTheme(
         centerTitle: true,
         elevation: 0,
@@ -101,8 +137,9 @@ class AppStyle {
         foregroundColor: Colors.white,
       ),
       cardTheme: CardThemeData(
-        elevation: 4,
-        color: const Color(0xFF16162A),
+        elevation: 2,
+        color: const Color(0xFF1E1E2C), // Lifted surface for gentle depth
+        shadowColor: Colors.black.withAlpha(60),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
@@ -128,9 +165,9 @@ class AppStyle {
       borderRadius: BorderRadius.circular(radius),
       boxShadow: [
         BoxShadow(
-          color: (colors?.first ?? primary).withAlpha(80),
-          blurRadius: 16,
-          offset: const Offset(0, 6),
+          color: (colors?.first ?? primary).withAlpha(40),
+          blurRadius: 12,
+          offset: const Offset(0, 5),
         ),
       ],
     );

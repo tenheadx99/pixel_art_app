@@ -85,7 +85,7 @@ class _ColoringScreenState extends State<ColoringScreen>
           _transformController.value = tween.evaluate(
             CurvedAnimation(
               parent: _zoomAnimController,
-              curve: Curves.easeOutCubic,
+              curve: Curves.easeInOut,
             ),
           );
         });

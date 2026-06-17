@@ -11,6 +11,7 @@ import '../../data/models/pixel_art.dart';
 import '../../data/services/iap_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/settings_sheet.dart';
+import '../widgets/transitions.dart';
 import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
@@ -47,7 +48,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _buildHeader(context, gallery),
               if (gallery.dailyArt != null)
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
                   sliver: SliverToBoxAdapter(
                     child: _DailyPixelBanner(
                       gallery: gallery,
@@ -57,7 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               if (gallery.inProgressArts.isNotEmpty)
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
+                  padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
                   sliver: SliverToBoxAdapter(
                     child: _ContinueRow(
                       gallery: gallery,
@@ -66,7 +67,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                 ),
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                 sliver: SliverToBoxAdapter(
                   child: _CategoryFilter(gallery: gallery),
                 ),
@@ -83,13 +84,13 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _EmptyState(gallery: gallery),
                     )
                   : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
                       sliver: SliverGrid(
                         gridDelegate:
                             const SliverGridDelegateWithFixedCrossAxisCount(
                               crossAxisCount: 2,
-                              crossAxisSpacing: 14,
-                              mainAxisSpacing: 14,
+                              crossAxisSpacing: 18,
+                              mainAxisSpacing: 18,
                               childAspectRatio: 0.78,
                             ),
                         delegate: SliverChildBuilderDelegate((context, index) {
@@ -146,17 +147,12 @@ class _HomeScreenState extends State<HomeScreen> {
               Positioned(
                 top: -20,
                 right: -20,
-                child: _buildDecoCircle(120, Colors.white.withAlpha(15)),
+                child: _buildDecoCircle(120, Colors.white.withAlpha(10)),
               ),
               Positioned(
                 bottom: -30,
                 left: -30,
-                child: _buildDecoCircle(100, Colors.white.withAlpha(10)),
-              ),
-              Positioned(
-                top: 40,
-                right: 60,
-                child: _buildDecoCircle(40, Colors.white.withAlpha(20)),
+                child: _buildDecoCircle(100, Colors.white.withAlpha(8)),
               ),
               Padding(
                 padding: EdgeInsets.only(
@@ -381,8 +377,8 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => ChangeNotifierProvider.value(
+      fadeThroughRoute(
+        ChangeNotifierProvider.value(
           value: context.read<ColoringProvider>(),
           child: ColoringScreen(art: art),
         ),
@@ -397,14 +393,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openCamera(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const CameraScreen()),
+      fadeThroughRoute(const CameraScreen()),
     );
   }
 
   void _openGallery(BuildContext context) {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => const GalleryScreen()),
+      fadeThroughRoute(const GalleryScreen()),
     );
   }
 
@@ -627,16 +623,16 @@ class _DailyPixelBanner extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFFF9966), Color(0xFFFF5E62)],
+            colors: [Color(0xFFD98E73), Color(0xFFC97E68)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFF5E62).withAlpha(70),
-              blurRadius: 12,
-              offset: const Offset(0, 5),
+              color: const Color(0xFFC97E68).withAlpha(35),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -842,8 +838,8 @@ class _CategoryFilter extends StatelessWidget {
             child: GestureDetector(
               onTap: () => gallery.setCategory(cat),
               child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeOutCubic,
+                duration: const Duration(milliseconds: 350),
+                curve: Curves.easeInOut,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 18,
                   vertical: 10,
@@ -869,9 +865,9 @@ class _CategoryFilter extends StatelessWidget {
                             color: AppColors
                                 .categoryColors[index %
                                     AppColors.categoryColors.length]
-                                .withAlpha(80),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
+                                .withAlpha(40),
+                            blurRadius: 8,
+                            offset: const Offset(0, 3),
                           ),
                         ]
                       : null,
@@ -934,9 +930,9 @@ class _PixelArtCard extends StatelessWidget {
           color: Theme.of(context).cardColor,
           boxShadow: [
             BoxShadow(
-              color: AppStyle.primary.withAlpha(25),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
+              color: Colors.black.withAlpha(40),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
           ],
         ),
@@ -980,7 +976,7 @@ class _PixelArtCard extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(10),
+                    padding: const EdgeInsets.all(12),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
