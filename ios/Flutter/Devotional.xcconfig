@@ -7,3 +7,5 @@
 
 PRODUCT_BUNDLE_IDENTIFIER = com.tenhead.divinepixels
 APP_DISPLAY_NAME = Divine Pixels
+APP_ICON_NAME = AppIcon-devotional
+

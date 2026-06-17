@@ -1,0 +1,6 @@
+// Build settings for the "PixelCalm" pixelcalm iOS flavor.
+#include "Generated.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.tenhead.pixelcalm
+APP_DISPLAY_NAME = PixelCalm
+APP_ICON_NAME = AppIcon-pixelcalm

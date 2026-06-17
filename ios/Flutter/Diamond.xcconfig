@@ -1,0 +1,6 @@
+// Build settings for the "Gem Art" diamond iOS flavor.
+#include "Generated.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.tenhead.gemart
+APP_DISPLAY_NAME = Gem Art
+APP_ICON_NAME = AppIcon-diamond

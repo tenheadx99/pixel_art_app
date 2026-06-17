@@ -1,0 +1,6 @@
+// Build settings for the "Anime Pixels" anime iOS flavor.
+#include "Generated.xcconfig"
+
+PRODUCT_BUNDLE_IDENTIFIER = com.tenhead.animepixels
+APP_DISPLAY_NAME = Anime Pixels
+APP_ICON_NAME = AppIcon-anime
