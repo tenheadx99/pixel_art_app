@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' show PointMode;
 import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
@@ -13,6 +14,11 @@ class PixelGrid extends StatefulWidget {
   final bool isEraseMode;
   final bool colorblindMode;
 
+  /// When true, single-finger gestures are left to the InteractiveViewer to
+  /// pan the canvas; painting (tap/drag) is suppressed. Two-finger pan/zoom is
+  /// unaffected.
+  final bool panMode;
+
   /// Completion fade (0.0 = working grid, 1.0 = clean picture). Wired as a
   /// listenable so the canvas repaints without rebuilding the widget tree.
   final Animation<double>? gridFade;
@@ -23,6 +29,10 @@ class PixelGrid extends StatefulWidget {
   final ValueListenable<Matrix4>? transform;
   final void Function(int row, int col) onCellTap;
   final void Function(int row, int col)? onCellLongPress;
+  final VoidCallback? onCellDragStart;
+  final void Function(int row, int col)? onCellDrag;
+  final VoidCallback? onCellDragEnd;
+  final VoidCallback? onCellDragCancel;
 
   const PixelGrid({
     super.key,
@@ -31,10 +41,15 @@ class PixelGrid extends StatefulWidget {
     required this.brushSize,
     required this.isEraseMode,
     required this.colorblindMode,
+    this.panMode = false,
     this.gridFade,
     this.transform,
     required this.onCellTap,
     this.onCellLongPress,
+    this.onCellDragStart,
+    this.onCellDrag,
+    this.onCellDragEnd,
+    this.onCellDragCancel,
   });
 
   @override
@@ -45,38 +60,88 @@ class _PixelGridState extends State<PixelGrid> {
   final _gridKey = GlobalKey();
   int? _hoverRow;
   int? _hoverCol;
+  int _activePointers = 0;
+  bool _stroking = false;
+  Offset? _downPosition;
 
-  // A single finger pans the canvas (handled by the parent InteractiveViewer);
-  // tapping a cell fills it. There is no drag-to-paint, so this widget only
-  // needs tap/long-press recognizers — leaving every drag free for panning.
+  // Drag-to-paint listens to raw pointer events instead of a pan gesture so
+  // it never enters the gesture arena: a pan recognizer here would claim the
+  // first finger and starve InteractiveViewer's two-finger pinch-zoom.
+  void _onPointerDown(PointerDownEvent event) {
+    _activePointers++;
+    if (_activePointers == 1) {
+      _downPosition = event.position;
+    } else {
+      // Second finger: this is a pinch, not a stroke. Revert any paint.
+      _downPosition = null;
+      if (_stroking) {
+        _stroking = false;
+        widget.onCellDragCancel?.call();
+      }
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    final art = widget.provider.currentArt;
+    if (art == null || widget.onCellDrag == null) return;
+    // In pan mode the single finger drives the InteractiveViewer, not painting.
+    if (widget.panMode) return;
+    if (_activePointers != 1) return;
+    if (!_stroking) {
+      final down = _downPosition;
+      if (down == null || (event.position - down).distance < kTouchSlop) {
+        return;
+      }
+      _stroking = true;
+      widget.onCellDragStart?.call();
+    }
+    final pos = _gridPos(event.position, art);
+    if (pos != null) widget.onCellDrag!(pos.$1, pos.$2);
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    _activePointers = max(0, _activePointers - 1);
+    _downPosition = null;
+    if (_stroking && _activePointers == 0) {
+      _stroking = false;
+      widget.onCellDragEnd?.call();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final art = widget.provider.currentArt;
     if (art == null) return const SizedBox.shrink();
 
-    return GestureDetector(
-      onTapUp: (details) {
-        final pos = _gridPos(details.globalPosition, art);
-        if (pos != null) widget.onCellTap(pos.$1, pos.$2);
-      },
-      onLongPressStart: (details) {
-        if (widget.onCellLongPress == null) return;
-        final pos = _gridPos(details.globalPosition, art);
-        if (pos != null) widget.onCellLongPress!(pos.$1, pos.$2);
-      },
-      child: MouseRegion(
-        onHover: (event) {
-          final pos = _gridPos(event.position, art);
-          setState(() {
-            _hoverRow = pos?.$1;
-            _hoverCol = pos?.$2;
-          });
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerEnd,
+      onPointerCancel: _onPointerEnd,
+      child: GestureDetector(
+        onTapUp: (details) {
+          if (widget.panMode) return;
+          final pos = _gridPos(details.globalPosition, art);
+          if (pos != null) widget.onCellTap(pos.$1, pos.$2);
         },
-        onExit: (_) => setState(() {
-          _hoverRow = null;
-          _hoverCol = null;
-        }),
-        child: Container(
+        onLongPressStart: (details) {
+          if (widget.onCellLongPress == null) return;
+          final pos = _gridPos(details.globalPosition, art);
+          if (pos != null) widget.onCellLongPress!(pos.$1, pos.$2);
+        },
+        child: MouseRegion(
+          onHover: (event) {
+            final pos = _gridPos(event.position, art);
+            setState(() {
+              _hoverRow = pos?.$1;
+              _hoverCol = pos?.$2;
+            });
+          },
+          onExit: (_) => setState(() {
+            _hoverRow = null;
+            _hoverCol = null;
+          }),
+          child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
@@ -118,7 +183,8 @@ class _PixelGridState extends State<PixelGrid> {
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   (int, int)? _gridPos(Offset globalPos, dynamic art) {

@@ -22,6 +22,7 @@ class ColoringProvider extends ChangeNotifier {
   bool _isMagicWandMode = false;
   int _magicWandsCount = 5;
   bool _isEraseMode = false;
+  bool _isPanMode = false;
   int _brushSize = 1;
   (int, int)? _nextFillable;
   int _totalFillCount = 0;
@@ -43,6 +44,7 @@ class ColoringProvider extends ChangeNotifier {
     _isMagicWandMode = !_isMagicWandMode;
     if (_isMagicWandMode) {
       _isEraseMode = false;
+      _isPanMode = false;
       _haptic(HapticFeedback.selectionClick);
     }
     notifyListeners();
@@ -76,6 +78,7 @@ class ColoringProvider extends ChangeNotifier {
   int? get highlightedNumber => _highlightedNumber;
   bool get canUndo => _undoStack.isNotEmpty;
   bool get isEraseMode => _isEraseMode;
+  bool get isPanMode => _isPanMode;
   int get brushSize => _brushSize;
   (int, int)? get nextFillable => _nextFillable;
   int get totalFillCount => _totalFillCount;
@@ -208,6 +211,20 @@ class ColoringProvider extends ChangeNotifier {
   void toggleEraseMode() {
     _isEraseMode = !_isEraseMode;
     if (_isEraseMode) {
+      _isPanMode = false;
+      _haptic(HapticFeedback.selectionClick);
+    }
+    notifyListeners();
+  }
+
+  /// When on, a single finger drags (pans) the canvas instead of painting.
+  /// Two-finger pan/zoom works regardless. Mutually exclusive with erase and
+  /// magic-wand modes.
+  void togglePanMode() {
+    _isPanMode = !_isPanMode;
+    if (_isPanMode) {
+      _isEraseMode = false;
+      _isMagicWandMode = false;
       _haptic(HapticFeedback.selectionClick);
     }
     notifyListeners();
@@ -448,29 +465,6 @@ class ColoringProvider extends ChangeNotifier {
     _debouncedSave();
     notifyListeners();
     return true;
-  }
-
-  void fillAllRemaining() {
-    if (_currentArt == null) return;
-    bool changed = false;
-    _pushUndoState();
-    for (var row = 0; row < _currentArt!.gridHeight; row++) {
-      for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] > 0 && _filledGrid[row][col] == 0) {
-          _filledGrid[row][col] = _currentArt!.grid[row][col];
-          _timeLapse.add((row, col));
-          changed = true;
-        }
-      }
-    }
-    if (changed) {
-      _calculateProgress();
-      _checkCompletion();
-      _checkAchievements();
-      _updateNextFillable();
-      saveProgress();
-      notifyListeners();
-    }
   }
 
   void fillAllOfSelectedNumber() {
