@@ -49,7 +49,9 @@ class _NumberPaletteState extends State<NumberPalette> {
     final art = provider.currentArt;
     if (art == null) return const SizedBox.shrink();
 
-    final numbers = art.sortedNumbers;
+    final numbers = art.sortedNumbers.where((n) {
+      return provider.fillPercentForNumber(n) < 1.0;
+    }).toList();
     if (numbers.isEmpty) return const SizedBox.shrink();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
