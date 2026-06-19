@@ -284,9 +284,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       children: [
                         if (isCurrentArt) _buildGrid(provider, settings),
                         _buildZoomControls(),
-                        if (provider.isEraseMode ||
-                            provider.isMagicWandMode ||
-                            provider.isPanMode)
+                        if (provider.isEraseMode || provider.isMagicWandMode)
                           _buildModePill(provider),
                         ConfettiOverlay(animation: _confettiController),
                         if (isComplete) _buildCompletionBar(provider),
@@ -326,11 +324,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     final Color color;
     final IconData icon;
     final String text;
-    if (provider.isPanMode) {
-      color = AppStyle.primary;
-      icon = Icons.pan_tool_rounded;
-      text = 'Move mode: drag to pan';
-    } else if (provider.isEraseMode) {
+    if (provider.isEraseMode) {
       color = const Color(0xFFFF6B6B);
       icon = Icons.cleaning_services;
       text = 'Eraser on';
@@ -683,13 +677,11 @@ class _ColoringScreenState extends State<ColoringScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         _viewerSize = Size(constraints.maxWidth, constraints.maxHeight);
-        // One finger paints, two fingers pan/zoom (scale gestures include
-        // translation), so single-finger pan stays free for drag-to-paint.
+        // A single finger swipes (pans) the canvas and pinch zooms; a tap
+        // fills a cell. There is no separate "move" mode.
         return InteractiveViewer(
           transformationController: _transformController,
-          // In Move mode a single finger pans the canvas; otherwise it paints
-          // (two-finger pan/zoom works either way via scale gestures).
-          panEnabled: provider.isPanMode,
+          panEnabled: true,
           minScale: 0.5,
           // Large grids fit the screen with tiny cells; allow zooming until a
           // cell is ~28px so every artwork stays comfortably tappable.
@@ -705,19 +697,12 @@ class _ColoringScreenState extends State<ColoringScreen>
                 brushSize: provider.brushSize,
                 isEraseMode: provider.isEraseMode,
                 colorblindMode: settings.colorblindMode,
-                panMode: provider.isPanMode,
                 gridFade: _gridFadeController,
                 transform: _transformController,
                 onCellTap: (row, col) => provider.tryFillCell(row, col),
                 onCellLongPress: (row, col) {
                   _showColorPreview(context, provider, row, col);
                 },
-                onCellDragStart: () {
-                  if (!provider.isMagicWandMode) provider.beginStroke();
-                },
-                onCellDrag: provider.strokeFill,
-                onCellDragEnd: provider.endStroke,
-                onCellDragCancel: provider.cancelStroke,
               ),
             ),
           ),

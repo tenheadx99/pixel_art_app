@@ -22,7 +22,6 @@ class ColoringProvider extends ChangeNotifier {
   bool _isMagicWandMode = false;
   int _magicWandsCount = 5;
   bool _isEraseMode = false;
-  bool _isPanMode = false;
   int _brushSize = 1;
   (int, int)? _nextFillable;
   int _totalFillCount = 0;
@@ -31,9 +30,6 @@ class ColoringProvider extends ChangeNotifier {
   List<(int, int)> _timeLapse = [];
   Set<String> _achievements = {};
   String? _lastUnlockedAchievement;
-  bool _inStroke = false;
-  bool _strokeChanged = false;
-  int _strokeTimeLapseStart = 0;
   final Map<int, int> _totalPerNumber = {};
   final Map<int, int> _filledPerNumber = {};
 
@@ -44,7 +40,6 @@ class ColoringProvider extends ChangeNotifier {
     _isMagicWandMode = !_isMagicWandMode;
     if (_isMagicWandMode) {
       _isEraseMode = false;
-      _isPanMode = false;
       _haptic(HapticFeedback.selectionClick);
     }
     notifyListeners();
@@ -78,7 +73,6 @@ class ColoringProvider extends ChangeNotifier {
   int? get highlightedNumber => _highlightedNumber;
   bool get canUndo => _undoStack.isNotEmpty;
   bool get isEraseMode => _isEraseMode;
-  bool get isPanMode => _isPanMode;
   int get brushSize => _brushSize;
   (int, int)? get nextFillable => _nextFillable;
   int get totalFillCount => _totalFillCount;
@@ -211,20 +205,6 @@ class ColoringProvider extends ChangeNotifier {
   void toggleEraseMode() {
     _isEraseMode = !_isEraseMode;
     if (_isEraseMode) {
-      _isPanMode = false;
-      _haptic(HapticFeedback.selectionClick);
-    }
-    notifyListeners();
-  }
-
-  /// When on, a single finger drags (pans) the canvas instead of painting.
-  /// Two-finger pan/zoom works regardless. Mutually exclusive with erase and
-  /// magic-wand modes.
-  void togglePanMode() {
-    _isPanMode = !_isPanMode;
-    if (_isPanMode) {
-      _isEraseMode = false;
-      _isMagicWandMode = false;
       _haptic(HapticFeedback.selectionClick);
     }
     notifyListeners();
@@ -303,90 +283,6 @@ class ColoringProvider extends ChangeNotifier {
     _debouncedSave();
     notifyListeners();
     return true;
-  }
-
-  /// Starts a drag stroke: one undo entry covers the whole stroke and the
-  /// stroke counts as a single fill for stats/streaks.
-  void beginStroke() {
-    if (_currentArt == null || _inStroke) return;
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
-    _inStroke = true;
-    _strokeChanged = false;
-    _strokeTimeLapseStart = _timeLapse.length;
-  }
-
-  /// Reverts an in-progress stroke, e.g. when a drag turns into a two-finger
-  /// pinch and the painted cells should not stick.
-  void cancelStroke() {
-    if (!_inStroke) return;
-    _inStroke = false;
-    _filledGrid = _undoStack.removeLast();
-    _timeLapse.removeRange(_strokeTimeLapseStart, _timeLapse.length);
-    if (_strokeChanged) {
-      _calculateProgress();
-      _updateNextFillable();
-    }
-    notifyListeners();
-  }
-
-  void strokeFill(int row, int col) {
-    if (!_inStroke || _currentArt == null) return;
-    if (row < 0 || row >= _currentArt!.gridHeight) return;
-    if (col < 0 || col >= _currentArt!.gridWidth) return;
-
-    bool changed = false;
-    final half = _brushSize ~/ 2;
-    for (var dr = -half; dr <= half; dr++) {
-      for (var dc = -half; dc <= half; dc++) {
-        final r = row + dr;
-        final c = col + dc;
-        if (r < 0 || r >= _currentArt!.gridHeight) continue;
-        if (c < 0 || c >= _currentArt!.gridWidth) continue;
-        if (_isEraseMode) {
-          if (_filledGrid[r][c] <= 0) continue;
-          _filledGrid[r][c] = 0;
-          changed = true;
-        } else {
-          final expectedNumber = _currentArt!.grid[r][c];
-          if (expectedNumber == 0) continue;
-          if (_filledGrid[r][c] > 0) continue;
-          if (expectedNumber != _selectedNumber) continue;
-          _filledGrid[r][c] = expectedNumber;
-          _timeLapse.add((r, c));
-          changed = true;
-        }
-      }
-    }
-    if (changed) {
-      _strokeChanged = true;
-      _calculateProgress();
-      notifyListeners();
-    }
-  }
-
-  void endStroke() {
-    if (!_inStroke) return;
-    _inStroke = false;
-    if (!_strokeChanged) {
-      _undoStack.removeLast();
-      return;
-    }
-    if (_isEraseMode) {
-      _totalEraseCount++;
-      _consecutiveFills = 0;
-      _isComplete = false;
-    } else {
-      _haptic(HapticFeedback.lightImpact);
-      _totalFillCount++;
-      _consecutiveFills++;
-      _checkCompletion();
-    }
-    _checkAchievements();
-    _updateNextFillable();
-    _autoAdvanceIfDone();
-    _debouncedSave();
-    notifyListeners();
   }
 
   /// Fills one correct cell as a hint and returns its position, or null if

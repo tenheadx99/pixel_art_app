@@ -69,22 +69,6 @@ void main() {
       expect(provider.selectedNumber, 2);
     });
 
-    test('drag stroke groups into a single undo entry', () async {
-      final provider = await _providerWith({});
-      provider.loadArt(twoColorArt());
-      provider.selectNumber(2);
-      provider.beginStroke();
-      provider.strokeFill(0, 1);
-      provider.strokeFill(1, 0);
-      provider.strokeFill(1, 1);
-      provider.endStroke();
-      expect(provider.filledGrid[1][1], 2);
-      provider.undo();
-      expect(provider.filledGrid[0][1], 0);
-      expect(provider.filledGrid[1][0], 0);
-      expect(provider.filledGrid[1][1], 0);
-    });
-
     test('hint fills one correct cell and selects its number', () async {
       final provider = await _providerWith({});
       provider.loadArt(twoColorArt());
