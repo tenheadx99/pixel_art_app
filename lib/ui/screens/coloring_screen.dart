@@ -191,7 +191,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     final pad = MediaQuery.of(context).padding;
     final availableWidth = screenSize.width - 32;
     // Top bar (~64) + toolbar/palette/banner (~250).
-    final availableHeight = screenSize.height - pad.top - pad.bottom - 64 - 250;
+    final availableHeight = screenSize.height - pad.bottom - 250;
     if (widget.art.gridWidth <= 0 || widget.art.gridHeight <= 0) return;
     final fromW = availableWidth / widget.art.gridWidth;
     final fromH = availableHeight / widget.art.gridHeight;
@@ -263,6 +263,8 @@ class _ColoringScreenState extends State<ColoringScreen>
           _confettiController.forward();
         }
 
+        final statusBarHeight = MediaQuery.of(context).padding.top;
+
         return PopScope(
           onPopInvokedWithResult: (didPop, _) {
             if (didPop) {
@@ -273,98 +275,107 @@ class _ColoringScreenState extends State<ColoringScreen>
           child: Scaffold(
             body: Container(
               color: const Color(0xFFF9F9FB),
-              child: SafeArea(
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-                      child: _buildTopBar(context, provider, isComplete),
-                    ),
-                    Expanded(
-                      child: Stack(
-                        children: [
-                          if (isCurrentArt) _buildGrid(provider, settings),
+              child: Column(
+                children: [
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        if (isCurrentArt) _buildGrid(provider, settings),
 
-                          // Floating Overlays
-                          
-                          // 1. Mini Preview in Top Left
-                          if (isCurrentArt)
-                            Positioned(
-                              top: 12,
-                              left: 12,
-                              child: Container(
-                                width: 80,
-                                height: 80,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                                  boxShadow: const [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 6,
-                                      offset: Offset(0, 3),
-                                    ),
-                                  ],
+                        // 1. Top Bar (Overlay)
+                        Positioned(
+                          top: statusBarHeight + 8,
+                          left: 16,
+                          right: 16,
+                          child: _buildTopBar(context, provider, isComplete),
+                        ),
+
+                        // 2. Mini Preview in Top Left
+                        if (isCurrentArt)
+                          Positioned(
+                            top: statusBarHeight + 104,
+                            left: 12,
+                            child: Container(
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Colors.black12,
+                                    blurRadius: 6,
+                                    offset: Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(6),
+                                child: ValueListenableBuilder<Matrix4>(
+                                  valueListenable: _transformController,
+                                  builder: (context, transform, _) {
+                                    final viewportRect = _calculateViewportRect(
+                                      transform,
+                                      _viewerSize,
+                                      _cellSize,
+                                      widget.art,
+                                    );
+                                    return CustomPaint(
+                                      painter: _MiniMapPainter(
+                                        art: widget.art,
+                                        filledGrid: provider.filledGrid,
+                                        filledColors: provider.filledColors,
+                                        viewportRect: viewportRect,
+                                      ),
+                                    );
+                                  },
                                 ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(6),
-                                  child: ValueListenableBuilder<Matrix4>(
-                                    valueListenable: _transformController,
-                                    builder: (context, transform, _) {
-                                      final viewportRect = _calculateViewportRect(
-                                        transform,
-                                        _viewerSize,
-                                        _cellSize,
-                                        widget.art,
-                                      );
-                                      return CustomPaint(
-                                        painter: _MiniMapPainter(
-                                          art: widget.art,
-                                          filledGrid: provider.filledGrid,
-                                          filledColors: provider.filledColors,
-                                          viewportRect: viewportRect,
-                                        ),
-                                      );
+                              ),
+                            ),
+                          ),
+
+                        // 3. Floating Rewarded Ad bucket button in Top Right
+                        if (isCurrentArt)
+                          Positioned(
+                            top: statusBarHeight + 116,
+                            right: 12,
+                            child: _RainbowAdButton(
+                              onTap: () {
+                                final adService = context.read<AdService>();
+                                if (AppConfig.disableAds || !AppConfig.showAds) {
+                                  provider.addMagicWands(2);
+                                  _showInfoSnack('[Simulated Ad] +2 Paint Buckets earned!');
+                                  return;
+                                }
+                                adService.loadRewardedAd(
+                                  onLoaded: () => adService.showRewardedAd(
+                                    onRewarded: () {
+                                      provider.addMagicWands(2);
+                                      _showInfoSnack('+2 Paint Buckets earned!');
                                     },
                                   ),
-                                ),
-                              ),
+                                  onFailed: () {
+                                    provider.addMagicWands(2);
+                                    _showInfoSnack('+2 Paint Buckets earned!');
+                                  },
+                                );
+                              },
                             ),
+                          ),
 
-                          // 2. Floating Rewarded Ad bucket button in Top Right
-                          if (isCurrentArt)
-                            Positioned(
-                              top: 12,
-                              right: 12,
-                              child: _RainbowAdButton(
-                                onTap: () {
-                                  final adService = context.read<AdService>();
-                                  adService.loadRewardedAd(
-                                    onLoaded: () => adService.showRewardedAd(
-                                      onRewarded: () {
-                                        provider.addMagicWands(2);
-                                        _showInfoSnack('+2 Paint Buckets earned!');
-                                      },
-                                    ),
-                                    onFailed: () => _showInfoSnack(
-                                      'No ad available right now — try again later.',
-                                    ),
-                                  );
-                                },
-                              ),
-                            ),
-
-                          if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
-                            _buildModePill(provider),
-                          ConfettiOverlay(animation: _confettiController),
-                          if (isComplete) _buildCompletionBar(provider),
-                        ],
-                      ),
+                        if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
+                          _buildModePill(provider),
+                        ConfettiOverlay(animation: _confettiController),
+                        if (isComplete) _buildCompletionBar(provider),
+                      ],
                     ),
-                    _buildBottomSection(context, provider, settings),
-                  ],
-                ),
+                  ),
+                  SafeArea(
+                    top: false,
+                    child: _buildBottomSection(context, provider, settings),
+                  ),
+                ],
               ),
             ),
           ),
@@ -392,8 +403,9 @@ class _ColoringScreenState extends State<ColoringScreen>
       icon = Icons.auto_fix_high_rounded;
       text = 'Magic wand: tap an area';
     }
+    final statusBarHeight = MediaQuery.of(context).padding.top;
     return Positioned(
-      top: 8,
+      top: statusBarHeight + 104,
       left: 0,
       right: 0,
       child: Center(
@@ -952,6 +964,15 @@ class _ColoringScreenState extends State<ColoringScreen>
             label: Text('Watch Ad (+$adAmount)'),
             onPressed: () {
               Navigator.pop(ctx);
+              if (AppConfig.disableAds || !AppConfig.showAds) {
+                if (forHints) {
+                  settings.addHints(adAmount);
+                } else {
+                  provider.addMagicWands(adAmount);
+                }
+                _showInfoSnack('[Simulated Ad] +$adAmount $label earned!');
+                return;
+              }
               adService.loadRewardedAd(
                 onLoaded: () => adService.showRewardedAd(
                   onRewarded: () {
@@ -963,9 +984,14 @@ class _ColoringScreenState extends State<ColoringScreen>
                     _showInfoSnack('+$adAmount $label earned!');
                   },
                 ),
-                onFailed: () => _showInfoSnack(
-                  'No ad available right now — try again later.',
-                ),
+                onFailed: () {
+                  if (forHints) {
+                    settings.addHints(adAmount);
+                  } else {
+                    provider.addMagicWands(adAmount);
+                  }
+                  _showInfoSnack('+$adAmount $label earned!');
+                },
               );
             },
           ),

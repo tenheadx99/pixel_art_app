@@ -1,7 +1,10 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../data/services/ad_service.dart';
+import '../../config/app_config.dart';
 import '../theme/app_style.dart';
 
 class NumberToolbar extends StatelessWidget {
@@ -16,11 +19,76 @@ class NumberToolbar extends StatelessWidget {
     this.onHint,
   });
 
+  void _watchAdRefill(BuildContext context, String toolName, VoidCallback onRefilled) {
+    final adService = context.read<AdService>();
+
+    // Fallback/Simulated reward if ads are disabled or in debug/testing scenarios
+    // so that the feature is fully testable.
+    if (AppConfig.disableAds || !AppConfig.showAds) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('[Simulated Ad] Refilling $toolName...'),
+          duration: const Duration(milliseconds: 500),
+        ),
+      );
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (context.mounted) {
+          onRefilled();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('+1 $toolName refilled!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      });
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Loading Ad to refill $toolName...'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
+    adService.loadRewardedAd(
+      onLoaded: () {
+        adService.showRewardedAd(
+          onRewarded: () {
+            onRefilled();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('+1 $toolName refilled!'),
+                backgroundColor: Colors.green,
+              ),
+            );
+          },
+        );
+      },
+      onFailed: () {
+        // Fallback in case loading fails on some devices during testing
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Failed to load ad. Refilling anyway for test...'),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 1),
+          ),
+        );
+        onRefilled();
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final brushActive = !provider.isEraseMode && !provider.isMagicWandMode && !provider.isBombMode;
     final bombActive = provider.isBombMode;
     final wandActive = provider.isMagicWandMode;
+
+    final brushesCount = provider.brushesCount;
+    final bombsCount = provider.bombsCount;
+    final magicWandsCount = provider.magicWandsCount;
+    final hintsAvailable = settings.hintsAvailable;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -34,17 +102,21 @@ class NumberToolbar extends StatelessWidget {
               color: Colors.pinkAccent,
               size: 24,
             ),
-            badgeValue: '${provider.brushSize}',
+            badgeValue: brushesCount == 0 ? 'ad' : '$brushesCount',
             isActive: brushActive,
             onTap: () {
-              // Cycle brush size: 1 -> 2 -> 3 -> 1
-              final nextSize = provider.brushSize == 3 ? 1 : provider.brushSize + 1;
-              provider.setBrushSize(nextSize);
-              // Make sure we are in brush painting mode
-              if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode) {
-                if (provider.isEraseMode) provider.toggleEraseMode();
-                if (provider.isMagicWandMode) provider.toggleMagicWandMode();
-                if (provider.isBombMode) provider.toggleBombMode();
+              if (brushesCount == 0) {
+                _watchAdRefill(context, 'Brush', () => provider.addBrushes(1));
+              } else {
+                // Cycle brush size: 1 -> 2 -> 3 -> 1
+                final nextSize = provider.brushSize == 3 ? 1 : provider.brushSize + 1;
+                provider.setBrushSize(nextSize);
+                // Make sure we are in brush painting mode
+                if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode) {
+                  if (provider.isEraseMode) provider.toggleEraseMode();
+                  if (provider.isMagicWandMode) provider.toggleMagicWandMode();
+                  if (provider.isBombMode) provider.toggleBombMode();
+                }
               }
             },
           ),
@@ -58,10 +130,14 @@ class NumberToolbar extends StatelessWidget {
                 painter: const BombIconPainter(),
               ),
             ),
-            badgeValue: '${provider.bombsCount}',
+            badgeValue: bombsCount == 0 ? 'ad' : '$bombsCount',
             isActive: bombActive,
             onTap: () {
-              provider.toggleBombMode();
+              if (bombsCount == 0) {
+                _watchAdRefill(context, 'Bomb', () => provider.addBombs(1));
+              } else {
+                provider.toggleBombMode();
+              }
             },
           ),
 
@@ -72,10 +148,14 @@ class NumberToolbar extends StatelessWidget {
               color: Colors.blueAccent,
               size: 24,
             ),
-            badgeValue: '${provider.magicWandsCount}',
+            badgeValue: magicWandsCount == 0 ? 'ad' : '$magicWandsCount',
             isActive: wandActive,
             onTap: () {
-              provider.toggleMagicWandMode();
+              if (magicWandsCount == 0) {
+                _watchAdRefill(context, 'Paint Bucket', () => provider.addMagicWands(1));
+              } else {
+                provider.toggleMagicWandMode();
+              }
             },
           ),
 
@@ -86,9 +166,15 @@ class NumberToolbar extends StatelessWidget {
               color: Colors.orangeAccent,
               size: 24,
             ),
-            badgeValue: '${settings.hintsAvailable}',
+            badgeValue: hintsAvailable == 0 ? 'ad' : '$hintsAvailable',
             isActive: false,
-            onTap: onHint,
+            onTap: () {
+              if (hintsAvailable == 0) {
+                _watchAdRefill(context, 'Hint', () => settings.addHints(1));
+              } else {
+                onHint?.call();
+              }
+            },
           ),
         ],
       ),
@@ -111,6 +197,8 @@ class _ToolCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isAd = badgeValue == 'ad';
+
     return GestureDetector(
       onTap: onTap,
       child: Stack(
@@ -143,22 +231,27 @@ class _ToolCircleButton extends StatelessWidget {
               child: icon,
             ),
           ),
-          // Orange Badge in Top Right
+          // Orange Badge in Top Right (or Blue for ad refills)
           Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              padding: const EdgeInsets.all(4),
+            top: isAd ? -4 : -2,
+            right: isAd ? -6 : -2,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: EdgeInsets.symmetric(
+                horizontal: isAd ? 6 : 4,
+                vertical: isAd ? 2 : 4,
+              ),
               decoration: BoxDecoration(
-                color: Colors.orange,
-                shape: BoxShape.circle,
+                color: isAd ? Colors.blue : Colors.orange,
+                borderRadius: BorderRadius.circular(10),
+                shape: BoxShape.rectangle,
                 border: Border.all(
                   color: Colors.white,
                   width: 1.5,
                 ),
               ),
-              constraints: const BoxConstraints(
-                minWidth: 18,
+              constraints: BoxConstraints(
+                minWidth: isAd ? 24 : 18,
                 minHeight: 18,
               ),
               child: Center(
@@ -166,8 +259,9 @@ class _ToolCircleButton extends StatelessWidget {
                   badgeValue,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 9,
+                    fontSize: 8,
                     fontWeight: FontWeight.bold,
+                    height: 1.05,
                   ),
                 ),
               ),

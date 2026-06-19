@@ -25,6 +25,7 @@ class ColoringProvider extends ChangeNotifier {
   int _bombsCount = 5;
   bool _isEraseMode = false;
   int _brushSize = 1;
+  int _brushesCount = 5;
   (int, int)? _nextFillable;
   int _totalFillCount = 0;
   int _totalEraseCount = 0;
@@ -42,6 +43,7 @@ class ColoringProvider extends ChangeNotifier {
   int get magicWandsCount => _magicWandsCount;
   bool get isBombMode => _isBombMode;
   int get bombsCount => _bombsCount;
+  int get brushesCount => _brushesCount;
 
   void toggleMagicWandMode() {
     _isMagicWandMode = !_isMagicWandMode;
@@ -72,6 +74,12 @@ class ColoringProvider extends ChangeNotifier {
   void addBombs(int count) {
     _bombsCount += count;
     _storageService.setInt('bombs_count', _bombsCount);
+    notifyListeners();
+  }
+
+  void addBrushes(int count) {
+    _brushesCount += count;
+    _storageService.setInt('brushes_count', _brushesCount);
     notifyListeners();
   }
 
@@ -132,6 +140,7 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setString(_achieveKey, _achievements.join(','));
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
     _storageService.setInt('bombs_count', _bombsCount);
+    _storageService.setInt('brushes_count', _brushesCount);
   }
 
   void _debouncedSave() {
@@ -155,6 +164,8 @@ class ColoringProvider extends ChangeNotifier {
     _magicWandsCount = wands >= 0 ? wands : 5;
     final bombs = _storageService.getInt('bombs_count', defaultValue: -1);
     _bombsCount = bombs >= 0 ? bombs : 5;
+    final brushes = _storageService.getInt('brushes_count', defaultValue: -1);
+    _brushesCount = brushes >= 0 ? brushes : 5;
     final raw = _storageService.getString(_saveKey);
     if (raw.isEmpty) return;
     final rows = raw.split(';');
@@ -238,7 +249,11 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void setBrushSize(int size) {
-    _brushSize = size.clamp(1, 3);
+    if (size > 1 && _brushesCount <= 0) {
+      _brushSize = 1;
+    } else {
+      _brushSize = size.clamp(1, 3);
+    }
     notifyListeners();
   }
 
@@ -306,6 +321,14 @@ class ColoringProvider extends ChangeNotifier {
 
     _totalFillCount++;
     _consecutiveFills++;
+    if (_brushSize > 1) {
+      if (_brushesCount > 0) {
+        _brushesCount--;
+        if (_brushesCount == 0) {
+          _brushSize = 1;
+        }
+      }
+    }
     _calculateProgress();
     _checkCompletion();
     _checkAchievements();
@@ -391,6 +414,14 @@ class ColoringProvider extends ChangeNotifier {
       _haptic(HapticFeedback.lightImpact);
       _totalFillCount++;
       _consecutiveFills++;
+      if (_brushSize > 1) {
+        if (_brushesCount > 0) {
+          _brushesCount--;
+          if (_brushesCount == 0) {
+            _brushSize = 1;
+          }
+        }
+      }
       _checkCompletion();
     }
     _checkAchievements();
