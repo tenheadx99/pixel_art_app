@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
@@ -6,286 +7,229 @@ import '../theme/app_style.dart';
 class NumberToolbar extends StatelessWidget {
   final ColoringProvider provider;
   final AppSettingsProvider settings;
-  final VoidCallback onSave;
-  final VoidCallback onReset;
   final VoidCallback? onHint;
-  final VoidCallback? onWandEmpty;
 
   const NumberToolbar({
     super.key,
     required this.provider,
     required this.settings,
-    required this.onSave,
-    required this.onReset,
     this.onHint,
-    this.onWandEmpty,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            AppStyle.primary.withAlpha(15),
-            AppStyle.secondary.withAlpha(10),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.white.withAlpha(60), width: 1),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(minWidth: constraints.maxWidth),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _ToolButton(
-                    icon: Icons.undo_rounded,
-                    label: 'Undo',
-                    color: AppStyle.primary,
-                    onTap: provider.canUndo ? provider.undo : null,
-                  ),
-                  _divider(),
-                  _BrushSelector(
-                    current: provider.brushSize,
-                    onChanged: provider.setBrushSize,
-                    isErase: provider.isEraseMode,
-                  ),
-                  _divider(),
-                  _ToolButton(
-                    icon: Icons.auto_fix_high_rounded,
-                    label: 'Wand (${provider.magicWandsCount})',
-                    color: provider.isMagicWandMode
-                        ? const Color(0xFF9C27B0)
-                        : const Color(0xFFCE93D8),
-                    onTap: provider.magicWandsCount > 0
-                        ? provider.toggleMagicWandMode
-                        : (onWandEmpty ?? provider.toggleMagicWandMode),
-                  ),
-                  _divider(),
-                  _ToolButton(
-                    icon: Icons.lightbulb_rounded,
-                    label: 'Hint (${settings.hintsAvailable})',
-                    color: const Color(0xFFFFB300),
-                    onTap: onHint,
-                  ),
-                  if (provider.achievements.isNotEmpty) ...[
-                    _divider(),
-                    _ToolButton(
-                      icon: Icons.emoji_events_rounded,
-                      label: '${provider.achievements.length}',
-                      color: AppStyle.gold,
-                      onTap: () => _showAchievements(context),
-                    ),
-                  ],
-                ],
+    final brushActive = !provider.isEraseMode && !provider.isMagicWandMode && !provider.isBombMode;
+    final bombActive = provider.isBombMode;
+    final wandActive = provider.isMagicWandMode;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          // 1. Paintbrush Tool (Cycles brush size: 1, 2, 3)
+          _ToolCircleButton(
+            icon: const Icon(
+              Icons.brush_rounded,
+              color: Colors.pinkAccent,
+              size: 24,
+            ),
+            badgeValue: '${provider.brushSize}',
+            isActive: brushActive,
+            onTap: () {
+              // Cycle brush size: 1 -> 2 -> 3 -> 1
+              final nextSize = provider.brushSize == 3 ? 1 : provider.brushSize + 1;
+              provider.setBrushSize(nextSize);
+              // Make sure we are in brush painting mode
+              if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode) {
+                if (provider.isEraseMode) provider.toggleEraseMode();
+                if (provider.isMagicWandMode) provider.toggleMagicWandMode();
+                if (provider.isBombMode) provider.toggleBombMode();
+              }
+            },
+          ),
+
+          // 2. Bomb Tool (Fills 3x3 correct pixels)
+          _ToolCircleButton(
+            icon: SizedBox(
+              width: 24,
+              height: 24,
+              child: CustomPaint(
+                painter: const BombIconPainter(),
               ),
             ),
-          );
-        },
-      ),
-    );
-  }
-
-  void _showAchievements(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.emoji_events, color: Colors.amber),
-            SizedBox(width: 10),
-            Text('Achievements'),
-          ],
-        ),
-        content: SizedBox(
-          width: double.maxFinite,
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: provider.achievements
-                .map(
-                  (id) => Chip(
-                    avatar: const Icon(
-                      Icons.check_circle,
-                      size: 16,
-                      color: Color(0xFF00B894),
-                    ),
-                    label: Text(provider.achievementName(id)),
-                    backgroundColor: AppStyle.gold.withAlpha(20),
-                  ),
-                )
-                .toList(),
+            badgeValue: '${provider.bombsCount}',
+            isActive: bombActive,
+            onTap: () {
+              provider.toggleBombMode();
+            },
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('OK'),
+
+          // 3. Paint Bucket (Contiguous magic wand fill)
+          _ToolCircleButton(
+            icon: const Icon(
+              Icons.format_color_fill_rounded,
+              color: Colors.blueAccent,
+              size: 24,
+            ),
+            badgeValue: '${provider.magicWandsCount}',
+            isActive: wandActive,
+            onTap: () {
+              provider.toggleMagicWandMode();
+            },
+          ),
+
+          // 4. Hint (Lightbulb)
+          _ToolCircleButton(
+            icon: const Icon(
+              Icons.lightbulb_rounded,
+              color: Colors.orangeAccent,
+              size: 24,
+            ),
+            badgeValue: '${settings.hintsAvailable}',
+            isActive: false,
+            onTap: onHint,
           ),
         ],
       ),
     );
   }
-
-  Widget _divider() =>
-      Container(width: 1, height: 24, color: Colors.black.withAlpha(10));
 }
 
-class _BrushSelector extends StatelessWidget {
-  final int current;
-  final bool isErase;
-  final ValueChanged<int> onChanged;
-
-  const _BrushSelector({
-    required this.current,
-    required this.isErase,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [1, 2, 3].map((s) {
-        final active = s == current;
-        return GestureDetector(
-          onTap: () => onChanged(s),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 150),
-            margin: const EdgeInsets.symmetric(horizontal: 1),
-            width: 22,
-            height: 22,
-            decoration: BoxDecoration(
-              color: active
-                  ? (isErase ? AppStyle.coral : AppStyle.primary)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: active ? Colors.transparent : Colors.black.withAlpha(30),
-              ),
-            ),
-            // Dot scales with brush size (1x1 / 2x2 / 3x3) so the footprint is
-            // obvious at a glance rather than an unlabelled "1/2/3".
-            child: Center(
-              child: Container(
-                width: 4.0 + (s - 1) * 4,
-                height: 4.0 + (s - 1) * 4,
-                decoration: BoxDecoration(
-                  color: active ? Colors.white : Colors.black54,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-          ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _ToolButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
+class _ToolCircleButton extends StatelessWidget {
+  final Widget icon;
+  final String badgeValue;
+  final bool isActive;
   final VoidCallback? onTap;
 
-  const _ToolButton({
+  const _ToolCircleButton({
     required this.icon,
-    required this.label,
-    required this.color,
+    required this.badgeValue,
+    required this.isActive,
     this.onTap,
   });
 
   @override
-  State<_ToolButton> createState() => _ToolButtonState();
-}
-
-class _ToolButtonState extends State<_ToolButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animController;
-  late Animation<double> _scaleAnim;
-  bool _isPressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 200),
-    );
-    _scaleAnim = Tween<double>(begin: 1.0, end: 0.92).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final disabled = widget.onTap == null;
-    return AnimatedBuilder(
-      animation: _scaleAnim,
-      builder: (context, _) => Transform.scale(
-        scale: _scaleAnim.value,
-        child: GestureDetector(
-          onTapDown: disabled
-              ? null
-              : (_) {
-                  _animController.forward();
-                  _isPressed = true;
-                },
-          onTapUp: disabled
-              ? null
-              : (_) {
-                  _animController.reverse();
-                  _isPressed = false;
-                  widget.onTap?.call();
-                },
-          onTapCancel: () {
-            if (_isPressed) {
-              _animController.reverse();
-              _isPressed = false;
-            }
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  widget.icon,
-                  size: 20,
-                  color: disabled ? Colors.grey.shade300 : widget.color,
-                ),
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: disabled
-                        ? Colors.grey.shade300
-                        : widget.color.withAlpha(200),
-                  ),
+    return GestureDetector(
+      onTap: onTap,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          // White Circular Button
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isActive ? AppStyle.primary : Colors.transparent,
+                width: 2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isActive
+                      ? AppStyle.primary.withAlpha(40)
+                      : Colors.black.withAlpha(20),
+                  blurRadius: isActive ? 12 : 8,
+                  spreadRadius: isActive ? 1 : 0,
+                  offset: const Offset(0, 3),
                 ),
               ],
             ),
+            child: Center(
+              child: icon,
+            ),
           ),
-        ),
+          // Orange Badge in Top Right
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: Colors.orange,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: Colors.white,
+                  width: 1.5,
+                ),
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 18,
+                minHeight: 18,
+              ),
+              child: Center(
+                child: Text(
+                  badgeValue,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class BombIconPainter extends CustomPainter {
+  const BombIconPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final cx = size.width / 2;
+    final cy = size.height / 2;
+    final radius = min(size.width, size.height) * 0.35;
+
+    // Body (dark slate blue)
+    final bodyPaint = Paint()
+      ..color = const Color(0xFF2E313E)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(cx - 1, cy + 1), radius, bodyPaint);
+
+    // Body Highlight (white with low opacity)
+    final highlightPaint = Paint()
+      ..color = Colors.white.withAlpha(70)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(cx - 1 - radius * 0.3, cy + 1 - radius * 0.3), radius * 0.25, highlightPaint);
+
+    // Fuse cap (grey)
+    final capPaint = Paint()
+      ..color = const Color(0xFF7E8494)
+      ..style = PaintingStyle.fill;
+    final capPath = Path()
+      ..moveTo(cx - 3, cy - radius + 1)
+      ..lineTo(cx + 3, cy - radius + 1)
+      ..lineTo(cx + 4, cy - radius - 2)
+      ..lineTo(cx - 4, cy - radius - 2)
+      ..close();
+    canvas.drawPath(capPath, capPaint);
+
+    // Fuse wire (grey curve)
+    final fusePaint = Paint()
+      ..color = const Color(0xFF7E8494)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    final fusePath = Path()
+      ..moveTo(cx, cy - radius - 2)
+      ..quadraticBezierTo(cx + 4, cy - radius - 8, cx + 8, cy - radius - 5);
+    canvas.drawPath(fusePath, fusePaint);
+
+    // Fuse spark (orange/yellow star)
+    final sparkPaint = Paint()
+      ..color = const Color(0xFFFF9E00)
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(Offset(cx + 8, cy - radius - 5), 2.5, sparkPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

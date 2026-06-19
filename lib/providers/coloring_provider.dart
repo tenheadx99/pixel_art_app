@@ -21,6 +21,8 @@ class ColoringProvider extends ChangeNotifier {
   Timer? _saveTimer;
   bool _isMagicWandMode = false;
   int _magicWandsCount = 5;
+  bool _isBombMode = false;
+  int _bombsCount = 5;
   bool _isEraseMode = false;
   int _brushSize = 1;
   (int, int)? _nextFillable;
@@ -38,10 +40,23 @@ class ColoringProvider extends ChangeNotifier {
 
   bool get isMagicWandMode => _isMagicWandMode;
   int get magicWandsCount => _magicWandsCount;
+  bool get isBombMode => _isBombMode;
+  int get bombsCount => _bombsCount;
 
   void toggleMagicWandMode() {
     _isMagicWandMode = !_isMagicWandMode;
     if (_isMagicWandMode) {
+      _isEraseMode = false;
+      _isBombMode = false;
+      _haptic(HapticFeedback.selectionClick);
+    }
+    notifyListeners();
+  }
+
+  void toggleBombMode() {
+    _isBombMode = !_isBombMode;
+    if (_isBombMode) {
+      _isMagicWandMode = false;
       _isEraseMode = false;
       _haptic(HapticFeedback.selectionClick);
     }
@@ -51,6 +66,12 @@ class ColoringProvider extends ChangeNotifier {
   void addMagicWands(int count) {
     _magicWandsCount += count;
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
+    notifyListeners();
+  }
+
+  void addBombs(int count) {
+    _bombsCount += count;
+    _storageService.setInt('bombs_count', _bombsCount);
     notifyListeners();
   }
 
@@ -110,6 +131,7 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setInt('${_saveKey}_pct', (_progress * 100).round());
     _storageService.setString(_achieveKey, _achievements.join(','));
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
+    _storageService.setInt('bombs_count', _bombsCount);
   }
 
   void _debouncedSave() {
@@ -131,6 +153,8 @@ class ColoringProvider extends ChangeNotifier {
     // must stay 0, otherwise spent wands come back on every reload.
     final wands = _storageService.getInt(AppConstants.magicWandsPrefKey, defaultValue: -1);
     _magicWandsCount = wands >= 0 ? wands : 5;
+    final bombs = _storageService.getInt('bombs_count', defaultValue: -1);
+    _bombsCount = bombs >= 0 ? bombs : 5;
     final raw = _storageService.getString(_saveKey);
     if (raw.isEmpty) return;
     final rows = raw.split(';');
@@ -242,6 +266,10 @@ class ColoringProvider extends ChangeNotifier {
 
     if (_isMagicWandMode) {
       return _tryMagicWandFill(row, col);
+    }
+
+    if (_isBombMode) {
+      return _tryBombFill(row, col);
     }
 
     if (_isEraseMode) {
@@ -647,6 +675,51 @@ class ColoringProvider extends ChangeNotifier {
     if (changed) {
       _magicWandsCount--;
       _isMagicWandMode = false;
+      _totalFillCount++;
+      _haptic(HapticFeedback.mediumImpact);
+      _calculateProgress();
+      _checkCompletion();
+      _checkAchievements();
+      _updateNextFillable();
+      _autoAdvanceIfDone();
+      saveProgress();
+      notifyListeners();
+      return true;
+    } else {
+      _undoStack.removeLast();
+      return false;
+    }
+  }
+
+  bool _tryBombFill(int row, int col) {
+    if (_bombsCount <= 0) {
+      _isBombMode = false;
+      notifyListeners();
+      return false;
+    }
+
+    _pushUndoState();
+    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+
+    bool changed = false;
+    for (var dr = -1; dr <= 1; dr++) {
+      for (var dc = -1; dc <= 1; dc++) {
+        final r = row + dr;
+        final c = col + dc;
+        if (r < 0 || r >= _currentArt!.gridHeight) continue;
+        if (c < 0 || c >= _currentArt!.gridWidth) continue;
+        final expectedNumber = _currentArt!.grid[r][c];
+        if (expectedNumber == 0) continue;
+        if (_filledGrid[r][c] > 0) continue;
+        _filledGrid[r][c] = expectedNumber;
+        _timeLapse.add((r, c));
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      _bombsCount--;
+      _isBombMode = false;
       _totalFillCount++;
       _haptic(HapticFeedback.mediumImpact);
       _calculateProgress();

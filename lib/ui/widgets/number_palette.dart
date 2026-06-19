@@ -1,5 +1,5 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
 import '../theme/app_style.dart';
 
@@ -56,167 +56,138 @@ class _NumberPaletteState extends State<NumberPalette> {
       if (mounted) _followSelection(numbers, provider.selectedNumber);
     });
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          child: Row(
-            children: [
-              Text(
-                FlavorConfig.current.paletteLabel,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  color: Theme.of(context).colorScheme.onSurface.withAlpha(180),
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const Spacer(),
-              GestureDetector(
-                onTap: provider.toggleNumbers,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppStyle.primary.withAlpha(20),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        provider.showNumbers
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                        size: 14,
-                        color: AppStyle.primary,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        provider.showNumbers ? 'Show Nums' : 'Hide Nums',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppStyle.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          height: 76,
-          child: ListView.builder(
-            controller: _scrollController,
-            scrollDirection: Axis.horizontal,
-            physics: const BouncingScrollPhysics(),
-            itemCount: numbers.length,
-            itemBuilder: (context, index) {
-              final number = numbers[index];
-              final color =
-                  art.colorForNumber(number) ?? AppStyle.numberToColor(number);
-              final isSelected = provider.selectedNumber == number;
-              final fillPercent = provider.fillPercentForNumber(number);
-              final isCompleted = fillPercent >= 1.0;
-              final (filledCells, totalCells) =
-                  provider.cellCountsForNumber(number);
+    return SizedBox(
+      height: 80,
+      child: ListView.builder(
+        controller: _scrollController,
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        itemCount: numbers.length,
+        itemBuilder: (context, index) {
+          final number = numbers[index];
+          final color =
+              art.colorForNumber(number) ?? AppStyle.numberToColor(number);
+          final isSelected = provider.selectedNumber == number;
+          final fillPercent = provider.fillPercentForNumber(number);
+          final isCompleted = fillPercent >= 1.0;
 
-              return GestureDetector(
-                onTap: () => provider.selectNumber(number),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 250),
-                  curve: Curves.easeOutBack,
-                  margin: EdgeInsets.only(
-                    left: index == 0 ? 8 : 6,
-                    right: index == numbers.length - 1 ? 8 : 6,
-                    bottom: isSelected ? 8 : 4,
-                    top: isSelected ? 2 : 6,
-                  ),
-                  width: isSelected ? 56 : 50,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                    border: Border.all(
-                      color: isSelected
-                          ? (Theme.of(context).brightness == Brightness.dark
-                                ? Colors.white
-                                : AppStyle.primary)
-                          : Colors.white.withAlpha(200),
-                      width: isSelected ? 4 : 2,
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: isSelected
-                            ? color.withAlpha(160)
-                            : Colors.black.withAlpha(20),
-                        blurRadius: isSelected ? 12 : 6,
-                        spreadRadius: isSelected ? 1 : 0,
-                        offset: Offset(0, isSelected ? 4 : 2),
-                      ),
-                    ],
-                  ),
-                  child: Stack(
-                    alignment: Alignment.center,
-                    children: [
-                      if (isCompleted)
-                        Icon(
-                          Icons.check_rounded,
-                          color: _textColorForBg(color),
-                          size: isSelected ? 28 : 24,
-                        )
-                      else ...[
-                        Text(
-                          '$number',
-                          style: TextStyle(
-                            color: _textColorForBg(color),
-                            fontSize: isSelected ? 18 : 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (fillPercent > 0.0)
-                          Positioned(
-                            bottom: 4,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 4,
-                                vertical: 1.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.black.withAlpha(80),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                '$filledCells/$totalCells',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 8,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ],
-                  ),
+          Widget chip = Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(20),
+                  blurRadius: 4,
+                  offset: const Offset(0, 2),
                 ),
-              );
-            },
-          ),
-        ),
-      ],
+              ],
+            ),
+            child: Center(
+              child: isCompleted
+                  ? Icon(
+                      Icons.check_rounded,
+                      color: _textColorForBg(color),
+                      size: 24,
+                    )
+                  : Text(
+                      '$number',
+                      style: TextStyle(
+                        color: _textColorForBg(color),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+            ),
+          );
+
+          if (isSelected) {
+            chip = CustomPaint(
+              painter: ProgressRingPainter(
+                progress: fillPercent.clamp(0.0, 1.0),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(5.0),
+                child: chip,
+              ),
+            );
+          } else {
+            chip = Padding(
+              padding: const EdgeInsets.all(5.0),
+              child: chip,
+            );
+          }
+
+          return GestureDetector(
+            onTap: () => provider.selectNumber(number),
+            child: Center(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: index == 0 ? 12.0 : 6.0,
+                  right: index == numbers.length - 1 ? 12.0 : 6.0,
+                ),
+                child: chip,
+              ),
+            ),
+          );
+        },
+      ),
     );
   }
 
   Color _textColorForBg(Color bg) {
     final luminance = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b);
     return luminance > 0.5 ? Colors.black87 : Colors.white;
+  }
+}
+
+class ProgressRingPainter extends CustomPainter {
+  final double progress;
+  final Color progressColor;
+  final Color backgroundColor;
+  final double strokeWidth;
+
+  ProgressRingPainter({
+    required this.progress,
+    this.progressColor = const Color(0xFF4CAF50), // Green progress
+    this.backgroundColor = const Color(0xFFE0E0E0), // Grey track
+    this.strokeWidth = 3.0,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round;
+
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = (min(size.width, size.height) - strokeWidth) / 2;
+
+    // Draw background grey circle
+    paint.color = backgroundColor;
+    canvas.drawCircle(center, radius, paint);
+
+    // Draw foreground green progress arc
+    if (progress > 0) {
+      paint.color = progressColor;
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        -pi / 2,
+        progress * 2 * pi,
+        false,
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant ProgressRingPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.progressColor != progressColor ||
+        oldDelegate.backgroundColor != backgroundColor ||
+        oldDelegate.strokeWidth != strokeWidth;
   }
 }

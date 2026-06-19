@@ -148,6 +148,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     if (provider.isComplete && !_wasComplete) {
       _wasComplete = true;
       _gridFadeController.forward();
+      _saveArtwork(context, provider);
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -264,60 +265,111 @@ class _ColoringScreenState extends State<ColoringScreen>
 
         return PopScope(
           onPopInvokedWithResult: (didPop, _) {
-            if (didPop) _maybeShowExitInterstitial();
+            if (didPop) {
+              _saveArtwork(context, provider);
+              _maybeShowExitInterstitial();
+            }
           },
           child: Scaffold(
-            extendBodyBehindAppBar: true,
             body: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: Theme.of(context).brightness == Brightness.light
-                    ? [const Color(0xFFF8F9FF), const Color(0xFFE8E5FF)]
-                    : [const Color(0xFF1A1A2E), const Color(0xFF16213E)],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-            child: SafeArea(
-              child: Column(
-                children: [
-                  _buildTopBar(context, provider, isComplete),
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        if (isCurrentArt) _buildGrid(provider, settings),
-                        _buildZoomControls(),
-                        if (provider.isEraseMode || provider.isMagicWandMode)
-                          _buildModePill(provider),
-                        ConfettiOverlay(animation: _confettiController),
-                        if (isComplete) _buildCompletionBar(provider),
-                      ],
+              color: const Color(0xFFF9F9FB),
+              child: SafeArea(
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                      child: _buildTopBar(context, provider, isComplete),
                     ),
-                  ),
-                  _buildBottomSection(context, provider, settings),
-                ],
+                    Expanded(
+                      child: Stack(
+                        children: [
+                          if (isCurrentArt) _buildGrid(provider, settings),
+
+                          // Floating Overlays
+                          
+                          // 1. Mini Preview in Top Left
+                          if (isCurrentArt)
+                            Positioned(
+                              top: 12,
+                              left: 12,
+                              child: Container(
+                                width: 80,
+                                height: 80,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade200, width: 1.5),
+                                  boxShadow: const [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 6,
+                                      offset: Offset(0, 3),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: ValueListenableBuilder<Matrix4>(
+                                    valueListenable: _transformController,
+                                    builder: (context, transform, _) {
+                                      final viewportRect = _calculateViewportRect(
+                                        transform,
+                                        _viewerSize,
+                                        _cellSize,
+                                        widget.art,
+                                      );
+                                      return CustomPaint(
+                                        painter: _MiniMapPainter(
+                                          art: widget.art,
+                                          filledGrid: provider.filledGrid,
+                                          filledColors: provider.filledColors,
+                                          viewportRect: viewportRect,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          // 2. Floating Rewarded Ad bucket button in Top Right
+                          if (isCurrentArt)
+                            Positioned(
+                              top: 12,
+                              right: 12,
+                              child: _RainbowAdButton(
+                                onTap: () {
+                                  final adService = context.read<AdService>();
+                                  adService.loadRewardedAd(
+                                    onLoaded: () => adService.showRewardedAd(
+                                      onRewarded: () {
+                                        provider.addMagicWands(2);
+                                        _showInfoSnack('+2 Paint Buckets earned!');
+                                      },
+                                    ),
+                                    onFailed: () => _showInfoSnack(
+                                      'No ad available right now — try again later.',
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+
+                          if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
+                            _buildModePill(provider),
+                          ConfettiOverlay(animation: _confettiController),
+                          if (isComplete) _buildCompletionBar(provider),
+                        ],
+                      ),
+                    ),
+                    _buildBottomSection(context, provider, settings),
+                  ],
+                ),
               ),
             ),
-          ),
           ),
         );
       },
-    );
-  }
-
-  Widget _buildZoomControls() {
-    return Positioned(
-      top: 8,
-      right: 8,
-      child: Column(
-        children: [
-          _ZoomButton(icon: Icons.add, onTap: () => _zoomBy(1.4)),
-          const SizedBox(height: 6),
-          _ZoomButton(icon: Icons.remove, onTap: () => _zoomBy(1 / 1.4)),
-          const SizedBox(height: 6),
-          _ZoomButton(icon: Icons.fit_screen_rounded, onTap: () => _zoomBy(0)),
-        ],
-      ),
     );
   }
 
@@ -331,6 +383,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       color = const Color(0xFFFF6B6B);
       icon = Icons.cleaning_services;
       text = 'Eraser on';
+    } else if (provider.isBombMode) {
+      color = Colors.black87;
+      icon = Icons.bolt;
+      text = 'Bomb mode: tap an area to explode';
     } else {
       color = const Color(0xFF9C27B0);
       icon = Icons.auto_fix_high_rounded;
@@ -568,111 +624,110 @@ class _ColoringScreenState extends State<ColoringScreen>
     ColoringProvider provider,
     bool isComplete,
   ) {
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: AppStyle.glassmorphism(context),
-      child: Row(
-        children: [
-          GestureDetector(
-            // The PopScope around the Scaffold handles the exit interstitial
-            // for both this button and the system back gesture.
-            onTap: () => Navigator.pop(context),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: AppStyle.primary.withAlpha(20),
-                borderRadius: BorderRadius.circular(12),
+    final settings = context.read<AppSettingsProvider>();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // Store/Gem Pill
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade100, width: 1.5),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(10),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
-              child: const Icon(
-                Icons.arrow_back_ios_new,
-                size: 18,
-                color: AppStyle.primary,
-              ),
-            ),
+            ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  widget.art.name,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16,
-                  ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.storefront_rounded,
+                color: Colors.indigoAccent,
+                size: 16,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${settings.diamondsAvailable}',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
-                const SizedBox(height: 4),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: SizedBox(
-                    height: 8,
-                    child: Stack(
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(context).brightness == Brightness.light
-                                ? Colors.grey.shade200
-                                : Colors.white.withAlpha(20),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: provider.progress.clamp(0.0, 1.0),
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(6),
-                              gradient: const LinearGradient(
-                                colors: [
-                                  Color(0xFF00F0FF), // Cyber Cyan
-                                  Color(0xFF8A2BE2), // Indigo
-                                  Color(0xFFFF007F), // Neon Pink
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.diamond_rounded,
+                color: Colors.orange,
+                size: 16,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+
+        // Navigation Row
+        Row(
+          children: [
+            GestureDetector(
+              onTap: () => Navigator.pop(context),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
                     ),
-                  ),
+                  ],
                 ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${(provider.progress * 100).toInt()}%',
-            style: const TextStyle(
-              fontWeight: FontWeight.w700,
-              fontSize: 18,
-              color: AppStyle.primary,
-            ),
-          ),
-          const SizedBox(width: 4),
-          GestureDetector(
-            onTap: () => _saveArtwork(context, provider),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [AppStyle.primary, AppStyle.secondary],
+                child: const Icon(
+                  Icons.arrow_back,
+                  size: 20,
+                  color: Colors.black87,
                 ),
-                borderRadius: BorderRadius.circular(12),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x3D6C5CE7),
-                    blurRadius: 8,
-                    offset: Offset(0, 3),
-                  ),
-                ],
               ),
-              child: const Icon(Icons.save, color: Colors.white, size: 20),
             ),
-          ),
-        ],
-      ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _ProgressGiftsBar(progress: provider.progress),
+            ),
+            const SizedBox(width: 12),
+            GestureDetector(
+              onTap: () => _zoomBy(0),
+              child: Container(
+                width: 36,
+                height: 36,
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 4,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.fit_screen_rounded,
+                  size: 20,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -793,28 +848,26 @@ class _ColoringScreenState extends State<ColoringScreen>
   ) {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 10,
+            offset: const Offset(0, -3),
+          ),
+        ],
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           NumberToolbar(
             provider: provider,
             settings: settings,
-            onSave: () => _saveArtwork(context, provider),
-            onReset: () => _confirmReset(context, provider),
             onHint: () => _useHint(provider, settings),
-            onWandEmpty: () => _showRefillDialog(
-              provider: provider,
-              settings: settings,
-              forHints: false,
-            ),
           ),
           const SizedBox(height: 8),
-          Container(
-            height: 132,
-            padding: const EdgeInsets.all(8),
-            decoration: AppStyle.glassmorphism(context),
-            child: NumberPalette(provider: provider),
-          ),
+          NumberPalette(provider: provider),
           // The coloring screen is where users spend their time — the banner
           // lives here for free users.
           if (!settings.isProUser)
@@ -981,67 +1034,8 @@ class _ColoringScreenState extends State<ColoringScreen>
       );
     }
   }
-
-  void _confirmReset(BuildContext context, ColoringProvider provider) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Reset Artwork'),
-        content: const Text('This will clear all your progress. Are you sure?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              provider.resetArt();
-              Navigator.pop(ctx);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Reset'),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-class _ZoomButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _ZoomButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(
-          color: Theme.of(context).brightness == Brightness.light
-              ? Colors.white.withAlpha(220)
-              : Colors.black.withAlpha(160),
-          borderRadius: BorderRadius.circular(10),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Icon(icon, size: 20, color: AppStyle.primary),
-      ),
-    );
-  }
-}
 
 class _CompletionAction extends StatelessWidget {
   final IconData icon;
@@ -1079,6 +1073,292 @@ class _CompletionAction extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+Rect _calculateViewportRect(Matrix4 transform, Size viewerSize, double cellSize, PixelArt art) {
+  if (viewerSize == Size.zero || art.gridWidth <= 0 || art.gridHeight <= 0) {
+    return const Rect.fromLTRB(0, 0, 1, 1);
+  }
+  final scale = transform.getMaxScaleOnAxis();
+  final tx = transform.entry(0, 3);
+  final ty = transform.entry(1, 3);
+
+  final canvasWidth = art.gridWidth * cellSize;
+  final canvasHeight = art.gridHeight * cellSize;
+
+  final left = (-tx / scale).clamp(0.0, canvasWidth);
+  final top = (-ty / scale).clamp(0.0, canvasHeight);
+  final right = ((viewerSize.width - tx) / scale).clamp(0.0, canvasWidth);
+  final bottom = ((viewerSize.height - ty) / scale).clamp(0.0, canvasHeight);
+
+  return Rect.fromLTRB(
+    left / canvasWidth,
+    top / canvasHeight,
+    right / canvasWidth,
+    bottom / canvasHeight,
+  );
+}
+
+class _MiniMapPainter extends CustomPainter {
+  final PixelArt art;
+  final List<List<int>> filledGrid;
+  final Map<int, Color> filledColors;
+  final Rect viewportRect;
+
+  _MiniMapPainter({
+    required this.art,
+    required this.filledGrid,
+    required this.filledColors,
+    required this.viewportRect,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (art.gridWidth <= 0 || art.gridHeight <= 0) return;
+    final cw = size.width / art.gridWidth;
+    final ch = size.height / art.gridHeight;
+
+    for (var r = 0; r < art.gridHeight; r++) {
+      for (var c = 0; c < art.gridWidth; c++) {
+        final val = art.grid[r][c];
+        if (val <= 0) continue;
+
+        final isFilled = r < filledGrid.length && c < filledGrid[r].length && filledGrid[r][c] > 0;
+        final Color color;
+        if (isFilled) {
+          color = filledColors[val] ?? Colors.transparent;
+        } else {
+          color = const Color(0xFFD6D6D6);
+        }
+
+        final rect = Rect.fromLTWH(c * cw, r * ch, cw, ch);
+        canvas.drawRect(rect, Paint()..color = color..style = PaintingStyle.fill);
+      }
+    }
+
+    final vpPaint = Paint()
+      ..color = Colors.cyan
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+
+    final vpRect = Rect.fromLTRB(
+      viewportRect.left * size.width,
+      viewportRect.top * size.height,
+      viewportRect.right * size.width,
+      viewportRect.bottom * size.height,
+    );
+    canvas.drawRect(vpRect, vpPaint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _MiniMapPainter oldDelegate) {
+    return oldDelegate.art != art ||
+        oldDelegate.filledGrid != filledGrid ||
+        oldDelegate.viewportRect != viewportRect;
+  }
+}
+
+class _ProgressGiftsBar extends StatelessWidget {
+  final double progress;
+
+  const _ProgressGiftsBar({required this.progress});
+
+  Widget _buildGiftIcon(BuildContext context, int giftIndex, bool isUnlocked) {
+    final Color color;
+    if (giftIndex == 1) {
+      color = const Color(0xFF00BCD4);
+    } else if (giftIndex == 2) {
+      color = const Color(0xFFFFB300);
+    } else {
+      color = const Color(0xFFE53935);
+    }
+
+    return Icon(
+      Icons.redeem_rounded,
+      size: 18,
+      color: isUnlocked ? color : color.withAlpha(100),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trackWidth = constraints.maxWidth - 52;
+        return Row(
+          children: [
+            Expanded(
+              child: SizedBox(
+                height: 24,
+                child: Stack(
+                  alignment: Alignment.centerLeft,
+                  clipBehavior: Clip.none,
+                  children: [
+                    Container(
+                      height: 8,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade200,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    FractionallySizedBox(
+                      widthFactor: progress.clamp(0.0, 1.0),
+                      child: Container(
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF81C784),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      left: (trackWidth * 0.30) - 9,
+                      child: _buildGiftIcon(context, 1, progress >= 0.30),
+                    ),
+                    Positioned(
+                      left: (trackWidth * 0.65) - 9,
+                      child: _buildGiftIcon(context, 2, progress >= 0.65),
+                    ),
+                    Positioned(
+                      left: trackWidth - 9,
+                      child: _buildGiftIcon(context, 3, progress >= 1.0),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${(progress * 100).toStringAsFixed(1)}%',
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _RainbowAdButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _RainbowAdButton({required this.onTap});
+
+  @override
+  State<_RainbowAdButton> createState() => _RainbowAdButtonState();
+}
+
+class _RainbowAdButtonState extends State<_RainbowAdButton>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _rotationController;
+
+  @override
+  void initState() {
+    super.initState();
+    _rotationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _rotationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: widget.onTap,
+      child: Stack(
+        alignment: Alignment.center,
+        clipBehavior: Clip.none,
+        children: [
+          RotationTransition(
+            turns: _rotationController,
+            child: Container(
+              width: 56,
+              height: 56,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: SweepGradient(
+                  colors: [
+                    Colors.red,
+                    Colors.orange,
+                    Colors.yellow,
+                    Colors.green,
+                    Colors.cyan,
+                    Colors.blue,
+                    Colors.purple,
+                    Colors.red,
+                  ],
+                ),
+              ),
+            ),
+          ),
+          Container(
+            width: 50,
+            height: 50,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              shape: BoxShape.circle,
+            ),
+            child: const Center(
+              child: Icon(
+                Icons.format_color_fill_rounded,
+                color: Colors.blueAccent,
+                size: 24,
+              ),
+            ),
+          ),
+          Positioned(
+            top: -2,
+            right: -2,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+              decoration: BoxDecoration(
+                color: Colors.pink,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+              child: const Text(
+                '+2',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -4,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
+              decoration: BoxDecoration(
+                color: Colors.blue,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: Colors.white, width: 1),
+              ),
+              child: const Text(
+                'AD',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 7,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

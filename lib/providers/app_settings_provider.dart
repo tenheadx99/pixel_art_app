@@ -13,6 +13,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _colorblindMode = false;
   bool _hapticsEnabled = true;
   int _hintsAvailable = 0;
+  int _diamondsAvailable = 320;
 
   AppSettingsProvider(this._storageService);
 
@@ -21,6 +22,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get colorblindMode => _colorblindMode;
   bool get hapticsEnabled => _hapticsEnabled;
   int get hintsAvailable => _hintsAvailable;
+  int get diamondsAvailable => _diamondsAvailable;
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
@@ -31,6 +33,7 @@ class AppSettingsProvider extends ChangeNotifier {
       defaultValue: true,
     );
     _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
+    _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 320);
     notifyListeners();
   }
 
@@ -62,6 +65,20 @@ class AppSettingsProvider extends ChangeNotifier {
     _hintsAvailable += count;
     _storageService.setInt(AppConstants.hintsPrefKey, _hintsAvailable);
     notifyListeners();
+  }
+
+  void addDiamonds(int count) {
+    _diamondsAvailable += count;
+    _storageService.setInt('diamonds_available', _diamondsAvailable);
+    notifyListeners();
+  }
+
+  bool useDiamonds(int count) {
+    if (_diamondsAvailable < count) return false;
+    _diamondsAvailable -= count;
+    _storageService.setInt('diamonds_available', _diamondsAvailable);
+    notifyListeners();
+    return true;
   }
 
   /// Credits purchased wands directly into storage. ColoringProvider owns the

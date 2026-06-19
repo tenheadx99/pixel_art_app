@@ -127,7 +127,7 @@ class _PixelGridState extends State<PixelGrid> {
   bool _shouldPanFrom(Offset globalPos) {
     if (widget.isEraseMode) return false;
     final provider = widget.provider;
-    if (provider.isMagicWandMode) return true;
+    if (provider.isMagicWandMode || provider.isBombMode) return true;
     final art = provider.currentArt;
     if (art == null) return false;
     final pos = _gridPos(globalPos, art);
