@@ -54,6 +54,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   AppSettingsProvider? _settings;
   AdService? _adService;
   Size _viewerSize = Size.zero;
+  // Toggled per gesture: a single-finger swipe that begins over a non-selected
+  // cell pans the canvas; otherwise the finger paints (swipe-to-fill).
+  bool _canvasPanEnabled = false;
   final DateTime _sessionStart = DateTime.now();
 
   @override
@@ -677,11 +680,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     return LayoutBuilder(
       builder: (context, constraints) {
         _viewerSize = Size(constraints.maxWidth, constraints.maxHeight);
-        // A single finger swipes (pans) the canvas and pinch zooms; a tap
-        // fills a cell. There is no separate "move" mode.
+        // Two fingers always pan and pinch-zoom. Single-finger panning is
+        // turned on only for the duration of a swipe that began over a
+        // non-selected cell; otherwise the finger paints (swipe-to-fill).
         return InteractiveViewer(
           transformationController: _transformController,
-          panEnabled: true,
+          panEnabled: _canvasPanEnabled,
           minScale: 0.5,
           // Large grids fit the screen with tiny cells; allow zooming until a
           // cell is ~28px so every artwork stays comfortably tappable.
@@ -702,6 +706,17 @@ class _ColoringScreenState extends State<ColoringScreen>
                 onCellTap: (row, col) => provider.tryFillCell(row, col),
                 onCellLongPress: (row, col) {
                   _showColorPreview(context, provider, row, col);
+                },
+                onCellDragStart: () {
+                  if (!provider.isMagicWandMode) provider.beginStroke();
+                },
+                onCellDrag: provider.strokeFill,
+                onCellDragEnd: provider.endStroke,
+                onCellDragCancel: provider.cancelStroke,
+                onRequestCanvasPan: (enabled) {
+                  if (_canvasPanEnabled != enabled) {
+                    setState(() => _canvasPanEnabled = enabled);
+                  }
                 },
               ),
             ),

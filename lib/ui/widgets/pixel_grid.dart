@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' show PointMode;
 import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
@@ -23,6 +24,15 @@ class PixelGrid extends StatefulWidget {
   final ValueListenable<Matrix4>? transform;
   final void Function(int row, int col) onCellTap;
   final void Function(int row, int col)? onCellLongPress;
+  final VoidCallback? onCellDragStart;
+  final void Function(int row, int col)? onCellDrag;
+  final VoidCallback? onCellDragEnd;
+  final VoidCallback? onCellDragCancel;
+
+  /// Toggles single-finger canvas panning for the current stroke. Called with
+  /// `true` when a swipe begins over a non-selected cell (move the artwork) and
+  /// `false` when that stroke ends (back to swipe-to-fill).
+  final void Function(bool enabled)? onRequestCanvasPan;
 
   const PixelGrid({
     super.key,
@@ -35,6 +45,11 @@ class PixelGrid extends StatefulWidget {
     this.transform,
     required this.onCellTap,
     this.onCellLongPress,
+    this.onCellDragStart,
+    this.onCellDrag,
+    this.onCellDragEnd,
+    this.onCellDragCancel,
+    this.onRequestCanvasPan,
   });
 
   @override
@@ -45,17 +60,96 @@ class _PixelGridState extends State<PixelGrid> {
   final _gridKey = GlobalKey();
   int? _hoverRow;
   int? _hoverCol;
+  int _activePointers = 0;
+  bool _stroking = false;
+  Offset? _downPosition;
+
+  /// When the active single-finger stroke started over a non-selected cell it
+  /// moves the canvas (via InteractiveViewer) instead of painting.
+  bool _strokeIsPan = false;
+
+  // Swipe-to-fill listens to raw pointer events instead of a pan gesture so
+  // it never enters the gesture arena: a pan recognizer here would claim the
+  // first finger and starve InteractiveViewer's two-finger pinch-zoom.
+  void _onPointerDown(PointerDownEvent event) {
+    _activePointers++;
+    if (_activePointers == 1) {
+      _downPosition = event.position;
+      // Decide the gesture's intent from the cell under the finger: a swipe
+      // that starts on the selected number paints; anywhere else it pans.
+      _strokeIsPan = _shouldPanFrom(event.position);
+      if (_strokeIsPan) widget.onRequestCanvasPan?.call(true);
+    } else {
+      // Second finger: this is a pinch, not a stroke. Revert any paint.
+      _downPosition = null;
+      if (_stroking) {
+        _stroking = false;
+        widget.onCellDragCancel?.call();
+      }
+    }
+  }
+
+  void _onPointerMove(PointerMoveEvent event) {
+    final art = widget.provider.currentArt;
+    if (art == null || widget.onCellDrag == null) return;
+    // A pan stroke is driven by the InteractiveViewer, not by painting.
+    if (_strokeIsPan) return;
+    if (_activePointers != 1) return;
+    if (!_stroking) {
+      final down = _downPosition;
+      if (down == null || (event.position - down).distance < kTouchSlop) {
+        return;
+      }
+      _stroking = true;
+      widget.onCellDragStart?.call();
+    }
+    final pos = _gridPos(event.position, art);
+    if (pos != null) widget.onCellDrag!(pos.$1, pos.$2);
+  }
+
+  void _onPointerEnd(PointerEvent event) {
+    _activePointers = max(0, _activePointers - 1);
+    _downPosition = null;
+    if (_stroking && _activePointers == 0) {
+      _stroking = false;
+      widget.onCellDragEnd?.call();
+    }
+    if (_activePointers == 0 && _strokeIsPan) {
+      _strokeIsPan = false;
+      widget.onRequestCanvasPan?.call(false);
+    }
+  }
+
+  /// True when a swipe beginning at [globalPos] should move the canvas rather
+  /// than paint: outside the grid, in magic-wand mode, over a cell whose number
+  /// isn't the selected one, or over a cell that is already filled. Erase
+  /// swipes always paint (erase).
+  bool _shouldPanFrom(Offset globalPos) {
+    if (widget.isEraseMode) return false;
+    final provider = widget.provider;
+    if (provider.isMagicWandMode) return true;
+    final art = provider.currentArt;
+    if (art == null) return false;
+    final pos = _gridPos(globalPos, art);
+    if (pos == null) return true;
+    final (row, col) = pos;
+    if (provider.filledGrid[row][col] > 0) return true;
+    return art.grid[row][col] != provider.selectedNumber;
+  }
 
   @override
   Widget build(BuildContext context) {
     final art = widget.provider.currentArt;
     if (art == null) return const SizedBox.shrink();
 
-    // A single-finger tap fills a cell; a single-finger drag is left to the
-    // enclosing InteractiveViewer to swipe/pan the canvas (two fingers
-    // pinch-zoom). The tap recognizer here loses the arena to a pan, so a
-    // drag never accidentally fills.
-    return GestureDetector(
+    // A single-finger tap fills a cell and a single-finger drag paints along
+    // its path (swipe-to-fill); two fingers pan and pinch-zoom the canvas.
+    return Listener(
+      onPointerDown: _onPointerDown,
+      onPointerMove: _onPointerMove,
+      onPointerUp: _onPointerEnd,
+      onPointerCancel: _onPointerEnd,
+      child: GestureDetector(
         onTapUp: (details) {
           final pos = _gridPos(details.globalPosition, art);
           if (pos != null) widget.onCellTap(pos.$1, pos.$2);
@@ -119,7 +213,8 @@ class _PixelGridState extends State<PixelGrid> {
             ),
           ),
         ),
-      );
+      ),
+    );
   }
 
   (int, int)? _gridPos(Offset globalPos, dynamic art) {
