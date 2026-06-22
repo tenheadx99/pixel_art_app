@@ -152,7 +152,7 @@ class NumberToolbar extends StatelessWidget {
             isActive: wandActive,
             onTap: () {
               if (magicWandsCount == 0) {
-                _watchAdRefill(context, 'Paint Bucket', () => provider.addMagicWands(1));
+                _watchAdRefill(context, 'Paint Bucket', () => provider.addMagicWands(2));
               } else {
                 provider.toggleMagicWandMode();
               }
@@ -198,31 +198,32 @@ class _ToolCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAd = badgeValue == 'ad';
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return GestureDetector(
       onTap: onTap,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // White Circular Button
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: isActive
+                  ? (isDark ? AppStyle.primary.withAlpha(70) : AppStyle.primary.withAlpha(35))
+                  : (isDark ? Colors.white.withAlpha(15) : Colors.white),
               shape: BoxShape.circle,
               border: Border.all(
-                color: isActive ? AppStyle.primary : Colors.transparent,
+                color: isActive ? AppStyle.primary : (isDark ? Colors.white.withAlpha(30) : Colors.grey.shade300),
                 width: 2,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isActive
-                      ? AppStyle.primary.withAlpha(40)
-                      : Colors.black.withAlpha(20),
+                      ? AppStyle.primary.withAlpha(60)
+                      : (isDark ? Colors.black.withAlpha(60) : Colors.black.withAlpha(15)),
                   blurRadius: isActive ? 12 : 8,
-                  spreadRadius: isActive ? 1 : 0,
                   offset: const Offset(0, 3),
                 ),
               ],

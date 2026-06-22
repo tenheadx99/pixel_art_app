@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -18,6 +20,7 @@ import '../../data/services/iap_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../data/services/timelapse_service.dart';
+import '../../data/services/sound_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/widgets/ad_banner.dart';
 import '../../ui/widgets/pixel_grid.dart';
@@ -100,7 +103,6 @@ class _ColoringScreenState extends State<ColoringScreen>
       _confettiController.reset();
       _wasComplete = provider.isComplete;
       _gridFadeController.value = _wasComplete ? 1.0 : 0.0;
-      _coloringProvider = provider..addListener(_onProviderChanged);
       _settings = context.read<AppSettingsProvider>()
         ..addListener(_onSettingsChanged);
       _adService = context.read<AdService>();
@@ -109,6 +111,23 @@ class _ColoringScreenState extends State<ColoringScreen>
       if (!(_settings?.isProUser ?? false)) {
         _adService!.loadInterstitialAd();
       }
+      final soundService = context.read<SoundService>();
+      _coloringProvider = provider
+        ..addListener(_onProviderChanged)
+        ..onCellFilledCorrectly = () {
+          if (_settings?.soundsEnabled ?? true) {
+            if (_settings?.soundType == 'bubble_pop') {
+              soundService.playBubblePop();
+            } else {
+              soundService.playLightClick();
+            }
+          }
+        }
+        ..onSectionCompleted = () {
+          if (_settings?.hapticsEnabled ?? true) {
+            _playSectionCompletedHaptic();
+          }
+        };
       _maybeShowLongPressTip();
     });
   }
@@ -205,6 +224,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   void dispose() {
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
+    _coloringProvider?.onCellFilledCorrectly = null;
+    _coloringProvider?.onSectionCompleted = null;
     _coloringProvider?.saveProgress();
     _coloringProvider?.removeListener(_onProviderChanged);
     _settings?.removeListener(_onSettingsChanged);
@@ -214,6 +235,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     _gridFadeController.dispose();
     _zoomAnimController.dispose();
     super.dispose();
+  }
+
+  void _playSectionCompletedHaptic() async {
+    await HapticFeedback.mediumImpact();
+    await Future.delayed(const Duration(milliseconds: 100));
+    await HapticFeedback.lightImpact();
   }
 
   void _animateZoomTo(Matrix4 target) {
@@ -264,6 +291,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         }
 
         final statusBarHeight = MediaQuery.of(context).padding.top;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return PopScope(
           onPopInvokedWithResult: (didPop, _) {
@@ -274,111 +302,120 @@ class _ColoringScreenState extends State<ColoringScreen>
           },
           child: Scaffold(
             body: Container(
-              color: const Color(0xFFF9F9FB),
-              child: Column(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF14141F), const Color(0xFF0F0F16)]
+                      : [const Color(0xFFF9F9FB), const Color(0xFFECEFF1)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              child: Stack(
                 children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        if (isCurrentArt) _buildGrid(provider, settings),
+                  if (isCurrentArt) _buildGrid(provider, settings),
 
-                        // 1. Top Bar (Overlay)
-                        Positioned(
-                          top: statusBarHeight + 8,
-                          left: 16,
-                          right: 16,
-                          child: _buildTopBar(context, provider, isComplete),
-                        ),
-
-                        // 2. Mini Preview in Top Left
-                        if (isCurrentArt)
-                          Positioned(
-                            top: statusBarHeight + 104,
-                            left: 12,
-                            child: Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: ValueListenableBuilder<Matrix4>(
-                                  valueListenable: _transformController,
-                                  builder: (context, transform, _) {
-                                    final viewportRect = _calculateViewportRect(
-                                      transform,
-                                      _viewerSize,
-                                      _cellSize,
-                                      widget.art,
-                                    );
-                                    return CustomPaint(
-                                      painter: _MiniMapPainter(
-                                        art: widget.art,
-                                        filledGrid: provider.filledGrid,
-                                        filledColors: provider.filledColors,
-                                        viewportRect: viewportRect,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-
-                        // 3. Floating Rewarded Ad bucket button in Top Right
-                        if (isCurrentArt)
-                          Positioned(
-                            top: statusBarHeight + 116,
-                            right: 12,
-                            child: _RainbowAdButton(
-                              onTap: () {
-                                final adService = context.read<AdService>();
-                                if (AppConfig.disableAds || !AppConfig.showAds) {
-                                  provider.addMagicWands(2);
-                                  _showInfoSnack('[Simulated Ad] +2 Paint Buckets earned!');
-                                  return;
-                                }
-                                adService.loadRewardedAd(
-                                  onLoaded: () => adService.showRewardedAd(
-                                    onRewarded: () {
-                                      provider.addMagicWands(2);
-                                      _showInfoSnack('+2 Paint Buckets earned!');
-                                    },
-                                  ),
-                                  onFailed: () {
-                                    provider.addMagicWands(2);
-                                    _showInfoSnack('+2 Paint Buckets earned!');
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-
-                        if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
-                          _buildModePill(provider),
-                        ConfettiOverlay(animation: _confettiController),
-                        if (isComplete) _buildCompletionBar(provider),
-                      ],
-                    ),
+                  // 1. Top Bar (Overlay)
+                  Positioned(
+                    top: statusBarHeight + 8,
+                    left: 16,
+                    right: 16,
+                    child: _buildTopBar(context, provider, isComplete),
                   ),
-                  SafeArea(
-                    top: false,
+
+                  // 2. Mini Preview in Top Left
+                  if (isCurrentArt)
+                    Positioned(
+                      top: statusBarHeight + 116,
+                      left: 12,
+                      child: _buildMiniMap(provider, isDark),
+                    ),
+
+                  if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
+                    _buildModePill(provider),
+                  ConfettiOverlay(animation: _confettiController),
+                  if (isComplete) _buildCompletionBar(provider),
+
+                  // 4. Bottom Section (Overlay)
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
                     child: _buildBottomSection(context, provider, settings),
                   ),
                 ],
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniMap(ColoringProvider provider, bool isDark) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black.withAlpha(120) : Colors.white.withAlpha(200),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: ValueListenableBuilder<Matrix4>(
+          valueListenable: _transformController,
+          builder: (context, transform, _) {
+            final viewportRect = _calculateViewportRect(
+              transform,
+              _viewerSize,
+              _cellSize,
+              widget.art,
+            );
+            return CustomPaint(
+              painter: _MiniMapPainter(
+                art: widget.art,
+                filledGrid: provider.filledGrid,
+                filledColors: provider.filledColors,
+                viewportRect: viewportRect,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRainbowAdButton(ColoringProvider provider) {
+    return _RainbowAdButton(
+      onTap: () {
+        final adService = context.read<AdService>();
+        if (AppConfig.disableAds || !AppConfig.showAds) {
+          provider.addMagicWands(2);
+          _showInfoSnack('[Simulated Ad] +2 Paint Buckets earned!');
+          return;
+        }
+        adService.loadRewardedAd(
+          onLoaded: () => adService.showRewardedAd(
+            onRewarded: () {
+              provider.addMagicWands(2);
+              _showInfoSnack('+2 Paint Buckets earned!');
+            },
+          ),
+          onFailed: () {
+            provider.addMagicWands(2);
+            _showInfoSnack('+2 Paint Buckets earned!');
+          },
         );
       },
     );
@@ -637,109 +674,109 @@ class _ColoringScreenState extends State<ColoringScreen>
     bool isComplete,
   ) {
     final settings = context.read<AppSettingsProvider>();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // Store/Gem Pill
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade100, width: 1.5),
+            color: isDark ? Colors.black.withAlpha(140) : Colors.white.withAlpha(200),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(10),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+                color: Colors.black.withAlpha(15),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.storefront_rounded,
-                color: Colors.indigoAccent,
-                size: 16,
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ProgressGiftsBar(progress: provider.progress),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => _zoomBy(0),
+                    child: Icon(
+                      Icons.fit_screen_rounded,
+                      size: 20,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Text(
-                '${settings.diamondsAvailable}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.diamond_rounded,
-                color: Colors.orange,
-                size: 16,
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Progress',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () {},
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.storefront_rounded,
+                            color: Colors.indigoAccent,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${settings.diamondsAvailable}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.diamond_rounded,
+                            color: Colors.orange,
+                            size: 12,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-
-        // Navigation Row
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.arrow_back,
-                  size: 20,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ProgressGiftsBar(progress: provider.progress),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: () => _zoomBy(0),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.fit_screen_rounded,
-                  size: 20,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
@@ -858,36 +895,50 @@ class _ColoringScreenState extends State<ColoringScreen>
     ColoringProvider provider,
     AppSettingsProvider settings,
   ) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          NumberToolbar(
-            provider: provider,
-            settings: settings,
-            onHint: () => _useHint(provider, settings),
-          ),
-          const SizedBox(height: 8),
-          NumberPalette(provider: provider),
-          // The coloring screen is where users spend their time — the banner
-          // lives here for free users.
-          if (!settings.isProUser)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: AdBanner(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black.withAlpha(140) : Colors.white.withAlpha(210),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(
+              top: BorderSide(
+                color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+                width: 1.5,
+              ),
             ),
-        ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(15),
+                blurRadius: 10,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NumberToolbar(
+                provider: provider,
+                settings: settings,
+                onHint: () => _useHint(provider, settings),
+              ),
+              const SizedBox(height: 12),
+              NumberPalette(provider: provider),
+              // The coloring screen is where users spend their time — the banner
+              // lives here for free users.
+              if (!settings.isProUser)
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: AdBanner(),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1333,8 +1384,10 @@ class _RainbowAdButtonState extends State<_RainbowAdButton>
           Container(
             width: 50,
             height: 50,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1E1E2C)
+                  : Colors.white,
               shape: BoxShape.circle,
             ),
             child: const Center(

@@ -9,6 +9,7 @@ import '../../providers/coloring_provider.dart';
 import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/services/iap_service.dart';
+import '../../data/services/notification_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/transitions.dart';
@@ -29,7 +30,33 @@ class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
 
   @override
+  void initState() {
+    super.initState();
+    // Reminders deep-link to Daily Art. The flag may already be set from a
+    // cold-start launch payload, or flip later when a reminder is tapped while
+    // the app is running.
+    final requested = NotificationService.instance.dailyArtRequested;
+    requested.addListener(_handleDailyArtRequest);
+    if (requested.value) {
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _handleDailyArtRequest(),
+      );
+    }
+  }
+
+  void _handleDailyArtRequest() {
+    final notifier = NotificationService.instance.dailyArtRequested;
+    if (!notifier.value || !mounted) return;
+    notifier.value = false;
+    final art = context.read<GalleryProvider>().dailyArt;
+    if (art != null) _openColoring(context, art);
+  }
+
+  @override
   void dispose() {
+    NotificationService.instance.dailyArtRequested.removeListener(
+      _handleDailyArtRequest,
+    );
     _scrollController.dispose();
     super.dispose();
   }

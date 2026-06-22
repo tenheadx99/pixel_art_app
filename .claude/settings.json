@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(git revert *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(flutter --version)",
+      "Bash(flutter pub *)"
     ]
   }
 }

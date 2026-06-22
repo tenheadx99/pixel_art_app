@@ -21,10 +21,10 @@ class RemoteConfigService {
       // Set defaults for Remote Config
       await _remoteConfig.setDefaults(<String, dynamic>{
         'pixelyart_show_ads': false,
-        'pixelyart_banner_ad_unit_id': 'ca-app-pub-3940256099942544/6300978111',
-        'pixelyart_interstitial_ad_unit_id': 'ca-app-pub-3940256099942544/1033173712',
-        'pixelyart_rewarded_ad_unit_id': 'ca-app-pub-3940256099942544/5224354917',
-        'pixelyart_app_open_ad_unit_id': 'ca-app-pub-3940256099942544/9257395921',
+        'pixelyart_banner_ad_unit_id': 'ca-app-pub-9064606616675657/7511066180',
+        'pixelyart_interstitial_ad_unit_id': 'ca-app-pub-9064606616675657/6197984517',
+        'pixelyart_rewarded_ad_unit_id': 'ca-app-pub-9064606616675657/4884902843',
+        'pixelyart_app_open_ad_unit_id': 'ca-app-pub-9064606616675657/4258216888',
         'pixelyart_min_version': '1.0.0',
         'pixelyart_force_update_url': '',
         // Ad pacing — tune from the console without a release.
@@ -90,22 +90,22 @@ class RemoteConfigService {
 
   String get bannerAdUnitId {
     final id = _getString('banner_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/6300978111';
+    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/7511066180';
   }
 
   String get interstitialAdUnitId {
     final id = _getString('interstitial_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/1033173712';
+    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/6197984517';
   }
 
   String get rewardedAdUnitId {
     final id = _getString('rewarded_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/5224354917';
+    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/4884902843';
   }
 
   String get appOpenAdUnitId {
     final id = _getString('app_open_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-3940256099942544/9257395921';
+    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/4258216888';
   }
 
   /// Minimum gap between two interstitials.
