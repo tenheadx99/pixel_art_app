@@ -163,6 +163,12 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setString(_saveKey, data);
     _storageService.setInt('${_saveKey}_fills', _totalFillCount);
     _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
+    // Persist the paint history so Replay / Share GIF keep working when a
+    // finished artwork is reopened later (the in-memory list is reset on load).
+    _storageService.setString(
+      '${_saveKey}_timelapse',
+      _timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
+    );
     // Lightweight percent so list screens can show progress without parsing
     // the full grid string.
     _storageService.setInt('${_saveKey}_pct', (_progress * 100).round());
@@ -208,14 +214,35 @@ class ColoringProvider extends ChangeNotifier {
     _filledGrid = loaded;
     _totalFillCount = _storageService.getInt('${_saveKey}_fills');
     _totalEraseCount = _storageService.getInt('${_saveKey}_erases');
+    _restoreTimeLapse();
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
+  }
+
+  /// Rebuilds the paint history from storage so Replay / Share GIF work on a
+  /// reopened (e.g. already-completed) artwork. Tolerant of malformed entries.
+  void _restoreTimeLapse() {
+    final raw = _storageService.getString('${_saveKey}_timelapse');
+    if (raw.isEmpty) {
+      _timeLapse = [];
+      return;
+    }
+    final restored = <(int, int)>[];
+    for (final pair in raw.split(';')) {
+      final parts = pair.split(',');
+      if (parts.length != 2) continue;
+      final r = int.tryParse(parts[0]);
+      final c = int.tryParse(parts[1]);
+      if (r != null && c != null) restored.add((r, c));
+    }
+    _timeLapse = restored;
   }
 
   void clearProgress() {
     if (_currentArt == null) return;
     _storageService.setString(_saveKey, '');
     _storageService.setInt('${_saveKey}_pct', 0);
+    _storageService.setString('${_saveKey}_timelapse', '');
     _timeLapse = [];
     _consecutiveFills = 0;
   }

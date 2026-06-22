@@ -53,6 +53,10 @@ class _ColoringScreenState extends State<ColoringScreen>
   List<List<int>>? _savedGridState;
   bool _wasComplete = false;
   bool _sharingGif = false;
+  // Completion HUD ("level complete" dialog). Starts dismissed so reopening an
+  // already-finished artwork shows the artwork (with a reopen button) rather
+  // than popping the dialog; a fresh completion flips it open.
+  bool _hudDismissed = true;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
   AdService? _adService;
@@ -168,6 +172,8 @@ class _ColoringScreenState extends State<ColoringScreen>
       _wasComplete = true;
       _gridFadeController.forward();
       _saveArtwork(context, provider);
+      // Surface the "level complete" HUD after the confetti gets going.
+      setState(() => _hudDismissed = false);
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -334,15 +340,25 @@ class _ColoringScreenState extends State<ColoringScreen>
                   if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
                     _buildModePill(provider),
                   ConfettiOverlay(animation: _confettiController),
-                  if (isComplete) _buildCompletionBar(provider),
 
-                  // 4. Bottom Section (Overlay)
-                  Positioned(
-                    bottom: 0,
-                    left: 0,
-                    right: 0,
-                    child: _buildBottomSection(context, provider, settings),
-                  ),
+                  // 4. Bottom Section: the toolbar/palette/banner while there's
+                  // still something to color. Once complete it gives way to the
+                  // completion HUD (and a reopen button when that's dismissed).
+                  if (!isComplete)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildBottomSection(context, provider, settings),
+                    ),
+                  if (isComplete &&
+                      _hudDismissed &&
+                      !_replayController.isAnimating)
+                    _buildReopenOptionsButton(),
+                  if (isComplete &&
+                      !_hudDismissed &&
+                      !_replayController.isAnimating)
+                    _buildCompletionHud(provider),
                 ],
               ),
             ),
@@ -500,68 +516,190 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildCompletionBar(ColoringProvider provider) {
-    return Positioned(
-      bottom: 8,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withAlpha(160),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
+  /// The "level complete" HUD: a centered card over a dimmed scrim with the
+  /// celebration summary plus Replay / Share / Share GIF / Next actions.
+  Widget _buildCompletionHud(ColoringProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+    final subColor = isDark ? Colors.white70 : Colors.black54;
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withAlpha(150),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
+                        : [Colors.white, const Color(0xFFF3F0FF)],
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: AppStyle.primary.withAlpha(70),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(70),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.celebration_rounded,
-                        color: Colors.amber, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      _completionStats(provider),
-                      style: const TextStyle(
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF9D2E).withAlpha(130),
+                            blurRadius: 22,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events_rounded,
                         color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        size: 40,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Masterpiece Complete!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.art.name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: subColor),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppStyle.primary.withAlpha(isDark ? 40 : 20),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.celebration_rounded,
+                            color: AppStyle.primary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _completionStats(provider),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _HudAction(
+                            icon: Icons.replay_rounded,
+                            label: 'Replay',
+                            onTap: () => _startTimeLapse(provider),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _HudAction(
+                            icon: Icons.image_rounded,
+                            label: 'Share',
+                            onTap: () => _sharePng(provider),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _HudAction(
+                            icon: Icons.movie_rounded,
+                            label: _sharingGif ? 'Rendering…' : 'Share GIF',
+                            onTap: _sharingGif
+                                ? null
+                                : () => _shareTimelapse(provider),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _openNextArt,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        label: const Text('Next Artwork'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppStyle.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _hudDismissed = true),
+                      child: Text(
+                        'View artwork',
+                        style: TextStyle(color: subColor),
                       ),
                     ),
                   ],
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-              _CompletionAction(
-                icon: _replayController.isAnimating ? Icons.stop : Icons.replay,
-                label: _replayController.isAnimating ? 'Stop' : 'Replay',
-                onTap: () => _startTimeLapse(provider),
-              ),
-              _CompletionAction(
-                icon: Icons.image_rounded,
-                label: 'Share',
-                onTap: () => _sharePng(provider),
-              ),
-              _CompletionAction(
-                icon: Icons.movie_rounded,
-                label: _sharingGif ? 'Rendering…' : 'Share GIF',
-                onTap: _sharingGif ? null : () => _shareTimelapse(provider),
-              ),
-              _CompletionAction(
-                icon: Icons.skip_next_rounded,
-                label: 'Next',
-                onTap: _openNextArt,
-              ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  /// Floating button shown once the HUD is dismissed so the completion options
+  /// remain one tap away while the user admires the finished artwork.
+  Widget _buildReopenOptionsButton() {
+    return Positioned(
+      right: 16,
+      bottom: 16 + MediaQuery.of(context).padding.bottom,
+      child: FloatingActionButton.extended(
+        onPressed: () => setState(() => _hudDismissed = false),
+        backgroundColor: AppStyle.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.emoji_events_rounded),
+        label: const Text('Options'),
       ),
     );
   }
@@ -665,7 +803,8 @@ class _ColoringScreenState extends State<ColoringScreen>
       _savedGridState = null;
     }
     _replayActions = [];
-    if (mounted) setState(() {});
+    // Replay was launched from the HUD; bring it back when the animation ends.
+    if (mounted) setState(() => _hudDismissed = false);
   }
 
   Widget _buildTopBar(
@@ -1114,12 +1253,14 @@ class _ColoringScreenState extends State<ColoringScreen>
 }
 
 
-class _CompletionAction extends StatelessWidget {
+/// A square icon+label action tile used inside the completion HUD. Renders
+/// dimmed and non-interactive when [onTap] is null (e.g. GIF still rendering).
+class _HudAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
 
-  const _CompletionAction({
+  const _HudAction({
     required this.icon,
     required this.label,
     this.onTap,
@@ -1127,28 +1268,40 @@ class _CompletionAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icon,
-              color: onTap == null ? Colors.white38 : Colors.white,
-              size: 16,
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final enabled = onTap != null;
+    final fg = enabled
+        ? AppStyle.primary
+        : (isDark ? Colors.white30 : Colors.black26);
+    return Opacity(
+      opacity: enabled ? 1 : 0.6,
+      child: Material(
+        color: AppStyle.primary.withAlpha(isDark ? 38 : 18),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: fg, size: 24),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: onTap == null ? Colors.white38 : Colors.white,
-                fontSize: 12,
-              ),
-            ),
-          ],
+          ),
         ),
       ),
     );
