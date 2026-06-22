@@ -130,9 +130,12 @@ class GalleryProvider extends ChangeNotifier {
 
   static const String _streakPrefKey = 'daily_streak';
   static const String _streakDatePrefKey = 'daily_last_date';
+  static const String _bestStreakPrefKey = 'daily_best_streak';
   int _dailyStreak = 0;
+  int _bestStreak = 0;
 
   int get dailyStreak => _dailyStreak;
+  int get bestStreak => _bestStreak;
 
   /// Deterministic featured artwork for [date]: same pick for everyone all
   /// day, rotating through the whole catalog. No backend needed.
@@ -151,6 +154,7 @@ class GalleryProvider extends ChangeNotifier {
 
   void _loadStreak() {
     _dailyStreak = _storageService.getInt(_streakPrefKey);
+    _bestStreak = _storageService.getInt(_bestStreakPrefKey);
     final last = _storageService.getString(_streakDatePrefKey);
     final today = DateTime.now();
     final yesterday = today.subtract(const Duration(days: 1));
@@ -173,6 +177,10 @@ class GalleryProvider extends ChangeNotifier {
     _dailyStreak = last == yesterday ? _dailyStreak + 1 : 1;
     _storageService.setInt(_streakPrefKey, _dailyStreak);
     _storageService.setString(_streakDatePrefKey, today);
+    if (_dailyStreak > _bestStreak) {
+      _bestStreak = _dailyStreak;
+      _storageService.setInt(_bestStreakPrefKey, _bestStreak);
+    }
   }
 
   static String _dateKey(DateTime d) =>

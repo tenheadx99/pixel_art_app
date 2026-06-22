@@ -27,6 +27,8 @@ import '../../ui/widgets/pixel_grid.dart';
 import '../../ui/widgets/number_palette.dart';
 import '../../ui/widgets/number_toolbar.dart';
 import '../../ui/widgets/confetti_overlay.dart';
+import '../../ui/widgets/reward_popup.dart';
+import '../../ui/widgets/coin_fly.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -60,6 +62,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   // Diamonds awarded for finishing this artwork (0 if it had already paid out);
   // shown in the completion HUD.
   int _lastDiamondAward = 0;
+  // True once the player has watched an ad to double this completion's reward,
+  // so the offer is shown only once per finish.
+  bool _rewardDoubled = false;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
   AdService? _adService;
@@ -145,31 +150,23 @@ class _ColoringScreenState extends State<ColoringScreen>
     final provider = _coloringProvider;
     if (provider == null || !mounted) return;
 
+    final settings = context.read<AppSettingsProvider>();
+
     final unlocked = provider.lastUnlockedAchievement;
     if (unlocked != null) {
       provider.clearLastUnlockedAchievement();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.emoji_events, color: Colors.amber),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Achievement unlocked: ${provider.achievementName(unlocked)}',
-                ),
-              ),
-            ],
-          ),
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          backgroundColor: const Color(0xFF6C5CE7),
-          duration: const Duration(seconds: 2),
-        ),
+      // Achievements now pay out diamonds and celebrate with the reward popup.
+      settings.addDiamonds(AppConstants.diamondsPerAchievement);
+      showRewardPopup(
+        context,
+        icon: Icons.emoji_events_rounded,
+        title: 'Achievement Unlocked!',
+        subtitle: provider.achievementName(unlocked),
+        diamonds: AppConstants.diamondsPerAchievement,
       );
     }
+
+    _checkMilestones(provider, settings);
 
     if (provider.isComplete && !_wasComplete) {
       _wasComplete = true;
@@ -178,19 +175,67 @@ class _ColoringScreenState extends State<ColoringScreen>
       // Pay out the diamond reward (once per artwork) and surface the
       // "level complete" HUD after the confetti gets going.
       final gallery = context.read<GalleryProvider>();
-      final settings = context.read<AppSettingsProvider>();
       final isDaily = gallery.dailyArt?.id == widget.art.id;
       final awarded = settings.awardCompletionDiamonds(
         widget.art.id,
         isDaily: isDaily,
       );
+      // Award XP for the finished piece and track lifetime cells; a level-up
+      // celebrates after the completion HUD appears.
+      final cells = provider.filledCellCount;
+      settings.addLifetimeCells(cells);
+      final levelUp = settings.addXp(
+        cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion,
+      );
       setState(() {
         _lastDiamondAward = awarded;
+        _rewardDoubled = false;
         _hudDismissed = false;
       });
+      if (levelUp.leveledUp) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            showRewardPopup(
+              context,
+              icon: Icons.military_tech_rounded,
+              title: 'Level ${levelUp.newLevel}!',
+              subtitle: 'You leveled up — keep coloring!',
+              diamonds: levelUp.diamondsAwarded,
+              badgeColors: const [Color(0xFFB14CFF), Color(0xFF7A2BE2)],
+            );
+          }
+        });
+      }
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
+    }
+  }
+
+  /// Grants the mid-progress milestone gifts (30% → a bomb, 65% → diamonds) the
+  /// first time each threshold is reached. 100% is intentionally left to the
+  /// completion HUD so the finish isn't buried under stacked popups.
+  void _checkMilestones(ColoringProvider provider, AppSettingsProvider settings) {
+    if (provider.claimMilestone(30)) {
+      provider.addBombs(AppConstants.milestone30Bomb);
+      showRewardPopup(
+        context,
+        icon: Icons.bolt_rounded,
+        title: 'Milestone Gift!',
+        subtitle: '30% done · +${AppConstants.milestone30Bomb} Bomb',
+        badgeColors: const [Color(0xFF00BCD4), Color(0xFF0097A7)],
+      );
+    }
+    if (provider.claimMilestone(65)) {
+      settings.addDiamonds(AppConstants.milestone65Diamonds);
+      showCoinBurst(context);
+      showRewardPopup(
+        context,
+        icon: Icons.card_giftcard_rounded,
+        title: 'Milestone Gift!',
+        subtitle: '65% done · nice progress!',
+        diamonds: AppConstants.milestone65Diamonds,
+      );
     }
   }
 
@@ -426,28 +471,26 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildRainbowAdButton(ColoringProvider provider) {
-    return _RainbowAdButton(
-      onTap: () {
-        final adService = context.read<AdService>();
-        if (AppConfig.disableAds || !AppConfig.showAds) {
-          provider.addMagicWands(2);
-          _showInfoSnack('[Simulated Ad] +2 Paint Buckets earned!');
-          return;
-        }
-        adService.loadRewardedAd(
-          onLoaded: () => adService.showRewardedAd(
-            onRewarded: () {
-              provider.addMagicWands(2);
-              _showInfoSnack('+2 Paint Buckets earned!');
-            },
-          ),
-          onFailed: () {
-            provider.addMagicWands(2);
-            _showInfoSnack('+2 Paint Buckets earned!');
-          },
-        );
-      },
+  /// Offers a rewarded ad that doubles this completion's diamond payout (adds
+  /// the base award a second time). Fires once per finish.
+  void _watchAdToDouble(int baseAward) {
+    final adService = context.read<AdService>();
+    final settings = context.read<AppSettingsProvider>();
+    void grant() {
+      settings.addDiamonds(baseAward);
+      if (mounted) setState(() => _rewardDoubled = true);
+      showCoinBurst(context);
+      _showInfoSnack('Reward doubled! +$baseAward diamonds');
+    }
+
+    if (AppConfig.disableAds || !AppConfig.showAds) {
+      grant(); // Simulated ad in dev/no-ads builds.
+      return;
+    }
+    adService.loadRewardedAd(
+      onLoaded: () => adService.showRewardedAd(onRewarded: grant),
+      onFailed: () =>
+          _showInfoSnack('No ad available right now — try again later.'),
     );
   }
 
@@ -658,6 +701,29 @@ class _ColoringScreenState extends State<ColoringScreen>
                             ),
                           ),
                         ],
+                      ),
+                    ],
+                    // Rewarded-ad offer to double the payout (non-Pro, once).
+                    if (_lastDiamondAward > 0 &&
+                        !_rewardDoubled &&
+                        !context.read<AppSettingsProvider>().isProUser) ...[
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () => _watchAdToDouble(_lastDiamondAward),
+                          icon: const Icon(Icons.play_circle_fill_rounded,
+                              size: 20),
+                          label: const Text('Watch ad → 2× diamonds'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFFF9D2E),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -1774,126 +1840,6 @@ class _ProgressGiftsBar extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-class _RainbowAdButton extends StatefulWidget {
-  final VoidCallback onTap;
-
-  const _RainbowAdButton({required this.onTap});
-
-  @override
-  State<_RainbowAdButton> createState() => _RainbowAdButtonState();
-}
-
-class _RainbowAdButtonState extends State<_RainbowAdButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _rotationController;
-
-  @override
-  void initState() {
-    super.initState();
-    _rotationController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _rotationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: Stack(
-        alignment: Alignment.center,
-        clipBehavior: Clip.none,
-        children: [
-          RotationTransition(
-            turns: _rotationController,
-            child: Container(
-              width: 56,
-              height: 56,
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: SweepGradient(
-                  colors: [
-                    Colors.red,
-                    Colors.orange,
-                    Colors.yellow,
-                    Colors.green,
-                    Colors.cyan,
-                    Colors.blue,
-                    Colors.purple,
-                    Colors.red,
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Container(
-            width: 50,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? const Color(0xFF1E1E2C)
-                  : Colors.white,
-              shape: BoxShape.circle,
-            ),
-            child: const Center(
-              child: Icon(
-                Icons.format_color_fill_rounded,
-                color: Colors.blueAccent,
-                size: 24,
-              ),
-            ),
-          ),
-          Positioned(
-            top: -2,
-            right: -2,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-              decoration: BoxDecoration(
-                color: Colors.pink,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.white, width: 1),
-              ),
-              child: const Text(
-                '+2',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 9,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            bottom: -4,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1.5),
-              decoration: BoxDecoration(
-                color: Colors.blue,
-                borderRadius: BorderRadius.circular(4),
-                border: Border.all(color: Colors.white, width: 1),
-              ),
-              child: const Text(
-                'AD',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 7,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }

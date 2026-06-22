@@ -77,4 +77,25 @@ class AppConstants {
   static const int diamondCostWand = 40;
   static const int diamondCostBomb = 40;
   static const int diamondCostBrush = 40;
+
+  // --- XP & levels ---
+  // XP is awarded in batch on completion (cells + a flat bonus) and on
+  // milestone claims, never per-cell. Level grows on a gentle sqrt curve:
+  // level = floor(sqrt(totalXp / xpLevelDivisor)) + 1.
+  static const int xpPerCell = 1;
+  static const int xpPerCompletion = 100;
+  static const int xpLevelDivisor = 100;
+  // Diamonds granted each time the player levels up.
+  static const int diamondsPerLevelUp = 50;
+
+  // --- In-artwork milestone gifts (progress bar at 30% / 65% / 100%) ---
+  // Claimed milestones are tracked per-art so re-coloring never re-grants.
+  static const String milestoneClaimedPrefix = 'milestones_claimed_';
+  static const int milestone30Bomb = 1; // 30% -> a bomb tool
+  static const int milestone65Diamonds = 20; // 65% -> diamonds
+  static const int milestone100Diamonds = 30; // 100% -> diamonds
+
+  // --- Other reward hooks ---
+  static const int diamondsPerAchievement = 15;
+  static const int doubleRewardMultiplier = 2; // "watch ad to 2x" payout
 }

@@ -2,9 +2,24 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
+import 'dart:math' as math;
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/notification_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
+
+/// Result of an [AppSettingsProvider.addXp] call, so the UI can celebrate a
+/// level-up with the reward popup.
+class LevelUpResult {
+  final bool leveledUp;
+  final int newLevel;
+  final int diamondsAwarded;
+
+  const LevelUpResult({
+    required this.leveledUp,
+    required this.newLevel,
+    required this.diamondsAwarded,
+  });
+}
 
 class AppSettingsProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
@@ -18,8 +33,14 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _dailyRemindersEnabled = true;
   int _hintsAvailable = 0;
   int _diamondsAvailable = 320;
+  int _totalXp = 0;
+  int _playerLevel = 1;
+  int _lifetimeCellsColored = 0;
 
   static const String _dailyRemindersPrefKey = 'daily_reminders_enabled';
+  static const String _totalXpPrefKey = 'total_xp';
+  static const String _playerLevelPrefKey = 'player_level';
+  static const String _lifetimeCellsPrefKey = 'lifetime_cells_colored';
 
   AppSettingsProvider(this._storageService);
 
@@ -32,6 +53,29 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get dailyRemindersEnabled => _dailyRemindersEnabled;
   int get hintsAvailable => _hintsAvailable;
   int get diamondsAvailable => _diamondsAvailable;
+  int get totalXp => _totalXp;
+  int get playerLevel => _playerLevel;
+  int get lifetimeCellsColored => _lifetimeCellsColored;
+
+  /// XP threshold to *enter* [level] (the inverse of the sqrt level curve).
+  int xpForLevel(int level) =>
+      (level - 1) * (level - 1) * AppConstants.xpLevelDivisor;
+
+  /// Level a given total XP corresponds to: floor(sqrt(xp / divisor)) + 1.
+  int levelForXp(int xp) =>
+      math.sqrt(xp / AppConstants.xpLevelDivisor).floor() + 1;
+
+  /// Fractional progress (0..1) through the current level, for the XP bar.
+  double get xpProgressInLevel {
+    final start = xpForLevel(_playerLevel);
+    final end = xpForLevel(_playerLevel + 1);
+    if (end <= start) return 0;
+    return ((_totalXp - start) / (end - start)).clamp(0.0, 1.0);
+  }
+
+  /// XP remaining until the next level.
+  int get xpToNextLevel =>
+      (xpForLevel(_playerLevel + 1) - _totalXp).clamp(0, 1 << 30);
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
@@ -49,6 +93,50 @@ class AppSettingsProvider extends ChangeNotifier {
     );
     _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
     _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 320);
+    _totalXp = _storageService.getInt(_totalXpPrefKey);
+    _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
+    _lifetimeCellsColored = _storageService.getInt(_lifetimeCellsPrefKey);
+    notifyListeners();
+  }
+
+  /// Adds [amount] XP, persists totals, and rolls the level forward. Returns a
+  /// [LevelUpResult] so callers can celebrate; level-ups also grant diamonds.
+  LevelUpResult addXp(int amount) {
+    if (amount <= 0) {
+      return LevelUpResult(
+        leveledUp: false,
+        newLevel: _playerLevel,
+        diamondsAwarded: 0,
+      );
+    }
+    _totalXp += amount;
+    _storageService.setInt(_totalXpPrefKey, _totalXp);
+
+    final computedLevel = levelForXp(_totalXp);
+    var diamondsAwarded = 0;
+    final leveledUp = computedLevel > _playerLevel;
+    if (leveledUp) {
+      // One reward per level gained (covers multi-level jumps).
+      diamondsAwarded =
+          (computedLevel - _playerLevel) * AppConstants.diamondsPerLevelUp;
+      _playerLevel = computedLevel;
+      _storageService.setInt(_playerLevelPrefKey, _playerLevel);
+      _diamondsAvailable += diamondsAwarded;
+      _storageService.setInt('diamonds_available', _diamondsAvailable);
+    }
+    notifyListeners();
+    return LevelUpResult(
+      leveledUp: leveledUp,
+      newLevel: _playerLevel,
+      diamondsAwarded: diamondsAwarded,
+    );
+  }
+
+  /// Accumulates lifetime cells colored (shown on the profile screen).
+  void addLifetimeCells(int count) {
+    if (count <= 0) return;
+    _lifetimeCellsColored += count;
+    _storageService.setInt(_lifetimeCellsPrefKey, _lifetimeCellsColored);
     notifyListeners();
   }
 

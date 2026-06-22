@@ -18,6 +18,7 @@ import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
 import '../../ui/screens/camera_screen.dart';
 import '../../ui/screens/gallery_screen.dart';
+import '../../ui/screens/profile_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -72,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
           body: CustomScrollView(
             controller: _scrollController,
             slivers: [
-              _buildHeader(context, gallery),
+              _buildHeader(context, gallery, settings),
               if (gallery.dailyArt != null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -150,9 +151,13 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildHeader(BuildContext context, GalleryProvider gallery) {
+  Widget _buildHeader(
+    BuildContext context,
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+  ) {
     return SliverAppBar(
-      expandedHeight: 240,
+      expandedHeight: 276,
       pinned: false,
       floating: true,
       backgroundColor: Colors.transparent,
@@ -250,42 +255,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(25),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.emoji_events,
-                            color: Colors.amber.shade300,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${gallery.catalog.length} artworks available',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const Spacer(),
-                          Text(
-                            '${gallery.completedIds.length} completed',
-                            style: TextStyle(
-                              color: Colors.white.withAlpha(180),
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    _buildPlayerStrip(context, gallery, settings),
                     const SizedBox(height: 12),
                     Row(
                       children: [
@@ -393,6 +363,128 @@ class _HomeScreenState extends State<HomeScreen> {
       height: size,
       decoration: BoxDecoration(shape: BoxShape.circle, color: color),
     );
+  }
+
+  /// Gamified header strip: level badge + XP bar + diamond balance. Tapping it
+  /// opens the profile/stats screen.
+  Widget _buildPlayerStrip(
+    BuildContext context,
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+  ) {
+    return GestureDetector(
+      onTap: () => _openProfile(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(25),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            // Level badge.
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFF9D2E).withAlpha(120),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: Text(
+                '${settings.playerLevel}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Level ${settings.playerLevel}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${gallery.completedIds.length} done',
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(180),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: LinearProgressIndicator(
+                      value: settings.xpProgressInLevel,
+                      minHeight: 6,
+                      backgroundColor: Colors.white.withAlpha(45),
+                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Diamond balance.
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(40),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '${settings.diamondsAvailable}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.diamond_rounded,
+                    color: Color(0xFFFFE08A),
+                    size: 15,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openProfile(BuildContext context) {
+    Navigator.push(context, fadeThroughRoute(const ProfileScreen()));
   }
 
   void _openColoring(BuildContext context, PixelArt art) {

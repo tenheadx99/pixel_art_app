@@ -31,6 +31,9 @@ class ColoringProvider extends ChangeNotifier {
   int _totalEraseCount = 0;
   int _consecutiveFills = 0;
   List<(int, int)> _timeLapse = [];
+  // Progress-bar milestones (percent ints, e.g. 30/65/100) already claimed for
+  // the current art. Persisted so re-coloring never re-grants a gift.
+  Set<int> _claimedMilestones = {};
   Set<String> _achievements = {};
   String? _lastUnlockedAchievement;
   bool _inStroke = false;
@@ -148,7 +151,10 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   String get _saveKey => 'pixelart_progress_${_currentArt?.id ?? ''}';
-  String get _achieveKey => 'pixelart_achievements';
+  /// Achievements persist under one global key (not per-art), so other screens
+  /// (e.g. the profile) can read earned badges without loading an artwork.
+  static const String achievementsStorageKey = 'pixelart_achievements';
+  String get _achieveKey => achievementsStorageKey;
 
   /// Plays [haptic] unless the user disabled haptics in settings.
   void _haptic(void Function() haptic) {
@@ -168,6 +174,10 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setString(
       '${_saveKey}_timelapse',
       _timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
+    );
+    _storageService.setString(
+      '${_saveKey}_milestones',
+      _claimedMilestones.join(','),
     );
     // Lightweight percent so list screens can show progress without parsing
     // the full grid string.
@@ -215,6 +225,7 @@ class ColoringProvider extends ChangeNotifier {
     _totalFillCount = _storageService.getInt('${_saveKey}_fills');
     _totalEraseCount = _storageService.getInt('${_saveKey}_erases');
     _restoreTimeLapse();
+    _restoreMilestones();
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
   }
@@ -238,12 +249,40 @@ class ColoringProvider extends ChangeNotifier {
     _timeLapse = restored;
   }
 
+  void _restoreMilestones() {
+    final raw = _storageService.getString('${_saveKey}_milestones');
+    if (raw.isEmpty) {
+      _claimedMilestones = {};
+      return;
+    }
+    _claimedMilestones =
+        raw.split(',').map((v) => int.tryParse(v)).whereType<int>().toSet();
+  }
+
+  /// Whether [percent] milestone (e.g. 30/65/100) has already paid out.
+  bool isMilestoneClaimed(int percent) => _claimedMilestones.contains(percent);
+
+  /// Marks [percent] milestone claimed. Returns false if it was already claimed
+  /// or the artwork hasn't reached it yet, so callers grant the reward once.
+  bool claimMilestone(int percent) {
+    if (_claimedMilestones.contains(percent)) return false;
+    if ((_progress * 100).round() < percent) return false;
+    _claimedMilestones.add(percent);
+    _storageService.setString(
+      '${_saveKey}_milestones',
+      _claimedMilestones.join(','),
+    );
+    return true;
+  }
+
   void clearProgress() {
     if (_currentArt == null) return;
     _storageService.setString(_saveKey, '');
     _storageService.setInt('${_saveKey}_pct', 0);
     _storageService.setString('${_saveKey}_timelapse', '');
+    _storageService.setString('${_saveKey}_milestones', '');
     _timeLapse = [];
+    _claimedMilestones = {};
     _consecutiveFills = 0;
   }
 
@@ -272,6 +311,7 @@ class ColoringProvider extends ChangeNotifier {
     _isComplete = false;
     _undoStack = [];
     _timeLapse = [];
+    _claimedMilestones = {};
     _consecutiveFills = 0;
     loadProgress();
     _calculateProgress();
@@ -713,18 +753,19 @@ class ColoringProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  String achievementName(String id) {
-    const names = {
-      'complete_first': 'First Masterpiece',
-      'fill_10': 'Getting Started',
-      'fill_100': 'Dedicated Artist',
-      'fill_500': 'Pixel Master',
-      'streak_10': 'In the Zone',
-      'streak_25': 'Unstoppable',
-      'eraser_10': 'Second Thoughts',
-    };
-    return names[id] ?? id;
-  }
+  /// All achievements in unlock order (id -> display name). Used by the profile
+  /// screen to render earned vs. still-locked badges.
+  static const Map<String, String> achievementCatalog = {
+    'complete_first': 'First Masterpiece',
+    'fill_10': 'Getting Started',
+    'fill_100': 'Dedicated Artist',
+    'fill_500': 'Pixel Master',
+    'streak_10': 'In the Zone',
+    'streak_25': 'Unstoppable',
+    'eraser_10': 'Second Thoughts',
+  };
+
+  String achievementName(String id) => achievementCatalog[id] ?? id;
 
   void timeLapseStep(int row, int col) {
     if (_currentArt == null) return;
