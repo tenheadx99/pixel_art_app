@@ -4,7 +4,15 @@
       "Bash(git revert *)",
       "Bash(git reset *)",
       "Bash(flutter --version)",
-      "Bash(flutter pub *)"
+      "Bash(flutter pub *)",
+      "Bash(tee /tmp/empty_meta.txt)",
+      "Bash(./gradlew --stop)",
+      "Bash(kill 5490)",
+      "Bash(timeout 590 flutter build apk --debug --flavor pixely)",
+      "Bash(timeout 590 flutter build apk --debug --flavor original)"
+    ],
+    "additionalDirectories": [
+      "/home/rameshx99/.gradle/caches/8.14/transforms/5cc4e0bc7f2269020ad3bb8bc59ad34c"
     ]
   }
 }
