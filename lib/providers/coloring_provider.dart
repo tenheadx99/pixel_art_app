@@ -39,6 +39,35 @@ class ColoringProvider extends ChangeNotifier {
   final Map<int, int> _totalPerNumber = {};
   final Map<int, int> _filledPerNumber = {};
 
+  VoidCallback? onCellFilledCorrectly;
+  VoidCallback? onSectionCompleted;
+
+  Set<int> _getCompletedNumbers() {
+    final completed = <int>{};
+    for (final entry in _totalPerNumber.entries) {
+      final num = entry.key;
+      final total = entry.value;
+      final filled = _filledPerNumber[num] ?? 0;
+      if (filled == total && total > 0) {
+        completed.add(num);
+      }
+    }
+    return completed;
+  }
+
+  bool _runWithCompletionCheck(bool Function() action) {
+    final previouslyCompleted = _getCompletedNumbers();
+    final result = action();
+    if (result) {
+      final newlyCompleted = _getCompletedNumbers();
+      final completedNow = newlyCompleted.difference(previouslyCompleted);
+      if (completedNow.isNotEmpty) {
+        onSectionCompleted?.call();
+      }
+    }
+    return result;
+  }
+
   bool get isMagicWandMode => _isMagicWandMode;
   int get magicWandsCount => _magicWandsCount;
   bool get isBombMode => _isBombMode;
@@ -134,6 +163,12 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setString(_saveKey, data);
     _storageService.setInt('${_saveKey}_fills', _totalFillCount);
     _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
+    // Persist the paint history so Replay / Share GIF keep working when a
+    // finished artwork is reopened later (the in-memory list is reset on load).
+    _storageService.setString(
+      '${_saveKey}_timelapse',
+      _timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
+    );
     // Lightweight percent so list screens can show progress without parsing
     // the full grid string.
     _storageService.setInt('${_saveKey}_pct', (_progress * 100).round());
@@ -179,14 +214,35 @@ class ColoringProvider extends ChangeNotifier {
     _filledGrid = loaded;
     _totalFillCount = _storageService.getInt('${_saveKey}_fills');
     _totalEraseCount = _storageService.getInt('${_saveKey}_erases');
+    _restoreTimeLapse();
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
+  }
+
+  /// Rebuilds the paint history from storage so Replay / Share GIF work on a
+  /// reopened (e.g. already-completed) artwork. Tolerant of malformed entries.
+  void _restoreTimeLapse() {
+    final raw = _storageService.getString('${_saveKey}_timelapse');
+    if (raw.isEmpty) {
+      _timeLapse = [];
+      return;
+    }
+    final restored = <(int, int)>[];
+    for (final pair in raw.split(';')) {
+      final parts = pair.split(',');
+      if (parts.length != 2) continue;
+      final r = int.tryParse(parts[0]);
+      final c = int.tryParse(parts[1]);
+      if (r != null && c != null) restored.add((r, c));
+    }
+    _timeLapse = restored;
   }
 
   void clearProgress() {
     if (_currentArt == null) return;
     _storageService.setString(_saveKey, '');
     _storageService.setInt('${_saveKey}_pct', 0);
+    _storageService.setString('${_saveKey}_timelapse', '');
     _timeLapse = [];
     _consecutiveFills = 0;
   }
@@ -275,68 +331,71 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   bool tryFillCell(int row, int col) {
-    if (_currentArt == null) return false;
-    if (row < 0 || row >= _currentArt!.gridHeight) return false;
-    if (col < 0 || col >= _currentArt!.gridWidth) return false;
+    return _runWithCompletionCheck(() {
+      if (_currentArt == null) return false;
+      if (row < 0 || row >= _currentArt!.gridHeight) return false;
+      if (col < 0 || col >= _currentArt!.gridWidth) return false;
 
-    if (_isMagicWandMode) {
-      return _tryMagicWandFill(row, col);
-    }
-
-    if (_isBombMode) {
-      return _tryBombFill(row, col);
-    }
-
-    if (_isEraseMode) {
-      return tryEraseCell(row, col);
-    }
-
-    final half = _brushSize ~/ 2;
-    bool anyFilled = false;
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
-
-    for (var dr = -half; dr <= half; dr++) {
-      for (var dc = -half; dc <= half; dc++) {
-        final r = row + dr;
-        final c = col + dc;
-        if (r < 0 || r >= _currentArt!.gridHeight) continue;
-        if (c < 0 || c >= _currentArt!.gridWidth) continue;
-        final expectedNumber = _currentArt!.grid[r][c];
-        if (expectedNumber == 0) continue;
-        if (_filledGrid[r][c] > 0) continue;
-        if (expectedNumber != _selectedNumber) continue;
-        _filledGrid[r][c] = expectedNumber;
-        _timeLapse.add((r, c));
-        anyFilled = true;
+      if (_isMagicWandMode) {
+        return _tryMagicWandFill(row, col);
       }
-    }
 
-    if (!anyFilled) {
-      _undoStack.removeLast();
-      return false;
-    }
+      if (_isBombMode) {
+        return _tryBombFill(row, col);
+      }
 
-    _haptic(HapticFeedback.lightImpact);
+      if (_isEraseMode) {
+        return tryEraseCell(row, col);
+      }
 
-    _totalFillCount++;
-    _consecutiveFills++;
-    if (_brushSize > 1) {
-      if (_brushesCount > 0) {
-        _brushesCount--;
-        if (_brushesCount == 0) {
-          _brushSize = 1;
+      final half = _brushSize ~/ 2;
+      bool anyFilled = false;
+      _pushUndoState();
+      if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+
+      for (var dr = -half; dr <= half; dr++) {
+        for (var dc = -half; dc <= half; dc++) {
+          final r = row + dr;
+          final c = col + dc;
+          if (r < 0 || r >= _currentArt!.gridHeight) continue;
+          if (c < 0 || c >= _currentArt!.gridWidth) continue;
+          final expectedNumber = _currentArt!.grid[r][c];
+          if (expectedNumber == 0) continue;
+          if (_filledGrid[r][c] > 0) continue;
+          if (expectedNumber != _selectedNumber) continue;
+          _filledGrid[r][c] = expectedNumber;
+          _timeLapse.add((r, c));
+          anyFilled = true;
+          onCellFilledCorrectly?.call();
         }
       }
-    }
-    _calculateProgress();
-    _checkCompletion();
-    _checkAchievements();
-    _updateNextFillable();
-    _autoAdvanceIfDone();
-    _debouncedSave();
-    notifyListeners();
-    return true;
+
+      if (!anyFilled) {
+        _undoStack.removeLast();
+        return false;
+      }
+
+      _haptic(HapticFeedback.lightImpact);
+
+      _totalFillCount++;
+      _consecutiveFills++;
+      if (_brushSize > 1) {
+        if (_brushesCount > 0) {
+          _brushesCount--;
+          if (_brushesCount == 0) {
+            _brushSize = 1;
+          }
+        }
+      }
+      _calculateProgress();
+      _checkCompletion();
+      _checkAchievements();
+      _updateNextFillable();
+      _autoAdvanceIfDone();
+      _debouncedSave();
+      notifyListeners();
+      return true;
+    });
   }
 
   /// Starts a drag stroke: one undo entry covers the whole stroke and the
@@ -389,6 +448,7 @@ class ColoringProvider extends ChangeNotifier {
           _filledGrid[r][c] = expectedNumber;
           _timeLapse.add((r, c));
           changed = true;
+          onCellFilledCorrectly?.call();
         }
       }
     }
@@ -406,6 +466,7 @@ class ColoringProvider extends ChangeNotifier {
       _undoStack.removeLast();
       return;
     }
+    final previouslyCompleted = _getCompletedNumbers();
     if (_isEraseMode) {
       _totalEraseCount++;
       _consecutiveFills = 0;
@@ -428,6 +489,13 @@ class ColoringProvider extends ChangeNotifier {
     _updateNextFillable();
     _autoAdvanceIfDone();
     _debouncedSave();
+
+    final newlyCompleted = _getCompletedNumbers();
+    final completedNow = newlyCompleted.difference(previouslyCompleted);
+    if (completedNow.isNotEmpty) {
+      onSectionCompleted?.call();
+    }
+
     notifyListeners();
   }
 
@@ -435,6 +503,7 @@ class ColoringProvider extends ChangeNotifier {
   /// nothing is left to fill. Prefers the selected number, then any number.
   (int, int)? applyHint() {
     if (_currentArt == null) return null;
+    final previouslyCompleted = _getCompletedNumbers();
     _updateNextFillable();
     var target = _nextFillable;
     if (target == null) {
@@ -459,12 +528,20 @@ class ColoringProvider extends ChangeNotifier {
     _timeLapse.add((r, c));
     _haptic(HapticFeedback.lightImpact);
     _totalFillCount++;
+    onCellFilledCorrectly?.call();
     _calculateProgress();
     _checkCompletion();
     _checkAchievements();
     _updateNextFillable();
     _autoAdvanceIfDone();
     _debouncedSave();
+
+    final newlyCompleted = _getCompletedNumbers();
+    final completedNow = newlyCompleted.difference(previouslyCompleted);
+    if (completedNow.isNotEmpty) {
+      onSectionCompleted?.call();
+    }
+
     notifyListeners();
     return target;
   }
@@ -511,6 +588,7 @@ class ColoringProvider extends ChangeNotifier {
 
   void fillAllOfSelectedNumber() {
     if (_currentArt == null) return;
+    final previouslyCompleted = _getCompletedNumbers();
     bool changed = false;
     _pushUndoState();
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
@@ -520,6 +598,7 @@ class ColoringProvider extends ChangeNotifier {
           _filledGrid[row][col] = _selectedNumber;
           _timeLapse.add((row, col));
           changed = true;
+          onCellFilledCorrectly?.call();
         }
       }
     }
@@ -529,6 +608,13 @@ class ColoringProvider extends ChangeNotifier {
       _checkAchievements();
       _updateNextFillable();
       saveProgress();
+
+      final newlyCompleted = _getCompletedNumbers();
+      final completedNow = newlyCompleted.difference(previouslyCompleted);
+      if (completedNow.isNotEmpty) {
+        onSectionCompleted?.call();
+      }
+
       notifyListeners();
     }
   }
@@ -695,6 +781,7 @@ class ColoringProvider extends ChangeNotifier {
         _filledGrid[r][c] = targetNum;
         _timeLapse.add((r, c));
         changed = true;
+        onCellFilledCorrectly?.call();
 
         queue.add((r + 1, c));
         queue.add((r - 1, c));
@@ -745,6 +832,7 @@ class ColoringProvider extends ChangeNotifier {
         _filledGrid[r][c] = expectedNumber;
         _timeLapse.add((r, c));
         changed = true;
+        onCellFilledCorrectly?.call();
       }
     }
 

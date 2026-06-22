@@ -119,6 +119,7 @@ class GalleryProvider extends ChangeNotifier {
       AppConstants.completedIdsPrefKey,
     );
     _favoriteIds = _storageService.getStringSet('favorite_ids');
+    _diamondUnlockedIds = _storageService.getStringSet(_diamondUnlockedPrefKey);
     _loadStreak();
 
     _isLoading = false;
@@ -220,13 +221,27 @@ class GalleryProvider extends ChangeNotifier {
   /// Premium pieces a rewarded ad unlocked for this app session only.
   final Set<String> _sessionUnlockedIds = {};
 
+  /// Premium pieces permanently unlocked by spending diamonds. Persisted, so
+  /// the unlock survives restarts (the user paid currency for it).
+  static const String _diamondUnlockedPrefKey = 'diamond_unlocked_ids';
+  Set<String> _diamondUnlockedIds = {};
+
   void unlockForSession(String id) {
     _sessionUnlockedIds.add(id);
     notifyListeners();
   }
 
+  /// Permanently unlocks [id] after a diamond purchase.
+  void unlockWithDiamonds(String id) {
+    _diamondUnlockedIds.add(id);
+    _storageService.addToStringSet(_diamondUnlockedPrefKey, id);
+    notifyListeners();
+  }
+
   bool isUnlocked(PixelArt art, bool isProUser) {
     if (!art.isPremium) return true;
-    return isProUser || _sessionUnlockedIds.contains(art.id);
+    return isProUser ||
+        _sessionUnlockedIds.contains(art.id) ||
+        _diamondUnlockedIds.contains(art.id);
   }
 }

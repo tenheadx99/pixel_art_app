@@ -96,4 +96,40 @@ void main() {
       expect(provider.selectedNumber, 2);
     });
   });
+
+  group('ASMR sounds and section completion callbacks', () {
+    test('onCellFilledCorrectly is called when a cell is colored', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(_testArt());
+      provider.selectNumber(1);
+
+      int cellFilledCalls = 0;
+      provider.onCellFilledCorrectly = () {
+        cellFilledCalls++;
+      };
+
+      final success = provider.tryFillCell(0, 0);
+      expect(success, isTrue);
+      expect(cellFilledCalls, 1);
+    });
+
+    test('onSectionCompleted is called when the color group completes', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(_testArt());
+      provider.selectNumber(1);
+
+      int sectionCompletedCalls = 0;
+      provider.onSectionCompleted = () {
+        sectionCompletedCalls++;
+      };
+
+      // _testArt has three cells of number 1: (0,0), (0,1), and (1,0)
+      provider.tryFillCell(0, 0);
+      provider.tryFillCell(0, 1);
+      expect(sectionCompletedCalls, 0); // Not completed yet
+
+      provider.tryFillCell(1, 0);
+      expect(sectionCompletedCalls, 1); // Now completed!
+    });
+  });
 }

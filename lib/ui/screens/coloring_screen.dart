@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -18,6 +20,7 @@ import '../../data/services/iap_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../data/services/timelapse_service.dart';
+import '../../data/services/sound_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/widgets/ad_banner.dart';
 import '../../ui/widgets/pixel_grid.dart';
@@ -50,6 +53,13 @@ class _ColoringScreenState extends State<ColoringScreen>
   List<List<int>>? _savedGridState;
   bool _wasComplete = false;
   bool _sharingGif = false;
+  // Completion HUD ("level complete" dialog). Starts dismissed so reopening an
+  // already-finished artwork shows the artwork (with a reopen button) rather
+  // than popping the dialog; a fresh completion flips it open.
+  bool _hudDismissed = true;
+  // Diamonds awarded for finishing this artwork (0 if it had already paid out);
+  // shown in the completion HUD.
+  int _lastDiamondAward = 0;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
   AdService? _adService;
@@ -100,7 +110,6 @@ class _ColoringScreenState extends State<ColoringScreen>
       _confettiController.reset();
       _wasComplete = provider.isComplete;
       _gridFadeController.value = _wasComplete ? 1.0 : 0.0;
-      _coloringProvider = provider..addListener(_onProviderChanged);
       _settings = context.read<AppSettingsProvider>()
         ..addListener(_onSettingsChanged);
       _adService = context.read<AdService>();
@@ -109,6 +118,23 @@ class _ColoringScreenState extends State<ColoringScreen>
       if (!(_settings?.isProUser ?? false)) {
         _adService!.loadInterstitialAd();
       }
+      final soundService = context.read<SoundService>();
+      _coloringProvider = provider
+        ..addListener(_onProviderChanged)
+        ..onCellFilledCorrectly = () {
+          if (_settings?.soundsEnabled ?? true) {
+            if (_settings?.soundType == 'bubble_pop') {
+              soundService.playBubblePop();
+            } else {
+              soundService.playLightClick();
+            }
+          }
+        }
+        ..onSectionCompleted = () {
+          if (_settings?.hapticsEnabled ?? true) {
+            _playSectionCompletedHaptic();
+          }
+        };
       _maybeShowLongPressTip();
     });
   }
@@ -149,6 +175,19 @@ class _ColoringScreenState extends State<ColoringScreen>
       _wasComplete = true;
       _gridFadeController.forward();
       _saveArtwork(context, provider);
+      // Pay out the diamond reward (once per artwork) and surface the
+      // "level complete" HUD after the confetti gets going.
+      final gallery = context.read<GalleryProvider>();
+      final settings = context.read<AppSettingsProvider>();
+      final isDaily = gallery.dailyArt?.id == widget.art.id;
+      final awarded = settings.awardCompletionDiamonds(
+        widget.art.id,
+        isDaily: isDaily,
+      );
+      setState(() {
+        _lastDiamondAward = awarded;
+        _hudDismissed = false;
+      });
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -205,6 +244,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   void dispose() {
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
+    _coloringProvider?.onCellFilledCorrectly = null;
+    _coloringProvider?.onSectionCompleted = null;
     _coloringProvider?.saveProgress();
     _coloringProvider?.removeListener(_onProviderChanged);
     _settings?.removeListener(_onSettingsChanged);
@@ -214,6 +255,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     _gridFadeController.dispose();
     _zoomAnimController.dispose();
     super.dispose();
+  }
+
+  void _playSectionCompletedHaptic() async {
+    await HapticFeedback.mediumImpact();
+    await Future.delayed(const Duration(milliseconds: 100));
+    await HapticFeedback.lightImpact();
   }
 
   void _animateZoomTo(Matrix4 target) {
@@ -264,6 +311,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         }
 
         final statusBarHeight = MediaQuery.of(context).padding.top;
+        final isDark = Theme.of(context).brightness == Brightness.dark;
 
         return PopScope(
           onPopInvokedWithResult: (didPop, _) {
@@ -274,111 +322,130 @@ class _ColoringScreenState extends State<ColoringScreen>
           },
           child: Scaffold(
             body: Container(
-              color: const Color(0xFFF9F9FB),
-              child: Column(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF14141F), const Color(0xFF0F0F16)]
+                      : [const Color(0xFFF9F9FB), const Color(0xFFECEFF1)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+              ),
+              child: Stack(
                 children: [
-                  Expanded(
-                    child: Stack(
-                      children: [
-                        if (isCurrentArt) _buildGrid(provider, settings),
+                  if (isCurrentArt) _buildGrid(provider, settings),
 
-                        // 1. Top Bar (Overlay)
-                        Positioned(
-                          top: statusBarHeight + 8,
-                          left: 16,
-                          right: 16,
-                          child: _buildTopBar(context, provider, isComplete),
-                        ),
+                  // 1. Top Bar (Overlay)
+                  Positioned(
+                    top: statusBarHeight + 8,
+                    left: 16,
+                    right: 16,
+                    child: _buildTopBar(context, provider, isComplete),
+                  ),
 
-                        // 2. Mini Preview in Top Left
-                        if (isCurrentArt)
-                          Positioned(
-                            top: statusBarHeight + 104,
-                            left: 12,
-                            child: Container(
-                              width: 80,
-                              height: 80,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade200, width: 1.5),
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(6),
-                                child: ValueListenableBuilder<Matrix4>(
-                                  valueListenable: _transformController,
-                                  builder: (context, transform, _) {
-                                    final viewportRect = _calculateViewportRect(
-                                      transform,
-                                      _viewerSize,
-                                      _cellSize,
-                                      widget.art,
-                                    );
-                                    return CustomPaint(
-                                      painter: _MiniMapPainter(
-                                        art: widget.art,
-                                        filledGrid: provider.filledGrid,
-                                        filledColors: provider.filledColors,
-                                        viewportRect: viewportRect,
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                            ),
-                          ),
-
-                        // 3. Floating Rewarded Ad bucket button in Top Right
-                        if (isCurrentArt)
-                          Positioned(
-                            top: statusBarHeight + 116,
-                            right: 12,
-                            child: _RainbowAdButton(
-                              onTap: () {
-                                final adService = context.read<AdService>();
-                                if (AppConfig.disableAds || !AppConfig.showAds) {
-                                  provider.addMagicWands(2);
-                                  _showInfoSnack('[Simulated Ad] +2 Paint Buckets earned!');
-                                  return;
-                                }
-                                adService.loadRewardedAd(
-                                  onLoaded: () => adService.showRewardedAd(
-                                    onRewarded: () {
-                                      provider.addMagicWands(2);
-                                      _showInfoSnack('+2 Paint Buckets earned!');
-                                    },
-                                  ),
-                                  onFailed: () {
-                                    provider.addMagicWands(2);
-                                    _showInfoSnack('+2 Paint Buckets earned!');
-                                  },
-                                );
-                              },
-                            ),
-                          ),
-
-                        if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
-                          _buildModePill(provider),
-                        ConfettiOverlay(animation: _confettiController),
-                        if (isComplete) _buildCompletionBar(provider),
-                      ],
+                  // 2. Mini Preview in Top Left
+                  if (isCurrentArt)
+                    Positioned(
+                      top: statusBarHeight + 116,
+                      left: 12,
+                      child: _buildMiniMap(provider, isDark),
                     ),
-                  ),
-                  SafeArea(
-                    top: false,
-                    child: _buildBottomSection(context, provider, settings),
-                  ),
+
+                  if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
+                    _buildModePill(provider),
+                  ConfettiOverlay(animation: _confettiController),
+
+                  // 4. Bottom Section: the toolbar/palette/banner while there's
+                  // still something to color. Once complete it gives way to the
+                  // completion HUD (and a reopen button when that's dismissed).
+                  if (!isComplete)
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: _buildBottomSection(context, provider, settings),
+                    ),
+                  if (isComplete &&
+                      _hudDismissed &&
+                      !_replayController.isAnimating)
+                    _buildReopenOptionsButton(),
+                  if (isComplete &&
+                      !_hudDismissed &&
+                      !_replayController.isAnimating)
+                    _buildCompletionHud(provider),
                 ],
               ),
             ),
           ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMiniMap(ColoringProvider provider, bool isDark) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: isDark ? Colors.black.withAlpha(120) : Colors.white.withAlpha(200),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: ValueListenableBuilder<Matrix4>(
+          valueListenable: _transformController,
+          builder: (context, transform, _) {
+            final viewportRect = _calculateViewportRect(
+              transform,
+              _viewerSize,
+              _cellSize,
+              widget.art,
+            );
+            return CustomPaint(
+              painter: _MiniMapPainter(
+                art: widget.art,
+                filledGrid: provider.filledGrid,
+                filledColors: provider.filledColors,
+                viewportRect: viewportRect,
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRainbowAdButton(ColoringProvider provider) {
+    return _RainbowAdButton(
+      onTap: () {
+        final adService = context.read<AdService>();
+        if (AppConfig.disableAds || !AppConfig.showAds) {
+          provider.addMagicWands(2);
+          _showInfoSnack('[Simulated Ad] +2 Paint Buckets earned!');
+          return;
+        }
+        adService.loadRewardedAd(
+          onLoaded: () => adService.showRewardedAd(
+            onRewarded: () {
+              provider.addMagicWands(2);
+              _showInfoSnack('+2 Paint Buckets earned!');
+            },
+          ),
+          onFailed: () {
+            provider.addMagicWands(2);
+            _showInfoSnack('+2 Paint Buckets earned!');
+          },
         );
       },
     );
@@ -463,70 +530,361 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  Widget _buildCompletionBar(ColoringProvider provider) {
-    return Positioned(
-      bottom: 8,
-      left: 0,
-      right: 0,
-      child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: Colors.black.withAlpha(160),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Row(
+  /// The "level complete" HUD: a centered card over a dimmed scrim with the
+  /// celebration summary plus Replay / Share / Share GIF / Next actions.
+  Widget _buildCompletionHud(ColoringProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+    final subColor = isDark ? Colors.white70 : Colors.black54;
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withAlpha(150),
+        child: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
+                        : [Colors.white, const Color(0xFFF3F0FF)],
+                  ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: AppStyle.primary.withAlpha(70),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(70),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.celebration_rounded,
-                        color: Colors.amber, size: 14),
-                    const SizedBox(width: 6),
-                    Text(
-                      _completionStats(provider),
-                      style: const TextStyle(
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF9D2E).withAlpha(130),
+                            blurRadius: 22,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.emoji_events_rounded,
                         color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+                        size: 40,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Masterpiece Complete!',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.art.name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: subColor),
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppStyle.primary.withAlpha(isDark ? 40 : 20),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.celebration_rounded,
+                            color: AppStyle.primary,
+                            size: 16,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _completionStats(provider),
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (_lastDiamondAward > 0) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.diamond_rounded,
+                            color: Color(0xFFFF9D2E),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+$_lastDiamondAward diamonds',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 20),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _HudAction(
+                            icon: Icons.replay_rounded,
+                            label: 'Replay',
+                            onTap: () => _startTimeLapse(provider),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _HudAction(
+                            icon: Icons.image_rounded,
+                            label: 'Share',
+                            onTap: () => _sharePng(provider),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: _HudAction(
+                            icon: Icons.movie_rounded,
+                            label: _sharingGif ? 'Rendering…' : 'Share GIF',
+                            onTap: _sharingGif
+                                ? null
+                                : () => _shareTimelapse(provider),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: _openNextArt,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        label: const Text('Next Artwork'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppStyle.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => setState(() => _hudDismissed = true),
+                      child: Text(
+                        'View artwork',
+                        style: TextStyle(color: subColor),
                       ),
                     ),
                   ],
                 ),
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-              _CompletionAction(
-                icon: _replayController.isAnimating ? Icons.stop : Icons.replay,
-                label: _replayController.isAnimating ? 'Stop' : 'Replay',
-                onTap: () => _startTimeLapse(provider),
-              ),
-              _CompletionAction(
-                icon: Icons.image_rounded,
-                label: 'Share',
-                onTap: () => _sharePng(provider),
-              ),
-              _CompletionAction(
-                icon: Icons.movie_rounded,
-                label: _sharingGif ? 'Rendering…' : 'Share GIF',
-                onTap: _sharingGif ? null : () => _shareTimelapse(provider),
-              ),
-              _CompletionAction(
-                icon: Icons.skip_next_rounded,
-                label: 'Next',
-                onTap: _openNextArt,
-              ),
-                ],
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
+  }
+
+  /// Floating button shown once the HUD is dismissed so the completion options
+  /// remain one tap away while the user admires the finished artwork.
+  Widget _buildReopenOptionsButton() {
+    return Positioned(
+      right: 16,
+      bottom: 16 + MediaQuery.of(context).padding.bottom,
+      child: FloatingActionButton.extended(
+        onPressed: () => setState(() => _hudDismissed = false),
+        backgroundColor: AppStyle.primary,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.emoji_events_rounded),
+        label: const Text('Options'),
+      ),
+    );
+  }
+
+  /// Opens the in-canvas shop: spend earned diamonds on hints and tools.
+  void _showShop(ColoringProvider provider, AppSettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) {
+        // Rebuilds on each purchase so the balance and affordability update.
+        return Consumer<AppSettingsProvider>(
+          builder: (context, s, _) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Shop',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              // Counts up/down to the new balance after a buy.
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                  end: s.diamondsAvailable.toDouble(),
+                                ),
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeOut,
+                                builder: (_, value, _) => Text(
+                                  '${value.round()}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.diamond_rounded,
+                                color: Color(0xFFFF9D2E),
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+                      child: Text(
+                        'Spend diamonds earned by finishing artworks.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                    const Divider(height: 8),
+                    _ShopTile(
+                      icon: Icons.lightbulb_rounded,
+                      color: const Color(0xFFFFC107),
+                      name: 'Hint',
+                      desc: 'Reveal one correct cell',
+                      cost: AppConstants.diamondCostHint,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostHint,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostHint,
+                        'Hint',
+                        () => s.addHints(1),
+                      ),
+                    ),
+                    _ShopTile(
+                      icon: Icons.auto_fix_high_rounded,
+                      color: const Color(0xFF9C27B0),
+                      name: 'Magic Wand',
+                      desc: 'Flood-fill a whole area',
+                      cost: AppConstants.diamondCostWand,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostWand,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostWand,
+                        'Magic Wand',
+                        () => provider.addMagicWands(1),
+                      ),
+                    ),
+                    _ShopTile(
+                      icon: Icons.bolt_rounded,
+                      color: Colors.black87,
+                      name: 'Bomb',
+                      desc: 'Clear an area in one tap',
+                      cost: AppConstants.diamondCostBomb,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostBomb,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostBomb,
+                        'Bomb',
+                        () => provider.addBombs(1),
+                      ),
+                    ),
+                    _ShopTile(
+                      icon: Icons.brush_rounded,
+                      color: const Color(0xFF03A9F4),
+                      name: 'Brush',
+                      desc: 'Paint multiple cells at once',
+                      cost: AppConstants.diamondCostBrush,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostBrush,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostBrush,
+                        'Brush',
+                        () => provider.addBrushes(1),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Attempts a purchase: spends [cost] diamonds and runs [grant] on success.
+  /// Returns true if it went through, letting the tile play its buy animation.
+  bool _buyShopItem(
+    AppSettingsProvider settings,
+    int cost,
+    String name,
+    VoidCallback grant,
+  ) {
+    if (!settings.useDiamonds(cost)) return false;
+    grant();
+    HapticFeedback.mediumImpact();
+    return true;
   }
 
   /// One-line celebration summary, e.g. "248 cells · 8 colors · 12 min".
@@ -628,7 +986,8 @@ class _ColoringScreenState extends State<ColoringScreen>
       _savedGridState = null;
     }
     _replayActions = [];
-    if (mounted) setState(() {});
+    // Replay was launched from the HUD; bring it back when the animation ends.
+    if (mounted) setState(() => _hudDismissed = false);
   }
 
   Widget _buildTopBar(
@@ -637,109 +996,109 @@ class _ColoringScreenState extends State<ColoringScreen>
     bool isComplete,
   ) {
     final settings = context.read<AppSettingsProvider>();
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // Store/Gem Pill
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey.shade100, width: 1.5),
+            color: isDark ? Colors.black.withAlpha(140) : Colors.white.withAlpha(200),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+              width: 1.5,
+            ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(10),
-                blurRadius: 4,
-                offset: const Offset(0, 2),
+                color: Colors.black.withAlpha(15),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
               ),
             ],
           ),
-          child: Row(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(
-                Icons.storefront_rounded,
-                color: Colors.indigoAccent,
-                size: 16,
+              Row(
+                children: [
+                  GestureDetector(
+                    onTap: () => Navigator.pop(context),
+                    child: Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 18,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _ProgressGiftsBar(progress: provider.progress),
+                  ),
+                  const SizedBox(width: 12),
+                  GestureDetector(
+                    onTap: () => _zoomBy(0),
+                    child: Icon(
+                      Icons.fit_screen_rounded,
+                      size: 20,
+                      color: isDark ? Colors.white : Colors.black87,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 4),
-              Text(
-                '${settings.diamondsAvailable}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.diamond_rounded,
-                color: Colors.orange,
-                size: 16,
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Progress',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: () => _showShop(provider, settings),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.storefront_rounded,
+                            color: Colors.indigoAccent,
+                            size: 12,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${settings.diamondsAvailable}',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.diamond_rounded,
+                            color: Colors.orange,
+                            size: 12,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-
-        // Navigation Row
-        Row(
-          children: [
-            GestureDetector(
-              onTap: () => Navigator.pop(context),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.arrow_back,
-                  size: 20,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _ProgressGiftsBar(progress: provider.progress),
-            ),
-            const SizedBox(width: 12),
-            GestureDetector(
-              onTap: () => _zoomBy(0),
-              child: Container(
-                width: 36,
-                height: 36,
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 4,
-                      offset: Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: const Icon(
-                  Icons.fit_screen_rounded,
-                  size: 20,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ],
+      ),
     );
   }
 
@@ -858,36 +1217,50 @@ class _ColoringScreenState extends State<ColoringScreen>
     ColoringProvider provider,
     AppSettingsProvider settings,
   ) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 10,
-            offset: const Offset(0, -3),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          NumberToolbar(
-            provider: provider,
-            settings: settings,
-            onHint: () => _useHint(provider, settings),
-          ),
-          const SizedBox(height: 8),
-          NumberPalette(provider: provider),
-          // The coloring screen is where users spend their time — the banner
-          // lives here for free users.
-          if (!settings.isProUser)
-            const Padding(
-              padding: EdgeInsets.only(top: 6),
-              child: AdBanner(),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return ClipRRect(
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          decoration: BoxDecoration(
+            color: isDark ? Colors.black.withAlpha(140) : Colors.white.withAlpha(210),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            border: Border(
+              top: BorderSide(
+                color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+                width: 1.5,
+              ),
             ),
-        ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(15),
+                blurRadius: 10,
+                offset: const Offset(0, -3),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NumberToolbar(
+                provider: provider,
+                settings: settings,
+                onHint: () => _useHint(provider, settings),
+              ),
+              const SizedBox(height: 12),
+              NumberPalette(provider: provider),
+              // The coloring screen is where users spend their time — the banner
+              // lives here for free users.
+              if (!settings.isProUser)
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: AdBanner(),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -1063,12 +1436,14 @@ class _ColoringScreenState extends State<ColoringScreen>
 }
 
 
-class _CompletionAction extends StatelessWidget {
+/// A square icon+label action tile used inside the completion HUD. Renders
+/// dimmed and non-interactive when [onTap] is null (e.g. GIF still rendering).
+class _HudAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
 
-  const _CompletionAction({
+  const _HudAction({
     required this.icon,
     required this.label,
     this.onTap,
@@ -1076,27 +1451,158 @@ class _CompletionAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final enabled = onTap != null;
+    final fg = enabled
+        ? AppStyle.primary
+        : (isDark ? Colors.white30 : Colors.black26);
+    return Opacity(
+      opacity: enabled ? 1 : 0.6,
+      child: Material(
+        color: AppStyle.primary.withAlpha(isDark ? 38 : 18),
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(16),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 4),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: fg, size: 24),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: fg,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A shop row that plays a satisfying buy animation — the icon pops and a
+/// green check sweeps in — when [onPurchase] reports a successful purchase.
+class _ShopTile extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final String name;
+  final String desc;
+  final int cost;
+  final bool canAfford;
+
+  /// Performs the purchase; returns true if it succeeded (diamonds spent).
+  final bool Function() onPurchase;
+
+  const _ShopTile({
+    required this.icon,
+    required this.color,
+    required this.name,
+    required this.desc,
+    required this.cost,
+    required this.canAfford,
+    required this.onPurchase,
+  });
+
+  @override
+  State<_ShopTile> createState() => _ShopTileState();
+}
+
+class _ShopTileState extends State<_ShopTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pop;
+  late final Animation<double> _scale;
+  bool _justBought = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pop = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    // Bounce out and settle back: 1 → 1.35 → 1.
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.35)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.35, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+    ]).animate(_pop);
+  }
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    if (!widget.onPurchase()) return;
+    _pop.forward(from: 0);
+    setState(() => _justBought = true);
+    Future.delayed(const Duration(milliseconds: 1100), () {
+      if (mounted) setState(() => _justBought = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: ScaleTransition(
+        scale: _scale,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircleAvatar(
+              backgroundColor: widget.color.withAlpha(40),
+              child: Icon(widget.icon, color: widget.color),
+            ),
+            // Green check sweeps over the icon right after a successful buy.
+            AnimatedOpacity(
+              opacity: _justBought ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: const CircleAvatar(
+                backgroundColor: Color(0xFF00B894),
+                child: Icon(Icons.check_rounded, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+      title: Text(widget.name),
+      subtitle: Text(widget.desc),
+      trailing: ElevatedButton(
+        onPressed: widget.canAfford ? _handleTap : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppStyle.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              icon,
-              color: onTap == null ? Colors.white38 : Colors.white,
-              size: 16,
-            ),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                color: onTap == null ? Colors.white38 : Colors.white,
-                fontSize: 12,
-              ),
-            ),
+            Text('${widget.cost}'),
+            const SizedBox(width: 4),
+            const Icon(Icons.diamond_rounded, size: 14),
           ],
         ),
       ),
@@ -1333,8 +1839,10 @@ class _RainbowAdButtonState extends State<_RainbowAdButton>
           Container(
             width: 50,
             height: 50,
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? const Color(0xFF1E1E2C)
+                  : Colors.white,
               shape: BoxShape.circle,
             ),
             child: const Center(

@@ -57,6 +57,65 @@ class SettingsSheet extends StatelessWidget {
                   value: settings.hapticsEnabled,
                   onChanged: (_) => settings.toggleHaptics(),
                 ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.volume_up_outlined),
+                  title: const Text('ASMR Sound effects'),
+                  value: settings.soundsEnabled,
+                  onChanged: (_) => settings.toggleSounds(),
+                ),
+                if (settings.soundsEnabled)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.music_note_outlined,
+                          size: 24,
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.white70
+                              : Colors.black54,
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Text(
+                            'Sound style',
+                            style: TextStyle(fontSize: 16),
+                          ),
+                        ),
+                        SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: 'bubble_pop',
+                              label: Text('Pop'),
+                            ),
+                            ButtonSegment(
+                              value: 'light_click',
+                              label: Text('Click'),
+                            ),
+                          ],
+                          selected: {settings.soundType},
+                          onSelectionChanged: (value) {
+                            settings.setSoundType(value.first);
+                          },
+                          showSelectedIcon: false,
+                          style: SegmentedButton.styleFrom(
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                const Divider(height: 8),
+                SwitchListTile(
+                  secondary: const Icon(Icons.notifications_active_outlined),
+                  title: const Text('Daily reminders'),
+                  subtitle: const Text(
+                    'Gentle morning & evening nudges to relax with a fresh canvas',
+                  ),
+                  value: settings.dailyRemindersEnabled,
+                  onChanged: (value) =>
+                      settings.setDailyRemindersEnabled(value),
+                ),
                 const Divider(height: 8),
                 ListTile(
                   leading: const Icon(Icons.restore),

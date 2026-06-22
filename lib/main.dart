@@ -15,6 +15,8 @@ import 'data/services/ad_service.dart';
 import 'data/services/iap_service.dart';
 import 'data/services/screenshot_service.dart';
 import 'data/services/pixel_converter_service.dart';
+import 'data/services/sound_service.dart';
+import 'data/services/notification_service.dart';
 import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/coloring_provider.dart';
@@ -72,16 +74,19 @@ class AppDependencies {
   final DatabaseService databaseService;
   final IAPService iapService;
   final ScreenshotService screenshotService;
+  final SoundService soundService;
 
   const AppDependencies({
     required this.localStorageService,
     required this.databaseService,
     required this.iapService,
     required this.screenshotService,
+    required this.soundService,
   });
 
   void dispose() {
     iapService.dispose();
+    soundService.dispose();
   }
 }
 
@@ -144,11 +149,20 @@ class _AppBootstrapState extends State<AppBootstrap>
       // Safe fallback if Firebase or PackageInfo is not fully configured yet
     }
 
+    final soundService = SoundService();
+    await soundService.init();
+
+    // Local-only daily reminders. Initializing here registers the tap handler
+    // and captures the launch payload if the app was opened from a reminder;
+    // actual (re)scheduling happens once settings load (syncDailyReminders).
+    await NotificationService.instance.init();
+
     final deps = AppDependencies(
       localStorageService: localStorageService,
       databaseService: DatabaseService(),
       iapService: IAPService(),
       screenshotService: ScreenshotService(localStorageService),
+      soundService: soundService,
     );
 
     await deps.iapService.initialize();
@@ -201,12 +215,14 @@ class _AppBootstrapState extends State<AppBootstrap>
         Provider<DatabaseService>.value(value: _dependencies!.databaseService),
         Provider<IAPService>.value(value: _dependencies!.iapService),
         Provider<AdService>.value(value: AdService()),
+        Provider<SoundService>.value(value: _dependencies!.soundService),
         ChangeNotifierProvider<AppSettingsProvider>(
           create: (_) {
             final provider = AppSettingsProvider(
               _dependencies!.localStorageService,
             );
-            provider.loadSettings();
+            // Top up the on-device reminder schedule once settings are loaded.
+            provider.loadSettings().then((_) => provider.syncDailyReminders());
             provider.listenToIAP(_dependencies!.iapService.purchaseStream);
             // Re-deliver past purchases (e.g. Pro after a reinstall); must
             // run after listenToIAP so the restored events are observed.
