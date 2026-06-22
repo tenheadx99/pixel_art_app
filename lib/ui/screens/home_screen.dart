@@ -455,73 +455,201 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showLockedDialog(BuildContext context, PixelArt art) {
     final iap = context.read<IAPService>();
+    const unlockCost = AppConstants.diamondCostUnlockArt;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        title: const Row(
-          children: [
-            Icon(Icons.workspace_premium, color: AppStyle.primary),
-            SizedBox(width: 8),
-            Text('Pixely Pro'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const _ProBenefit(
-              icon: Icons.palette_outlined,
-              text: 'Unlock every premium artwork',
-            ),
-            const _ProBenefit(icon: Icons.block, text: 'Remove all ads'),
-            const _ProBenefit(
-              icon: Icons.favorite_outline,
-              text: 'Support future artwork packs',
-            ),
-            const SizedBox(height: 8),
-            FutureBuilder<String?>(
-              future: iap.getPrice(AppConstants.proProductId),
-              builder: (context, snapshot) {
-                final price = snapshot.data;
-                if (price == null) return const SizedBox.shrink();
-                return Text(
-                  'One-time purchase · $price',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: AppStyle.primary,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+        final subColor = isDark ? Colors.white70 : Colors.black54;
+        // Consumer so the diamond balance / affordability stay live.
+        return Consumer<AppSettingsProvider>(
+          builder: (_, settings, _) {
+            final diamonds = settings.diamondsAvailable;
+            final canAfford = diamonds >= unlockCost;
+            return Dialog(
+              backgroundColor: Colors.transparent,
+              insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: isDark
+                        ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
+                        : [Colors.white, const Color(0xFFF3F0FF)],
                   ),
-                );
-              },
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Not Now'),
-          ),
-          TextButton.icon(
-            icon: const Icon(Icons.play_circle_outline, size: 18),
-            label: const Text('Try with Ad'),
-            onPressed: () {
-              Navigator.pop(ctx);
-              _tryPremiumWithAd(art);
-            },
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              iap.buyPro();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppStyle.primary,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Upgrade ✨'),
-          ),
-        ],
-      ),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(
+                    color: AppStyle.primary.withAlpha(70),
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(70),
+                      blurRadius: 30,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 72,
+                      height: 72,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: const LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [Color(0xFFB14CFF), Color(0xFF7A2BE2)],
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppStyle.primary.withAlpha(130),
+                            blurRadius: 22,
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.workspace_premium_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Premium Artwork',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        color: titleColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      art.name,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 14, color: subColor),
+                    ),
+                    const SizedBox(height: 18),
+                    _ProBenefit(
+                      icon: Icons.palette_outlined,
+                      text: 'Unlock every premium artwork',
+                      color: titleColor,
+                    ),
+                    _ProBenefit(
+                      icon: Icons.block,
+                      text: 'Remove all ads',
+                      color: titleColor,
+                    ),
+                    _ProBenefit(
+                      icon: Icons.favorite_outline,
+                      text: 'Support future artwork packs',
+                      color: titleColor,
+                    ),
+                    const SizedBox(height: 18),
+                    // Spend diamonds to unlock just this artwork, forever.
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: canAfford
+                            ? () {
+                                if (settings.useDiamonds(unlockCost)) {
+                                  context
+                                      .read<GalleryProvider>()
+                                      .unlockWithDiamonds(art.id);
+                                  Navigator.pop(ctx);
+                                  _openColoring(context, art);
+                                }
+                              }
+                            : null,
+                        icon: const Icon(Icons.diamond_rounded, size: 18),
+                        label: Text('Unlock this one · $unlockCost'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFFFF9D2E),
+                          foregroundColor: Colors.white,
+                          disabledBackgroundColor: Colors.grey.withAlpha(80),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 4),
+                      child: Text(
+                        canAfford
+                            ? 'You have $diamonds 💎'
+                            : 'You have $diamonds 💎 · need ${unlockCost - diamonds} more',
+                        style: TextStyle(fontSize: 11, color: subColor),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Pro upgrade — unlocks everything + removes ads.
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          iap.buyPro();
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppStyle.primary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        child: FutureBuilder<String?>(
+                          future: iap.getPrice(AppConstants.proProductId),
+                          builder: (context, snapshot) {
+                            final price = snapshot.data;
+                            return Text(
+                              price == null
+                                  ? 'Upgrade to Pixely Pro ✨'
+                                  : 'Upgrade to Pro · $price ✨',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        TextButton.icon(
+                          icon: const Icon(Icons.play_circle_outline, size: 18),
+                          label: const Text('Try with Ad'),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _tryPremiumWithAd(art);
+                          },
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx),
+                          child: Text(
+                            'Not now',
+                            style: TextStyle(color: subColor),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 }
@@ -764,8 +892,9 @@ class _DailyPixelBanner extends StatelessWidget {
 class _ProBenefit extends StatelessWidget {
   final IconData icon;
   final String text;
+  final Color? color;
 
-  const _ProBenefit({required this.icon, required this.text});
+  const _ProBenefit({required this.icon, required this.text, this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -775,7 +904,9 @@ class _ProBenefit extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: AppStyle.primary),
           const SizedBox(width: 10),
-          Expanded(child: Text(text)),
+          Expanded(
+            child: Text(text, style: color == null ? null : TextStyle(color: color)),
+          ),
         ],
       ),
     );

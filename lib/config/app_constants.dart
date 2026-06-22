@@ -69,6 +69,9 @@ class AppConstants {
   static const int diamondsDailyBonus = 25;
   static const String diamondsAwardedPrefix = 'diamonds_awarded_';
 
+  // Permanently unlock a single premium artwork with diamonds.
+  static const int diamondCostUnlockArt = 200;
+
   // Shop prices (in diamonds).
   static const int diamondCostHint = 30;
   static const int diamondCostWand = 40;
