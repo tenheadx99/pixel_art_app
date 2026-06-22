@@ -143,6 +143,19 @@ class AppSettingsProvider extends ChangeNotifier {
     return true;
   }
 
+  /// Pays out the completion reward for [artId] exactly once. Adds a daily
+  /// bonus when [isDaily] is true. Returns the diamonds awarded (0 if this art
+  /// was already rewarded), so the UI can celebrate the actual amount.
+  int awardCompletionDiamonds(String artId, {bool isDaily = false}) {
+    final key = '${AppConstants.diamondsAwardedPrefix}$artId';
+    if (_storageService.getBool(key)) return 0;
+    final amount = AppConstants.diamondsPerCompletion +
+        (isDaily ? AppConstants.diamondsDailyBonus : 0);
+    _storageService.setBool(key, true);
+    addDiamonds(amount);
+    return amount;
+  }
+
   /// Credits purchased wands directly into storage. ColoringProvider owns the
   /// in-memory count; an open coloring screen re-syncs via this notification.
   void addWands(int count) {

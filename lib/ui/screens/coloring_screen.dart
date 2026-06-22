@@ -57,6 +57,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   // already-finished artwork shows the artwork (with a reopen button) rather
   // than popping the dialog; a fresh completion flips it open.
   bool _hudDismissed = true;
+  // Diamonds awarded for finishing this artwork (0 if it had already paid out);
+  // shown in the completion HUD.
+  int _lastDiamondAward = 0;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
   AdService? _adService;
@@ -172,8 +175,19 @@ class _ColoringScreenState extends State<ColoringScreen>
       _wasComplete = true;
       _gridFadeController.forward();
       _saveArtwork(context, provider);
-      // Surface the "level complete" HUD after the confetti gets going.
-      setState(() => _hudDismissed = false);
+      // Pay out the diamond reward (once per artwork) and surface the
+      // "level complete" HUD after the confetti gets going.
+      final gallery = context.read<GalleryProvider>();
+      final settings = context.read<AppSettingsProvider>();
+      final isDaily = gallery.dailyArt?.id == widget.art.id;
+      final awarded = settings.awardCompletionDiamonds(
+        widget.art.id,
+        isDaily: isDaily,
+      );
+      setState(() {
+        _lastDiamondAward = awarded;
+        _hudDismissed = false;
+      });
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -624,6 +638,28 @@ class _ColoringScreenState extends State<ColoringScreen>
                         ],
                       ),
                     ),
+                    if (_lastDiamondAward > 0) ...[
+                      const SizedBox(height: 12),
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.diamond_rounded,
+                            color: Color(0xFFFF9D2E),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '+$_lastDiamondAward diamonds',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: titleColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     Row(
                       children: [
@@ -702,6 +738,153 @@ class _ColoringScreenState extends State<ColoringScreen>
         label: const Text('Options'),
       ),
     );
+  }
+
+  /// Opens the in-canvas shop: spend earned diamonds on hints and tools.
+  void _showShop(ColoringProvider provider, AppSettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (_) {
+        // Rebuilds on each purchase so the balance and affordability update.
+        return Consumer<AppSettingsProvider>(
+          builder: (context, s, _) {
+            return SafeArea(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Shop',
+                            style: TextStyle(
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Row(
+                            children: [
+                              // Counts up/down to the new balance after a buy.
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                  end: s.diamondsAvailable.toDouble(),
+                                ),
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeOut,
+                                builder: (_, value, _) => Text(
+                                  '${value.round()}',
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              const Icon(
+                                Icons.diamond_rounded,
+                                color: Color(0xFFFF9D2E),
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+                      child: Text(
+                        'Spend diamonds earned by finishing artworks.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey),
+                      ),
+                    ),
+                    const Divider(height: 8),
+                    _ShopTile(
+                      icon: Icons.lightbulb_rounded,
+                      color: const Color(0xFFFFC107),
+                      name: 'Hint',
+                      desc: 'Reveal one correct cell',
+                      cost: AppConstants.diamondCostHint,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostHint,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostHint,
+                        'Hint',
+                        () => s.addHints(1),
+                      ),
+                    ),
+                    _ShopTile(
+                      icon: Icons.auto_fix_high_rounded,
+                      color: const Color(0xFF9C27B0),
+                      name: 'Magic Wand',
+                      desc: 'Flood-fill a whole area',
+                      cost: AppConstants.diamondCostWand,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostWand,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostWand,
+                        'Magic Wand',
+                        () => provider.addMagicWands(1),
+                      ),
+                    ),
+                    _ShopTile(
+                      icon: Icons.bolt_rounded,
+                      color: Colors.black87,
+                      name: 'Bomb',
+                      desc: 'Clear an area in one tap',
+                      cost: AppConstants.diamondCostBomb,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostBomb,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostBomb,
+                        'Bomb',
+                        () => provider.addBombs(1),
+                      ),
+                    ),
+                    _ShopTile(
+                      icon: Icons.brush_rounded,
+                      color: const Color(0xFF03A9F4),
+                      name: 'Brush',
+                      desc: 'Paint multiple cells at once',
+                      cost: AppConstants.diamondCostBrush,
+                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostBrush,
+                      onPurchase: () => _buyShopItem(
+                        s,
+                        AppConstants.diamondCostBrush,
+                        'Brush',
+                        () => provider.addBrushes(1),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Attempts a purchase: spends [cost] diamonds and runs [grant] on success.
+  /// Returns true if it went through, letting the tile play its buy animation.
+  bool _buyShopItem(
+    AppSettingsProvider settings,
+    int cost,
+    String name,
+    VoidCallback grant,
+  ) {
+    if (!settings.useDiamonds(cost)) return false;
+    grant();
+    HapticFeedback.mediumImpact();
+    return true;
   }
 
   /// One-line celebration summary, e.g. "248 cells · 8 colors · 12 min".
@@ -876,7 +1059,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     ),
                   ),
                   GestureDetector(
-                    onTap: () {},
+                    onTap: () => _showShop(provider, settings),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
@@ -1302,6 +1485,125 @@ class _HudAction extends StatelessWidget {
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A shop row that plays a satisfying buy animation — the icon pops and a
+/// green check sweeps in — when [onPurchase] reports a successful purchase.
+class _ShopTile extends StatefulWidget {
+  final IconData icon;
+  final Color color;
+  final String name;
+  final String desc;
+  final int cost;
+  final bool canAfford;
+
+  /// Performs the purchase; returns true if it succeeded (diamonds spent).
+  final bool Function() onPurchase;
+
+  const _ShopTile({
+    required this.icon,
+    required this.color,
+    required this.name,
+    required this.desc,
+    required this.cost,
+    required this.canAfford,
+    required this.onPurchase,
+  });
+
+  @override
+  State<_ShopTile> createState() => _ShopTileState();
+}
+
+class _ShopTileState extends State<_ShopTile>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pop;
+  late final Animation<double> _scale;
+  bool _justBought = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _pop = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 420),
+    );
+    // Bounce out and settle back: 1 → 1.35 → 1.
+    _scale = TweenSequence<double>([
+      TweenSequenceItem(
+        tween: Tween(begin: 1.0, end: 1.35)
+            .chain(CurveTween(curve: Curves.easeOut)),
+        weight: 40,
+      ),
+      TweenSequenceItem(
+        tween: Tween(begin: 1.35, end: 1.0)
+            .chain(CurveTween(curve: Curves.elasticOut)),
+        weight: 60,
+      ),
+    ]).animate(_pop);
+  }
+
+  @override
+  void dispose() {
+    _pop.dispose();
+    super.dispose();
+  }
+
+  void _handleTap() {
+    if (!widget.onPurchase()) return;
+    _pop.forward(from: 0);
+    setState(() => _justBought = true);
+    Future.delayed(const Duration(milliseconds: 1100), () {
+      if (mounted) setState(() => _justBought = false);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: ScaleTransition(
+        scale: _scale,
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            CircleAvatar(
+              backgroundColor: widget.color.withAlpha(40),
+              child: Icon(widget.icon, color: widget.color),
+            ),
+            // Green check sweeps over the icon right after a successful buy.
+            AnimatedOpacity(
+              opacity: _justBought ? 1 : 0,
+              duration: const Duration(milliseconds: 200),
+              child: const CircleAvatar(
+                backgroundColor: Color(0xFF00B894),
+                child: Icon(Icons.check_rounded, color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+      ),
+      title: Text(widget.name),
+      subtitle: Text(widget.desc),
+      trailing: ElevatedButton(
+        onPressed: widget.canAfford ? _handleTap : null,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppStyle.primary,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('${widget.cost}'),
+            const SizedBox(width: 4),
+            const Icon(Icons.diamond_rounded, size: 14),
+          ],
         ),
       ),
     );

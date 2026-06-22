@@ -60,4 +60,18 @@ class AppConstants {
 
   static const String magicWandsPrefKey = 'magic_wands_count';
   static const String hintsPrefKey = 'hints_available';
+
+  // --- Diamond economy ---
+  // Diamonds are earned by finishing artworks and spent in the in-canvas shop
+  // on tools and hints. Award flags are stored per-art so a piece only ever
+  // pays out once (re-completing after an erase won't double-reward).
+  static const int diamondsPerCompletion = 50;
+  static const int diamondsDailyBonus = 25;
+  static const String diamondsAwardedPrefix = 'diamonds_awarded_';
+
+  // Shop prices (in diamonds).
+  static const int diamondCostHint = 30;
+  static const int diamondCostWand = 40;
+  static const int diamondCostBomb = 40;
+  static const int diamondCostBrush = 40;
 }
