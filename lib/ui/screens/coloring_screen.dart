@@ -30,6 +30,7 @@ import '../../ui/widgets/confetti_overlay.dart';
 import '../../ui/widgets/reward_popup.dart';
 import '../../ui/widgets/coin_fly.dart';
 import '../../ui/widgets/fill_effects_overlay.dart';
+import '../../ui/widgets/fill_grow_controller.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -47,6 +48,11 @@ class _ColoringScreenState extends State<ColoringScreen>
       TransformationController();
   final GlobalKey _repaintKey = GlobalKey();
   final GlobalKey<FillEffectsOverlayState> _fxKey = GlobalKey();
+  // Per-cell "grow in" animation for tapped cells (strokes snap for perf).
+  late final FillGrowController _growController = FillGrowController(
+    widget.art.gridWidth,
+  );
+  late final AnimationController _growTicker;
   // Last cell painted (for the section-complete burst) and the highest combo
   // callout already shown this streak (so "Combo xN!" fires once per threshold).
   int _lastFillRow = 0;
@@ -96,6 +102,14 @@ class _ColoringScreenState extends State<ColoringScreen>
     _replayController.addStatusListener((status) {
       if (status == AnimationStatus.completed) _finishReplay();
     });
+    // Drives the per-cell grow-in repaint; repeats only while cells animate.
+    _growTicker = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..addListener(() {
+        _growController.handleTick(DateTime.now().millisecondsSinceEpoch);
+        if (_growController.isEmpty) _growTicker.stop();
+      });
     _gridFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -170,13 +184,25 @@ class _ColoringScreenState extends State<ColoringScreen>
     _lastFillCol = col;
     final color = provider.cellFillColor(row, col) ?? AppStyle.primary;
     final combo = provider.consecutiveFills;
+    final stroking = provider.isStroking;
+    // On taps the grid itself grows the cell in, so skip the overlay pop (it
+    // would mask the grow); keep ripple/splash/sparkle. Strokes have no grid
+    // grow, so they keep the lightweight pop.
     _fxKey.currentState?.spawn(
       row,
       col,
       color,
-      full: !provider.isStroking,
+      full: !stroking,
       combo: combo,
+      pop: stroking,
     );
+
+    // Grow the cell in — taps/hints only; strokes snap so fast swipes stay
+    // smooth (the grid would otherwise repaint-animate every swiped cell).
+    if (!stroking) {
+      _growController.add(row, col, DateTime.now().millisecondsSinceEpoch);
+      if (!_growTicker.isAnimating) _growTicker.repeat();
+    }
 
     // Combo callouts: fire once per crossed threshold; reset when the streak
     // drops back below what we last announced.
@@ -343,6 +369,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     _replayController.dispose();
     _gridFadeController.dispose();
     _zoomAnimController.dispose();
+    _growTicker.dispose();
+    _growController.dispose();
     super.dispose();
   }
 
@@ -1253,6 +1281,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 colorblindMode: settings.colorblindMode,
                 gridFade: _gridFadeController,
                 transform: _transformController,
+                fillGrow: _growController,
                 onCellTap: (row, col) => provider.tryFillCell(row, col),
                 onCellLongPress: (row, col) {
                   _showColorPreview(context, provider, row, col);

@@ -105,4 +105,9 @@ class AppConstants {
   static const int fillEffectStrokeThrottleMs = 45; // full effect rate on swipe
   // Combo "xN" callouts at these consecutive-fill counts.
   static const List<int> comboThresholds = [5, 10, 20, 35, 50];
+
+  // How long a cell takes to "grow in" from the preview to full color (taps
+  // only; strokes snap so fast swipes stay smooth). Cap bounds the registry.
+  static const int fillGrowMs = 220;
+  static const int fillGrowMaxCells = 64;
 }

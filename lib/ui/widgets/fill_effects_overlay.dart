@@ -100,7 +100,14 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
   /// set (pop + ripple + splash + sparkle). Mid-stroke fills ([full] = false)
   /// are rate-limited as a WHOLE — at most one light pop+sparkle per throttle
   /// window — so a fast swipe spawns a trail, not an effect per cell.
-  void spawn(int row, int col, Color color, {bool full = true, int combo = 0}) {
+  void spawn(
+    int row,
+    int col,
+    Color color, {
+    bool full = true,
+    int combo = 0,
+    bool pop = true,
+  }) {
     final now = _nowMs;
 
     if (!full) {
@@ -108,13 +115,15 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
         return; // skip entirely — keeps swipes cheap (no blur, no pile-up)
       }
       _lastFullSpawnMs = now;
-      _add(_FillEffect(
-        kind: _EffectKind.pop,
-        row: row,
-        col: col,
-        color: color,
-        startMs: now,
-      ));
+      if (pop) {
+        _add(_FillEffect(
+          kind: _EffectKind.pop,
+          row: row,
+          col: col,
+          color: color,
+          startMs: now,
+        ));
+      }
       _add(_FillEffect(
         kind: _EffectKind.sparkle,
         row: row,
@@ -128,13 +137,15 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     }
 
     _lastFullSpawnMs = now;
-    _add(_FillEffect(
-      kind: _EffectKind.pop,
-      row: row,
-      col: col,
-      color: color,
-      startMs: now,
-    ));
+    if (pop) {
+      _add(_FillEffect(
+        kind: _EffectKind.pop,
+        row: row,
+        col: col,
+        color: color,
+        startMs: now,
+      ));
+    }
     _add(_FillEffect(
       kind: _EffectKind.ripple,
       row: row,

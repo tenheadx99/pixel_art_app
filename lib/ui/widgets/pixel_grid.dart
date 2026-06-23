@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
+import 'fill_grow_controller.dart';
 
 class PixelGrid extends StatefulWidget {
   final ColoringProvider provider;
@@ -22,6 +23,11 @@ class PixelGrid extends StatefulWidget {
   /// hide and a grayscale preview appears when zoomed out) and, as a
   /// listenable, repaints the canvas per zoom frame without any setState.
   final ValueListenable<Matrix4>? transform;
+
+  /// Drives the per-cell "grow in" animation on freshly tapped cells. Also the
+  /// painter's repaint source while cells animate. Null disables the effect.
+  final FillGrowController? fillGrow;
+
   final void Function(int row, int col) onCellTap;
   final void Function(int row, int col)? onCellLongPress;
   final VoidCallback? onCellDragStart;
@@ -43,6 +49,7 @@ class PixelGrid extends StatefulWidget {
     required this.colorblindMode,
     this.gridFade,
     this.transform,
+    this.fillGrow,
     required this.onCellTap,
     this.onCellLongPress,
     this.onCellDragStart,
@@ -204,6 +211,7 @@ class _PixelGridState extends State<PixelGrid> {
                   colorblindMode: widget.colorblindMode,
                   gridFade: widget.gridFade,
                   transform: widget.transform,
+                  fillGrow: widget.fillGrow,
                   hoverRow: _hoverRow,
                   hoverCol: _hoverCol,
                   gemStyle:
@@ -248,6 +256,7 @@ class _PixelGridPainter extends CustomPainter {
   final bool colorblindMode;
   final Animation<double>? gridFade;
   final ValueListenable<Matrix4>? transform;
+  final FillGrowController? fillGrow;
   final int? hoverRow;
   final int? hoverCol;
 
@@ -269,10 +278,11 @@ class _PixelGridPainter extends CustomPainter {
     required this.colorblindMode,
     this.gridFade,
     this.transform,
+    this.fillGrow,
     this.hoverRow,
     this.hoverCol,
     this.gemStyle = false,
-  }) : super(repaint: Listenable.merge([gridFade, transform]));
+  }) : super(repaint: Listenable.merge([gridFade, transform, fillGrow]));
 
   /// Laid-out number labels, cached across frames and painter instances.
   /// Keyed by number, font size, and the quantized LOD fade step — without
@@ -465,6 +475,9 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
+    // Single clock read for any cells currently growing in (taps only).
+    final nowMs = fillGrow == null ? 0 : DateTime.now().millisecondsSinceEpoch;
+
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
         final expectedNumber = art.grid[row][col] as int;
@@ -482,20 +495,46 @@ class _PixelGridPainter extends CustomPainter {
 
         if (isFilled) {
           final color = filledColors[expectedNumber] ?? Colors.grey;
+          final grow = fillGrow == null
+              ? 1.0
+              : fillGrow!.factor(row, col, nowMs);
+          // While growing in, paint the preview underneath and scale the
+          // colour up from the cell centre so it reads as the colour dropping
+          // onto the numbered cell.
+          final drawRect = grow < 1.0
+              ? Rect.fromCenter(
+                  center: rect.center,
+                  width: rect.width * (0.12 + 0.88 * grow),
+                  height: rect.height * (0.12 + 0.88 * grow),
+                )
+              : rect;
+          if (grow < 1.0) {
+            cellPaint.color = Color.lerp(
+              _grayscalePreview(expectedNumber),
+              Colors.white,
+              detail,
+            )!;
+            canvas.drawRect(rect, cellPaint);
+          }
           if (gemStyle) {
-            _drawGem(canvas, rect, color, cellPaint);
+            _drawGem(canvas, drawRect, color, cellPaint);
             if (colorblindMode) {
-              _drawPattern(canvas, rect, expectedNumber, cw, ch);
+              _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
             }
           } else {
             cellPaint.color = color;
-            canvas.drawRect(rect, cellPaint);
+            canvas.drawRect(drawRect, cellPaint);
             if (colorblindMode) {
-              _drawPattern(canvas, rect, expectedNumber, cw, ch);
+              _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
             }
 
             canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.3),
+              Rect.fromLTWH(
+                drawRect.left,
+                drawRect.top,
+                drawRect.width,
+                drawRect.height * 0.3,
+              ),
               glossPaint,
             );
           }
