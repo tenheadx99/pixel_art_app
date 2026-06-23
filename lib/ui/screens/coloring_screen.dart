@@ -258,29 +258,19 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   /// Grants the mid-progress milestone gifts (30% → a bomb, 65% → diamonds) the
-  /// first time each threshold is reached. 100% is intentionally left to the
-  /// completion HUD so the finish isn't buried under stacked popups.
+  /// first time each threshold is reached. Rewards land with lightweight,
+  /// non-blocking feedback (a brief snackbar, plus a coin burst for diamonds) —
+  /// no modal dialog, so coloring is never interrupted. 100% is celebrated by
+  /// the completion HUD.
   void _checkMilestones(ColoringProvider provider, AppSettingsProvider settings) {
     if (provider.claimMilestone(30)) {
       provider.addBombs(AppConstants.milestone30Bomb);
-      showRewardPopup(
-        context,
-        icon: Icons.bolt_rounded,
-        title: 'Milestone Gift!',
-        subtitle: '30% done · +${AppConstants.milestone30Bomb} Bomb',
-        badgeColors: const [Color(0xFF00BCD4), Color(0xFF0097A7)],
-      );
+      _showInfoSnack('Milestone reached · +${AppConstants.milestone30Bomb} Bomb');
     }
     if (provider.claimMilestone(65)) {
       settings.addDiamonds(AppConstants.milestone65Diamonds);
       showCoinBurst(context);
-      showRewardPopup(
-        context,
-        icon: Icons.card_giftcard_rounded,
-        title: 'Milestone Gift!',
-        subtitle: '65% done · nice progress!',
-        diamonds: AppConstants.milestone65Diamonds,
-      );
+      _showInfoSnack('Milestone reached · +${AppConstants.milestone65Diamonds} 💎');
     }
   }
 
@@ -332,11 +322,19 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   @override
   void dispose() {
+    final provider = _coloringProvider;
+    // Only detach the shared-provider callbacks if this screen still owns it.
+    // "Next Artwork" uses pushReplacement, which rebinds these to the new
+    // screen BEFORE this old one is disposed — clearing them unconditionally
+    // would kill the next artwork's fill effects / sound / section haptics.
+    // (The per-instance listener is always safe to remove.)
+    if (provider != null && provider.currentArt?.id == widget.art.id) {
+      provider.onCellFilledCorrectly = null;
+      provider.onSectionCompleted = null;
+      provider.onCellFilledAt = null;
+    }
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
-    _coloringProvider?.onCellFilledCorrectly = null;
-    _coloringProvider?.onSectionCompleted = null;
-    _coloringProvider?.onCellFilledAt = null;
     _coloringProvider?.saveProgress();
     _coloringProvider?.removeListener(_onProviderChanged);
     _settings?.removeListener(_onSettingsChanged);

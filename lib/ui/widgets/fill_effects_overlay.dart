@@ -286,19 +286,27 @@ class _FillEffectsPainter extends CustomPainter {
     double t,
     Color color,
   ) {
-    // Overshoot then settle; a quick tinted "stamp" that fades out.
-    final s = Curves.elasticOut.transform(t);
-    final scale = 0.6 + 0.4 * s;
+    // A crisp, punchy bounce-in "stamp": completes in the first ~45% of the
+    // effect's life (snappy), overshoots past the cell edges so the motion is
+    // visible against neighbours, then settles to the exact cell size.
+    final pt = (t / 0.45).clamp(0.0, 1.0);
+    final s = Curves.elasticOut.transform(pt); // 0 -> 1 with overshoot
+    final scale = 0.7 + 0.55 * s; // grows past 1.0, springs back to ~1.0
     final side = cellPx * scale;
-    final alpha = ((1 - t) * 0.55).clamp(0.0, 1.0);
+    final radius = Radius.circular(cellPx * 0.16);
+    // Real cell color, opaque while popping then a quick fade at the tail.
+    final fade = pt < 0.75 ? 1.0 : (1 - (pt - 0.75) / 0.25);
+    final rect = Rect.fromCenter(center: c, width: side, height: side);
     paint
       ..style = PaintingStyle.fill
-      ..color = Color.lerp(color, Colors.white, 0.35)!.withValues(alpha: alpha);
-    final rect = Rect.fromCenter(center: c, width: side, height: side);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(rect, Radius.circular(cellPx * 0.18)),
-      paint,
-    );
+      ..color = color.withValues(alpha: (fade * 0.9).clamp(0.0, 1.0));
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), paint);
+    // White sheen flash on impact, gone within the first ~90ms-equivalent.
+    final sheen = (1 - pt / 0.35).clamp(0.0, 1.0);
+    if (sheen > 0) {
+      paint.color = Colors.white.withValues(alpha: sheen * 0.55);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), paint);
+    }
   }
 
   void _paintRipple(
