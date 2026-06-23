@@ -63,6 +63,13 @@ class SettingsSheet extends StatelessWidget {
                   value: settings.soundsEnabled,
                   onChanged: (_) => settings.toggleSounds(),
                 ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.auto_awesome_outlined),
+                  title: const Text('Fill effects'),
+                  subtitle: const Text('Pops, sparkles & combos while coloring'),
+                  value: settings.fillEffectsEnabled,
+                  onChanged: (_) => settings.toggleFillEffects(),
+                ),
                 if (settings.soundsEnabled)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),

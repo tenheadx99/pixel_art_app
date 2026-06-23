@@ -29,6 +29,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _colorblindMode = false;
   bool _hapticsEnabled = true;
   bool _soundsEnabled = true;
+  bool _fillEffectsEnabled = true;
   String _soundType = 'bubble_pop';
   bool _dailyRemindersEnabled = true;
   int _hintsAvailable = 0;
@@ -49,6 +50,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get colorblindMode => _colorblindMode;
   bool get hapticsEnabled => _hapticsEnabled;
   bool get soundsEnabled => _soundsEnabled;
+  bool get fillEffectsEnabled => _fillEffectsEnabled;
   String get soundType => _soundType;
   bool get dailyRemindersEnabled => _dailyRemindersEnabled;
   int get hintsAvailable => _hintsAvailable;
@@ -86,6 +88,10 @@ class AppSettingsProvider extends ChangeNotifier {
       defaultValue: true,
     );
     _soundsEnabled = _storageService.getBool('sounds_enabled', defaultValue: true);
+    _fillEffectsEnabled = _storageService.getBool(
+      'fill_effects_enabled',
+      defaultValue: true,
+    );
     _soundType = _storageService.getString('sound_type', defaultValue: 'bubble_pop');
     _dailyRemindersEnabled = _storageService.getBool(
       _dailyRemindersPrefKey,
@@ -149,6 +155,12 @@ class AppSettingsProvider extends ChangeNotifier {
   void toggleSounds() {
     _soundsEnabled = !_soundsEnabled;
     _storageService.setBool('sounds_enabled', _soundsEnabled);
+    notifyListeners();
+  }
+
+  void toggleFillEffects() {
+    _fillEffectsEnabled = !_fillEffectsEnabled;
+    _storageService.setBool('fill_effects_enabled', _fillEffectsEnabled);
     notifyListeners();
   }
 

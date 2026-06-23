@@ -44,6 +44,10 @@ class ColoringProvider extends ChangeNotifier {
 
   VoidCallback? onCellFilledCorrectly;
   VoidCallback? onSectionCompleted;
+  // Fired with the grid coords of a just-filled cell so the UI can spawn a
+  // joyful fill effect there. Mass fills (wand/bomb/fill-all) skip this to
+  // avoid flooding the effect layer.
+  void Function(int row, int col)? onCellFilledAt;
 
   Set<int> _getCompletedNumbers() {
     final completed = <int>{};
@@ -142,6 +146,7 @@ class ColoringProvider extends ChangeNotifier {
   int get totalFillCount => _totalFillCount;
   int get totalEraseCount => _totalEraseCount;
   int get consecutiveFills => _consecutiveFills;
+  bool get isStroking => _inStroke;
   List<(int, int)> get timeLapse => _timeLapse;
   Set<String> get achievements => _achievements;
   String? get lastUnlockedAchievement => _lastUnlockedAchievement;
@@ -407,6 +412,7 @@ class ColoringProvider extends ChangeNotifier {
           _timeLapse.add((r, c));
           anyFilled = true;
           onCellFilledCorrectly?.call();
+          onCellFilledAt?.call(r, c);
         }
       }
 
@@ -489,6 +495,7 @@ class ColoringProvider extends ChangeNotifier {
           _timeLapse.add((r, c));
           changed = true;
           onCellFilledCorrectly?.call();
+          onCellFilledAt?.call(r, c);
         }
       }
     }
@@ -569,6 +576,7 @@ class ColoringProvider extends ChangeNotifier {
     _haptic(HapticFeedback.lightImpact);
     _totalFillCount++;
     onCellFilledCorrectly?.call();
+    onCellFilledAt?.call(r, c);
     _calculateProgress();
     _checkCompletion();
     _checkAchievements();

@@ -29,6 +29,7 @@ import '../../ui/widgets/number_toolbar.dart';
 import '../../ui/widgets/confetti_overlay.dart';
 import '../../ui/widgets/reward_popup.dart';
 import '../../ui/widgets/coin_fly.dart';
+import '../../ui/widgets/fill_effects_overlay.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -45,6 +46,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   final TransformationController _transformController =
       TransformationController();
   final GlobalKey _repaintKey = GlobalKey();
+  final GlobalKey<FillEffectsOverlayState> _fxKey = GlobalKey();
+  // Last cell painted (for the section-complete burst) and the highest combo
+  // callout already shown this streak (so "Combo xN!" fires once per threshold).
+  int _lastFillRow = 0;
+  int _lastFillCol = 0;
+  int _comboThresholdShown = 0;
   late AnimationController _confettiController;
   late AnimationController _replayController;
   late AnimationController _gridFadeController;
@@ -139,9 +146,47 @@ class _ColoringScreenState extends State<ColoringScreen>
           if (_settings?.hapticsEnabled ?? true) {
             _playSectionCompletedHaptic();
           }
-        };
+          // Celebrate a finished color with a bigger sparkle at the last cell.
+          if (_settings?.fillEffectsEnabled ?? true) {
+            final color =
+                provider.cellFillColor(_lastFillRow, _lastFillCol) ??
+                Colors.amber;
+            _fxKey.currentState?.spawnBurst(_lastFillRow, _lastFillCol, color);
+          }
+        }
+        ..onCellFilledAt = _onCellFilledAt;
       _maybeShowLongPressTip();
     });
+  }
+
+  /// Spawns a joyful flourish at a just-filled cell. Single taps/hints get the
+  /// full effect; mid-stroke fills get a throttled lighter version. Combo
+  /// callouts fire once each time the streak crosses a threshold.
+  void _onCellFilledAt(int row, int col) {
+    if (!(_settings?.fillEffectsEnabled ?? true)) return;
+    final provider = _coloringProvider;
+    if (provider == null) return;
+    _lastFillRow = row;
+    _lastFillCol = col;
+    final color = provider.cellFillColor(row, col) ?? AppStyle.primary;
+    final combo = provider.consecutiveFills;
+    _fxKey.currentState?.spawn(
+      row,
+      col,
+      color,
+      full: !provider.isStroking,
+      combo: combo,
+    );
+
+    // Combo callouts: fire once per crossed threshold; reset when the streak
+    // drops back below what we last announced.
+    if (combo < _comboThresholdShown) _comboThresholdShown = 0;
+    for (final threshold in AppConstants.comboThresholds) {
+      if (combo >= threshold && threshold > _comboThresholdShown) {
+        _comboThresholdShown = threshold;
+        _fxKey.currentState?.spawnComboText(row, col, combo);
+      }
+    }
   }
 
   /// Reacts to provider events: achievement unlocks and the
@@ -291,6 +336,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     // leaving are never lost (e.g. a quick back-press after painting).
     _coloringProvider?.onCellFilledCorrectly = null;
     _coloringProvider?.onSectionCompleted = null;
+    _coloringProvider?.onCellFilledAt = null;
     _coloringProvider?.saveProgress();
     _coloringProvider?.removeListener(_onProviderChanged);
     _settings?.removeListener(_onSettingsChanged);
@@ -379,6 +425,20 @@ class _ColoringScreenState extends State<ColoringScreen>
               child: Stack(
                 children: [
                   if (isCurrentArt) _buildGrid(provider, settings),
+
+                  // Joyful fill effects, layered directly above the grid and
+                  // glued to cells via the shared transform.
+                  if (isCurrentArt && settings.fillEffectsEnabled)
+                    Positioned.fill(
+                      child: FillEffectsOverlay(
+                        key: _fxKey,
+                        transformController: _transformController,
+                        cellSize: _cellSize,
+                        viewerSize: _viewerSize,
+                        gridWidth: widget.art.gridWidth,
+                        gridHeight: widget.art.gridHeight,
+                      ),
+                    ),
 
                   // 1. Top Bar (Overlay)
                   Positioned(

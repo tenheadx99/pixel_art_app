@@ -98,4 +98,11 @@ class AppConstants {
   // --- Other reward hooks ---
   static const int diamondsPerAchievement = 15;
   static const int doubleRewardMultiplier = 2; // "watch ad to 2x" payout
+
+  // --- Joyful fill effects (overlay above the grid) ---
+  static const int fillEffectLifetimeMs = 600; // how long one effect lives
+  static const int fillEffectMaxConcurrent = 28; // hard cap (perf guard)
+  static const int fillEffectStrokeThrottleMs = 45; // full effect rate on swipe
+  // Combo "xN" callouts at these consecutive-fill counts.
+  static const List<int> comboThresholds = [5, 10, 20, 35, 50];
 }
