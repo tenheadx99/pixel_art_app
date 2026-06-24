@@ -80,7 +80,7 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
-            resValue("string", "app_name", "PixelPause")
+            resValue("string", "app_name", "Pixely")
         }
         // "Divine Pixels" — Indian god & goddess devotional flavor.
         create("devotional") {
