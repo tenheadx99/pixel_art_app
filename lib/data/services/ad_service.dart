@@ -1,4 +1,7 @@
+import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:ui' show VoidCallback;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
@@ -27,8 +30,72 @@ class AdService {
   Future<void> initialize() async {
     if (_initialized) return;
     if (!_adsEnabled) return;
+    // AdMob/GDPR: gather consent via the UMP SDK before initializing ads, so
+    // EEA/UK users see the consent form before any ad request is made.
+    await _gatherConsent();
     await MobileAds.instance.initialize();
     _initialized = true;
+  }
+
+  /// Runs the Google UMP consent flow. Requests an info update, then loads and
+  /// shows the consent form if one is required (manual flow — google_mobile_ads
+  /// 4.x has no one-shot helper). Fail-open: if the update/form errors we still
+  /// proceed (the SDK serves limited/non-personalized ads where allowed). In
+  /// debug builds it forces EEA geography so the form can be exercised.
+  Future<void> _gatherConsent() async {
+    final params = ConsentRequestParameters(
+      consentDebugSettings: kDebugMode
+          ? ConsentDebugSettings(
+              debugGeography: DebugGeography.debugGeographyEea,
+              // Add your test device's UMP id here while testing the form.
+              testIdentifiers: const [],
+            )
+          : null,
+    );
+    final completer = Completer<void>();
+    ConsentInformation.instance.requestConsentInfoUpdate(
+      params,
+      () async {
+        try {
+          final status = await ConsentInformation.instance.getConsentStatus();
+          final available =
+              await ConsentInformation.instance.isConsentFormAvailable();
+          if (status == ConsentStatus.required && available) {
+            await _loadAndShowConsentForm();
+          }
+        } catch (e) {
+          developer.log('UMP consent handling failed', name: 'Ads', error: e);
+        }
+        if (!completer.isCompleted) completer.complete();
+      },
+      (FormError error) {
+        developer.log(
+          'UMP consent info update failed: ${error.message}',
+          name: 'Ads',
+        );
+        if (!completer.isCompleted) completer.complete();
+      },
+    );
+    await completer.future;
+  }
+
+  Future<void> _loadAndShowConsentForm() {
+    final formCompleter = Completer<void>();
+    ConsentForm.loadConsentForm(
+      (ConsentForm form) {
+        form.show((FormError? error) {
+          if (error != null) {
+            developer.log('UMP form show error: ${error.message}', name: 'Ads');
+          }
+          if (!formCompleter.isCompleted) formCompleter.complete();
+        });
+      },
+      (FormError error) {
+        developer.log('UMP form load error: ${error.message}', name: 'Ads');
+        if (!formCompleter.isCompleted) formCompleter.complete();
+      },
+    );
+    return formCompleter.future;
   }
 
   // --- Interstitial (session-exit, frequency capped) ---

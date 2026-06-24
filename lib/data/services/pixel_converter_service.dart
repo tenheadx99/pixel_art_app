@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pixel_art_app/config/flavor.dart';
@@ -67,8 +68,9 @@ class PixelConverterService {
         final json = jsonDecode(content) as Map<String, dynamic>;
         arts.add(PixelArt.fromJson(json));
       }
-    } catch (e) {
-      debugPrint('loadPreMadeAssets error: $e');
+    } catch (e, st) {
+      developer.log('loadPreMadeAssets error',
+          name: 'PixelConverter', error: e, stackTrace: st);
     }
     return arts;
   }

@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../data/models/pixel_art.dart';
@@ -47,8 +48,9 @@ class CameraProvider extends ChangeNotifier {
         gridHeight: _gridSize,
         maxColors: _maxColors,
       );
-    } catch (e) {
-      debugPrint('Conversion failed: $e');
+    } catch (e, st) {
+      developer.log('Photo-to-pixel conversion failed',
+          name: 'CameraProvider', error: e, stackTrace: st);
     }
 
     _isConverting = false;

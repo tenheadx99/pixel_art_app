@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'config/app_constants.dart';
 import 'config/app_config.dart';
@@ -50,8 +51,20 @@ bool isVersionOlder(String current, String required) {
   return false;
 }
 
+/// True once Firebase has been initialized in [bootstrapApp] so the per-app
+/// bootstrap can skip re-initializing it (a second init throws duplicate-app).
+bool _firebaseReady = false;
+
 Future<void> main() async {
-  await bootstrapApp();
+  // Catch async errors outside the Flutter framework and route them to
+  // Crashlytics (when available); the body's own try/catch keeps boot resilient.
+  runZonedGuarded(() async {
+    await bootstrapApp();
+  }, (error, stack) {
+    if (_firebaseReady) {
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+    }
+  });
 }
 
 /// Shared entrypoint logic used by every flavor's `main_*.dart`. The active
@@ -62,6 +75,28 @@ Future<void> bootstrapApp() async {
   final flavor = FlavorConfig.current;
   AppConfig.disableAds = !flavor.adsEnabled;
   AppConfig.disableIap = !flavor.iapEnabled;
+
+  // Initialize Firebase early so Crashlytics can capture errors from the very
+  // start. Guarded so a Firebase misconfig never blocks core gameplay.
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    _firebaseReady = true;
+    final crashlytics = FirebaseCrashlytics.instance;
+    // Framework (build/layout/paint) errors → Crashlytics.
+    FlutterError.onError = crashlytics.recordFlutterFatalError;
+    // Uncaught errors on the platform dispatcher → Crashlytics.
+    WidgetsBinding.instance.platformDispatcher.onError = (error, stack) {
+      crashlytics.recordError(error, stack, fatal: true);
+      return true;
+    };
+  } catch (e, st) {
+    FlutterError.presentError(
+      FlutterErrorDetails(exception: e, stack: st, library: 'bootstrap'),
+    );
+  }
+
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
@@ -102,6 +137,7 @@ class _AppBootstrapState extends State<AppBootstrap>
   AppDependencies? _dependencies;
   List<PixelArt> _preMadeArts = [];
   bool _ready = false;
+  bool _bootstrapError = false;
   bool _forceUpdateRequired = false;
   String _updateUrl = '';
 
@@ -124,19 +160,33 @@ class _AppBootstrapState extends State<AppBootstrap>
     }
   }
 
+  /// Wraps the real bootstrap with a timeout + catch so the splash always
+  /// resolves: either into the app or a recoverable error screen (rather than
+  /// freezing forever if a step hangs or a critical service throws).
   Future<void> _bootstrap() async {
+    try {
+      await _runBootstrap().timeout(const Duration(seconds: 25));
+    } catch (e, st) {
+      if (_firebaseReady) {
+        FirebaseCrashlytics.instance
+            .recordError(e, st, reason: 'bootstrap failed');
+      }
+      if (!mounted) return;
+      setState(() => _bootstrapError = true);
+    }
+  }
+
+  Future<void> _runBootstrap() async {
     final localStorageService = LocalStorageService();
     await localStorageService.init();
 
-    // Initialize Firebase and Remote Config before setting up dependencies and ads
+    // Remote Config + force-update check. Firebase itself is initialized earlier
+    // in bootstrapApp(); these are non-critical, so failures fall back to
+    // defaults without blocking the app.
     try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
       final remoteConfig = RemoteConfigService();
       await remoteConfig.initialize();
 
-      // Check for force update
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
       final minVersion = remoteConfig.minRequiredVersion;
@@ -146,7 +196,7 @@ class _AppBootstrapState extends State<AppBootstrap>
         _updateUrl = remoteConfig.forceUpdateUrl;
       }
     } catch (e) {
-      // Safe fallback if Firebase or PackageInfo is not fully configured yet
+      // Remote Config/PackageInfo are non-critical; continue with defaults.
     }
 
     final soundService = SoundService();
@@ -195,6 +245,17 @@ class _AppBootstrapState extends State<AppBootstrap>
 
   @override
   Widget build(BuildContext context) {
+    if (_bootstrapError) {
+      return _AppShell(
+        child: _BootstrapErrorScreen(
+          onRetry: () {
+            setState(() => _bootstrapError = false);
+            _bootstrap();
+          },
+        ),
+      );
+    }
+
     if (!_ready || _dependencies == null) {
       return const _AppShell(
         child: SplashScreen(loadingMessage: 'Preparing Pixel Art...'),
@@ -246,6 +307,49 @@ class _AppBootstrapState extends State<AppBootstrap>
         ),
       ],
       child: const _AppShellWithDeps(),
+    );
+  }
+}
+
+/// Shown when bootstrap fails or times out, instead of an endless splash.
+/// Offers a retry so a transient failure (e.g. cold start while offline) is
+/// recoverable without a force-kill.
+class _BootstrapErrorScreen extends StatelessWidget {
+  final VoidCallback onRetry;
+
+  const _BootstrapErrorScreen({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.error_outline, size: 56),
+              const SizedBox(height: 16),
+              Text(
+                'Something went wrong while starting up.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please check your connection and try again.',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: onRetry,
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,6 +1,8 @@
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:pixel_art_app/config/app_config.dart';
+import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/config/flavor.dart';
 
 class RemoteConfigService {
@@ -88,22 +90,29 @@ class RemoteConfigService {
 
   String get forceUpdateUrl => _getString('force_update_url');
 
+  // Debug builds always use Google's sample test ad units so development never
+  // generates invalid traffic / self-clicks on the live AdMob account. Release
+  // builds use Remote Config (with the production unit as fallback).
   String get bannerAdUnitId {
+    if (kDebugMode) return AppConstants.bannerAdUnitId;
     final id = _getString('banner_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/7511066180';
   }
 
   String get interstitialAdUnitId {
+    if (kDebugMode) return AppConstants.interstitialAdUnitId;
     final id = _getString('interstitial_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/6197984517';
   }
 
   String get rewardedAdUnitId {
+    if (kDebugMode) return AppConstants.rewardedAdUnitId;
     final id = _getString('rewarded_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/4884902843';
   }
 
   String get appOpenAdUnitId {
+    if (kDebugMode) return AppConstants.appOpenAdUnitId;
     final id = _getString('app_open_ad_unit_id');
     return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/4258216888';
   }
