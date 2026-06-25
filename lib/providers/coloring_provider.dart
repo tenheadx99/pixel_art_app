@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:vibration/vibration.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
@@ -129,7 +132,44 @@ class ColoringProvider extends ChangeNotifier {
     }
   }
 
-  ColoringProvider(this._storageService);
+  ColoringProvider(this._storageService) {
+    _initVibration();
+  }
+
+  // --- Reliable haptics ---
+  // Flutter's HapticFeedback impact calls map to View.performHapticFeedback,
+  // which many Android OEMs implement weakly or not at all. To guarantee a
+  // felt buzz we drive the device Vibrator directly via the `vibration`
+  // package (Android), falling back to the OS haptic engine on iOS.
+  bool _hasVibrator = false;
+  bool _hasAmplitudeControl = false;
+
+  Future<void> _initVibration() async {
+    if (kIsWeb || !Platform.isAndroid) return;
+    try {
+      _hasVibrator = await Vibration.hasVibrator();
+      _hasAmplitudeControl = await Vibration.hasAmplitudeControl();
+    } catch (_) {
+      _hasVibrator = false;
+    }
+  }
+
+  bool get _hapticsOn =>
+      _storageService.getBool('haptics_enabled', defaultValue: true);
+
+  /// Medium-strength buzz on each cell fill. Uses an explicit amplitude where
+  /// supported so it's reliably felt regardless of OEM haptic quirks.
+  void _fillVibrate() {
+    if (!_hapticsOn) return;
+    if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
+      Vibration.vibrate(
+        duration: 35,
+        amplitude: _hasAmplitudeControl ? 160 : -1, // ~medium
+      );
+    } else {
+      HapticFeedback.mediumImpact();
+    }
+  }
 
   PixelArt? get currentArt => _currentArt;
   List<List<int>> get filledGrid => _filledGrid;
@@ -421,7 +461,7 @@ class ColoringProvider extends ChangeNotifier {
         return false;
       }
 
-      _haptic(HapticFeedback.selectionClick);
+      _fillVibrate();
 
       _totalFillCount++;
       _consecutiveFills++;
@@ -519,7 +559,7 @@ class ColoringProvider extends ChangeNotifier {
       _consecutiveFills = 0;
       _isComplete = false;
     } else {
-      _haptic(HapticFeedback.selectionClick);
+      _fillVibrate();
       _totalFillCount++;
       _consecutiveFills++;
       if (_brushSize > 1) {
@@ -573,7 +613,7 @@ class ColoringProvider extends ChangeNotifier {
     _highlightedNumber = number;
     _filledGrid[r][c] = number;
     _timeLapse.add((r, c));
-    _haptic(HapticFeedback.selectionClick);
+    _fillVibrate();
     _totalFillCount++;
     onCellFilledCorrectly?.call();
     onCellFilledAt?.call(r, c);

@@ -7,6 +7,8 @@
     <!-- Required by Firebase, Remote Config, Google Mobile Ads and IAP.
          Declared explicitly rather than relying on plugin manifest merge. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Haptic feedback on cell fills (Vibrator-backed impact haptics). -->
+    <uses-permission android:name="android.permission.VIBRATE"/>
     <application
         android:label="@string/app_name"
         android:name="${applicationName}"
