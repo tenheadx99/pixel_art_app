@@ -11,13 +11,13 @@ platform :android do
   desc "Build signed release AAB"
   lane :build_signed do
     sh("flutter", "pub", "get")
-    sh("flutter", "build", "appbundle", "--release")
+    sh("flutter", "build", "appbundle", "--release", "--flavor", "original")
   end
 
   desc "Build signed APK"
   lane :build_signed_apk do
     sh("flutter", "pub", "get")
-    sh("flutter", "build", "apk", "--release")
+    sh("flutter", "build", "apk", "--release", "--flavor", "original")
   end
 
   desc "Sync text metadata from Metadata.json"
@@ -95,7 +95,7 @@ platform :android do
     upload_params = {
       track: "production",
       release_status: "completed",
-      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "release", "app-release.aab"),
+      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "originalRelease", "app-original-release.aab"),
       skip_upload_apk: true,
       skip_upload_metadata: false,
       skip_upload_images: false,
@@ -124,7 +124,7 @@ platform :android do
     end
 
     # Build the signed release AAB if it does not exist
-    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "release", "app-release.aab")
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "originalRelease", "app-original-release.aab")
     if File.exist?(aab_path)
       UI.message("Signed App Bundle (.aab) already exists at #{aab_path}. Skipping rebuild!")
     else
@@ -135,7 +135,7 @@ platform :android do
     upload_params = {
       track: "production",
       release_status: "completed",
-      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "release", "app-release.aab"),
+      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "originalRelease", "app-original-release.aab"),
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_images: true,
