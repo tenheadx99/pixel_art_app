@@ -421,7 +421,7 @@ class ColoringProvider extends ChangeNotifier {
         return false;
       }
 
-      _haptic(HapticFeedback.lightImpact);
+      _haptic(HapticFeedback.selectionClick);
 
       _totalFillCount++;
       _consecutiveFills++;
@@ -519,7 +519,7 @@ class ColoringProvider extends ChangeNotifier {
       _consecutiveFills = 0;
       _isComplete = false;
     } else {
-      _haptic(HapticFeedback.lightImpact);
+      _haptic(HapticFeedback.selectionClick);
       _totalFillCount++;
       _consecutiveFills++;
       if (_brushSize > 1) {
@@ -573,7 +573,7 @@ class ColoringProvider extends ChangeNotifier {
     _highlightedNumber = number;
     _filledGrid[r][c] = number;
     _timeLapse.add((r, c));
-    _haptic(HapticFeedback.lightImpact);
+    _haptic(HapticFeedback.selectionClick);
     _totalFillCount++;
     onCellFilledCorrectly?.call();
     onCellFilledAt?.call(r, c);

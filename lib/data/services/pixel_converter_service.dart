@@ -16,14 +16,13 @@ class PixelConverterService {
     int gridHeight = 32,
     int maxColors = 16,
   }) async {
-    final imgSrc = _imageProcessing.loadImageFromBytes(imageBytes);
-    final resized = _imageProcessing.downscaleToGrid(
-      imgSrc,
-      gridWidth,
-      gridHeight,
+    // Decode/downscale/quantize is CPU-heavy (~100-200ms for large photos) and
+    // would freeze the import screen, so run it on a background isolate. Only
+    // primitive results cross the boundary; the ui.Color map is built here.
+    final (grid, quantizedMap) = await compute(
+      _convertPhotoIsolate,
+      (imageBytes, gridWidth, gridHeight, maxColors),
     );
-    final quantizedMap = _imageProcessing.quantizeColors(resized, maxColors);
-    final grid = _imageProcessing.buildGridFromImage(resized, quantizedMap);
     final colorMap = _imageProcessing.buildColorMap(quantizedMap);
 
     colorMap.remove(0);
@@ -56,22 +55,49 @@ class PixelConverterService {
   }
 
   Future<List<PixelArt>> loadPreMadeAssets() async {
-    final arts = <PixelArt>[];
     try {
       final manifestJson = await rootBundle.loadString(
         FlavorConfig.current.manifestPath,
       );
       final manifest = jsonDecode(manifestJson) as List<dynamic>;
-      for (final entry in manifest) {
-        final path = entry as String;
-        final content = await rootBundle.loadString(path);
-        final json = jsonDecode(content) as Map<String, dynamic>;
-        arts.add(PixelArt.fromJson(json));
-      }
+      // Load every asset concurrently rather than awaiting each in turn — the
+      // bundle reads are I/O-bound, so this cuts cold-start catalog load time.
+      // Future.wait preserves manifest order; failed entries become null.
+      final results = await Future.wait(
+        manifest.map((entry) => _loadAsset(entry as String)),
+      );
+      return results.whereType<PixelArt>().toList();
     } catch (e, st) {
       developer.log('loadPreMadeAssets error',
           name: 'PixelConverter', error: e, stackTrace: st);
+      return <PixelArt>[];
     }
-    return arts;
   }
+
+  Future<PixelArt?> _loadAsset(String path) async {
+    try {
+      final content = await rootBundle.loadString(path);
+      final json = jsonDecode(content) as Map<String, dynamic>;
+      return PixelArt.fromJson(json);
+    } catch (e, st) {
+      developer.log('loadPreMadeAssets entry failed: $path',
+          name: 'PixelConverter', error: e, stackTrace: st);
+      return null;
+    }
+  }
+}
+
+/// Runs on a background isolate via [compute]. Does the heavy image work and
+/// returns only sendable primitives — the (grid, quantized-color) maps — so the
+/// caller can rebuild the ui.Color map on the main isolate.
+(List<List<int>>, Map<int, int>) _convertPhotoIsolate(
+  (Uint8List, int, int, int) args,
+) {
+  final (bytes, gridWidth, gridHeight, maxColors) = args;
+  final processing = ImageProcessingService();
+  final imgSrc = processing.loadImageFromBytes(bytes);
+  final resized = processing.downscaleToGrid(imgSrc, gridWidth, gridHeight);
+  final quantizedMap = processing.quantizeColors(resized, maxColors);
+  final grid = processing.buildGridFromImage(resized, quantizedMap);
+  return (grid, quantizedMap);
 }
