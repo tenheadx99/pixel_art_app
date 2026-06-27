@@ -41,13 +41,17 @@ class AppConstants {
     16: Color(0xFF888888),
   };
 
-  static const String bannerAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
+  // Production AdMob unit IDs — used as local fallback when Remote Config
+  // has not yet fetched / has no value. These must match the defaults set in
+  // remote_config_service.dart so both paths serve real (non-test) ads.
+  static const String bannerAdUnitId =
+      'ca-app-pub-9064606616675657/7511066180';
   static const String interstitialAdUnitId =
-      'ca-app-pub-3940256099942544/1033173712';
+      'ca-app-pub-9064606616675657/6197984517';
   static const String rewardedAdUnitId =
-      'ca-app-pub-3940256099942544/5224354917';
+      'ca-app-pub-9064606616675657/4884902843';
   static const String appOpenAdUnitId =
-      'ca-app-pub-3940256099942544/3419835294';
+      'ca-app-pub-9064606616675657/4258216888';
 
   static const String proProductId = 'pixel_art_pro';
   static const String hintProductId = 'pixel_art_hints_5';

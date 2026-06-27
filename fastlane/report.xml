@@ -5,12 +5,42 @@
     
     
       
-      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000438603">
+      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000257005">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="1: upload_to_play_store" time="38.021608533">
+      <testcase classname="fastlane.lanes" name="1: Switch to android sync_metadata lane" time="0.000981194">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="2: Switch to android sync_text_metadata lane" time="0.000656768">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="3: Switch to android sync_screenshots lane" time="0.000267225">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="4: Switch to android build_signed lane" time="0.000169969">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="5: flutter pub get" time="2.206125747">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="6: flutter build appbundle --release --flavor original" time="223.316314822">
+        
+      </testcase>
+    
+      
+      <testcase classname="fastlane.lanes" name="7: upload_to_play_store" time="94.066540179">
         
       </testcase>
     
