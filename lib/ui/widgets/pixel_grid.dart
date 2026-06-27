@@ -441,11 +441,14 @@ class _PixelGridPainter extends CustomPainter {
     final cellPaint = Paint();
     final glossPaint = Paint()
       ..color = Colors.white.withAlpha((30 * gridLineOpacity).round());
+    // Flat translucent accent (no MaskFilter.blur). A blurred glow here is
+    // drawn per visible cell of the selected number every frame, which is a
+    // heavy raster cost; a solid fill reads almost identically for a fraction
+    // of the GPU time.
     final glowPaint = Paint()
       ..color =
           (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
-              .withAlpha(30)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4);
+              .withAlpha(36);
 
     // Numbers share one font size per artwork; quantize the fade so cached
     // TextPainters can be reused across frames.

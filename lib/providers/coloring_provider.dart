@@ -162,10 +162,18 @@ class ColoringProvider extends ChangeNotifier {
   void _fillVibrate() {
     if (!_hapticsOn) return;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
-      Vibration.vibrate(
-        duration: 35,
-        amplitude: _hasAmplitudeControl ? 160 : -1, // ~medium
-      );
+      try {
+        Vibration.vibrate(
+          duration: 35,
+          amplitude: _hasAmplitudeControl ? 160 : -1, // ~medium
+        ).catchError((_) {
+          // Fallback to standard Flutter haptics if native vibration fails
+          HapticFeedback.mediumImpact();
+        });
+      } catch (_) {
+        // Fallback for synchronous exceptions
+        HapticFeedback.mediumImpact();
+      }
     } else {
       HapticFeedback.mediumImpact();
     }
@@ -240,8 +248,28 @@ class ColoringProvider extends ChangeNotifier {
 
   @override
   void dispose() {
+    _disposed = true;
     _saveTimer?.cancel();
     super.dispose();
+  }
+
+  // --- Frame-coalesced updates ---
+  // The whole coloring screen listens to this provider, so notifying per filled
+  // cell rebuilt the entire widget tree on every pointer move (drags fire
+  // 100+/sec) and saturated the UI thread. Coalesce stroke updates to at most
+  // one rebuild per frame.
+  bool _disposed = false;
+  bool _strokeFlushScheduled = false;
+
+  void _scheduleStrokeFlush() {
+    if (_strokeFlushScheduled) return;
+    _strokeFlushScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _strokeFlushScheduled = false;
+      if (_disposed) return;
+      _calculateProgress();
+      notifyListeners();
+    });
   }
 
   void loadProgress() {
@@ -541,8 +569,7 @@ class ColoringProvider extends ChangeNotifier {
     }
     if (changed) {
       _strokeChanged = true;
-      _calculateProgress();
-      notifyListeners();
+      _scheduleStrokeFlush();
     }
   }
 

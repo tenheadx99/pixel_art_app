@@ -1,6 +1,5 @@
 import 'dart:io';
 import 'dart:math';
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -1151,12 +1150,13 @@ class _ColoringScreenState extends State<ColoringScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
+      // BackdropFilter removed: a persistent real-time blur here re-rasterized
+      // the whole backdrop every frame (major raster-thread cost). A near-opaque
+      // solid panel gives the same legibility for almost no GPU cost.
+      child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           decoration: BoxDecoration(
-            color: isDark ? Colors.black.withAlpha(140) : Colors.white.withAlpha(200),
+            color: isDark ? Colors.black.withAlpha(215) : Colors.white.withAlpha(236),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
               color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
@@ -1250,7 +1250,6 @@ class _ColoringScreenState extends State<ColoringScreen>
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -1373,12 +1372,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
+      // BackdropFilter removed: the persistent real-time backdrop blur was a
+      // major raster-thread cost. Near-opaque solid panel instead.
+      child: Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
           decoration: BoxDecoration(
-            color: isDark ? Colors.black.withAlpha(140) : Colors.white.withAlpha(210),
+            color: isDark ? Colors.black.withAlpha(222) : Colors.white.withAlpha(240),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
             border: Border(
               top: BorderSide(
@@ -1414,7 +1413,6 @@ class _ColoringScreenState extends State<ColoringScreen>
             ],
           ),
         ),
-      ),
     );
   }
 
