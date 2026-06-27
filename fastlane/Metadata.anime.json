@@ -1,8 +1,25 @@
 {
   "en-US": {
-    "title": "Anime Pixels: Cute Color",
+    "title": "Anime Color: Kawaii Pixel Art",
     "short_description": "Color cute anime, manga & chibi characters by number. Easy & relaxing offline!",
     "full_description": "Welcome to Anime Pixels – the ultimate kawaii color by number game for anime and manga lovers! Bring beautiful chibi characters, heroes, school girls, magical creatures, and gorgeous manga scenes to life, one pixel at a time. Tap the numbers, relax, and let your creativity sparkle. No internet required – color anytime, anywhere, completely offline!\n\nWhether you are a seasoned otaku, a casual manga reader, or someone who loves cute (kawaii) art, Anime Pixels offers a fun and relaxing escape into the colorful world of anime.\n\n---\n\n🌸 A KAWAII COLORING GALLERY\n\n• Chibi & Heroes: Cute chibi warriors, magical girls, cool school heroes, and ninjas.\n• Cute Animals & Companions: Pixelated neko cats, fox girls, pandas, and fantasy creatures.\n• Delicious Treats: Onigiri, ice cream, bubble tea, ramen, and cute sweets.\n• Manga Scenes: Beautiful landscapes, speech bubbles, starry skies, and romantic anime vibes.\n• Easy levels to complex masterpieces: Perfect for a quick break or a long relaxing session.\n\n✨ WHY YOU'LL LOVE ANIME PIXELS\n\n• 100% Offline: Color on the train, in school, during your commute, or in bed — no Wi-Fi or data needed!\n• Simple & Addictive: Just tap the matching numbers to fill in the colors. Super satisfying and stress-free.\n• Gorgeous Pastel Theme: A clean, eye-catching visual interface designed specifically for anime fans.\n• Fun tools to help you color: Use the Magic Wand, Paint Bomb, and Color Brush to color faster.\n• Free regular updates: Fresh cute grids and coloring pages added constantly!\n\n💖 STRESS RELIEF & FUN\n\nAnime Pixels is your personal pocket-sized relaxation corner:\n• Mindfulness: Focusing on coloring pixels naturally calms anxiety and improves concentration.\n• Artistic expression: Create beautiful anime artwork without needing drawing skills.\n• Perfect for sharing: Show off your finished kawaii creations to your friends and family!\n\nDownload Anime Pixels today, step into the world of manga and chibi, and start coloring your favorite heroes pixel by pixel. Happy coloring!",
-    "screenshots": []
+    "screenshots": [
+      {
+        "path": "fastlane/metadata/anime/android/en-US/images/phoneScreenshots/1.png",
+        "type": "phoneScreenshots"
+      },
+      {
+        "path": "fastlane/metadata/anime/android/en-US/images/phoneScreenshots/2.png",
+        "type": "phoneScreenshots"
+      },
+      {
+        "path": "fastlane/metadata/anime/android/en-US/images/phoneScreenshots/3.png",
+        "type": "phoneScreenshots"
+      },
+      {
+        "path": "fastlane/metadata/anime/android/en-US/images/phoneScreenshots/4.png",
+        "type": "phoneScreenshots"
+      }
+    ]
   }
 }

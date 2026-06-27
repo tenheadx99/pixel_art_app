@@ -1,0 +1,25 @@
+{
+  "en-US": {
+    "title": "PixelCalm: Zen Color by Number",
+    "short_description": "Color peaceful mandalas & zen pixel art. Easy, relaxing, offline & ad-free!",
+    "full_description": "Welcome to PixelCalm – a peaceful, ad-free mandala and zen pixel art coloring book designed to help you relax, focus, and find your inner peace. Bring beautiful geometric patterns, serene landscapes, lotus flowers, and calming zen gardens to life, one pixel at a time. Tap the numbers, breathe, and let stress melt away. No ads, no internet required – color completely offline!\n\nWhether you need a mindful break from a busy day, a soothing activity before sleep, or a peaceful escape to quiet your thoughts, PixelCalm is your personal digital sanctuary.\n\n---\n\n🧘 A MINDFUL COLORING SANCTUARY\n\n• Sacred Mandalas: Geometric patterns, Celtic spirals, Aztec suns, and infinity shapes.\n• Zen Gardens: Beautiful lotus flowers, calming balanced stones, and lanterns.\n• Serene Landscapes: Crescent moons, starry galaxy spirals, and nature designs.\n• Ad-free peace: Fully enjoy your coloring sessions without pop-ups or interruptions.\n• Calming Sage & Teal Theme: Easy on the eyes, designed specifically for a peaceful user experience.\n\n🎨 WHY YOU'LL LOVE PIXELCALM\n\n• 100% Offline: Color on a flight, in the park, or in bed — no Wi-Fi or data required.\n• Zero Ads: A premium coloring experience without any commercial interruptions.\n• Relaxing & Simple: No timers, no high scores, no rush. Just tap by number at your own pace.\n• Mindful Pacing: Designed to help you slow down, practice breathing, and focus your attention.\n• Free regular updates: New zen patterns and calming artworks added regularly.\n\n✨ ANXIETY RELIEF & MINFULNESS\n\nColoring pixel by pixel works as a form of active meditation:\n• Eases Stress: Repetitive, simple tap-coloring naturally calms the nervous system.\n• Enhances Focus: Promotes deep concentration and puts you in a satisfying state of flow.\n• Digital Detox: A peaceful screen activity that nourishes your mind and soul.\n\nDownload PixelCalm today, quiet your mind, and let every pixel bring you a step closer to calm. Happy coloring!",
+    "screenshots": [
+      {
+        "path": "fastlane/metadata/pixelcalm/android/en-US/images/phoneScreenshots/1.png",
+        "type": "phoneScreenshots"
+      },
+      {
+        "path": "fastlane/metadata/pixelcalm/android/en-US/images/phoneScreenshots/2.png",
+        "type": "phoneScreenshots"
+      },
+      {
+        "path": "fastlane/metadata/pixelcalm/android/en-US/images/phoneScreenshots/3.png",
+        "type": "phoneScreenshots"
+      },
+      {
+        "path": "fastlane/metadata/pixelcalm/android/en-US/images/phoneScreenshots/4.png",
+        "type": "phoneScreenshots"
+      }
+    ]
+  }
+}
