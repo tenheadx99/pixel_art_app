@@ -1,0 +1,28 @@
+========================================================================
+             PIXELY FLAVORS - PLAY STORE RELEASE & GROWTH TODO
+========================================================================
+
+[ ] 1. COMPLETE PLAY CONSOLE PRODUCTION ROLLOUT (DRAFT RELEASES)
+    - Log in to the Google Play Console for each flavor app:
+      * Devotional (com.tenhead.divinepixels)
+      * Anime (com.tenhead.animepixels)
+      * PixelCalm (com.tenhead.pixelcalm)
+      * Diamond (com.tenhead.gemart)
+    - Go to "Release > Production", select the uploaded Draft Release, and click "Rollout to Production" to submit for review.
+
+[ ] 2. CONFIGURE IN-APP REVIEWS PROMPTS
+    - Integrate the "in_app_review" package in Flutter.
+    - Trigger the review popup at high-satisfaction moments (e.g. right after a user colors a masterpiece).
+
+[ ] 3. TRANSLATE & LOCALIZE METADATA
+    - Translate descriptions and "whats_new" text into high-volume markets:
+      * Devotional: hi-IN (Hindi)
+      * Anime: ja-JP (Japanese), es-ES (Spanish), pt-BR (Portuguese)
+      * Diamond/PixelCalm: es-ES (Spanish), pt-BR (Portuguese)
+
+[ ] 4. PREPARE SHORT-FORM VIDEO MARKETING SAMPLES
+    - Export 3-4 video captures of the game's Time-Lapse Replay feature.
+    - Post on TikTok/YouTube Shorts/Reels with trending lo-fi beats to drive organic downloads.
+
+[ ] 5. SET UP STORE LISTING EXPERIMENTS (A/B TESTING)
+    - In Google Play Console under "Grow > Store listing experiments", test different combinations of app icons and screenshots to improve conversion rates.
