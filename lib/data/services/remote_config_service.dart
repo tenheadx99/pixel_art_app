@@ -22,7 +22,7 @@ class RemoteConfigService {
 
       // Set defaults for Remote Config
       await _remoteConfig.setDefaults(<String, dynamic>{
-        'pixelyart_show_ads': false,
+        'pixelyart_show_ads': true,
         'pixelyart_banner_ad_unit_id': 'ca-app-pub-9064606616675657/7511066180',
         'pixelyart_interstitial_ad_unit_id': 'ca-app-pub-9064606616675657/6197984517',
         'pixelyart_rewarded_ad_unit_id': 'ca-app-pub-9064606616675657/4884902843',
@@ -33,6 +33,11 @@ class RemoteConfigService {
         'pixelyart_interstitial_cooldown_s': 90,
         'pixelyart_interstitial_min_session_s': 120,
         'pixelyart_app_open_cooldown_s': 14400,
+        // Flavor-specific show_ads defaults
+        'devotional_show_ads': false,
+        'anime_show_ads': false,
+        'pixelcalm_show_ads': false,
+        'diamond_show_ads': false,
       });
 
       // Fetch and activate config parameters

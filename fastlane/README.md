@@ -103,6 +103,14 @@ Fetch latest metadata from Play Store and update Metadata.json
 
 Upload only store metadata and screenshots to Play Store (skip AAB build)
 
+### android deploy_flavor
+
+```sh
+[bundle exec] fastlane android deploy_flavor
+```
+
+Deploy a specific flavor (devotional, anime, pixelcalm, diamond) to Google Play
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.

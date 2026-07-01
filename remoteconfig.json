@@ -56,7 +56,7 @@
     },
     "pixelyart_show_ads": {
       "defaultValue": {
-        "value": "false"
+        "value": "true"
       },
       "description": "Global switch to show/hide ads in PixelyArt",
       "valueType": "BOOLEAN"
