@@ -4,12 +4,15 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'config/app_constants.dart';
 import 'config/app_config.dart';
 import 'config/flavor.dart';
 import 'firebase_options.dart';
 import 'data/services/remote_config_service.dart';
+import 'data/services/firestore_config_service.dart';
+import 'data/services/remote_catalog_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
 import 'data/services/ad_service.dart';
@@ -139,6 +142,7 @@ class _AppBootstrapState extends State<AppBootstrap>
   bool _ready = false;
   bool _bootstrapError = false;
   bool _forceUpdateRequired = false;
+  bool _maintenanceMode = false;
   String _updateUrl = '';
 
   @override
@@ -180,12 +184,18 @@ class _AppBootstrapState extends State<AppBootstrap>
     final localStorageService = LocalStorageService();
     await localStorageService.init();
 
-    // Remote Config + force-update check. Firebase itself is initialized earlier
-    // in bootstrapApp(); these are non-critical, so failures fall back to
-    // defaults without blocking the app.
+    // Firestore admin overrides + Remote Config + force-update check.
+    // Firebase itself is initialized earlier in bootstrapApp(); these are
+    // non-critical, so failures fall back to defaults without blocking the
+    // app. Firestore config must load first: RemoteConfigService getters
+    // resolve Firestore override → Remote Config → hardcoded default, and
+    // initialize() derives AppConfig.showAds from them.
     try {
+      await FirestoreConfigService().initialize();
       final remoteConfig = RemoteConfigService();
       await remoteConfig.initialize();
+
+      _maintenanceMode = FirestoreConfigService().maintenance;
 
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
@@ -197,6 +207,16 @@ class _AppBootstrapState extends State<AppBootstrap>
       }
     } catch (e) {
       // Remote Config/PackageInfo are non-critical; continue with defaults.
+    }
+
+    // Per-flavor push topic (e.g. "pixelart_anime"): lets you send campaigns
+    // from the Firebase console → Messaging without any server code.
+    // Non-critical; notification permission is handled by NotificationService.
+    try {
+      await FirebaseMessaging.instance
+          .subscribeToTopic('pixelart_${currentFlavor.name}');
+    } catch (e) {
+      // FCM unavailable (e.g. no Play services) — push is a nice-to-have.
     }
 
     final soundService = SoundService();
@@ -262,6 +282,21 @@ class _AppBootstrapState extends State<AppBootstrap>
       );
     }
 
+    if (_maintenanceMode) {
+      return _AppShell(
+        child: _MaintenanceScreen(
+          message: FirestoreConfigService().maintenanceMessage,
+          onRetry: () {
+            setState(() {
+              _maintenanceMode = false;
+              _ready = false;
+            });
+            _bootstrap();
+          },
+        ),
+      );
+    }
+
     if (_forceUpdateRequired) {
       return _AppShell(
         child: ForceUpdateScreen(updateUrl: _updateUrl),
@@ -298,6 +333,16 @@ class _AppBootstrapState extends State<AppBootstrap>
               _dependencies!.databaseService,
             );
             provider.loadCatalog(_preMadeArts);
+            // Merge admin-published artworks/overrides on top of the bundled
+            // catalog: cached state applies immediately, then Firestore is
+            // checked in the background. Never blocks or fails startup.
+            RemoteCatalogService().loadAndSync(
+              _preMadeArts,
+              (result) => provider.updateCatalog(
+                result.catalog,
+                scheduledDailyArtId: result.scheduledDailyArtId,
+              ),
+            );
             return provider;
           },
         ),
@@ -307,6 +352,49 @@ class _AppBootstrapState extends State<AppBootstrap>
         ),
       ],
       child: const _AppShellWithDeps(),
+    );
+  }
+}
+
+/// Admin kill-switch screen (`config/app.maintenance` in Firestore): blocks
+/// the app with a friendly message until the flag is cleared.
+class _MaintenanceScreen extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _MaintenanceScreen({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.build_circle_outlined, size: 56),
+              const SizedBox(height: 16),
+              Text(
+                'Be right back!',
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 24),
+              FilledButton(
+                onPressed: onRetry,
+                child: const Text('Try again'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

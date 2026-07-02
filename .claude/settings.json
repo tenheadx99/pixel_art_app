@@ -9,7 +9,14 @@
       "Bash(./gradlew --stop)",
       "Bash(kill 5490)",
       "Bash(timeout 590 flutter build apk --debug --flavor pixely)",
-      "Bash(timeout 590 flutter build apk --debug --flavor original)"
+      "Bash(timeout 590 flutter build apk --debug --flavor original)",
+      "Bash(python3 -c ' *)",
+      "Bash(sed -i \"s|import 'package:pixel_art_app/config/app_constants.dart';|import 'package:pixel_art_app/config/app_constants.dart';\\\\nimport 'package:pixel_art_app/config/economy.dart';|\" lib/providers/app_settings_provider.dart)",
+      "Bash(sed -i \"s/_diamondsAvailable = 320;/_diamondsAvailable = Economy.startingDiamonds;/; s/_storageService.getInt\\('diamonds_available', defaultValue: 320\\)/_storageService.getInt\\('diamonds_available', defaultValue: Economy.startingDiamonds\\)/\" lib/providers/app_settings_provider.dart)",
+      "Bash(awk -F: '$1>1146 && $1<1480')",
+      "Bash(python3 tool/check_core_sync.py)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'feat: connect app to admin panel Firestore data per flavor *)"
     ],
     "additionalDirectories": [
       "/home/rameshx99/.gradle/caches/8.14/transforms/5cc4e0bc7f2269020ad3bb8bc59ad34c"

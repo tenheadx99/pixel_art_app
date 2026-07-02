@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../../config/app_config.dart';
 import '../../config/app_constants.dart';
+import '../../config/economy.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/models/user_artwork.dart';
 import '../../providers/coloring_provider.dart';
@@ -226,13 +227,13 @@ class _ColoringScreenState extends State<ColoringScreen>
     if (unlocked != null) {
       provider.clearLastUnlockedAchievement();
       // Achievements now pay out diamonds and celebrate with the reward popup.
-      settings.addDiamonds(AppConstants.diamondsPerAchievement);
+      settings.addDiamonds(Economy.diamondsPerAchievement);
       showRewardPopup(
         context,
         icon: Icons.emoji_events_rounded,
         title: 'Achievement Unlocked!',
         subtitle: provider.achievementName(unlocked),
-        diamonds: AppConstants.diamondsPerAchievement,
+        diamonds: Economy.diamondsPerAchievement,
       );
     }
 
@@ -255,7 +256,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       final cells = provider.filledCellCount;
       settings.addLifetimeCells(cells);
       final levelUp = settings.addXp(
-        cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion,
+        cells * Economy.xpPerCell + Economy.xpPerCompletion,
       );
       setState(() {
         _lastDiamondAward = awarded;
@@ -289,13 +290,13 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// the completion HUD.
   void _checkMilestones(ColoringProvider provider, AppSettingsProvider settings) {
     if (provider.claimMilestone(30)) {
-      provider.addBombs(AppConstants.milestone30Bomb);
-      _showInfoSnack('Milestone reached · +${AppConstants.milestone30Bomb} Bomb');
+      provider.addBombs(Economy.milestone30Bomb);
+      _showInfoSnack('Milestone reached · +${Economy.milestone30Bomb} Bomb');
     }
     if (provider.claimMilestone(65)) {
-      settings.addDiamonds(AppConstants.milestone65Diamonds);
+      settings.addDiamonds(Economy.milestone65Diamonds);
       showCoinBurst(context);
-      _showInfoSnack('Milestone reached · +${AppConstants.milestone65Diamonds} 💎');
+      _showInfoSnack('Milestone reached · +${Economy.milestone65Diamonds} 💎');
     }
   }
 
@@ -962,11 +963,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                       color: const Color(0xFFFFC107),
                       name: 'Hint',
                       desc: 'Reveal one correct cell',
-                      cost: AppConstants.diamondCostHint,
-                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostHint,
+                      cost: Economy.diamondCostHint,
+                      canAfford: s.diamondsAvailable >= Economy.diamondCostHint,
                       onPurchase: () => _buyShopItem(
                         s,
-                        AppConstants.diamondCostHint,
+                        Economy.diamondCostHint,
                         'Hint',
                         () => s.addHints(1),
                       ),
@@ -976,11 +977,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                       color: const Color(0xFF9C27B0),
                       name: 'Magic Wand',
                       desc: 'Flood-fill a whole area',
-                      cost: AppConstants.diamondCostWand,
-                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostWand,
+                      cost: Economy.diamondCostWand,
+                      canAfford: s.diamondsAvailable >= Economy.diamondCostWand,
                       onPurchase: () => _buyShopItem(
                         s,
-                        AppConstants.diamondCostWand,
+                        Economy.diamondCostWand,
                         'Magic Wand',
                         () => provider.addMagicWands(1),
                       ),
@@ -990,11 +991,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                       color: Colors.black87,
                       name: 'Bomb',
                       desc: 'Clear an area in one tap',
-                      cost: AppConstants.diamondCostBomb,
-                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostBomb,
+                      cost: Economy.diamondCostBomb,
+                      canAfford: s.diamondsAvailable >= Economy.diamondCostBomb,
                       onPurchase: () => _buyShopItem(
                         s,
-                        AppConstants.diamondCostBomb,
+                        Economy.diamondCostBomb,
                         'Bomb',
                         () => provider.addBombs(1),
                       ),
@@ -1004,11 +1005,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                       color: const Color(0xFF03A9F4),
                       name: 'Brush',
                       desc: 'Paint multiple cells at once',
-                      cost: AppConstants.diamondCostBrush,
-                      canAfford: s.diamondsAvailable >= AppConstants.diamondCostBrush,
+                      cost: Economy.diamondCostBrush,
+                      canAfford: s.diamondsAvailable >= Economy.diamondCostBrush,
                       onPurchase: () => _buyShopItem(
                         s,
-                        AppConstants.diamondCostBrush,
+                        Economy.diamondCostBrush,
                         'Brush',
                         () => provider.addBrushes(1),
                       ),
@@ -1461,11 +1462,11 @@ class _ColoringScreenState extends State<ColoringScreen>
     final iapService = context.read<IAPService>();
     final label = forHints ? 'hints' : 'magic wands';
     final adAmount = forHints
-        ? AppConstants.hintsPerRewardedAd
-        : AppConstants.wandsPerRewardedAd;
+        ? Economy.hintsPerRewardedAd
+        : Economy.wandsPerRewardedAd;
     final buyAmount = forHints
-        ? AppConstants.hintsPerPurchase
-        : AppConstants.wandsPerPurchase;
+        ? Economy.hintsPerPurchase
+        : Economy.wandsPerPurchase;
 
     showDialog(
       context: context,

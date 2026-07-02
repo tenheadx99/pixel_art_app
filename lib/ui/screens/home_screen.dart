@@ -7,9 +7,13 @@ import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../config/app_constants.dart';
+import '../../config/economy.dart';
 import '../../data/models/pixel_art.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/notification_service.dart';
+import '../../data/services/firestore_config_service.dart';
+import '../../data/services/local_storage_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/transitions.dart';
@@ -74,6 +78,7 @@ class _HomeScreenState extends State<HomeScreen> {
             controller: _scrollController,
             slivers: [
               _buildHeader(context, gallery, settings),
+              const SliverToBoxAdapter(child: _AnnouncementBanner()),
               if (gallery.dailyArt != null)
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
@@ -547,7 +552,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showLockedDialog(BuildContext context, PixelArt art) {
     final iap = context.read<IAPService>();
-    const unlockCost = AppConstants.diamondCostUnlockArt;
+    final unlockCost = Economy.diamondCostUnlockArt;
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1421,6 +1426,41 @@ class _PixelArtCard extends StatelessWidget {
                   ),
                 ),
               ),
+              // Seasonal/limited-time piece (admin availability window).
+              if (art.isLimited)
+                Positioned(
+                  bottom: 8,
+                  left: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFF6D00), Color(0xFFFF007F)],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.timer_outlined,
+                            color: Colors.white, size: 11),
+                        SizedBox(width: 3),
+                        Text(
+                          'LIMITED',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -1644,4 +1684,93 @@ class _PixelArtPreviewPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _PixelArtPreviewPainter oldDelegate) =>
       oldDelegate.art != art || oldDelegate.isCompleted != isCompleted;
+}
+
+/// Dismissible admin announcement (`config/announcement` in Firestore) —
+/// used for cross-promo and news without a release. Re-appears when the
+/// admin saves a new announcement (the stamp changes).
+class _AnnouncementBanner extends StatefulWidget {
+  const _AnnouncementBanner();
+
+  @override
+  State<_AnnouncementBanner> createState() => _AnnouncementBannerState();
+}
+
+class _AnnouncementBannerState extends State<_AnnouncementBanner> {
+  static const _dismissKey = 'announcement_dismissed_stamp';
+  bool _dismissed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final config = FirestoreConfigService();
+    if (_dismissed ||
+        !config.announcementEnabled ||
+        config.announcementMessage.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final storage = context.read<LocalStorageService>();
+    if (storage.getInt(_dismissKey) == config.announcementStamp) {
+      return const SizedBox.shrink();
+    }
+    final linkUrl = config.announcementLinkUrl;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        decoration: BoxDecoration(
+          color: AppStyle.primary.withAlpha(20),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppStyle.primary.withAlpha(60)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.campaign_rounded, color: AppStyle.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (config.announcementTitle.isNotEmpty)
+                    Text(
+                      config.announcementTitle,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                  Text(
+                    config.announcementMessage,
+                    style: const TextStyle(fontSize: 12.5),
+                  ),
+                  if (linkUrl != null)
+                    TextButton(
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 28),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      onPressed: () => launchUrl(
+                        Uri.parse(linkUrl),
+                        mode: LaunchMode.externalApplication,
+                      ),
+                      child: const Text('Check it out'),
+                    ),
+                ],
+              ),
+            ),
+            IconButton(
+              visualDensity: VisualDensity.compact,
+              icon: const Icon(Icons.close_rounded, size: 18),
+              onPressed: () {
+                storage.setInt(_dismissKey, config.announcementStamp);
+                setState(() => _dismissed = true);
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

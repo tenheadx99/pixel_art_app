@@ -12,6 +12,11 @@ class PixelArt {
   final int difficulty;
   final bool isPremium;
 
+  /// Optional availability window for admin-published seasonal/limited art
+  /// (bundled artworks always have null = always available).
+  final DateTime? availableFrom;
+  final DateTime? availableUntil;
+
   PixelArt({
     required this.id,
     required this.name,
@@ -23,7 +28,21 @@ class PixelArt {
     this.category = 'General',
     this.difficulty = 1,
     this.isPremium = false,
+    this.availableFrom,
+    this.availableUntil,
   });
+
+  /// True while [now] is inside the availability window (if any).
+  bool isAvailableAt(DateTime now) {
+    if (availableFrom != null && now.isBefore(availableFrom!)) return false;
+    if (availableUntil != null && now.isAfter(availableUntil!)) return false;
+    return true;
+  }
+
+  /// True when this is a time-limited piece that is still available — the
+  /// gallery shows a "Limited" badge for these.
+  bool get isLimited =>
+      availableUntil != null && !DateTime.now().isAfter(availableUntil!);
 
   int get totalCells => gridWidth * gridHeight;
 
@@ -58,6 +77,29 @@ class PixelArt {
 
   Color? colorForNumber(int number) => colorMap[number];
 
+  /// Grid data is shared by reference — admin overrides only touch metadata.
+  PixelArt copyWith({
+    String? name,
+    String? category,
+    int? difficulty,
+    bool? isPremium,
+  }) {
+    return PixelArt(
+      id: id,
+      name: name ?? this.name,
+      gridWidth: gridWidth,
+      gridHeight: gridHeight,
+      grid: grid,
+      colorMap: colorMap,
+      thumbnailPath: thumbnailPath,
+      category: category ?? this.category,
+      difficulty: difficulty ?? this.difficulty,
+      isPremium: isPremium ?? this.isPremium,
+      availableFrom: availableFrom,
+      availableUntil: availableUntil,
+    );
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'id': id,
@@ -69,6 +111,10 @@ class PixelArt {
       'category': category,
       'difficulty': difficulty,
       'isPremium': isPremium,
+      if (availableFrom != null)
+        'availableFrom': availableFrom!.toIso8601String(),
+      if (availableUntil != null)
+        'availableUntil': availableUntil!.toIso8601String(),
     };
   }
 
@@ -94,6 +140,9 @@ class PixelArt {
       category: json['category'] as String? ?? 'General',
       difficulty: json['difficulty'] as int? ?? 1,
       isPremium: json['isPremium'] as bool? ?? false,
+      availableFrom: DateTime.tryParse(json['availableFrom'] as String? ?? ''),
+      availableUntil:
+          DateTime.tryParse(json['availableUntil'] as String? ?? ''),
     );
   }
 }

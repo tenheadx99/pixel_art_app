@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/notification_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
+import 'package:pixel_art_app/config/economy.dart';
 
 /// Result of an [AppSettingsProvider.addXp] call, so the UI can celebrate a
 /// level-up with the reward popup.
@@ -33,7 +34,7 @@ class AppSettingsProvider extends ChangeNotifier {
   String _soundType = 'bubble_pop';
   bool _dailyRemindersEnabled = true;
   int _hintsAvailable = 0;
-  int _diamondsAvailable = 320;
+  int _diamondsAvailable = Economy.startingDiamonds;
   int _totalXp = 0;
   int _playerLevel = 1;
   int _lifetimeCellsColored = 0;
@@ -61,11 +62,11 @@ class AppSettingsProvider extends ChangeNotifier {
 
   /// XP threshold to *enter* [level] (the inverse of the sqrt level curve).
   int xpForLevel(int level) =>
-      (level - 1) * (level - 1) * AppConstants.xpLevelDivisor;
+      (level - 1) * (level - 1) * Economy.xpLevelDivisor;
 
   /// Level a given total XP corresponds to: floor(sqrt(xp / divisor)) + 1.
   int levelForXp(int xp) =>
-      math.sqrt(xp / AppConstants.xpLevelDivisor).floor() + 1;
+      math.sqrt(xp / Economy.xpLevelDivisor).floor() + 1;
 
   /// Fractional progress (0..1) through the current level, for the XP bar.
   double get xpProgressInLevel {
@@ -98,7 +99,7 @@ class AppSettingsProvider extends ChangeNotifier {
       defaultValue: true,
     );
     _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
-    _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 320);
+    _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: Economy.startingDiamonds);
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
     _lifetimeCellsColored = _storageService.getInt(_lifetimeCellsPrefKey);
@@ -124,7 +125,7 @@ class AppSettingsProvider extends ChangeNotifier {
     if (leveledUp) {
       // One reward per level gained (covers multi-level jumps).
       diamondsAwarded =
-          (computedLevel - _playerLevel) * AppConstants.diamondsPerLevelUp;
+          (computedLevel - _playerLevel) * Economy.diamondsPerLevelUp;
       _playerLevel = computedLevel;
       _storageService.setInt(_playerLevelPrefKey, _playerLevel);
       _diamondsAvailable += diamondsAwarded;
@@ -249,8 +250,8 @@ class AppSettingsProvider extends ChangeNotifier {
   int awardCompletionDiamonds(String artId, {bool isDaily = false}) {
     final key = '${AppConstants.diamondsAwardedPrefix}$artId';
     if (_storageService.getBool(key)) return 0;
-    final amount = AppConstants.diamondsPerCompletion +
-        (isDaily ? AppConstants.diamondsDailyBonus : 0);
+    final amount = Economy.diamondsPerCompletion +
+        (isDaily ? Economy.diamondsDailyBonus : 0);
     _storageService.setBool(key, true);
     addDiamonds(amount);
     return amount;
@@ -285,11 +286,11 @@ class AppSettingsProvider extends ChangeNotifier {
             setProUser(true);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addHints(AppConstants.hintsPerPurchase);
+              addHints(Economy.hintsPerPurchase);
             }
           } else if (purchase.productID == AppConstants.wandPackProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addWands(AppConstants.wandsPerPurchase);
+              addWands(Economy.wandsPerPurchase);
             }
           }
         } else if (purchase.status == PurchaseStatus.error) {

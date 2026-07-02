@@ -1,4 +1,6 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:pixel_art_app/config/flavor.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
@@ -115,6 +117,7 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
 
     _catalog = preMade;
+    _dailyPool = preMade;
     _completedIds = _storageService.getStringSet(
       AppConstants.completedIdsPrefKey,
     );
@@ -123,6 +126,17 @@ class GalleryProvider extends ChangeNotifier {
     _loadStreak();
 
     _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Second-stage catalog swap once the remote catalog (admin-published
+  /// artworks + overrides) has been merged with the bundled assets. The
+  /// daily pick keeps rotating over the bundled list so a remote publish
+  /// can't change everyone's Daily Pixel mid-day — unless the admin
+  /// explicitly scheduled today's art.
+  void updateCatalog(List<PixelArt> merged, {String? scheduledDailyArtId}) {
+    _catalog = merged;
+    _scheduledDailyId = scheduledDailyArtId ?? _scheduledDailyId;
     notifyListeners();
   }
 
@@ -147,7 +161,25 @@ class GalleryProvider extends ChangeNotifier {
     return catalog[dayNumber.abs() % catalog.length];
   }
 
-  PixelArt? get dailyArt => dailyArtFor(DateTime.now(), _catalog);
+  /// The bundled catalog, in manifest order — the stable pool the daily pick
+  /// rotates over (remote additions/overrides never shift the index).
+  List<PixelArt> _dailyPool = [];
+
+  /// Admin-scheduled Daily Pixel for today (`daily_schedule/{date}` doc);
+  /// wins over the deterministic rotation when the art exists.
+  String? _scheduledDailyId;
+
+  PixelArt? get dailyArt {
+    if (_scheduledDailyId != null) {
+      for (final art in _catalog) {
+        if (art.id == _scheduledDailyId) return art;
+      }
+    }
+    return dailyArtFor(
+      DateTime.now(),
+      _dailyPool.isNotEmpty ? _dailyPool : _catalog,
+    );
+  }
 
   bool get dailyCompletedToday =>
       _storageService.getString(_streakDatePrefKey) == _dateKey(DateTime.now());
@@ -218,7 +250,27 @@ class GalleryProvider extends ChangeNotifier {
     _storageService.addToStringSet(AppConstants.completedIdsPrefKey, id);
     _databaseService.incrementCompleted(id);
     if (id == dailyArt?.id) _registerDailyCompletion();
+    _reportCompletionStat(id);
     notifyListeners();
+  }
+
+  /// Anonymous popularity counter for the admin dashboard
+  /// (`pixel_art/{flavor}/stats/{artId}.completions`). Fire-and-forget:
+  /// offline or rule failures must never affect gameplay.
+  void _reportCompletionStat(String id) {
+    try {
+      FirebaseFirestore.instance
+          .collection('pixel_art')
+          .doc(currentFlavor.name)
+          .collection('stats')
+          .doc(id)
+          .set({'completions': FieldValue.increment(1)}, SetOptions(merge: true))
+          .catchError((Object e) {
+        debugPrint('completion stat write failed: $e');
+      });
+    } catch (e) {
+      debugPrint('completion stat unavailable: $e');
+    }
   }
 
   void setCategory(String category) {
