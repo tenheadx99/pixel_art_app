@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -514,44 +516,36 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   Widget _buildMiniMap(ColoringProvider provider, bool isDark) {
-    return Container(
-      width: 80,
-      height: 80,
-      decoration: BoxDecoration(
-        color: isDark ? Colors.black.withAlpha(120) : Colors.white.withAlpha(200),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
-          width: 1.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(20),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+    // Isolated in its own layer: the viewport rectangle repaints every
+    // pan/pinch frame and must not re-rasterize neighbouring layers.
+    return RepaintBoundary(
+      child: Container(
+        width: 80,
+        height: 80,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black.withAlpha(120) : Colors.white.withAlpha(200),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+            width: 1.5,
           ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: ValueListenableBuilder<Matrix4>(
-          valueListenable: _transformController,
-          builder: (context, transform, _) {
-            final viewportRect = _calculateViewportRect(
-              transform,
-              _viewerSize,
-              _cellSize,
-              widget.art,
-            );
-            return CustomPaint(
-              painter: _MiniMapPainter(
-                art: widget.art,
-                filledGrid: provider.filledGrid,
-                filledColors: provider.filledColors,
-                viewportRect: viewportRect,
-              ),
-            );
-          },
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(20),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: _MiniMap(
+            art: widget.art,
+            provider: provider,
+            transformController: _transformController,
+            viewerSize: _viewerSize,
+            cellSize: _cellSize,
+          ),
         ),
       ),
     );
@@ -1786,41 +1780,152 @@ Rect _calculateViewportRect(Matrix4 transform, Size viewerSize, double cellSize,
   );
 }
 
-class _MiniMapPainter extends CustomPainter {
+/// Artwork thumbnail with a live viewport rectangle. The cells are rasterized
+/// once into a one-pixel-per-cell [ui.Image] and re-generated only when the
+/// grid actually changes — painting the previous per-cell version issued up to
+/// 16k drawRect calls (each with a fresh Paint) on every pan/pinch frame.
+class _MiniMap extends StatefulWidget {
   final PixelArt art;
-  final List<List<int>> filledGrid;
-  final Map<int, Color> filledColors;
-  final Rect viewportRect;
+  final ColoringProvider provider;
+  final TransformationController transformController;
+  final Size viewerSize;
+  final double cellSize;
 
-  _MiniMapPainter({
+  const _MiniMap({
     required this.art,
-    required this.filledGrid,
-    required this.filledColors,
-    required this.viewportRect,
+    required this.provider,
+    required this.transformController,
+    required this.viewerSize,
+    required this.cellSize,
   });
 
   @override
-  void paint(Canvas canvas, Size size) {
-    if (art.gridWidth <= 0 || art.gridHeight <= 0) return;
-    final cw = size.width / art.gridWidth;
-    final ch = size.height / art.gridHeight;
+  State<_MiniMap> createState() => _MiniMapState();
+}
 
-    for (var r = 0; r < art.gridHeight; r++) {
-      for (var c = 0; c < art.gridWidth; c++) {
+class _MiniMapState extends State<_MiniMap> {
+  ui.Image? _image;
+  bool _building = false;
+  int _builtRevision = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.provider.addListener(_onProviderChanged);
+    _rebuildImage();
+  }
+
+  @override
+  void didUpdateWidget(_MiniMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.provider != widget.provider) {
+      oldWidget.provider.removeListener(_onProviderChanged);
+      widget.provider.addListener(_onProviderChanged);
+    }
+    if (!identical(oldWidget.art, widget.art)) _rebuildImage();
+  }
+
+  @override
+  void dispose() {
+    widget.provider.removeListener(_onProviderChanged);
+    _image?.dispose();
+    super.dispose();
+  }
+
+  void _onProviderChanged() {
+    if (widget.provider.gridRevision != _builtRevision) _rebuildImage();
+  }
+
+  Future<void> _rebuildImage() async {
+    if (_building) return; // The tail check below picks up newer revisions.
+    _building = true;
+    final art = widget.art;
+    final w = art.gridWidth;
+    final h = art.gridHeight;
+    if (w <= 0 || h <= 0) {
+      _building = false;
+      return;
+    }
+    final revision = widget.provider.gridRevision;
+    final filled = widget.provider.filledGrid;
+    final colors = widget.provider.filledColors;
+
+    // One RGBA pixel per cell; scaling to the 80px box happens on the GPU.
+    final pixels = Uint8List(w * h * 4);
+    var i = 0;
+    for (var r = 0; r < h; r++) {
+      for (var c = 0; c < w; c++) {
         final val = art.grid[r][c];
-        if (val <= 0) continue;
-
-        final isFilled = r < filledGrid.length && c < filledGrid[r].length && filledGrid[r][c] > 0;
-        final Color color;
-        if (isFilled) {
-          color = filledColors[val] ?? Colors.transparent;
-        } else {
-          color = const Color(0xFFD6D6D6);
+        if (val > 0) {
+          final isFilled =
+              r < filled.length && c < filled[r].length && filled[r][c] > 0;
+          final argb = isFilled
+              ? (colors[val]?.toARGB32() ?? 0)
+              : 0xFFD6D6D6;
+          pixels[i] = (argb >> 16) & 0xff;
+          pixels[i + 1] = (argb >> 8) & 0xff;
+          pixels[i + 2] = argb & 0xff;
+          pixels[i + 3] = (argb >> 24) & 0xff;
         }
-
-        final rect = Rect.fromLTWH(c * cw, r * ch, cw, ch);
-        canvas.drawRect(rect, Paint()..color = color..style = PaintingStyle.fill);
+        i += 4;
       }
+    }
+
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(pixels, w, h, ui.PixelFormat.rgba8888,
+        completer.complete);
+    final image = await completer.future;
+    _building = false;
+    if (!mounted) {
+      image.dispose();
+      return;
+    }
+    final previous = _image;
+    setState(() {
+      _image = image;
+      _builtRevision = revision;
+    });
+    previous?.dispose();
+    // The grid moved on while we rasterized — catch up.
+    if (widget.provider.gridRevision != revision) _rebuildImage();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Matrix4>(
+      valueListenable: widget.transformController,
+      builder: (context, transform, _) {
+        final viewportRect = _calculateViewportRect(
+          transform,
+          widget.viewerSize,
+          widget.cellSize,
+          widget.art,
+        );
+        return CustomPaint(
+          painter: _MiniMapPainter(image: _image, viewportRect: viewportRect),
+        );
+      },
+    );
+  }
+}
+
+class _MiniMapPainter extends CustomPainter {
+  final ui.Image? image;
+  final Rect viewportRect;
+
+  _MiniMapPainter({required this.image, required this.viewportRect});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final img = image;
+    if (img != null) {
+      // Bilinear matches the soft look the per-cell rects had at this scale.
+      canvas.drawImageRect(
+        img,
+        Rect.fromLTWH(0, 0, img.width.toDouble(), img.height.toDouble()),
+        Offset.zero & size,
+        Paint()..filterQuality = FilterQuality.low,
+      );
     }
 
     final vpPaint = Paint()
@@ -1839,8 +1944,7 @@ class _MiniMapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MiniMapPainter oldDelegate) {
-    return oldDelegate.art != art ||
-        oldDelegate.filledGrid != filledGrid ||
+    return oldDelegate.image != image ||
         oldDelegate.viewportRect != viewportRect;
   }
 }

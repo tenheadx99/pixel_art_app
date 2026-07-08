@@ -16,7 +16,9 @@
       "Bash(awk -F: '$1>1146 && $1<1480')",
       "Bash(python3 tool/check_core_sync.py)",
       "Bash(git add *)",
-      "Bash(git commit -m 'feat: connect app to admin panel Firestore data per flavor *)"
+      "Bash(git commit -m 'feat: connect app to admin panel Firestore data per flavor *)",
+      "Bash(curl -s -X POST \"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=AIzaSyCrflpo6H01wJOnM6vWxTc0Xn0BuHrSgdM\" -H \"Content-Type: application/json\" -d '{\"email\":\"admin@pixelart.app\",\"password\":\"PixelAdmin#2026!\",\"returnSecureToken\":true}')",
+      "Bash(curl -s -X PATCH \"https://firestore.googleapis.com/v1/projects/om108-5c015/databases/\\(default\\)/documents/zz_probe_test/probe\" -H \"Content-Type: application/json\" -d '{\"fields\":{\"x\":{\"integerValue\":\"1\"}}}')"
     ],
     "additionalDirectories": [
       "/home/rameshx99/.gradle/caches/8.14/transforms/5cc4e0bc7f2269020ad3bb8bc59ad34c"

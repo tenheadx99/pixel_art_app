@@ -200,6 +200,7 @@ class _PixelGridState extends State<PixelGrid> {
                 painter: _PixelGridPainter(
                   art: art,
                   filledGrid: widget.provider.filledGrid,
+                  gridRevision: widget.provider.gridRevision,
                   filledColors: widget.provider.filledColors,
                   selectedNumber: widget.provider.selectedNumber,
                   showNumbers: widget.provider.showNumbers,
@@ -245,6 +246,10 @@ class _PixelGridState extends State<PixelGrid> {
 class _PixelGridPainter extends CustomPainter {
   final dynamic art;
   final List<List<int>> filledGrid;
+
+  /// Provider's grid mutation counter — the cheap way to detect that
+  /// [filledGrid] (mutated in place) changed since the last paint.
+  final int gridRevision;
   final Map<int, Color> filledColors;
   final int selectedNumber;
   final bool showNumbers;
@@ -267,6 +272,7 @@ class _PixelGridPainter extends CustomPainter {
   _PixelGridPainter({
     required this.art,
     required this.filledGrid,
+    required this.gridRevision,
     required this.filledColors,
     required this.selectedNumber,
     required this.showNumbers,
@@ -481,6 +487,13 @@ class _PixelGridPainter extends CustomPainter {
     // Single clock read for any cells currently growing in (taps only).
     final nowMs = fillGrow == null ? 0 : DateTime.now().millisecondsSinceEpoch;
 
+    // The number→preview lerp is otherwise recomputed for every unfilled cell
+    // (up to thousands on a 128 grid) every frame; numbers repeat, so cache
+    // per distinct number for this frame.
+    final previewCache = <int, Color>{};
+    Color previewFor(int n) => previewCache.putIfAbsent(
+        n, () => Color.lerp(_grayscalePreview(n), Colors.white, detail)!);
+
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
         final expectedNumber = art.grid[row][col] as int;
@@ -512,11 +525,7 @@ class _PixelGridPainter extends CustomPainter {
                 )
               : rect;
           if (grow < 1.0) {
-            cellPaint.color = Color.lerp(
-              _grayscalePreview(expectedNumber),
-              Colors.white,
-              detail,
-            )!;
+            cellPaint.color = previewFor(expectedNumber);
             canvas.drawRect(rect, cellPaint);
           }
           if (gemStyle) {
@@ -545,11 +554,7 @@ class _PixelGridPainter extends CustomPainter {
           cellPaint.color = const Color(0xFFE8E8E8);
           canvas.drawRect(rect, cellPaint);
         } else {
-          cellPaint.color = Color.lerp(
-            _grayscalePreview(expectedNumber),
-            Colors.white,
-            detail,
-          )!;
+          cellPaint.color = previewFor(expectedNumber);
           canvas.drawRect(rect, cellPaint);
           if (colorblindMode) {
             _drawPattern(canvas, rect, expectedNumber, cw, ch);
@@ -622,18 +627,23 @@ class _PixelGridPainter extends CustomPainter {
   ) {
     final batches = <int, List<double>>{};
     final highlightPoints = <double>[];
+    // Per-frame caches keyed by number — the color/luminance math repeats for
+    // every cell of the same number otherwise.
+    final fillCache = <int, int>{};
+    final grayCache = <int, int>{};
 
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
         final expectedNumber = art.grid[row][col] as int;
         final int colorValue;
         if (filledGrid[row][col] > 0) {
-          colorValue = (filledColors[expectedNumber] ?? Colors.grey)
-              .toARGB32();
+          colorValue = fillCache.putIfAbsent(expectedNumber,
+              () => (filledColors[expectedNumber] ?? Colors.grey).toARGB32());
         } else if (expectedNumber == 0) {
           colorValue = 0xFFE8E8E8;
         } else {
-          colorValue = _grayscalePreview(expectedNumber).toARGB32();
+          colorValue = grayCache.putIfAbsent(expectedNumber,
+              () => _grayscalePreview(expectedNumber).toARGB32());
           if (highlightedNumber != null &&
               expectedNumber == highlightedNumber) {
             highlightPoints
@@ -702,5 +712,20 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PixelGridPainter oldDelegate) => true;
+  bool shouldRepaint(_PixelGridPainter oldDelegate) =>
+      oldDelegate.gridRevision != gridRevision ||
+      !identical(oldDelegate.art, art) ||
+      oldDelegate.selectedNumber != selectedNumber ||
+      oldDelegate.showNumbers != showNumbers ||
+      oldDelegate.highlightedNumber != highlightedNumber ||
+      oldDelegate.nextFillable != nextFillable ||
+      oldDelegate.cellSize != cellSize ||
+      oldDelegate.isEraseMode != isEraseMode ||
+      oldDelegate.brushSize != brushSize ||
+      oldDelegate.colorblindMode != colorblindMode ||
+      oldDelegate.hoverRow != hoverRow ||
+      oldDelegate.hoverCol != hoverCol ||
+      oldDelegate.gemStyle != gemStyle;
+  // gridFade/transform/fillGrow drive repaints through the repaint
+  // listenable, so their current values don't need comparing here.
 }

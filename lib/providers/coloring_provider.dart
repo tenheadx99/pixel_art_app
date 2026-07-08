@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
+import 'dart:math' show max;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -18,7 +19,36 @@ class ColoringProvider extends ChangeNotifier {
   int _selectedNumber = 1;
   double _progress = 0.0;
   bool _isComplete = false;
-  List<List<List<int>>> _undoStack = [];
+
+  // Undo entries are diffs — flat [cellIndex, previousValue, ...] pairs for
+  // the cells an action actually changed — instead of full-grid snapshots
+  // (a 128x128 snapshot copies 16k cells per tap, up to 20 deep).
+  final List<List<int>> _undoStack = [];
+  List<int>? _currentUndoEntry;
+
+  // Incremental progress state: kept in sync on every cell change so fills
+  // never need a full-grid rescan. _calculateProgress() rebuilds them from
+  // scratch after wholesale grid changes (load/undo/restore).
+  int _fillableTotal = 0;
+  int _filledCount = 0;
+
+  // Row-major resume point of the "next fillable" scan per number. Fills only
+  // ever move the first unfilled cell forward; anything that un-fills cells
+  // (erase/undo/restore) clears the affected cursors.
+  final Map<int, int> _fillCursor = {};
+
+  // Bumped on every filledGrid mutation; painters compare it in shouldRepaint
+  // so unrelated screen rebuilds don't repaint the whole grid.
+  int _gridRevision = 0;
+
+  // Completed-number snapshot taken at beginStroke: tallies update live during
+  // the stroke, so a snapshot taken in endStroke could never see a change.
+  Set<int> _strokeStartCompleted = const {};
+
+  // Serialized-timelapse cache so each autosave appends only the new entries
+  // instead of re-joining the whole history (16k entries on a 128x128).
+  String _timeLapseSerialized = '';
+  int _timeLapseSerializedCount = 0;
   bool _showNumbers = true;
   int? _highlightedNumber;
   Timer? _saveTimer;
@@ -181,6 +211,10 @@ class ColoringProvider extends ChangeNotifier {
 
   PixelArt? get currentArt => _currentArt;
   List<List<int>> get filledGrid => _filledGrid;
+
+  /// Monotonic counter bumped on every [filledGrid] mutation. Painters compare
+  /// it in shouldRepaint so unrelated rebuilds don't repaint the whole grid.
+  int get gridRevision => _gridRevision;
   Map<int, Color> get filledColors => _filledColors;
   int get selectedNumber => _selectedNumber;
   double get progress => _progress;
@@ -224,10 +258,7 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
     // Persist the paint history so Replay / Share GIF keep working when a
     // finished artwork is reopened later (the in-memory list is reset on load).
-    _storageService.setString(
-      '${_saveKey}_timelapse',
-      _timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
-    );
+    _storageService.setString('${_saveKey}_timelapse', _serializeTimeLapse());
     _storageService.setString(
       '${_saveKey}_milestones',
       _claimedMilestones.join(','),
@@ -244,6 +275,34 @@ class ColoringProvider extends ChangeNotifier {
   void _debouncedSave() {
     _saveTimer?.cancel();
     _saveTimer = Timer(AppConfig.autoSaveDelay, saveProgress);
+  }
+
+  /// Returns the serialized timelapse, appending only entries added since the
+  /// last save. Any operation that shrinks or replaces [_timeLapse] calls
+  /// [_invalidateTimeLapseCache] to force a one-time full rebuild.
+  String _serializeTimeLapse() {
+    if (_timeLapse.length < _timeLapseSerializedCount) {
+      _invalidateTimeLapseCache();
+    }
+    if (_timeLapse.length > _timeLapseSerializedCount) {
+      final sb = StringBuffer(_timeLapseSerialized);
+      for (var i = _timeLapseSerializedCount; i < _timeLapse.length; i++) {
+        if (sb.isNotEmpty) sb.write(';');
+        final (r, c) = _timeLapse[i];
+        sb
+          ..write(r)
+          ..write(',')
+          ..write(c);
+      }
+      _timeLapseSerialized = sb.toString();
+      _timeLapseSerializedCount = _timeLapse.length;
+    }
+    return _timeLapseSerialized;
+  }
+
+  void _invalidateTimeLapseCache() {
+    _timeLapseSerialized = '';
+    _timeLapseSerializedCount = 0;
   }
 
   @override
@@ -267,7 +326,8 @@ class ColoringProvider extends ChangeNotifier {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _strokeFlushScheduled = false;
       if (_disposed) return;
-      _calculateProgress();
+      // Progress and per-number tallies are updated incrementally as cells
+      // change, so the flush only needs to trigger the rebuild.
       notifyListeners();
     });
   }
@@ -295,17 +355,18 @@ class ColoringProvider extends ChangeNotifier {
       loaded.add(cols.map((v) => int.tryParse(v) ?? 0).toList());
     }
     _filledGrid = loaded;
+    _gridRevision++;
     _totalFillCount = _storageService.getInt('${_saveKey}_fills');
     _totalEraseCount = _storageService.getInt('${_saveKey}_erases');
     _restoreTimeLapse();
     _restoreMilestones();
-    _calculateProgress();
-    _isComplete = _progress >= AppConfig.completionThreshold;
+    // Progress/completion are computed by loadArt right after this returns.
   }
 
   /// Rebuilds the paint history from storage so Replay / Share GIF work on a
   /// reopened (e.g. already-completed) artwork. Tolerant of malformed entries.
   void _restoreTimeLapse() {
+    _invalidateTimeLapseCache();
     final raw = _storageService.getString('${_saveKey}_timelapse');
     if (raw.isEmpty) {
       _timeLapse = [];
@@ -355,6 +416,7 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setString('${_saveKey}_timelapse', '');
     _storageService.setString('${_saveKey}_milestones', '');
     _timeLapse = [];
+    _invalidateTimeLapseCache();
     _claimedMilestones = {};
     _consecutiveFills = 0;
   }
@@ -382,12 +444,20 @@ class ColoringProvider extends ChangeNotifier {
         : 1;
     _progress = 0.0;
     _isComplete = false;
-    _undoStack = [];
+    _undoStack.clear();
+    _currentUndoEntry = null;
+    _fillCursor.clear();
+    _gridRevision++;
     _timeLapse = [];
+    _invalidateTimeLapseCache();
     _claimedMilestones = {};
     _consecutiveFills = 0;
     loadProgress();
+    // Single full-grid pass for both the restored fills and the per-number
+    // totals (loadProgress no longer runs its own duplicate pass).
     _calculateProgress();
+    _isComplete = _progress >= AppConfig.completionThreshold &&
+        _storageService.getString(_saveKey).isNotEmpty;
     notifyListeners();
   }
 
@@ -427,18 +497,32 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void _updateNextFillable() {
-    if (_currentArt == null) {
+    final art = _currentArt;
+    if (art == null) {
       _nextFillable = null;
       return;
     }
-    for (var row = 0; row < _currentArt!.gridHeight; row++) {
-      for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] == _selectedNumber &&
-            _filledGrid[row][col] == 0) {
-          _nextFillable = (row, col);
+    // The tallies say nothing is left of this number — skip the scan.
+    if (_totalPerNumber.isNotEmpty && !_hasUnfilled(_selectedNumber)) {
+      _nextFillable = null;
+      return;
+    }
+    final w = art.gridWidth;
+    final total = w * art.gridHeight;
+    var start = _fillCursor[_selectedNumber] ?? 0;
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = start; i < total; i++) {
+        if (art.grid[i ~/ w][i % w] == _selectedNumber &&
+            _filledGrid[i ~/ w][i % w] == 0) {
+          _fillCursor[_selectedNumber] = i;
+          _nextFillable = (i ~/ w, i % w);
           return;
         }
       }
+      // Cursor overshot (shouldn't happen — un-fill paths clear it); rescan
+      // once from the top before concluding nothing is left.
+      if (start == 0) break;
+      start = 0;
     }
     _nextFillable = null;
   }
@@ -463,8 +547,7 @@ class ColoringProvider extends ChangeNotifier {
 
       final half = _brushSize ~/ 2;
       bool anyFilled = false;
-      _pushUndoState();
-      if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+      _beginUndoEntry();
 
       for (var dr = -half; dr <= half; dr++) {
         for (var dc = -half; dc <= half; dc++) {
@@ -476,7 +559,8 @@ class ColoringProvider extends ChangeNotifier {
           if (expectedNumber == 0) continue;
           if (_filledGrid[r][c] > 0) continue;
           if (expectedNumber != _selectedNumber) continue;
-          _filledGrid[r][c] = expectedNumber;
+          _writeCell(r, c, expectedNumber);
+          _noteFill(expectedNumber);
           _timeLapse.add((r, c));
           anyFilled = true;
           onCellFilledCorrectly?.call();
@@ -485,9 +569,10 @@ class ColoringProvider extends ChangeNotifier {
       }
 
       if (!anyFilled) {
-        _undoStack.removeLast();
+        _abortUndoEntry();
         return false;
       }
+      _commitUndoEntry();
 
       _fillVibrate();
 
@@ -501,7 +586,6 @@ class ColoringProvider extends ChangeNotifier {
           }
         }
       }
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -516,11 +600,11 @@ class ColoringProvider extends ChangeNotifier {
   /// stroke counts as a single fill for stats/streaks.
   void beginStroke() {
     if (_currentArt == null || _inStroke) return;
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+    _beginUndoEntry();
     _inStroke = true;
     _strokeChanged = false;
     _strokeTimeLapseStart = _timeLapse.length;
+    _strokeStartCompleted = _getCompletedNumbers();
   }
 
   /// Reverts an in-progress stroke, e.g. when a drag turns into a two-finger
@@ -528,8 +612,11 @@ class ColoringProvider extends ChangeNotifier {
   void cancelStroke() {
     if (!_inStroke) return;
     _inStroke = false;
-    _filledGrid = _undoStack.removeLast();
+    _applyUndoEntry(_undoStack.removeLast());
+    _currentUndoEntry = null;
     _timeLapse.removeRange(_strokeTimeLapseStart, _timeLapse.length);
+    _invalidateTimeLapseCache();
+    _fillCursor.clear();
     if (_strokeChanged) {
       _calculateProgress();
       _updateNextFillable();
@@ -552,14 +639,20 @@ class ColoringProvider extends ChangeNotifier {
         if (c < 0 || c >= _currentArt!.gridWidth) continue;
         if (_isEraseMode) {
           if (_filledGrid[r][c] <= 0) continue;
-          _filledGrid[r][c] = 0;
+          final expected = _currentArt!.grid[r][c];
+          _writeCell(r, c, 0);
+          if (expected > 0) {
+            _noteErase(expected);
+            _fillCursor.remove(expected);
+          }
           changed = true;
         } else {
           final expectedNumber = _currentArt!.grid[r][c];
           if (expectedNumber == 0) continue;
           if (_filledGrid[r][c] > 0) continue;
           if (expectedNumber != _selectedNumber) continue;
-          _filledGrid[r][c] = expectedNumber;
+          _writeCell(r, c, expectedNumber);
+          _noteFill(expectedNumber);
           _timeLapse.add((r, c));
           changed = true;
           onCellFilledCorrectly?.call();
@@ -577,10 +670,13 @@ class ColoringProvider extends ChangeNotifier {
     if (!_inStroke) return;
     _inStroke = false;
     if (!_strokeChanged) {
-      _undoStack.removeLast();
+      _abortUndoEntry();
       return;
     }
-    final previouslyCompleted = _getCompletedNumbers();
+    _commitUndoEntry();
+    // Snapshot from beginStroke: tallies update live during the stroke, so a
+    // snapshot taken here could never detect a section completed mid-stroke.
+    final previouslyCompleted = _strokeStartCompleted;
     if (_isEraseMode) {
       _totalEraseCount++;
       _consecutiveFills = 0;
@@ -634,17 +730,17 @@ class ColoringProvider extends ChangeNotifier {
     if (target == null) return null;
     final (r, c) = target;
     final number = _currentArt!.grid[r][c];
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+    _beginUndoEntry();
     _selectedNumber = number;
     _highlightedNumber = number;
-    _filledGrid[r][c] = number;
+    _writeCell(r, c, number);
+    _noteFill(number);
+    _commitUndoEntry();
     _timeLapse.add((r, c));
     _fillVibrate();
     _totalFillCount++;
     onCellFilledCorrectly?.call();
     onCellFilledAt?.call(r, c);
-    _calculateProgress();
     _checkCompletion();
     _checkAchievements();
     _updateNextFillable();
@@ -687,13 +783,16 @@ class ColoringProvider extends ChangeNotifier {
     if (col < 0 || col >= _currentArt!.gridWidth) return false;
     if (_filledGrid[row][col] <= 0) return false;
 
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
-
-    _filledGrid[row][col] = 0;
+    _beginUndoEntry();
+    final expected = _currentArt!.grid[row][col];
+    _writeCell(row, col, 0);
+    _commitUndoEntry();
+    if (expected > 0) {
+      _noteErase(expected);
+      _fillCursor.remove(expected);
+    }
     _totalEraseCount++;
     _consecutiveFills = 0;
-    _calculateProgress();
     _isComplete = false;
     _updateNextFillable();
     _debouncedSave();
@@ -705,20 +804,23 @@ class ColoringProvider extends ChangeNotifier {
     if (_currentArt == null) return;
     final previouslyCompleted = _getCompletedNumbers();
     bool changed = false;
-    _pushUndoState();
+    _beginUndoEntry();
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
         if (_currentArt!.grid[row][col] == _selectedNumber &&
             _filledGrid[row][col] == 0) {
-          _filledGrid[row][col] = _selectedNumber;
+          _writeCell(row, col, _selectedNumber);
+          _noteFill(_selectedNumber);
           _timeLapse.add((row, col));
           changed = true;
-          onCellFilledCorrectly?.call();
         }
       }
     }
     if (changed) {
-      _calculateProgress();
+      _commitUndoEntry();
+      // One callback for the whole batch — a per-cell call would queue a
+      // sound play for every filled cell of the mass fill.
+      onCellFilledCorrectly?.call();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -731,12 +833,15 @@ class ColoringProvider extends ChangeNotifier {
       }
 
       notifyListeners();
+    } else {
+      _abortUndoEntry();
     }
   }
 
   void undo() {
     if (_undoStack.isEmpty) return;
-    _filledGrid = _undoStack.removeLast();
+    _applyUndoEntry(_undoStack.removeLast());
+    _fillCursor.clear();
     _calculateProgress();
     _isComplete = false;
     _updateNextFillable();
@@ -752,16 +857,65 @@ class ColoringProvider extends ChangeNotifier {
     );
     _progress = 0.0;
     _isComplete = false;
-    _undoStack = [];
+    _undoStack.clear();
+    _currentUndoEntry = null;
     _timeLapse = [];
     _consecutiveFills = 0;
     _nextFillable = null;
+    _fillCursor.clear();
+    _gridRevision++;
     clearProgress();
+    _calculateProgress();
     notifyListeners();
   }
 
-  void _pushUndoState() {
-    _undoStack.add(_filledGrid.map((row) => List<int>.from(row)).toList());
+  /// Opens a fresh undo entry that subsequent [_writeCell] calls record into.
+  void _beginUndoEntry() {
+    final entry = <int>[];
+    _currentUndoEntry = entry;
+    _undoStack.add(entry);
+    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+  }
+
+  void _commitUndoEntry() {
+    _currentUndoEntry = null;
+  }
+
+  /// Discards the entry opened by [_beginUndoEntry] (action changed nothing).
+  void _abortUndoEntry() {
+    _undoStack.removeLast();
+    _currentUndoEntry = null;
+  }
+
+  /// Reverts one undo entry (in reverse write order) against the live grid.
+  void _applyUndoEntry(List<int> entry) {
+    final w = _currentArt!.gridWidth;
+    for (var i = entry.length - 2; i >= 0; i -= 2) {
+      _filledGrid[entry[i] ~/ w][entry[i] % w] = entry[i + 1];
+    }
+    _gridRevision++;
+  }
+
+  /// Writes one cell, recording its previous value into the active undo entry
+  /// and bumping the paint revision.
+  void _writeCell(int r, int c, int value) {
+    _currentUndoEntry?..add(r * _currentArt!.gridWidth + c)..add(_filledGrid[r][c]);
+    _filledGrid[r][c] = value;
+    _gridRevision++;
+  }
+
+  /// Incremental tally update for a newly filled cell of [n].
+  void _noteFill(int n) {
+    _filledCount++;
+    _filledPerNumber[n] = (_filledPerNumber[n] ?? 0) + 1;
+    _progress = _fillableTotal == 0 ? 1.0 : _filledCount / _fillableTotal;
+  }
+
+  /// Incremental tally update for an erased cell of [n].
+  void _noteErase(int n) {
+    _filledCount = max(0, _filledCount - 1);
+    _filledPerNumber[n] = max(0, (_filledPerNumber[n] ?? 0) - 1);
+    _progress = _fillableTotal == 0 ? 1.0 : _filledCount / _fillableTotal;
   }
 
   /// Recomputes overall progress and the per-number tallies in one pass.
@@ -786,6 +940,8 @@ class ColoringProvider extends ChangeNotifier {
       }
     }
     _progress = total == 0 ? 1.0 : filled / total;
+    _fillableTotal = total;
+    _filledCount = filled;
   }
 
   double fillPercentForNumber(int number) {
@@ -847,6 +1003,7 @@ class ColoringProvider extends ChangeNotifier {
     final num = _currentArt!.grid[row][col];
     if (num > 0 && _filledGrid[row][col] == 0) {
       _filledGrid[row][col] = num;
+      _gridRevision++;
     }
     notifyListeners();
   }
@@ -857,6 +1014,8 @@ class ColoringProvider extends ChangeNotifier {
 
   void restoreGridState(List<List<int>> state) {
     _filledGrid = state.map((row) => List<int>.from(row)).toList();
+    _gridRevision++;
+    _fillCursor.clear();
     _calculateProgress();
     if (_progress >= AppConfig.completionThreshold) _isComplete = true;
     _updateNextFillable();
@@ -872,46 +1031,46 @@ class ColoringProvider extends ChangeNotifier {
     final targetNum = _currentArt!.grid[row][col];
     if (targetNum == 0 || _filledGrid[row][col] > 0) return false;
 
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+    _beginUndoEntry();
 
-    final queue = <(int, int)>[(row, col)];
-    final visited = <(int, int)>{};
+    // Flood fill over flat cell indices: a head-pointer queue (removeAt(0)
+    // shifts the whole list — O(n²) on big regions) and a byte visited mask
+    // (a Set of records boxes every coordinate pair).
+    final w = _currentArt!.gridWidth;
+    final h = _currentArt!.gridHeight;
+    final visited = Uint8List(w * h);
+    final queue = <int>[row * w + col];
+    var head = 0;
     bool changed = false;
 
-    while (queue.isNotEmpty) {
-      final curr = queue.removeAt(0);
-      final r = curr.$1;
-      final c = curr.$2;
-
-      if (r < 0 ||
-          r >= _currentArt!.gridHeight ||
-          c < 0 ||
-          c >= _currentArt!.gridWidth) {
-        continue;
-      }
-      if (visited.contains((r, c))) continue;
-      visited.add((r, c));
+    while (head < queue.length) {
+      final idx = queue[head++];
+      if (visited[idx] == 1) continue;
+      visited[idx] = 1;
+      final r = idx ~/ w;
+      final c = idx % w;
 
       if (_currentArt!.grid[r][c] == targetNum && _filledGrid[r][c] == 0) {
-        _filledGrid[r][c] = targetNum;
+        _writeCell(r, c, targetNum);
+        _noteFill(targetNum);
         _timeLapse.add((r, c));
         changed = true;
-        onCellFilledCorrectly?.call();
 
-        queue.add((r + 1, c));
-        queue.add((r - 1, c));
-        queue.add((r, c + 1));
-        queue.add((r, c - 1));
+        if (r + 1 < h) queue.add(idx + w);
+        if (r > 0) queue.add(idx - w);
+        if (c + 1 < w) queue.add(idx + 1);
+        if (c > 0) queue.add(idx - 1);
       }
     }
 
     if (changed) {
+      _commitUndoEntry();
+      // One callback for the whole flood fill, not one per filled cell.
+      onCellFilledCorrectly?.call();
       _magicWandsCount--;
       _isMagicWandMode = false;
       _totalFillCount++;
       _haptic(HapticFeedback.mediumImpact);
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -920,7 +1079,7 @@ class ColoringProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } else {
-      _undoStack.removeLast();
+      _abortUndoEntry();
       return false;
     }
   }
@@ -932,8 +1091,7 @@ class ColoringProvider extends ChangeNotifier {
       return false;
     }
 
-    _pushUndoState();
-    if (_undoStack.length > AppConfig.maxUndoSteps) _undoStack.removeAt(0);
+    _beginUndoEntry();
 
     bool changed = false;
     for (var dr = -1; dr <= 1; dr++) {
@@ -945,19 +1103,20 @@ class ColoringProvider extends ChangeNotifier {
         final expectedNumber = _currentArt!.grid[r][c];
         if (expectedNumber == 0) continue;
         if (_filledGrid[r][c] > 0) continue;
-        _filledGrid[r][c] = expectedNumber;
+        _writeCell(r, c, expectedNumber);
+        _noteFill(expectedNumber);
         _timeLapse.add((r, c));
         changed = true;
-        onCellFilledCorrectly?.call();
       }
     }
 
     if (changed) {
+      _commitUndoEntry();
+      onCellFilledCorrectly?.call();
       _bombsCount--;
       _isBombMode = false;
       _totalFillCount++;
       _haptic(HapticFeedback.mediumImpact);
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -966,7 +1125,7 @@ class ColoringProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } else {
-      _undoStack.removeLast();
+      _abortUndoEntry();
       return false;
     }
   }
