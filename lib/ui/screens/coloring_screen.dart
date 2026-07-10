@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:uuid/uuid.dart';
 import '../../config/app_config.dart';
+import '../../config/flavor.dart';
 import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/models/user_artwork.dart';
@@ -1057,7 +1058,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     await file.writeAsBytes(pngBytes);
     await Share.shareXFiles([
       XFile(file.path, mimeType: 'image/png'),
-    ], text: 'I just finished "${widget.art.name}" in Pixely! 🎨');
+    ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
   }
 
   Future<void> _shareTimelapse(ColoringProvider provider) async {
@@ -1080,7 +1081,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       await file.writeAsBytes(bytes);
       await Share.shareXFiles([
         XFile(file.path, mimeType: 'image/gif'),
-      ], text: 'Watch me paint "${widget.art.name}" in Pixely! 🎨');
+      ], text: 'Watch me paint "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
     } finally {
       if (mounted) setState(() => _sharingGif = false);
     }

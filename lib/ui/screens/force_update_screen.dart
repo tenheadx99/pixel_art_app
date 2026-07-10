@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/ui/theme/app_style.dart';
+import 'package:pixel_art_app/config/flavor.dart';
 
 class ForceUpdateScreen extends StatefulWidget {
   final String updateUrl;
@@ -176,7 +177,7 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen>
                           ),
                           const SizedBox(height: 16),
                           Text(
-                            'A brand new version of Pixely is available. We have added fresh features, speed improvements, and bug fixes to enhance your creative journey.',
+                            'A brand new version of ${FlavorConfig.current.appName} is available. We have added fresh features, speed improvements, and bug fixes to enhance your creative journey.',
                             style: TextStyle(
                               fontSize: 15,
                               color: isDark

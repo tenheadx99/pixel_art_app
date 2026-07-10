@@ -19,6 +19,7 @@ import '../../ui/screens/coloring_screen.dart';
 import '../../ui/screens/camera_screen.dart';
 import '../../ui/screens/gallery_screen.dart';
 import '../../ui/screens/profile_screen.dart';
+import '../../config/flavor.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -198,25 +199,34 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       children: [
                         Container(
-                          padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white.withAlpha(30),
                             borderRadius: BorderRadius.circular(16),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withAlpha(20),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
                           ),
-                          child: const Icon(
-                            Icons.palette,
-                            color: Colors.white,
-                            size: 28,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(16),
+                            child: Image.asset(
+                              FlavorConfig.current.appIconPath,
+                              width: 48,
+                              height: 48,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 14),
-                        const Expanded(
+                        Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Pixely',
-                                style: TextStyle(
+                                FlavorConfig.current.appName,
+                                style: const TextStyle(
                                   fontSize: 26,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
@@ -226,8 +236,8 @@ class _HomeScreenState extends State<HomeScreen> {
                                 overflow: TextOverflow.ellipsis,
                               ),
                               Text(
-                                'Relaxing Pixel Art',
-                                style: TextStyle(
+                                FlavorConfig.current.splashTagline,
+                                style: const TextStyle(
                                   fontSize: 13,
                                   color: Colors.white70,
                                   letterSpacing: 1.5,
@@ -704,7 +714,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             final price = snapshot.data;
                             return Text(
                               price == null
-                                  ? 'Upgrade to Pixely Pro ✨'
+                                  ? 'Upgrade to ${FlavorConfig.current.appName} Pro ✨'
                                   : 'Upgrade to Pro · $price ✨',
                               style: const TextStyle(
                                 fontWeight: FontWeight.w700,

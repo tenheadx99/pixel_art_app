@@ -294,6 +294,7 @@ platform :android do
   desc "Deploy a specific flavor (devotional, anime, pixelcalm, diamond) to Google Play"
   lane :deploy_flavor do |options|
     flavor = options[:flavor]
+    build_only = options[:build_only] == true || options[:build_only] == "true"
     UI.user_error!("Please specify a flavor (e.g. fastlane android deploy_flavor flavor:devotional)") unless flavor
 
     package_names = {
@@ -317,7 +318,7 @@ platform :android do
     metadata_filename = flavor == "original" ? "Metadata.json" : "Metadata.#{flavor}.json"
     metadata_file = File.join(PROJECT_ROOT, "fastlane", metadata_filename)
     
-    if File.exist?(metadata_file)
+    if !build_only && File.exist?(metadata_file)
       UI.message("Syncing text metadata from #{metadata_filename}...")
       metadata = JSON.parse(File.read(metadata_file))
       
@@ -357,9 +358,9 @@ platform :android do
       release_status: "draft",
       aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab"),
       skip_upload_apk: true,
-      skip_upload_metadata: false,
-      skip_upload_images: false,
-      skip_upload_screenshots: false,
+      skip_upload_metadata: build_only,
+      skip_upload_images: build_only,
+      skip_upload_screenshots: build_only,
       metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata", flavor_meta_dir)
     }
 

@@ -98,14 +98,6 @@ class _SplashScreenState extends State<SplashScreen>
                         height: 120,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(32),
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.white.withAlpha(200),
-                              Colors.white.withAlpha(100),
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withAlpha(40),
@@ -113,11 +105,19 @@ class _SplashScreenState extends State<SplashScreen>
                               offset: const Offset(0, 10),
                             ),
                           ],
+                          border: Border.all(
+                            color: Colors.white.withAlpha(80),
+                            width: 1.5,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.palette,
-                          size: 60,
-                          color: Colors.white,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(30),
+                          child: Image.asset(
+                            flavor.appIconPath,
+                            width: 120,
+                            height: 120,
+                            fit: BoxFit.cover,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 28),

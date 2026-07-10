@@ -6,6 +6,7 @@ import '../../config/app_constants.dart';
 import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
+import '../../config/flavor.dart';
 
 void showSettingsSheet(BuildContext context) {
   showModalBottomSheet(
@@ -158,8 +159,8 @@ class SettingsSheet extends StatelessWidget {
                       padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
                       child: Text(
                         info == null
-                            ? 'Pixely'
-                            : 'Pixely v${info.version} (${info.buildNumber})',
+                            ? FlavorConfig.current.appName
+                            : '${FlavorConfig.current.appName} v${info.version} (${info.buildNumber})',
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           fontSize: 12,

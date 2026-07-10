@@ -202,7 +202,7 @@ def build_feature(icon_img):
     text_shadow(d, (tx, 256), "Tap the numbers to paint Hindu gods", tag_f, (255, 226, 172), off=2)
     text_shadow(d, (tx, 292), "& goddesses, pixel by pixel.", tag_f, (255, 226, 172), off=2)
     star_f = ImageFont.truetype(SANSB, 28)
-    d.text((tx, 352), "★ ★ ★ ★ ★    100% Offline", font=star_f, fill=GOLD)
+    d.text((tx, 352), "100% Offline", font=star_f, fill=GOLD)
 
     img.convert("RGB").save(os.path.join(OUT, "featureGraphic.png"), "PNG", optimize=True)
     print("featureGraphic.png  1024x500 (color-by-number)")

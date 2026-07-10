@@ -39,6 +39,8 @@ class FlavorConfig {
   final String splashTitle;
   final String splashTagline;
 
+  final String appIconPath;
+
   /// Material 3 seed color + key brand accents.
   final Color primary;
   final Color secondary;
@@ -66,6 +68,7 @@ class FlavorConfig {
     required this.appName,
     required this.splashTitle,
     required this.splashTagline,
+    required this.appIconPath,
     required this.primary,
     required this.secondary,
     required this.accent,
@@ -83,6 +86,7 @@ class FlavorConfig {
       appName: 'Pixely',
       splashTitle: 'Pixel Art',
       splashTagline: 'Color by Number',
+      appIconPath: 'assets/icons/app_icon.png',
       primary: Color(0xFF8A2BE2), // Indigo/Purple
       secondary: Color(0xFFFF007F), // Neon Pink
       accent: Color(0xFF00F0FF), // Cyber Cyan
@@ -93,6 +97,7 @@ class FlavorConfig {
       appName: 'Divine Pixels',
       splashTitle: 'Divine Pixels',
       splashTagline: 'Color the Divine',
+      appIconPath: 'assets/icons/devotional.png',
       primary: Color(0xFFFF6D00), // Saffron
       secondary: Color(0xFFFFC107), // Temple Gold
       accent: Color(0xFF8E0000), // Deep Maroon
@@ -103,6 +108,7 @@ class FlavorConfig {
       appName: 'Anime Pixels',
       splashTitle: 'Anime Pixels',
       splashTagline: 'Color Your Heroes',
+      appIconPath: 'assets/icons/anime.png',
       primary: Color(0xFFFF4FA3), // Hot Pink
       secondary: Color(0xFF5AC8FA), // Sky Blue
       accent: Color(0xFFB14EFF), // Electric Violet
@@ -113,6 +119,7 @@ class FlavorConfig {
       appName: 'PixelCalm',
       splashTitle: 'PixelCalm',
       splashTagline: 'Relax. Color. Breathe.',
+      appIconPath: 'assets/icons/pixelcalm.png',
       primary: Color(0xFF7C9070), // Sage
       secondary: Color(0xFFB08968), // Warm Clay
       accent: Color(0xFF5F8A8B), // Dusty Teal
@@ -125,6 +132,7 @@ class FlavorConfig {
       appName: 'Gem Art',
       splashTitle: 'Gem Art',
       splashTagline: 'Sparkle by Number',
+      appIconPath: 'assets/icons/diamond.png',
       primary: Color(0xFF12C2E9), // Jewel Cyan
       secondary: Color(0xFFC471ED), // Amethyst
       accent: Color(0xFFF64F59), // Ruby
