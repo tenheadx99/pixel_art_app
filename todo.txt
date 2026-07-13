@@ -10,15 +10,27 @@
       * Diamond (com.tenhead.gemart)
     - Go to "Release > Production", select the uploaded Draft Release, and click "Rollout to Production" to submit for review.
 
-[ ] 2. CONFIGURE IN-APP REVIEWS PROMPTS
-    - Integrate the "in_app_review" package in Flutter.
-    - Trigger the review popup at high-satisfaction moments (e.g. right after a user colors a masterpiece).
+[x] 2. CONFIGURE IN-APP REVIEWS PROMPTS  (DONE in code — ships with next release)
+    - in_app_review integrated (lib/data/services/review_service.dart).
+    - Prompt fires when the completion HUD is dismissed, gated: >= 2 finished
+      artworks, max once per 30 days, once per session.
 
-[ ] 3. TRANSLATE & LOCALIZE METADATA
-    - Translate descriptions and "whats_new" text into high-volume markets:
-      * Devotional: hi-IN (Hindi)
-      * Anime: ja-JP (Japanese), es-ES (Spanish), pt-BR (Portuguese)
-      * Diamond/PixelCalm: es-ES (Spanish), pt-BR (Portuguese)
+[x] 3. TRANSLATE & LOCALIZE METADATA  (DONE — in Metadata.<flavor>.json, uploads on next deploy_flavor)
+    - Devotional: hi-IN | Anime: ja-JP, es-ES, es-419, pt-BR
+    - Diamond/PixelCalm: es-ES, es-419, pt-BR
+    - NOTE: PixelCalm en/es/pt copy reworded from "ad-free" to "no pop-up /
+      forced ads" because PixelCalm now runs opt-in rewarded videos.
+
+[ ] 6. MONETIZATION UPGRADES SHIPPED IN CODE — NEEDS PLAY CONSOLE SETUP
+    - Ads now default ON for all flavors via Remote Config defaults
+      (devotional/anime/diamond: all formats; pixelcalm: rewarded-only).
+      If the Firebase console has explicit <flavor>_show_ads parameters set to
+      false, flip them to true there too (console values override app defaults).
+    - Plus subscription added (paywall + entitlement). CREATE these subscription
+      products in Play Console for EVERY flavor app before releasing:
+      * pixel_art_plus_monthly  (suggested: INR 299/mo tier, USD 4.99)
+      * pixel_art_plus_yearly   (suggested: INR 1499/yr tier, USD 29.99)
+      Entitlement = remove ads + all premium art + 25 diamonds/day.
 
 [ ] 4. PREPARE SHORT-FORM VIDEO MARKETING SAMPLES
     - Export 3-4 video captures of the game's Time-Lapse Replay feature.

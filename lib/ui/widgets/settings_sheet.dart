@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_constants.dart';
 import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
+import '../screens/paywall_screen.dart';
 import '../theme/app_style.dart';
 import '../../config/flavor.dart';
 
@@ -125,6 +126,26 @@ class SettingsSheet extends StatelessWidget {
                       settings.setDailyRemindersEnabled(value),
                 ),
                 const Divider(height: 8),
+                if (!settings.isProUser)
+                  ListTile(
+                    leading: const Icon(
+                      Icons.workspace_premium_rounded,
+                      color: Color(0xFFFF9D2E),
+                    ),
+                    title: Text('${FlavorConfig.current.appName} Plus'),
+                    subtitle: const Text(
+                      'No ads · all premium art · daily diamonds',
+                    ),
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const PaywallScreen(),
+                        ),
+                      );
+                    },
+                  ),
                 ListTile(
                   leading: const Icon(Icons.restore),
                   title: const Text('Restore purchases'),

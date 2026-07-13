@@ -33,11 +33,15 @@ class RemoteConfigService {
         'pixelyart_interstitial_cooldown_s': 90,
         'pixelyart_interstitial_min_session_s': 120,
         'pixelyart_app_open_cooldown_s': 14400,
-        // Flavor-specific show_ads defaults
-        'devotional_show_ads': false,
-        'anime_show_ads': false,
-        'pixelcalm_show_ads': false,
-        'diamond_show_ads': false,
+        // Flavor-specific show_ads defaults. All flavors monetize with ads;
+        // PixelCalm is limited to banner + rewarded via
+        // FlavorConfig.fullScreenAdsEnabled (no interstitial/app-open there).
+        // Any of these can still be killed per-flavor from the Firebase
+        // console without a release.
+        'devotional_show_ads': true,
+        'anime_show_ads': true,
+        'pixelcalm_show_ads': true,
+        'diamond_show_ads': true,
       });
 
       // Fetch and activate config parameters

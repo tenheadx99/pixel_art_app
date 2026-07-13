@@ -57,6 +57,26 @@ class AppConstants {
   static const String hintProductId = 'pixel_art_hints_5';
   static const String wandPackProductId = 'pixel_art_wands_10';
 
+  // --- Plus subscription (remove ads + all premium art + daily diamonds) ---
+  // Subscription products must be created in Play Console for every flavor's
+  // app with these exact IDs.
+  static const String plusMonthlyProductId = 'pixel_art_plus_monthly';
+  static const String plusYearlyProductId = 'pixel_art_plus_yearly';
+
+  // Entitlement is a local expiry stamp refreshed by purchase/restore events
+  // each session (no server). The window exceeds the billing period by a few
+  // grace days so offline stretches between store re-validations don't lapse
+  // an active subscriber; a cancelled sub stops being restored and the stamp
+  // runs out on its own.
+  static const String plusExpiryPrefKey = 'plus_expiry_ms';
+  static const int plusMonthlyEntitlementDays = 34;
+  static const int plusYearlyEntitlementDays = 369;
+
+  // Daily diamond stipend for Plus subscribers, claimed on first launch of
+  // the day.
+  static const int diamondsDailyPlusStipend = 25;
+  static const String plusStipendDayPrefKey = 'plus_stipend_last_day';
+
   static const int hintsPerPurchase = 5;
   static const int wandsPerPurchase = 10;
   static const int hintsPerRewardedAd = 3;

@@ -25,6 +25,7 @@ class AppSettingsProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
   bool _isProUser = false;
+  int _plusExpiryMs = 0;
   bool _isDarkMode = false;
   bool _colorblindMode = false;
   bool _hapticsEnabled = true;
@@ -45,7 +46,17 @@ class AppSettingsProvider extends ChangeNotifier {
 
   AppSettingsProvider(this._storageService);
 
-  bool get isProUser => _isProUser;
+  /// Pro entitlement: lifetime Pro purchase OR an active Plus subscription.
+  /// Everything that removes ads / unlocks premium art keys off this.
+  bool get isProUser => _isProUser || isPlusActive;
+
+  /// Lifetime Pro only (without an active subscription) — for UI that needs
+  /// to distinguish the two (e.g. hiding subscription plans from lifetime
+  /// owners).
+  bool get isLifetimePro => _isProUser;
+
+  bool get isPlusActive =>
+      DateTime.now().millisecondsSinceEpoch < _plusExpiryMs;
   bool get isDarkMode => _isDarkMode;
   bool get colorblindMode => _colorblindMode;
   bool get hapticsEnabled => _hapticsEnabled;
@@ -81,6 +92,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
+    _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
     _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey, defaultValue: true);
     _colorblindMode = _storageService.getBool('colorblind_mode');
     _hapticsEnabled = _storageService.getBool(
@@ -211,6 +223,36 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Extends the Plus entitlement to [days] from now. Called on every
+  /// purchase/restore event for a Plus product, so an active subscription
+  /// re-stamps itself each session and a cancelled one quietly runs out.
+  void extendPlusEntitlement(int days) {
+    final until = DateTime.now()
+        .add(Duration(days: days))
+        .millisecondsSinceEpoch;
+    // Never shorten: a yearly stamp must survive a later monthly event.
+    if (until <= _plusExpiryMs) return;
+    _plusExpiryMs = until;
+    _storageService.setInt(AppConstants.plusExpiryPrefKey, until);
+    notifyListeners();
+  }
+
+  /// Grants the daily Plus diamond stipend once per calendar day. Returns the
+  /// amount awarded (0 when not a subscriber or already claimed today) so the
+  /// UI can celebrate.
+  int maybeClaimDailyPlusStipend() {
+    if (!isPlusActive) return 0;
+    final now = DateTime.now();
+    final today = '${now.year}-${now.month}-${now.day}';
+    if (_storageService.getString(AppConstants.plusStipendDayPrefKey) ==
+        today) {
+      return 0;
+    }
+    _storageService.setString(AppConstants.plusStipendDayPrefKey, today);
+    addDiamonds(AppConstants.diamondsDailyPlusStipend);
+    return AppConstants.diamondsDailyPlusStipend;
+  }
+
   void toggleDarkMode() {
     _isDarkMode = !_isDarkMode;
     _storageService.setBool(AppConstants.darkModePrefKey, _isDarkMode);
@@ -283,6 +325,11 @@ class AppSettingsProvider extends ChangeNotifier {
             purchase.status == PurchaseStatus.restored) {
           if (purchase.productID == AppConstants.proProductId) {
             setProUser(true);
+          } else if (purchase.productID ==
+              AppConstants.plusMonthlyProductId) {
+            extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
+          } else if (purchase.productID == AppConstants.plusYearlyProductId) {
+            extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
               addHints(AppConstants.hintsPerPurchase);

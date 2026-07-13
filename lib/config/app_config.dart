@@ -5,6 +5,14 @@ class AppConfig {
   static bool disableIap = false;
   static bool showAds = false;
 
+  /// Blocks interstitial + app-open formats only (banner/rewarded still
+  /// follow [disableAds]/[showAds]). Set from the flavor at bootstrap.
+  static bool disableFullScreenAds = false;
+
+  /// Blocks the passive banner only (rewarded still follows
+  /// [disableAds]/[showAds]). Set from the flavor at bootstrap.
+  static bool disableBannerAds = false;
+
   /// Display name of the active flavor (e.g. "Pixely" / "Divine Pixels").
   static String get appName => FlavorConfig.current.appName;
   static const int maxUndoSteps = 20;

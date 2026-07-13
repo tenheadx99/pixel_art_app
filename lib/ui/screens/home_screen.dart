@@ -8,7 +8,6 @@ import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
-import '../../data/services/iap_service.dart';
 import '../../data/services/notification_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/settings_sheet.dart';
@@ -18,6 +17,7 @@ import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
 import '../../ui/screens/camera_screen.dart';
 import '../../ui/screens/gallery_screen.dart';
+import '../../ui/screens/paywall_screen.dart';
 import '../../ui/screens/profile_screen.dart';
 import '../../config/flavor.dart';
 
@@ -44,6 +44,21 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => _handleDailyArtRequest(),
       );
     }
+    // Plus subscribers get their daily diamond stipend on first launch of
+    // the day.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final award =
+          context.read<AppSettingsProvider>().maybeClaimDailyPlusStipend();
+      if (award > 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Daily Plus bonus · +$award 💎'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    });
   }
 
   void _handleDailyArtRequest() {
@@ -556,7 +571,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showLockedDialog(BuildContext context, PixelArt art) {
-    final iap = context.read<IAPService>();
     const unlockCost = AppConstants.diamondCostUnlockArt;
     showDialog(
       context: context,
@@ -692,13 +706,16 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // Pro upgrade — unlocks everything + removes ads.
+                    // Plus paywall — subscriptions + lifetime Pro in one place.
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
                         onPressed: () {
                           Navigator.pop(ctx);
-                          iap.buyPro();
+                          Navigator.push(
+                            context,
+                            fadeThroughRoute(const PaywallScreen()),
+                          );
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppStyle.primary,
@@ -708,19 +725,9 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        child: FutureBuilder<String?>(
-                          future: iap.getPrice(AppConstants.proProductId),
-                          builder: (context, snapshot) {
-                            final price = snapshot.data;
-                            return Text(
-                              price == null
-                                  ? 'Upgrade to ${FlavorConfig.current.appName} Pro ✨'
-                                  : 'Upgrade to Pro · $price ✨',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                              ),
-                            );
-                          },
+                        child: Text(
+                          'Unlock everything with ${FlavorConfig.current.appName} Plus ✨',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
                         ),
                       ),
                     ),

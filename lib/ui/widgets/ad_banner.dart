@@ -28,7 +28,11 @@ class _AdBannerState extends State<AdBanner> {
   }
 
   Future<void> _loadAdaptiveAdSize() async {
-    if (AppConfig.disableAds || !AppConfig.showAds) return;
+    if (AppConfig.disableAds ||
+        AppConfig.disableBannerAds ||
+        !AppConfig.showAds) {
+      return;
+    }
     final width = MediaQuery.of(context).size.width.truncate();
     final size = await AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(width);
     if (size == null || !mounted) return;

@@ -18,6 +18,7 @@ import '../../data/services/ad_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/local_storage_service.dart';
+import '../../data/services/review_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../data/services/timelapse_service.dart';
 import '../../data/services/sound_service.dart';
@@ -860,7 +861,18 @@ class _ColoringScreenState extends State<ColoringScreen>
                       ),
                     ),
                     TextButton(
-                      onPressed: () => setState(() => _hudDismissed = true),
+                      onPressed: () {
+                        setState(() => _hudDismissed = true);
+                        // Celebration just ended and nothing else is on
+                        // screen — the one moment a review ask feels earned.
+                        ReviewService().maybeRequestReview(
+                          storage: context.read<LocalStorageService>(),
+                          completedCount: context
+                              .read<GalleryProvider>()
+                              .completedIds
+                              .length,
+                        );
+                      },
                       child: Text(
                         'View artwork',
                         style: TextStyle(color: subColor),

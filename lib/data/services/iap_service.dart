@@ -69,6 +69,12 @@ class IAPService {
 
   Future<void> buyPro() => _buy(AppConstants.proProductId, consumable: false);
 
+  /// Starts the Play/App Store billing flow for a Plus subscription. On both
+  /// stores subscriptions go through the non-consumable path; renewals and
+  /// cancellations then surface via [purchaseStream] restore events.
+  Future<void> buySubscription(String productId) =>
+      _buy(productId, consumable: false);
+
   Future<void> buyConsumable(String productId) =>
       _buy(productId, consumable: true);
 

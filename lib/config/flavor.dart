@@ -56,6 +56,15 @@ class FlavorConfig {
   final bool adsEnabled;
   final bool iapEnabled;
 
+  /// Whether full-screen formats (interstitial + app-open) may show. Rewarded
+  /// ads are governed by [adsEnabled] alone — they're user-initiated, so a
+  /// flavor can offer them without interrupting the experience.
+  final bool fullScreenAdsEnabled;
+
+  /// Whether the passive banner may show. PixelCalm markets itself as free of
+  /// ad interruptions, so it runs rewarded-only.
+  final bool bannerAdsEnabled;
+
   /// How filled cells render. Defaults to the classic flat square so existing
   /// flavors are unchanged; the diamond flavor opts into [CellRenderStyle.gem].
   final CellRenderStyle cellStyle;
@@ -76,6 +85,8 @@ class FlavorConfig {
     required this.manifestPath,
     this.adsEnabled = true,
     this.iapEnabled = true,
+    this.fullScreenAdsEnabled = true,
+    this.bannerAdsEnabled = true,
     this.cellStyle = CellRenderStyle.flat,
     this.paletteLabel = 'Select a Color',
     this.placeVerb = 'Fill',
@@ -125,8 +136,11 @@ class FlavorConfig {
       accent: Color(0xFF5F8A8B), // Dusty Teal
       brandGradient: [Color(0xFF7C9070), Color(0xFF5F8A8B)],
       manifestPath: 'assets/pixel_art_pixelcalm/manifest.json',
-      // Stress-relief audience: no ads, keep Pro/subscription IAP.
-      adsEnabled: false,
+      // Stress-relief audience whose store listing promises no ad
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interstitial/app-open.
+      fullScreenAdsEnabled: false,
+      bannerAdsEnabled: false,
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',

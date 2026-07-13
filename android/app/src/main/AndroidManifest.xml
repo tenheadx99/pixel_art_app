@@ -15,9 +15,11 @@
         android:icon="@mipmap/launcher_icon"
         android:allowBackup="false"
         android:fullBackupContent="false">
+        <!-- Per-flavor AdMob app ID, injected from productFlavors'
+             manifestPlaceholders in build.gradle.kts. -->
         <meta-data
             android:name="com.google.android.gms.ads.APPLICATION_ID"
-            android:value="ca-app-pub-9064606616675657~3438969555"/>
+            android:value="${admobAppId}"/>
         <activity
             android:name=".MainActivity"
             android:exported="true"

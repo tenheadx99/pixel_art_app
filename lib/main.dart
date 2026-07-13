@@ -75,6 +75,8 @@ Future<void> bootstrapApp() async {
   final flavor = FlavorConfig.current;
   AppConfig.disableAds = !flavor.adsEnabled;
   AppConfig.disableIap = !flavor.iapEnabled;
+  AppConfig.disableFullScreenAds = !flavor.fullScreenAdsEnabled;
+  AppConfig.disableBannerAds = !flavor.bannerAdsEnabled;
 
   // Initialize Firebase early so Crashlytics can capture errors from the very
   // start. Guarded so a Firebase misconfig never blocks core gameplay.
@@ -153,9 +155,11 @@ class _AppBootstrapState extends State<AppBootstrap>
     // App-open ad on return from background (never on cold start); AdService
     // applies the pro/first-session/cooldown caps.
     if (state == AppLifecycleState.resumed && _ready) {
-      final isPro =
-          _dependencies?.localStorageService.getBool(AppConstants.proPrefKey) ??
-          false;
+      final storage = _dependencies?.localStorageService;
+      // Lifetime Pro or an unexpired Plus subscription both suppress the ad.
+      final isPro = (storage?.getBool(AppConstants.proPrefKey) ?? false) ||
+          (storage?.getInt(AppConstants.plusExpiryPrefKey) ?? 0) >
+              DateTime.now().millisecondsSinceEpoch;
       AdService().showAppOpenAdIfAvailable(isProUser: isPro);
     }
   }

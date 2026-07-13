@@ -27,6 +27,10 @@ class AdService {
 
   bool get _adsEnabled => !AppConfig.disableAds && AppConfig.showAds;
 
+  /// Interstitial + app-open only; banner/rewarded follow [_adsEnabled].
+  bool get _fullScreenAdsEnabled =>
+      _adsEnabled && !AppConfig.disableFullScreenAds;
+
   Future<void> initialize() async {
     if (_initialized) return;
     if (!_adsEnabled) return;
@@ -101,7 +105,7 @@ class AdService {
   // --- Interstitial (session-exit, frequency capped) ---
 
   void loadInterstitialAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
-    if (!_adsEnabled) {
+    if (!_fullScreenAdsEnabled) {
       onFailed?.call();
       return;
     }
@@ -123,7 +127,7 @@ class AdService {
   /// the first session, only after real coloring time, with a cooldown and
   /// never right on the heels of a rewarded ad. All tunable via RemoteConfig.
   bool canShowSessionInterstitial(Duration sessionLength) {
-    if (!_adsEnabled || isFirstSession || _interstitialAd == null) {
+    if (!_fullScreenAdsEnabled || isFirstSession || _interstitialAd == null) {
       return false;
     }
     final rc = RemoteConfigService();
@@ -199,7 +203,7 @@ class AdService {
   // --- App open (on resume, heavily capped) ---
 
   void loadAppOpenAd() {
-    if (!_adsEnabled || _appOpenAd != null) return;
+    if (!_fullScreenAdsEnabled || _appOpenAd != null) return;
     AppOpenAd.load(
       adUnitId: RemoteConfigService().appOpenAdUnitId,
       request: const AdRequest(),
@@ -212,7 +216,9 @@ class AdService {
   }
 
   void showAppOpenAdIfAvailable({required bool isProUser}) {
-    if (!_adsEnabled || isProUser || _showingAppOpen || isFirstSession) return;
+    if (!_fullScreenAdsEnabled || isProUser || _showingAppOpen || isFirstSession) {
+      return;
+    }
     final now = DateTime.now();
     if (_lastAppOpenAt != null &&
         now.difference(_lastAppOpenAt!).inSeconds <
