@@ -220,6 +220,7 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     return IgnorePointer(
       child: RepaintBoundary(
         child: CustomPaint(
+          isComplex: true,
           size: Size.infinite,
           painter: _FillEffectsPainter(
             effects: _effects,

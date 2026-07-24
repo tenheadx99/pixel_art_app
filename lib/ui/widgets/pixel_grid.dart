@@ -195,6 +195,8 @@ class _PixelGridState extends State<PixelGrid> {
               borderRadius: BorderRadius.circular(8),
               child: CustomPaint(
                 key: _gridKey,
+                isComplex: true,
+                willChange: false,
                 size: Size(
                   art.gridWidth * widget.cellSize,
                   art.gridHeight * widget.cellSize,
