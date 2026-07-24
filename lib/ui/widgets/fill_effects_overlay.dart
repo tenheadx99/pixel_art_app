@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../config/app_constants.dart';
 
 /// The kinds of joyful flourish spawned when a cell is colored.
-enum _EffectKind { pop, ripple, splash, sparkle, combo }
+enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong }
 
 class _FillEffect {
   final _EffectKind kind;
@@ -184,6 +184,18 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     ));
   }
 
+  /// A gentle "not this one" head-shake on a wrong-number tap: the cell
+  /// wiggles under a soft red tint, clearly distinct from the joyful effects.
+  void spawnWrong(int row, int col) {
+    _add(_FillEffect(
+      kind: _EffectKind.wrong,
+      row: row,
+      col: col,
+      color: const Color(0xFFFF5252),
+      startMs: _nowMs,
+    ));
+  }
+
   /// A larger celebratory sparkle ring, e.g. when a whole color is finished.
   void spawnBurst(int row, int col, Color color) {
     _add(_FillEffect(
@@ -285,6 +297,9 @@ class _FillEffectsPainter extends CustomPainter {
         case _EffectKind.combo:
           _paintCombo(canvas, center, cellPx, t, e.combo);
           break;
+        case _EffectKind.wrong:
+          _paintWrong(canvas, paint, center, cellPx, t, e.color);
+          break;
       }
     }
   }
@@ -384,6 +399,41 @@ class _FillEffectsPainter extends CustomPainter {
       ..lineTo(c.dx - r * 0.6, c.dy)
       ..close();
     canvas.drawPath(path, paint);
+  }
+
+  /// Horizontal head-shake: three quick wiggles that damp out, over a soft
+  /// red-tinted cell with a matching border. Ends within the first ~70% of
+  /// the effect lifetime so it reads as a snappy "nope", not a lingering error.
+  void _paintWrong(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double cellPx,
+    double t,
+    Color color,
+  ) {
+    final wt = (t / 0.7).clamp(0.0, 1.0);
+    final shake = math.sin(wt * math.pi * 6) * cellPx * 0.14 * (1 - wt);
+    final fade = (1 - wt).clamp(0.0, 1.0);
+    final rect = Rect.fromCenter(
+      center: Offset(c.dx + shake, c.dy),
+      width: cellPx,
+      height: cellPx,
+    );
+    final rrect = RRect.fromRectAndRadius(
+      rect,
+      Radius.circular(cellPx * 0.16),
+    );
+    paint
+      ..style = PaintingStyle.fill
+      ..color = color.withValues(alpha: fade * 0.35);
+    canvas.drawRRect(rrect, paint);
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (cellPx * 0.08).clamp(1.0, 3.0)
+      ..color = color.withValues(alpha: fade * 0.9);
+    canvas.drawRRect(rrect, paint);
+    paint.style = PaintingStyle.fill;
   }
 
   void _paintCombo(Canvas canvas, Offset c, double cellPx, double t, int combo) {

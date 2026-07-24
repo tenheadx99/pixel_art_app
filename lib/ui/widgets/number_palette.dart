@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import '../../providers/coloring_provider.dart';
@@ -16,12 +17,31 @@ class _NumberPaletteState extends State<NumberPalette> {
   final ScrollController _scrollController = ScrollController();
   int? _lastSelected;
 
+  // A just-completed color's chip sticks around briefly to celebrate (pop to
+  // a check, then shrink away) instead of vanishing the instant it finishes.
+  static const _celebrationMs = 700;
+  final Map<int, Timer> _celebrating = {};
+  Set<int> _prevIncomplete = {};
+
   ColoringProvider get provider => widget.provider;
 
   @override
   void dispose() {
+    for (final timer in _celebrating.values) {
+      timer.cancel();
+    }
     _scrollController.dispose();
     super.dispose();
+  }
+
+  /// Scale curve for a celebrating chip over its lifetime [t] 0..1:
+  /// bounce up past full size, hold, then shrink out.
+  static double _celebrationScale(double t) {
+    if (t < 0.4) {
+      return 1.0 + 0.3 * Curves.easeOutBack.transform(t / 0.4);
+    }
+    if (t < 0.6) return 1.3;
+    return 1.3 * (1.0 - Curves.easeInCubic.transform((t - 0.6) / 0.4));
   }
 
   /// Keeps the selected chip visible — auto-advance can jump the selection
@@ -49,9 +69,29 @@ class _NumberPaletteState extends State<NumberPalette> {
     final art = provider.currentArt;
     if (art == null) return const SizedBox.shrink();
 
-    final numbers = art.sortedNumbers.where((n) {
-      return provider.fillPercentForNumber(n) < 1.0;
-    }).toList();
+    final incomplete = art.sortedNumbers
+        .where((n) => provider.fillPercentForNumber(n) < 1.0)
+        .toSet();
+    // Numbers that completed since the previous build start their send-off.
+    for (final n in _prevIncomplete) {
+      if (!incomplete.contains(n) && !_celebrating.containsKey(n)) {
+        _celebrating[n] = Timer(
+          const Duration(milliseconds: _celebrationMs),
+          () {
+            if (mounted) {
+              setState(() => _celebrating.remove(n));
+            } else {
+              _celebrating.remove(n);
+            }
+          },
+        );
+      }
+    }
+    _prevIncomplete = incomplete;
+
+    final numbers = art.sortedNumbers
+        .where((n) => incomplete.contains(n) || _celebrating.containsKey(n))
+        .toList();
     if (numbers.isEmpty) return const SizedBox.shrink();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -118,6 +158,18 @@ class _NumberPaletteState extends State<NumberPalette> {
           } else {
             chip = Padding(
               padding: const EdgeInsets.all(5.0),
+              child: chip,
+            );
+          }
+
+          if (_celebrating.containsKey(number)) {
+            chip = TweenAnimationBuilder<double>(
+              tween: Tween(begin: 0.0, end: 1.0),
+              duration: const Duration(milliseconds: _celebrationMs),
+              builder: (context, t, child) => Transform.scale(
+                scale: _celebrationScale(t),
+                child: child,
+              ),
               child: chip,
             );
           }

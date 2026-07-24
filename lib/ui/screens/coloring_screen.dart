@@ -28,6 +28,7 @@ import '../../ui/widgets/pixel_grid.dart';
 import '../../ui/widgets/number_palette.dart';
 import '../../ui/widgets/number_toolbar.dart';
 import '../../ui/widgets/confetti_overlay.dart';
+import '../../ui/widgets/next_cell_pulse.dart';
 import '../../ui/widgets/reward_popup.dart';
 import '../../ui/widgets/coin_fly.dart';
 import '../../ui/widgets/fill_effects_overlay.dart';
@@ -169,7 +170,17 @@ class _ColoringScreenState extends State<ColoringScreen>
             _fxKey.currentState?.spawnBurst(_lastFillRow, _lastFillCol, color);
           }
         }
-        ..onCellFilledAt = _onCellFilledAt;
+        ..onCellFilledAt = _onCellFilledAt
+        ..onWrongTap = (row, col) {
+          // Gentle "not this one": shake + soft thud (haptic fires in the
+          // provider alongside the fill haptics).
+          if (_settings?.fillEffectsEnabled ?? true) {
+            _fxKey.currentState?.spawnWrong(row, col);
+          }
+          if (_settings?.soundsEnabled ?? true) {
+            soundService.playWrongTap();
+          }
+        };
       _maybeShowLongPressTip();
     });
   }
@@ -212,6 +223,16 @@ class _ColoringScreenState extends State<ColoringScreen>
       if (combo >= threshold && threshold > _comboThresholdShown) {
         _comboThresholdShown = threshold;
         _fxKey.currentState?.spawnComboText(row, col, combo);
+        // Escalating chime + buzz: each tier one step higher/stronger.
+        final tier = AppConstants.comboThresholds.indexOf(threshold);
+        if (_settings?.soundsEnabled ?? true) {
+          context
+              .read<SoundService>()
+              .playComboChime(rate: 1.0 + tier * 0.12);
+        }
+        if (_settings?.hapticsEnabled ?? true) {
+          provider.comboHaptic(tier);
+        }
       }
     }
   }
@@ -359,6 +380,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       provider.onCellFilledCorrectly = null;
       provider.onSectionCompleted = null;
       provider.onCellFilledAt = null;
+      provider.onWrongTap = null;
     }
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
@@ -417,100 +439,156 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Consumer2<ColoringProvider, AppSettingsProvider>(
-      builder: (context, provider, settings, _) {
-        // The provider is app-scoped and loadArt runs post-frame, so the
-        // first frame still carries the PREVIOUS artwork's state. Never let
-        // stale completion trigger confetti/completion UI for this art.
-        final isCurrentArt = provider.currentArt?.id == widget.art.id;
-        final isComplete = isCurrentArt && provider.isComplete;
-        if (isComplete && !_confettiController.isAnimating) {
-          _confettiController.forward();
+    // Rebuild scoping: the root deliberately does NOT listen to the coloring
+    // provider — every fill used to rebuild the entire screen (toolbar,
+    // palette list, banner, viewer shell) per tap. Instead, each region that
+    // genuinely changes per fill wraps itself in a scoped ListenableBuilder,
+    // and the static shells (gradient, InteractiveViewer, effect overlays,
+    // confetti) are built once. Settings changes are rare, so a plain watch
+    // is fine for them.
+    final provider = context.read<ColoringProvider>();
+    final settings = context.watch<AppSettingsProvider>();
+
+    final statusBarHeight = MediaQuery.of(context).padding.top;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return PopScope(
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) {
+          _saveArtwork(context, provider);
+          _maybeShowExitInterstitial();
         }
+      },
+      child: Scaffold(
+        body: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF14141F), const Color(0xFF0F0F16)]
+                  : [const Color(0xFFF9F9FB), const Color(0xFFECEFF1)],
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+            ),
+          ),
+          child: Stack(
+            children: [
+              _buildGrid(provider, settings),
 
-        final statusBarHeight = MediaQuery.of(context).padding.top;
-        final isDark = Theme.of(context).brightness == Brightness.dark;
+              // Breathing highlight on the next fillable cell — its own tiny
+              // layer so the animation never repaints the grid.
+              ListenableBuilder(
+                listenable: provider,
+                builder: (context, _) {
+                  final show = provider.currentArt?.id == widget.art.id &&
+                      !provider.isComplete &&
+                      !provider.isEraseMode;
+                  return Positioned.fill(
+                    child: NextCellPulse(
+                      transformController: _transformController,
+                      cellSize: _cellSize,
+                      viewerSize: _viewerSize,
+                      gridWidth: widget.art.gridWidth,
+                      gridHeight: widget.art.gridHeight,
+                      cell: show ? provider.nextFillable : null,
+                    ),
+                  );
+                },
+              ),
 
-        return PopScope(
-          onPopInvokedWithResult: (didPop, _) {
-            if (didPop) {
-              _saveArtwork(context, provider);
-              _maybeShowExitInterstitial();
-            }
-          },
-          child: Scaffold(
-            body: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? [const Color(0xFF14141F), const Color(0xFF0F0F16)]
-                      : [const Color(0xFFF9F9FB), const Color(0xFFECEFF1)],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+              // Joyful fill effects, layered directly above the grid and
+              // glued to cells via the shared transform.
+              if (settings.fillEffectsEnabled)
+                Positioned.fill(
+                  child: FillEffectsOverlay(
+                    key: _fxKey,
+                    transformController: _transformController,
+                    cellSize: _cellSize,
+                    viewerSize: _viewerSize,
+                    gridWidth: widget.art.gridWidth,
+                    gridHeight: widget.art.gridHeight,
+                  ),
+                ),
+
+              // 1. Top Bar (Overlay)
+              Positioned(
+                top: statusBarHeight + 8,
+                left: 16,
+                right: 16,
+                child: ListenableBuilder(
+                  listenable: provider,
+                  builder: (context, _) {
+                    final isComplete =
+                        provider.currentArt?.id == widget.art.id &&
+                            provider.isComplete;
+                    return _buildTopBar(context, provider, isComplete);
+                  },
                 ),
               ),
-              child: Stack(
-                children: [
-                  if (isCurrentArt) _buildGrid(provider, settings),
 
-                  // Joyful fill effects, layered directly above the grid and
-                  // glued to cells via the shared transform.
-                  if (isCurrentArt && settings.fillEffectsEnabled)
-                    Positioned.fill(
-                      child: FillEffectsOverlay(
-                        key: _fxKey,
-                        transformController: _transformController,
-                        cellSize: _cellSize,
-                        viewerSize: _viewerSize,
-                        gridWidth: widget.art.gridWidth,
-                        gridHeight: widget.art.gridHeight,
-                      ),
-                    ),
+              // 2. Mini Preview in Top Left
+              Positioned(
+                top: statusBarHeight + 116,
+                left: 12,
+                child: ListenableBuilder(
+                  listenable: provider,
+                  builder: (context, _) {
+                    if (provider.currentArt?.id != widget.art.id) {
+                      return const SizedBox.shrink();
+                    }
+                    return _buildMiniMap(provider, isDark);
+                  },
+                ),
+              ),
 
-                  // 1. Top Bar (Overlay)
-                  Positioned(
-                    top: statusBarHeight + 8,
-                    left: 16,
-                    right: 16,
-                    child: _buildTopBar(context, provider, isComplete),
-                  ),
+              ListenableBuilder(
+                listenable: provider,
+                builder: (context, _) {
+                  if (provider.isEraseMode ||
+                      provider.isMagicWandMode ||
+                      provider.isBombMode) {
+                    return _buildModePill(provider);
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              ConfettiOverlay(animation: _confettiController),
 
-                  // 2. Mini Preview in Top Left
-                  if (isCurrentArt)
-                    Positioned(
-                      top: statusBarHeight + 116,
-                      left: 12,
-                      child: _buildMiniMap(provider, isDark),
-                    ),
-
-                  if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode)
-                    _buildModePill(provider),
-                  ConfettiOverlay(animation: _confettiController),
-
-                  // 4. Bottom Section: the toolbar/palette/banner while there's
-                  // still something to color. Once complete it gives way to the
-                  // completion HUD (and a reopen button when that's dismissed).
-                  if (!isComplete)
-                    Positioned(
+              // 4. Bottom Section: the toolbar/palette/banner while there's
+              // still something to color. Once complete it gives way to the
+              // completion HUD (and a reopen button when that's dismissed).
+              ListenableBuilder(
+                listenable: provider,
+                builder: (context, _) {
+                  // The provider is app-scoped and loadArt runs post-frame, so
+                  // the first frame still carries the PREVIOUS artwork's
+                  // state. Never let stale completion trigger confetti or the
+                  // completion UI for this art.
+                  final isComplete =
+                      provider.currentArt?.id == widget.art.id &&
+                          provider.isComplete;
+                  if (isComplete && !_confettiController.isAnimating) {
+                    _confettiController.forward();
+                  }
+                  if (!isComplete) {
+                    return Positioned(
                       bottom: 0,
                       left: 0,
                       right: 0,
                       child: _buildBottomSection(context, provider, settings),
-                    ),
-                  if (isComplete &&
-                      _hudDismissed &&
-                      !_replayController.isAnimating)
-                    _buildReopenOptionsButton(),
-                  if (isComplete &&
-                      !_hudDismissed &&
-                      !_replayController.isAnimating)
-                    _buildCompletionHud(provider),
-                ],
+                    );
+                  }
+                  if (_replayController.isAnimating) {
+                    return const SizedBox.shrink();
+                  }
+                  return _hudDismissed
+                      ? _buildReopenOptionsButton()
+                      : _buildCompletionHud(provider);
+                },
               ),
-            ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 
@@ -535,24 +613,37 @@ class _ColoringScreenState extends State<ColoringScreen>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: ValueListenableBuilder<Matrix4>(
-          valueListenable: _transformController,
-          builder: (context, transform, _) {
-            final viewportRect = _calculateViewportRect(
-              transform,
-              _viewerSize,
-              _cellSize,
-              widget.art,
-            );
-            return CustomPaint(
-              painter: _MiniMapPainter(
-                art: widget.art,
-                filledGrid: provider.filledGrid,
-                filledColors: provider.filledColors,
-                viewportRect: viewportRect,
+        // Two layers so a pinch/pan frame repaints only the viewport
+        // rectangle: the base map (every cell) repaints only when fill state
+        // actually changes (fillVersion), behind its own RepaintBoundary.
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            RepaintBoundary(
+              child: CustomPaint(
+                painter: _MiniMapPainter(
+                  art: widget.art,
+                  filledGrid: provider.filledGrid,
+                  filledColors: provider.filledColors,
+                  fillVersion: provider.fillVersion,
+                ),
               ),
-            );
-          },
+            ),
+            ValueListenableBuilder<Matrix4>(
+              valueListenable: _transformController,
+              builder: (context, transform, _) {
+                final viewportRect = _calculateViewportRect(
+                  transform,
+                  _viewerSize,
+                  _cellSize,
+                  widget.art,
+                );
+                return CustomPaint(
+                  painter: _MiniMapViewportPainter(viewportRect: viewportRect),
+                );
+              },
+            ),
+          ],
         ),
       ),
     );
@@ -1282,32 +1373,44 @@ class _ColoringScreenState extends State<ColoringScreen>
           maxScale: max(4.0, 28.0 / _cellSize),
           child: Center(
             // The boundary wraps only the grid so PNG exports are cropped to
-            // the artwork, not the whole viewport.
+            // the artwork, not the whole viewport. Only this subtree listens
+            // to the provider — a fill rebuilds the canvas widget, not the
+            // viewer shell around it.
             child: RepaintBoundary(
               key: _repaintKey,
-              child: PixelGrid(
-                provider: provider,
-                cellSize: _cellSize,
-                brushSize: provider.brushSize,
-                isEraseMode: provider.isEraseMode,
-                colorblindMode: settings.colorblindMode,
-                gridFade: _gridFadeController,
-                transform: _transformController,
-                fillGrow: _growController,
-                onCellTap: (row, col) => provider.tryFillCell(row, col),
-                onCellLongPress: (row, col) {
-                  _showColorPreview(context, provider, row, col);
-                },
-                onCellDragStart: () {
-                  if (!provider.isMagicWandMode) provider.beginStroke();
-                },
-                onCellDrag: provider.strokeFill,
-                onCellDragEnd: provider.endStroke,
-                onCellDragCancel: provider.cancelStroke,
-                onRequestCanvasPan: (enabled) {
-                  if (_canvasPanEnabled != enabled) {
-                    setState(() => _canvasPanEnabled = enabled);
+              child: ListenableBuilder(
+                listenable: provider,
+                builder: (context, _) {
+                  // App-scoped provider: don't render the previous artwork's
+                  // state before loadArt (post-frame) swaps it.
+                  if (provider.currentArt?.id != widget.art.id) {
+                    return const SizedBox.shrink();
                   }
+                  return PixelGrid(
+                    provider: provider,
+                    cellSize: _cellSize,
+                    brushSize: provider.brushSize,
+                    isEraseMode: provider.isEraseMode,
+                    colorblindMode: settings.colorblindMode,
+                    gridFade: _gridFadeController,
+                    transform: _transformController,
+                    fillGrow: _growController,
+                    onCellTap: (row, col) => provider.tryFillCell(row, col),
+                    onCellLongPress: (row, col) {
+                      _showColorPreview(context, provider, row, col);
+                    },
+                    onCellDragStart: () {
+                      if (!provider.isMagicWandMode) provider.beginStroke();
+                    },
+                    onCellDrag: provider.strokeFill,
+                    onCellDragEnd: provider.endStroke,
+                    onCellDragCancel: provider.cancelStroke,
+                    onRequestCanvasPan: (enabled) {
+                      if (_canvasPanEnabled != enabled) {
+                        setState(() => _canvasPanEnabled = enabled);
+                      }
+                    },
+                  );
                 },
               ),
             ),
@@ -1802,13 +1905,18 @@ class _MiniMapPainter extends CustomPainter {
   final PixelArt art;
   final List<List<int>> filledGrid;
   final Map<int, Color> filledColors;
-  final Rect viewportRect;
+
+  /// Monotonic fill-state counter from the provider. The grid list is mutated
+  /// in place, so comparing it by reference never detects changes — the
+  /// version both fixes that staleness and lets zoom/pan frames skip this
+  /// (whole-grid) repaint entirely.
+  final int fillVersion;
 
   _MiniMapPainter({
     required this.art,
     required this.filledGrid,
     required this.filledColors,
-    required this.viewportRect,
+    required this.fillVersion,
   });
 
   @override
@@ -1817,24 +1925,37 @@ class _MiniMapPainter extends CustomPainter {
     final cw = size.width / art.gridWidth;
     final ch = size.height / art.gridHeight;
 
+    final cellPaint = Paint()..style = PaintingStyle.fill;
     for (var r = 0; r < art.gridHeight; r++) {
       for (var c = 0; c < art.gridWidth; c++) {
         final val = art.grid[r][c];
         if (val <= 0) continue;
 
         final isFilled = r < filledGrid.length && c < filledGrid[r].length && filledGrid[r][c] > 0;
-        final Color color;
         if (isFilled) {
-          color = filledColors[val] ?? Colors.transparent;
+          cellPaint.color = filledColors[val] ?? Colors.transparent;
         } else {
-          color = const Color(0xFFD6D6D6);
+          cellPaint.color = const Color(0xFFD6D6D6);
         }
 
-        final rect = Rect.fromLTWH(c * cw, r * ch, cw, ch);
-        canvas.drawRect(rect, Paint()..color = color..style = PaintingStyle.fill);
+        canvas.drawRect(Rect.fromLTWH(c * cw, r * ch, cw, ch), cellPaint);
       }
     }
+  }
 
+  @override
+  bool shouldRepaint(covariant _MiniMapPainter oldDelegate) {
+    return oldDelegate.art != art || oldDelegate.fillVersion != fillVersion;
+  }
+}
+
+class _MiniMapViewportPainter extends CustomPainter {
+  final Rect viewportRect;
+
+  _MiniMapViewportPainter({required this.viewportRect});
+
+  @override
+  void paint(Canvas canvas, Size size) {
     final vpPaint = Paint()
       ..color = Colors.cyan
       ..style = PaintingStyle.stroke
@@ -1850,11 +1971,8 @@ class _MiniMapPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _MiniMapPainter oldDelegate) {
-    return oldDelegate.art != art ||
-        oldDelegate.filledGrid != filledGrid ||
-        oldDelegate.viewportRect != viewportRect;
-  }
+  bool shouldRepaint(covariant _MiniMapViewportPainter oldDelegate) =>
+      oldDelegate.viewportRect != viewportRect;
 }
 
 class _ProgressGiftsBar extends StatelessWidget {
@@ -1872,70 +1990,87 @@ class _ProgressGiftsBar extends StatelessWidget {
       color = const Color(0xFFE53935);
     }
 
-    return Icon(
-      Icons.redeem_rounded,
-      size: 18,
-      color: isUnlocked ? color : color.withAlpha(100),
+    // Pop when a gift unlocks: quick scale bounce alongside the color change.
+    return AnimatedScale(
+      scale: isUnlocked ? 1.25 : 1.0,
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.elasticOut,
+      child: Icon(
+        Icons.redeem_rounded,
+        size: 18,
+        color: isUnlocked ? color : color.withAlpha(100),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final trackWidth = constraints.maxWidth - 52;
-        return Row(
-          children: [
-            Expanded(
-              child: SizedBox(
-                height: 24,
-                child: Stack(
-                  alignment: Alignment.centerLeft,
-                  clipBehavior: Clip.none,
-                  children: [
-                    Container(
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    FractionallySizedBox(
-                      widthFactor: progress.clamp(0.0, 1.0),
-                      child: Container(
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF81C784),
-                          borderRadius: BorderRadius.circular(4),
+    // The tween re-targets whenever progress changes, so every fill eases the
+    // bar (and counts the % up) instead of snapping.
+    return TweenAnimationBuilder<double>(
+      tween: Tween(end: progress.clamp(0.0, 1.0)),
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+      builder: (context, animated, _) {
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final trackWidth = constraints.maxWidth - 52;
+            return Row(
+              children: [
+                Expanded(
+                  child: SizedBox(
+                    height: 24,
+                    child: Stack(
+                      alignment: Alignment.centerLeft,
+                      clipBehavior: Clip.none,
+                      children: [
+                        Container(
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade200,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
                         ),
-                      ),
+                        FractionallySizedBox(
+                          widthFactor: animated,
+                          child: Container(
+                            height: 8,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF81C784), Color(0xFF4CAF50)],
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          left: (trackWidth * 0.30) - 9,
+                          child: _buildGiftIcon(context, 1, animated >= 0.30),
+                        ),
+                        Positioned(
+                          left: (trackWidth * 0.65) - 9,
+                          child: _buildGiftIcon(context, 2, animated >= 0.65),
+                        ),
+                        Positioned(
+                          left: trackWidth - 9,
+                          child: _buildGiftIcon(context, 3, animated >= 1.0),
+                        ),
+                      ],
                     ),
-                    Positioned(
-                      left: (trackWidth * 0.30) - 9,
-                      child: _buildGiftIcon(context, 1, progress >= 0.30),
-                    ),
-                    Positioned(
-                      left: (trackWidth * 0.65) - 9,
-                      child: _buildGiftIcon(context, 2, progress >= 0.65),
-                    ),
-                    Positioned(
-                      left: trackWidth - 9,
-                      child: _buildGiftIcon(context, 3, progress >= 1.0),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Text(
-              '${(progress * 100).toStringAsFixed(1)}%',
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
-                color: Colors.black87,
-              ),
-            ),
-          ],
+                const SizedBox(width: 8),
+                Text(
+                  '${(animated * 100).toStringAsFixed(1)}%',
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.black87,
+                  ),
+                ),
+              ],
+            );
+          },
         );
       },
     );

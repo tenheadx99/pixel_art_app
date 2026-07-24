@@ -204,7 +204,6 @@ class _PixelGridState extends State<PixelGrid> {
                   selectedNumber: widget.provider.selectedNumber,
                   showNumbers: widget.provider.showNumbers,
                   highlightedNumber: widget.provider.highlightedNumber,
-                  nextFillable: widget.provider.nextFillable,
                   cellSize: widget.cellSize,
                   isEraseMode: widget.isEraseMode,
                   brushSize: widget.brushSize,
@@ -249,7 +248,6 @@ class _PixelGridPainter extends CustomPainter {
   final int selectedNumber;
   final bool showNumbers;
   final int? highlightedNumber;
-  final (int, int)? nextFillable;
   final double cellSize;
   final bool isEraseMode;
   final int brushSize;
@@ -271,7 +269,6 @@ class _PixelGridPainter extends CustomPainter {
     required this.selectedNumber,
     required this.showNumbers,
     required this.highlightedNumber,
-    required this.nextFillable,
     required this.cellSize,
     required this.isEraseMode,
     required this.brushSize,
@@ -307,17 +304,26 @@ class _PixelGridPainter extends CustomPainter {
     });
   }
 
-  /// Light grayscale tone matching the target color's brightness — gives the
-  /// zoomed-out canvas a ghost image of the finished artwork.
-  Color _grayscalePreview(int number) {
+  /// Unfilled-cell preview colors (grayscale ghost of the target color, faded
+  /// toward white by the quantized LOD step), cached across frames and painter
+  /// instances — computing these per cell per frame allocated thousands of
+  /// Colors per pinch/stroke frame on large grids.
+  static final Map<int, Color> _previewCache = {};
+
+  Color _previewColor(int number, int detailStep) {
     final target = filledColors[number];
     if (target == null) return Colors.white;
-    final luminance =
-        0.299 * (target.r * 255) +
-        0.587 * (target.g * 255) +
-        0.114 * (target.b * 255);
-    final v = (150 + luminance * 0.41).round().clamp(0, 255);
-    return Color.fromARGB(255, v, v, v);
+    final argb = target.toARGB32();
+    return _previewCache.putIfAbsent(argb * 8 + detailStep, () {
+      final luminance =
+          0.299 * (target.r * 255) +
+          0.587 * (target.g * 255) +
+          0.114 * (target.b * 255);
+      final v = (150 + luminance * 0.41).round().clamp(0, 255);
+      final gray = Color.fromARGB(255, v, v, v);
+      if (detailStep <= 0) return gray;
+      return Color.lerp(gray, Colors.white, detailStep / 4)!;
+    });
   }
 
   static const _patterns = [
@@ -391,14 +397,20 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   /// Scales an RGB color toward black by [amount] (0..1) for the bevel ring.
+  /// Cached by source color — the gem path calls this for every filled cell
+  /// on every repaint. (All callers use the same amount, so it isn't keyed.)
+  static final Map<int, Color> _darkenCache = {};
+
   static Color _darken(Color color, double amount) {
-    final f = 1.0 - amount;
-    return Color.fromARGB(
-      (color.a * 255).round(),
-      (color.r * 255 * f).round().clamp(0, 255),
-      (color.g * 255 * f).round().clamp(0, 255),
-      (color.b * 255 * f).round().clamp(0, 255),
-    );
+    return _darkenCache.putIfAbsent(color.toARGB32(), () {
+      final f = 1.0 - amount;
+      return Color.fromARGB(
+        (color.a * 255).round(),
+        (color.r * 255 * f).round().clamp(0, 255),
+        (color.g * 255 * f).round().clamp(0, 255),
+        (color.b * 255 * f).round().clamp(0, 255),
+      );
+    });
   }
 
   @override
@@ -473,7 +485,6 @@ class _PixelGridPainter extends CustomPainter {
     // each (~a dozen draw calls total) instead.
     if (detailStep == 0 && !colorblindMode) {
       _paintLowDetail(canvas, cw, ch, firstRow, lastRow, firstCol, lastCol);
-      _paintNextFillable(canvas, cw, ch, cellGap);
       _paintEdge(canvas, size);
       return;
     }
@@ -512,11 +523,7 @@ class _PixelGridPainter extends CustomPainter {
                 )
               : rect;
           if (grow < 1.0) {
-            cellPaint.color = Color.lerp(
-              _grayscalePreview(expectedNumber),
-              Colors.white,
-              detail,
-            )!;
+            cellPaint.color = _previewColor(expectedNumber, detailStep);
             canvas.drawRect(rect, cellPaint);
           }
           if (gemStyle) {
@@ -545,11 +552,7 @@ class _PixelGridPainter extends CustomPainter {
           cellPaint.color = const Color(0xFFE8E8E8);
           canvas.drawRect(rect, cellPaint);
         } else {
-          cellPaint.color = Color.lerp(
-            _grayscalePreview(expectedNumber),
-            Colors.white,
-            detail,
-          )!;
+          cellPaint.color = _previewColor(expectedNumber, detailStep);
           canvas.drawRect(rect, cellPaint);
           if (colorblindMode) {
             _drawPattern(canvas, rect, expectedNumber, cw, ch);
@@ -580,9 +583,11 @@ class _PixelGridPainter extends CustomPainter {
       }
     }
 
-    _paintNextFillable(canvas, cw, ch, cellGap);
-
     if (hoverRow != null && hoverCol != null) {
+      final cursorPaint = Paint()
+        ..color =
+            (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
+                .withAlpha(50);
       final half = brushSize ~/ 2;
       for (var dr = -half; dr <= half; dr++) {
         for (var dc = -half; dc <= half; dc++) {
@@ -595,12 +600,6 @@ class _PixelGridPainter extends CustomPainter {
             cw - cellGap * 2,
             ch - cellGap * 2,
           );
-          final cursorPaint = Paint()
-            ..color =
-                (isEraseMode
-                        ? const Color(0xFFFF6B6B)
-                        : const Color(0xFF6C63FF))
-                    .withAlpha(50);
           canvas.drawRect(hRect, cursorPaint);
         }
       }
@@ -633,7 +632,7 @@ class _PixelGridPainter extends CustomPainter {
         } else if (expectedNumber == 0) {
           colorValue = 0xFFE8E8E8;
         } else {
-          colorValue = _grayscalePreview(expectedNumber).toARGB32();
+          colorValue = _previewColor(expectedNumber, 0).toARGB32();
           if (highlightedNumber != null &&
               expectedNumber == highlightedNumber) {
             highlightPoints
@@ -666,28 +665,6 @@ class _PixelGridPainter extends CustomPainter {
         paint,
       );
     }
-  }
-
-  void _paintNextFillable(Canvas canvas, double cw, double ch, double cellGap) {
-    if (nextFillable == null || isEraseMode) return;
-    final (nr, nc) = nextFillable!;
-    final nRect = Rect.fromLTWH(
-      nc * cw + cellGap,
-      nr * ch + cellGap,
-      cw - cellGap * 2,
-      ch - cellGap * 2,
-    );
-    final pulse = Paint()
-      ..color = const Color(0xFF6C63FF).withAlpha(80)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(nRect, const Radius.circular(3)),
-      pulse,
-    );
-    canvas.drawRect(
-      nRect.deflate(2),
-      Paint()..color = Colors.white.withAlpha(60),
-    );
   }
 
   void _paintEdge(Canvas canvas, Size size) {
