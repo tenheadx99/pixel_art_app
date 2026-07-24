@@ -372,10 +372,9 @@ class _PixelGridPainter extends CustomPainter {
   static const int _gemHighlightCoreAlpha = 160;
   static const int _gemHighlightHaloAlpha = 90;
 
-  /// Paints a filled cell as a hyper-realistic 3D faceted diamond jewel:
-  /// a dark drop shadow, 3D radial dome gradient, 8-facet crown cuts, table facet,
-  /// specular halo/core, 4-point star flares, and rim bounce lighting.
-  void _drawGem(Canvas canvas, Rect rect, Color base, Paint cellPaint, double effectiveCell) {
+  /// Draws the static 3D body of a gem cell (drop shadow, 3D dome gradient, bevel, facet cuts).
+  /// This heavy geometry is recorded into an offscreen [ui.Picture] cache.
+  void _drawGemBase(Canvas canvas, Rect rect, Color base, Paint cellPaint, double effectiveCell) {
     final c = rect.center;
     final r = rect.shortestSide / 2;
 
@@ -389,28 +388,8 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
-    // Light source vector and tilt offset calculation
-    final matrix = transform?.value;
-    double sx = c.dx;
-    double sy = c.dy;
-    if (matrix != null) {
-      sx = matrix.storage[0] * c.dx + matrix.storage[12];
-      sy = matrix.storage[5] * c.dy + matrix.storage[13];
-    }
-
-    const lightX = 200.0;
-    const lightY = -150.0;
-
-    final dx = lightX - sx;
-    final dy = lightY - sy;
-    final dist = sqrt(dx * dx + dy * dy);
-
-    final double nx = dist > 0 ? dx / dist : -0.707;
-    final double ny = dist > 0 ? dy / dist : -0.707;
-
-    final tilt = tiltNotifier?.value ?? Offset.zero;
-    final shiftX = (nx - tilt.dx * 0.45).clamp(-1.25, 1.25);
-    final shiftY = (ny + tilt.dy * 0.45).clamp(-1.25, 1.25);
+    const shiftX = -0.707;
+    const shiftY = -0.707;
 
     // 2. Ambient Drop Shadow (gives 3D depth above the canvas grid)
     final shadowOffset = Offset(c.dx - shiftX * r * 0.08, c.dy - shiftY * r * 0.08);
@@ -480,7 +459,23 @@ class _PixelGridPainter extends CustomPainter {
       cellPaint.style = PaintingStyle.fill;
     }
 
-    // 5. Specular Highlights & Star Glare Flare
+    // Secondary Rim Bounce Light (bottom opposite edge)
+    final bounceHL = Offset(
+      c.dx - r * _gemHighlightOffset * shiftX * 0.8,
+      c.dy - r * _gemHighlightOffset * shiftY * 0.8,
+    );
+    cellPaint.color = lightShade.withAlpha(45);
+    canvas.drawCircle(bounceHL, r * 0.25, cellPaint);
+  }
+
+  /// Draws the lightweight dynamic specular highlight dot & star glare flare.
+  /// Shifted dynamically per frame based on [shiftX] and [shiftY] from tilt/position.
+  void _drawGemHighlight(Canvas canvas, Rect rect, Paint cellPaint, double effectiveCell, double shiftX, double shiftY) {
+    if (effectiveCell < 10.0) return;
+
+    final c = rect.center;
+    final r = rect.shortestSide / 2;
+
     final hl = Offset(
       c.dx + r * _gemHighlightOffset * shiftX * 1.25,
       c.dy + r * _gemHighlightOffset * shiftY * 1.25,
@@ -513,14 +508,6 @@ class _PixelGridPainter extends CustomPainter {
         flarePaint,
       );
     }
-
-    // Secondary Rim Bounce Light (bottom opposite edge)
-    final bounceHL = Offset(
-      c.dx - r * _gemHighlightOffset * shiftX * 0.8,
-      c.dy - r * _gemHighlightOffset * shiftY * 0.8,
-    );
-    cellPaint.color = lightShade.withAlpha(45);
-    canvas.drawCircle(bounceHL, r * 0.25, cellPaint);
   }
 
   /// Scales an RGB color toward black by [amount] (0..1) for the bevel ring.
@@ -551,6 +538,27 @@ class _PixelGridPainter extends CustomPainter {
     });
   }
 
+  static ui.Picture? _bakedBasePicture;
+  static int _bakedFillHash = -1;
+  static int _bakedDetailStep = -1;
+  static String _bakedArtId = '';
+  static bool _bakedGemStyle = false;
+  static double _bakedWidth = 0.0;
+  static double _bakedHeight = 0.0;
+
+  int _computeFillHash(List<List<int>> grid) {
+    int h = 0;
+    for (var r = 0; r < grid.length; r++) {
+      final row = grid[r];
+      for (var c = 0; c < row.length; c++) {
+        if (row[c] > 0) {
+          h = (h * 31 + row[c] + r * 17 + c * 13) & 0x7FFFFFFF;
+        }
+      }
+    }
+    return h;
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
@@ -560,17 +568,63 @@ class _PixelGridPainter extends CustomPainter {
 
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
+    final cellGap = 0.5 * gridLineOpacity;
 
-    // Level of detail by on-screen cell size: below ~14px numbers are
-    // unreadable, so hide them and shade unfilled cells with a grayscale
-    // preview of their target color instead; fade between the two states.
+    // Level of detail by on-screen cell size
     final effectiveCell = min(cw, ch) * viewerScale;
     final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
+    final detailStep = (detail * 4).round();
 
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-      Paint()..color = const Color(0xFFF0F0F0),
-    );
+    final currentFillHash = gemStyle ? _computeFillHash(filledGrid) : 0;
+    if (gemStyle) {
+      if (_bakedBasePicture == null ||
+          _bakedFillHash != currentFillHash ||
+          _bakedDetailStep != detailStep ||
+          _bakedArtId != art.id ||
+          _bakedGemStyle != gemStyle ||
+          _bakedWidth != size.width ||
+          _bakedHeight != size.height) {
+        final recorder = ui.PictureRecorder();
+        final recorderCanvas = Canvas(recorder);
+
+        recorderCanvas.drawRRect(
+          RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+          Paint()..color = const Color(0xFFF0F0F0),
+        );
+
+        final recPaint = Paint();
+        for (var r = 0; r < gridHeight; r++) {
+          for (var c = 0; c < gridWidth; c++) {
+            final isFilled = filledGrid[r][c] > 0;
+            if (!isFilled) continue;
+            final expectedNumber = art.grid[r][c] as int;
+            final color = filledColors[expectedNumber] ?? Colors.grey;
+            final rect = Rect.fromLTWH(
+              c * cw + cellGap,
+              r * ch + cellGap,
+              cw - cellGap * 2,
+              ch - cellGap * 2,
+            );
+            _drawGemBase(recorderCanvas, rect, color, recPaint, effectiveCell);
+          }
+        }
+
+        _bakedBasePicture = recorder.endRecording();
+        _bakedFillHash = currentFillHash;
+        _bakedDetailStep = detailStep;
+        _bakedArtId = art.id;
+        _bakedGemStyle = gemStyle;
+        _bakedWidth = size.width;
+        _bakedHeight = size.height;
+      }
+
+      canvas.drawPicture(_bakedBasePicture!);
+    } else {
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        Paint()..color = const Color(0xFFF0F0F0),
+      );
+    }
 
     final borderPaint = Paint()
       ..color = Color.fromARGB((0x22 * gridLineOpacity).round(), 0, 0, 0)
@@ -584,51 +638,52 @@ class _PixelGridPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
 
-    final cellGap = 0.5 * gridLineOpacity;
-
-    // Reused per-cell paints — allocating Paint per cell per frame churns the
-    // GC during pinch/stroke repaints.
+    // Reused per-cell paints
     final cellPaint = Paint();
     final glossPaint = Paint()
       ..color = Colors.white.withAlpha((30 * gridLineOpacity).round());
-    // Flat translucent accent (no MaskFilter.blur). A blurred glow here is
-    // drawn per visible cell of the selected number every frame, which is a
-    // heavy raster cost; a solid fill reads almost identically for a fraction
-    // of the GPU time.
     final glowPaint = Paint()
       ..color =
           (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
               .withAlpha(36);
 
-    // Numbers share one font size per artwork; quantize the fade so cached
-    // TextPainters can be reused across frames.
     final textScale = min(1.0, cw / 28);
-    // XL grids (96+) zoom deeper, so their labels render proportionally
-    // bigger on screen; pull them back one point.
     final xlGrid = max(gridWidth, gridHeight) >= 96;
     final fontSize = (9.0 * textScale).clamp(4.0, 12.0) - (xlGrid ? 1.0 : 0.0);
-    final detailStep = (detail * 4).round();
 
-    // Only paint cells inside the visible (transformed) clip — when zoomed
-    // in, this skips the vast majority of the grid.
     final clip = canvas.getLocalClipBounds();
     final firstRow = max(0, (clip.top / ch).floor());
     final lastRow = min(gridHeight - 1, (clip.bottom / ch).ceil());
     final firstCol = max(0, (clip.left / cw).floor());
     final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
 
-    // Fully zoomed out there are no numbers, borders are sub-pixel, and on
-    // 96/128 grids every cell is visible — per-cell drawRect would be ~50k
-    // ops per pinch frame. Batch cells by color into one drawRawPoints call
-    // each (~a dozen draw calls total) instead.
     if (detailStep == 0 && !colorblindMode) {
       _paintLowDetail(canvas, cw, ch, firstRow, lastRow, firstCol, lastCol);
       _paintEdge(canvas, size);
       return;
     }
 
-    // Single clock read for any cells currently growing in (taps only).
     final nowMs = fillGrow == null ? 0 : DateTime.now().millisecondsSinceEpoch;
+
+    // Directional vectors for dynamic specular glint highlights
+    final matrix = transform?.value;
+    double sx = size.width / 2;
+    double sy = size.height / 2;
+    if (matrix != null) {
+      sx = matrix.storage[0] * sx + matrix.storage[12];
+      sy = matrix.storage[5] * sy + matrix.storage[13];
+    }
+    const lightX = 200.0;
+    const lightY = -150.0;
+    final dx = lightX - sx;
+    final dy = lightY - sy;
+    final dist = sqrt(dx * dx + dy * dy);
+    final double nx = dist > 0 ? dx / dist : -0.707;
+    final double ny = dist > 0 ? dy / dist : -0.707;
+
+    final tilt = tiltNotifier?.value ?? Offset.zero;
+    final shiftX = (nx - tilt.dx * 0.45).clamp(-1.25, 1.25);
+    final shiftY = (ny + tilt.dy * 0.45).clamp(-1.25, 1.25);
 
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
@@ -650,9 +705,6 @@ class _PixelGridPainter extends CustomPainter {
           final grow = fillGrow == null
               ? 1.0
               : fillGrow!.factor(row, col, nowMs);
-          // While growing in, paint the preview underneath and scale the
-          // colour up from the cell centre so it reads as the colour dropping
-          // onto the numbered cell.
           final drawRect = grow < 1.0
               ? Rect.fromCenter(
                   center: rect.center,
@@ -665,7 +717,10 @@ class _PixelGridPainter extends CustomPainter {
             canvas.drawRect(rect, cellPaint);
           }
           if (gemStyle) {
-            _drawGem(canvas, drawRect, color, cellPaint, effectiveCell);
+            if (grow < 1.0) {
+              _drawGemBase(canvas, drawRect, color, cellPaint, effectiveCell);
+            }
+            _drawGemHighlight(canvas, drawRect, cellPaint, effectiveCell, shiftX, shiftY);
             if (colorblindMode) {
               _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
             }
