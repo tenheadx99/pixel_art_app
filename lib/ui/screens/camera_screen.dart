@@ -4,6 +4,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../providers/camera_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../config/app_constants.dart';
+import '../../data/services/analytics_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
 
@@ -450,6 +451,7 @@ class _CameraScreenBody extends StatelessWidget {
   Future<void> _convert(BuildContext context, CameraProvider camera) async {
     try {
       await camera.convertImage('My Pixel Art');
+      AnalyticsService().logPhotoConverted(source: 'camera_screen');
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

@@ -83,7 +83,7 @@ class FlavorConfig {
     required this.accent,
     required this.brandGradient,
     required this.manifestPath,
-    this.adsEnabled = true,
+    this.adsEnabled = false,
     this.iapEnabled = true,
     this.fullScreenAdsEnabled = true,
     this.bannerAdsEnabled = true,
@@ -103,6 +103,7 @@ class FlavorConfig {
       accent: Color(0xFF00F0FF), // Cyber Cyan
       brandGradient: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art/manifest.json',
+      adsEnabled: true,
     ),
     AppFlavor.devotional: FlavorConfig(
       appName: 'Divine Pixels',

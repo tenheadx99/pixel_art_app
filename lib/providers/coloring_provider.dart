@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
+import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 
@@ -476,6 +477,11 @@ class ColoringProvider extends ChangeNotifier {
     _consecutiveFills = 0;
     loadProgress();
     _calculateProgress();
+    AnalyticsService().logArtworkSelected(
+      artId: art.id,
+      category: art.category,
+      title: art.name,
+    );
     notifyListeners();
   }
 
@@ -909,6 +915,12 @@ class ColoringProvider extends ChangeNotifier {
 
   void _checkCompletion() {
     if (_progress >= AppConfig.completionThreshold) {
+      if (!_isComplete && _currentArt != null) {
+        AnalyticsService().logArtworkCompleted(
+          artId: _currentArt!.id,
+          category: _currentArt!.category,
+        );
+      }
       _isComplete = true;
       _consecutiveFills = 0;
     }

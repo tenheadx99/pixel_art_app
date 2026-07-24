@@ -18,6 +18,7 @@ import 'data/services/screenshot_service.dart';
 import 'data/services/pixel_converter_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
+import 'data/services/analytics_service.dart';
 import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/coloring_provider.dart';
@@ -188,6 +189,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     // in bootstrapApp(); these are non-critical, so failures fall back to
     // defaults without blocking the app.
     try {
+      await AnalyticsService().init(flavorName: currentFlavor.name);
       final remoteConfig = RemoteConfigService();
       await remoteConfig.initialize();
 
@@ -388,6 +390,7 @@ class _AppShellWithDeps extends StatelessWidget {
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           theme: AppStyle.lightTheme(),
           darkTheme: AppStyle.darkTheme(),
+          navigatorObservers: [AnalyticsService().observer],
           home: const _IntroFlow(),
         );
       },

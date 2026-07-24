@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
+import 'package:pixel_art_app/data/services/analytics_service.dart';
 
 class AdService {
   static final AdService _instance = AdService._();
@@ -156,6 +157,7 @@ class AdService {
       onAdFailedToShowFullScreenContent: (a, error) => a.dispose(),
     );
     _lastInterstitialAt = DateTime.now();
+    AnalyticsService().logAdImpression(adFormat: 'interstitial', placement: 'session_exit');
     ad.show();
   }
 
@@ -192,6 +194,7 @@ class AdService {
       },
     );
     _lastRewardedAt = DateTime.now();
+    AnalyticsService().logAdImpression(adFormat: 'rewarded', placement: 'user_reward');
     _rewardedAd?.show(
       onUserEarnedReward: (ad, reward) {
         onRewarded();
@@ -244,6 +247,7 @@ class AdService {
       },
     );
     _lastAppOpenAt = now;
+    AnalyticsService().logAdImpression(adFormat: 'app_open', placement: 'resume');
     ad.show();
   }
 

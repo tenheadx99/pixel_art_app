@@ -5,6 +5,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 import 'dart:math' as math;
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/notification_service.dart';
+import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 
 /// Result of an [AppSettingsProvider.addXp] call, so the UI can celebrate a
@@ -323,6 +324,9 @@ class AppSettingsProvider extends ChangeNotifier {
       for (final purchase in purchaseDetailsList) {
         if (purchase.status == PurchaseStatus.purchased ||
             purchase.status == PurchaseStatus.restored) {
+          if (purchase.status == PurchaseStatus.purchased) {
+            AnalyticsService().logPurchase(productId: purchase.productID);
+          }
           if (purchase.productID == AppConstants.proProductId) {
             setProUser(true);
           } else if (purchase.productID ==
