@@ -57,6 +57,14 @@ android {
     }
 
     buildTypes {
+        getByName("profile") {
+            initWith(getByName("debug"))
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+        }
         release {
             // Use the real upload key when key.properties is present; otherwise
             // fall back to debug signing so the build still completes locally/CI.
@@ -124,7 +132,7 @@ android {
             resValue("string", "app_name", "Gem Art")
             // TODO: register com.tenhead.gemart in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-9064606616675657~1283967516"
         }
     }
 

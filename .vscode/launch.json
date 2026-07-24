@@ -92,6 +92,14 @@
             "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
         },
         {
+            "name": "Gem Art (diamond, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_diamond.dart",
+            "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
+        },
+        {
             "name": "Gem Art (diamond, release)",
             "request": "launch",
             "type": "dart",

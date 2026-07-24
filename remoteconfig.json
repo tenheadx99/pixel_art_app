@@ -312,35 +312,35 @@
     },
     "diamond_show_ads": {
       "defaultValue": {
-        "value": "false"
+        "value": "true"
       },
       "description": "Global switch to show/hide ads for diamond",
       "valueType": "BOOLEAN"
     },
     "diamond_banner_ad_unit_id": {
       "defaultValue": {
-        "value": "ca-app-pub-3940256099942544/6300978111"
+        "value": "ca-app-pub-9064606616675657/8289193711"
       },
       "description": "Banner ad ID for diamond",
       "valueType": "STRING"
     },
     "diamond_interstitial_ad_unit_id": {
       "defaultValue": {
-        "value": "ca-app-pub-3940256099942544/1033173712"
+        "value": "ca-app-pub-9064606616675657/6209825287"
       },
       "description": "Interstitial ad ID for diamond",
       "valueType": "STRING"
     },
     "diamond_rewarded_ad_unit_id": {
       "defaultValue": {
-        "value": "ca-app-pub-3940256099942544/5224354917"
+        "value": "ca-app-pub-9064606616675657/6641336052"
       },
       "description": "Rewarded ad ID for diamond",
       "valueType": "STRING"
     },
     "diamond_app_open_ad_unit_id": {
       "defaultValue": {
-        "value": "ca-app-pub-3940256099942544/9257395921"
+        "value": "ca-app-pub-9064606616675657/3008946878"
       },
       "description": "App open ad ID for diamond",
       "valueType": "STRING"

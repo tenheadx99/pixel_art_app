@@ -153,6 +153,7 @@ class FlavorConfig {
       accent: Color(0xFFF64F59), // Ruby
       brandGradient: [Color(0xFF12C2E9), Color(0xFFC471ED)],
       manifestPath: 'assets/pixel_art_diamond/manifest.json',
+      adsEnabled: true,
       cellStyle: CellRenderStyle.gem,
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',
