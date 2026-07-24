@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'dart:math';
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -86,12 +88,28 @@ class _ColoringScreenState extends State<ColoringScreen>
   Size _viewerSize = Size.zero;
   // Toggled per gesture: a single-finger swipe that begins over a non-selected
   // cell pans the canvas; otherwise the finger paints (swipe-to-fill).
-  bool _canvasPanEnabled = false;
+  final ValueNotifier<bool> _canvasPanNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<Offset> _tiltNotifier = ValueNotifier<Offset>(Offset.zero);
+  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
+  double _smoothTiltX = 0.0;
+  double _smoothTiltY = 0.0;
   final DateTime _sessionStart = DateTime.now();
 
   @override
   void initState() {
     super.initState();
+    try {
+      _accelerometerSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
+        if (!mounted) return;
+        final normX = (event.x / 9.8).clamp(-1.0, 1.0);
+        final normY = (event.y / 9.8).clamp(-1.0, 1.0);
+        _smoothTiltX = _smoothTiltX * 0.8 + normX * 0.2;
+        _smoothTiltY = _smoothTiltY * 0.8 + normY * 0.2;
+        _tiltNotifier.value = Offset(_smoothTiltX, _smoothTiltY);
+      });
+    } catch (e) {
+      debugPrint('Accelerometer sensors not supported: $e');
+    }
     _confettiController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
@@ -394,6 +412,9 @@ class _ColoringScreenState extends State<ColoringScreen>
     _zoomAnimController.dispose();
     _growTicker.dispose();
     _growController.dispose();
+    _canvasPanNotifier.dispose();
+    _accelerometerSubscription?.cancel();
+    _tiltNotifier.dispose();
     super.dispose();
   }
 
@@ -506,6 +527,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     viewerSize: _viewerSize,
                     gridWidth: widget.art.gridWidth,
                     gridHeight: widget.art.gridHeight,
+                    tiltNotifier: _tiltNotifier,
                   ),
                 ),
 
@@ -1364,13 +1386,19 @@ class _ColoringScreenState extends State<ColoringScreen>
         // Two fingers always pan and pinch-zoom. Single-finger panning is
         // turned on only for the duration of a swipe that began over a
         // non-selected cell; otherwise the finger paints (swipe-to-fill).
-        return InteractiveViewer(
-          transformationController: _transformController,
-          panEnabled: _canvasPanEnabled,
-          minScale: 0.5,
-          // Large grids fit the screen with tiny cells; allow zooming until a
-          // cell is ~28px so every artwork stays comfortably tappable.
-          maxScale: max(4.0, 28.0 / _cellSize),
+        return ValueListenableBuilder<bool>(
+          valueListenable: _canvasPanNotifier,
+          builder: (context, panEnabled, child) {
+            return InteractiveViewer(
+              transformationController: _transformController,
+              panEnabled: panEnabled,
+              minScale: 0.5,
+              // Large grids fit the screen with tiny cells; allow zooming until a
+              // cell is ~28px so every artwork stays comfortably tappable.
+              maxScale: max(4.0, 28.0 / _cellSize),
+              child: child!,
+            );
+          },
           child: Center(
             // The boundary wraps only the grid so PNG exports are cropped to
             // the artwork, not the whole viewport. Only this subtree listens
@@ -1395,6 +1423,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     gridFade: _gridFadeController,
                     transform: _transformController,
                     fillGrow: _growController,
+                    tiltNotifier: _tiltNotifier,
                     onCellTap: (row, col) => provider.tryFillCell(row, col),
                     onCellLongPress: (row, col) {
                       _showColorPreview(context, provider, row, col);
@@ -1406,9 +1435,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     onCellDragEnd: provider.endStroke,
                     onCellDragCancel: provider.cancelStroke,
                     onRequestCanvasPan: (enabled) {
-                      if (_canvasPanEnabled != enabled) {
-                        setState(() => _canvasPanEnabled = enabled);
-                      }
+                      _canvasPanNotifier.value = enabled;
                     },
                   );
                 },

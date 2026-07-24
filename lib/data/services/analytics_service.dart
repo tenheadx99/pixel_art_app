@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'package:flutter/widgets.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 
 /// Service to handle Firebase Analytics event logging and user property setup.
@@ -7,17 +8,29 @@ class AnalyticsService {
   factory AnalyticsService() => _instance;
   AnalyticsService._internal();
 
-  final FirebaseAnalytics _analytics = FirebaseAnalytics.instance;
+  FirebaseAnalytics? _analyticsInstance;
+  FirebaseAnalytics? get _analytics {
+    try {
+      return _analyticsInstance ??= FirebaseAnalytics.instance;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Returns navigator observer for automatic screen view tracking in MaterialApp.
-  FirebaseAnalyticsObserver get observer =>
-      FirebaseAnalyticsObserver(analytics: _analytics);
+  NavigatorObserver get observer {
+    final a = _analytics;
+    if (a == null) return NavigatorObserver();
+    return FirebaseAnalyticsObserver(analytics: a);
+  }
 
   /// Initializes analytics for the active app session and sets user properties.
   Future<void> init({required String flavorName}) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.setUserProperty(name: 'flavor', value: flavorName);
-      await _analytics.logAppOpen();
+      await a.setUserProperty(name: 'flavor', value: flavorName);
+      await a.logAppOpen();
       developer.log('AnalyticsService initialized for flavor: $flavorName',
           name: 'AnalyticsService');
     } catch (e, st) {
@@ -32,12 +45,14 @@ class AnalyticsService {
     required String category,
     String? title,
   }) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.logSelectContent(
+      await a.logSelectContent(
         contentType: 'artwork',
         itemId: artId,
       );
-      await _analytics.logEvent(
+      await a.logEvent(
         name: 'artwork_started',
         parameters: {
           'art_id': artId,
@@ -57,8 +72,10 @@ class AnalyticsService {
     required String category,
     int? durationSeconds,
   }) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.logEvent(
+      await a.logEvent(
         name: 'artwork_completed',
         parameters: {
           'art_id': artId,
@@ -74,8 +91,10 @@ class AnalyticsService {
 
   /// Logs when a user converts a custom photo into a pixel art canvas.
   Future<void> logPhotoConverted({required String source}) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.logEvent(
+      await a.logEvent(
         name: 'photo_converted',
         parameters: {
           'source': source,
@@ -92,8 +111,10 @@ class AnalyticsService {
     required String adFormat,
     required String placement,
   }) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.logEvent(
+      await a.logEvent(
         name: 'ad_impression_custom',
         parameters: {
           'ad_format': adFormat,
@@ -112,8 +133,10 @@ class AnalyticsService {
     double? price,
     String? currency,
   }) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.logEvent(
+      await a.logEvent(
         name: 'iap_purchase_success',
         parameters: {
           'product_id': productId,
@@ -131,8 +154,10 @@ class AnalyticsService {
     required int dayStreak,
     required int coins,
   }) async {
+    final a = _analytics;
+    if (a == null) return;
     try {
-      await _analytics.logEvent(
+      await a.logEvent(
         name: 'daily_reward_claimed',
         parameters: {
           'streak': dayStreak,

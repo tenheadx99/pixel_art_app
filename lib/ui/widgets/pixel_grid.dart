@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'dart:typed_data';
-import 'dart:ui' show PointMode;
+import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
@@ -39,6 +39,7 @@ class PixelGrid extends StatefulWidget {
   /// `true` when a swipe begins over a non-selected cell (move the artwork) and
   /// `false` when that stroke ends (back to swipe-to-fill).
   final void Function(bool enabled)? onRequestCanvasPan;
+  final ValueNotifier<Offset>? tiltNotifier;
 
   const PixelGrid({
     super.key,
@@ -57,6 +58,7 @@ class PixelGrid extends StatefulWidget {
     this.onCellDragEnd,
     this.onCellDragCancel,
     this.onRequestCanvasPan,
+    this.tiltNotifier,
   });
 
   @override
@@ -215,6 +217,7 @@ class _PixelGridState extends State<PixelGrid> {
                   hoverCol: _hoverCol,
                   gemStyle:
                       FlavorConfig.current.cellStyle == CellRenderStyle.gem,
+                  tiltNotifier: widget.tiltNotifier,
                 ),
               ),
             ),
@@ -261,6 +264,7 @@ class _PixelGridPainter extends CustomPainter {
   /// When true, filled cells render as faceted gems (diamond-painting flavor)
   /// instead of flat squares. Resolved once from [FlavorConfig] in build().
   final bool gemStyle;
+  final ValueNotifier<Offset>? tiltNotifier;
 
   _PixelGridPainter({
     required this.art,
@@ -279,7 +283,8 @@ class _PixelGridPainter extends CustomPainter {
     this.hoverRow,
     this.hoverCol,
     this.gemStyle = false,
-  }) : super(repaint: Listenable.merge([gridFade, transform, fillGrow]));
+    this.tiltNotifier,
+  }) : super(repaint: Listenable.merge([gridFade, transform, fillGrow, tiltNotifier]));
 
   /// Laid-out number labels, cached across frames and painter instances.
   /// Keyed by number, font size, and the quantized LOD fade step — without
@@ -365,35 +370,155 @@ class _PixelGridPainter extends CustomPainter {
   static const int _gemHighlightCoreAlpha = 160;
   static const int _gemHighlightHaloAlpha = 90;
 
-  /// Paints a filled cell as a round faceted "drill": a colored circle, a
-  /// darker bevel ring for depth, and a stacked white specular highlight in the
-  /// upper-left. Reuses [cellPaint] (no per-cell Paint allocation) and uses only
-  /// cheap circle ops — no blur/shaders — to stay within the LOD draw budget.
-  void _drawGem(Canvas canvas, Rect rect, Color base, Paint cellPaint) {
+  /// Paints a filled cell as a hyper-realistic 3D faceted diamond jewel:
+  /// a dark drop shadow, 3D radial dome gradient, 8-facet crown cuts, table facet,
+  /// specular halo/core, 4-point star flares, and rim bounce lighting.
+  void _drawGem(Canvas canvas, Rect rect, Color base, Paint cellPaint, double effectiveCell) {
     final c = rect.center;
     final r = rect.shortestSide / 2;
 
-    // 1. Body.
+    // 1. Zoomed out LOD (< 10.0): Fast flat circle
+    if (effectiveCell < 10.0) {
+      cellPaint
+        ..shader = null
+        ..style = PaintingStyle.fill
+        ..color = base;
+      canvas.drawCircle(c, r, cellPaint);
+      return;
+    }
+
+    // Light source vector and tilt offset calculation
+    final matrix = transform?.value;
+    double sx = c.dx;
+    double sy = c.dy;
+    if (matrix != null) {
+      sx = matrix.storage[0] * c.dx + matrix.storage[12];
+      sy = matrix.storage[5] * c.dy + matrix.storage[13];
+    }
+
+    const lightX = 200.0;
+    const lightY = -150.0;
+
+    final dx = lightX - sx;
+    final dy = lightY - sy;
+    final dist = sqrt(dx * dx + dy * dy);
+
+    final double nx = dist > 0 ? dx / dist : -0.707;
+    final double ny = dist > 0 ? dy / dist : -0.707;
+
+    final tilt = tiltNotifier?.value ?? Offset.zero;
+    final shiftX = (nx - tilt.dx * 0.45).clamp(-1.25, 1.25);
+    final shiftY = (ny + tilt.dy * 0.45).clamp(-1.25, 1.25);
+
+    // 2. Ambient Drop Shadow (gives 3D depth above the canvas grid)
+    final shadowOffset = Offset(c.dx - shiftX * r * 0.08, c.dy - shiftY * r * 0.08);
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
-      ..color = base;
-    canvas.drawCircle(c, r, cellPaint);
+      ..color = const Color(0x35000000);
+    canvas.drawCircle(shadowOffset, r, cellPaint);
 
-    // 2. Bevel ring for depth.
+    // 3. 3D Spherical Radial Gradient Body
+    final focalOffset = Offset(c.dx + r * shiftX * 0.3, c.dy + r * shiftY * 0.3);
+    final lightShade = _lighten(base, 0.38);
+    final darkShade = _darken(base, 0.45);
+
+    cellPaint
+      ..style = PaintingStyle.fill
+      ..shader = ui.Gradient.radial(
+        focalOffset,
+        r * 1.15,
+        [lightShade, base, darkShade],
+        [0.0, 0.55, 1.0],
+      );
+    canvas.drawCircle(c, r, cellPaint);
+    cellPaint.shader = null;
+
+    // Bevel outer ring for edge definition
     cellPaint
       ..style = PaintingStyle.stroke
       ..strokeWidth = r * _gemRingWidth
-      ..color = _darken(base, 0.25);
+      ..color = darkShade.withAlpha(160);
     canvas.drawCircle(c, r * _gemRingRadius, cellPaint);
     cellPaint.style = PaintingStyle.fill;
 
-    // 3. Specular highlight (halo then core), upper-left.
-    final hl = Offset(c.dx - r * _gemHighlightOffset, c.dy - r * _gemHighlightOffset);
+    // 4. Tier 3 High Detail: 8-Facet Crown Cut Lines & Table Facet (Zoom >= 20.0)
+    if (effectiveCell >= 20.0) {
+      final facetPaint = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(0.8, r * 0.06);
+
+      final tableRadius = r * 0.44;
+      final tableCenter = Offset(c.dx + r * shiftX * 0.12, c.dy + r * shiftY * 0.12);
+
+      // 8 radial crown facet lines extending from table to outer rim
+      for (var i = 0; i < 8; i++) {
+        final angle = i * pi / 4;
+        final cosA = cos(angle);
+        final sinA = sin(angle);
+
+        final p1 = Offset(tableCenter.dx + tableRadius * cosA, tableCenter.dy + tableRadius * sinA);
+        final p2 = Offset(c.dx + (r * 0.88) * cosA, c.dy + (r * 0.88) * sinA);
+
+        facetPaint.color = Colors.white.withAlpha(38);
+        canvas.drawLine(p1, p2, facetPaint);
+      }
+
+      // Flat Table Facet (Center top cut of diamond)
+      cellPaint
+        ..style = PaintingStyle.fill
+        ..color = lightShade.withAlpha(50);
+      canvas.drawCircle(tableCenter, tableRadius, cellPaint);
+
+      cellPaint
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(0.8, r * 0.05)
+        ..color = Colors.white.withAlpha(65);
+      canvas.drawCircle(tableCenter, tableRadius, cellPaint);
+      cellPaint.style = PaintingStyle.fill;
+    }
+
+    // 5. Specular Highlights & Star Glare Flare
+    final hl = Offset(
+      c.dx + r * _gemHighlightOffset * shiftX * 1.25,
+      c.dy + r * _gemHighlightOffset * shiftY * 1.25,
+    );
+
+    // Soft Specular Halo
     cellPaint.color = Colors.white.withAlpha(_gemHighlightHaloAlpha);
-    canvas.drawCircle(hl, r * 0.45, cellPaint);
+    canvas.drawCircle(hl, r * 0.42, cellPaint);
+
+    // Sharp Core Specular Highlight
     cellPaint.color = Colors.white.withAlpha(_gemHighlightCoreAlpha);
-    canvas.drawCircle(hl, r * 0.28, cellPaint);
+    canvas.drawCircle(hl, r * 0.24, cellPaint);
+
+    // 4-Point Specular Star Flare for extra diamond glint (Zoom >= 24.0)
+    if (effectiveCell >= 24.0) {
+      final flarePaint = Paint()
+        ..color = Colors.white.withAlpha(210)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = max(1.0, r * 0.08);
+
+      final flareSize = r * 0.35;
+      canvas.drawLine(
+        Offset(hl.dx - flareSize, hl.dy),
+        Offset(hl.dx + flareSize, hl.dy),
+        flarePaint,
+      );
+      canvas.drawLine(
+        Offset(hl.dx, hl.dy - flareSize),
+        Offset(hl.dx, hl.dy + flareSize),
+        flarePaint,
+      );
+    }
+
+    // Secondary Rim Bounce Light (bottom opposite edge)
+    final bounceHL = Offset(
+      c.dx - r * _gemHighlightOffset * shiftX * 0.8,
+      c.dy - r * _gemHighlightOffset * shiftY * 0.8,
+    );
+    cellPaint.color = lightShade.withAlpha(45);
+    canvas.drawCircle(bounceHL, r * 0.25, cellPaint);
   }
 
   /// Scales an RGB color toward black by [amount] (0..1) for the bevel ring.
@@ -410,6 +535,17 @@ class _PixelGridPainter extends CustomPainter {
         (color.g * 255 * f).round().clamp(0, 255),
         (color.b * 255 * f).round().clamp(0, 255),
       );
+    });
+  }
+
+  static final Map<int, Color> _lightenCache = {};
+
+  static Color _lighten(Color color, double amount) {
+    return _lightenCache.putIfAbsent(color.toARGB32(), () {
+      final r = (color.r * 255 + (255 - color.r * 255) * amount).round().clamp(0, 255);
+      final g = (color.g * 255 + (255 - color.g * 255) * amount).round().clamp(0, 255);
+      final b = (color.b * 255 + (255 - color.b * 255) * amount).round().clamp(0, 255);
+      return Color.fromARGB((color.a * 255).round(), r, g, b);
     });
   }
 
@@ -527,7 +663,7 @@ class _PixelGridPainter extends CustomPainter {
             canvas.drawRect(rect, cellPaint);
           }
           if (gemStyle) {
-            _drawGem(canvas, drawRect, color, cellPaint);
+            _drawGem(canvas, drawRect, color, cellPaint, effectiveCell);
             if (colorblindMode) {
               _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
             }
@@ -652,7 +788,7 @@ class _PixelGridPainter extends CustomPainter {
     for (final entry in batches.entries) {
       paint.color = Color(entry.key);
       canvas.drawRawPoints(
-        PointMode.points,
+        ui.PointMode.points,
         Float32List.fromList(entry.value),
         paint,
       );
@@ -660,7 +796,7 @@ class _PixelGridPainter extends CustomPainter {
     if (highlightPoints.isNotEmpty) {
       paint.color = const Color(0x336C63FF);
       canvas.drawRawPoints(
-        PointMode.points,
+        ui.PointMode.points,
         Float32List.fromList(highlightPoints),
         paint,
       );

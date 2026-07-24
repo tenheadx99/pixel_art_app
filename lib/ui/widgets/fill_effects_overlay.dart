@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../config/app_constants.dart';
+import '../../config/flavor.dart';
 
 /// The kinds of joyful flourish spawned when a cell is colored.
 enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong }
@@ -38,6 +39,7 @@ class FillEffectsOverlay extends StatefulWidget {
   final Size viewerSize;
   final int gridWidth;
   final int gridHeight;
+  final ValueNotifier<Offset>? tiltNotifier;
 
   const FillEffectsOverlay({
     super.key,
@@ -46,6 +48,7 @@ class FillEffectsOverlay extends StatefulWidget {
     required this.viewerSize,
     required this.gridWidth,
     required this.gridHeight,
+    this.tiltNotifier,
   });
 
   @override
@@ -226,7 +229,8 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
             gridWidth: widget.gridWidth,
             gridHeight: widget.gridHeight,
             lifetime: _lifetime,
-            repaint: Listenable.merge([_ticker, widget.transformController]),
+            tiltNotifier: widget.tiltNotifier,
+            repaint: Listenable.merge([_ticker, widget.transformController, widget.tiltNotifier]),
           ),
         ),
       ),
@@ -242,6 +246,7 @@ class _FillEffectsPainter extends CustomPainter {
   final int gridWidth;
   final int gridHeight;
   final int lifetime;
+  final ValueNotifier<Offset>? tiltNotifier;
 
   _FillEffectsPainter({
     required this.effects,
@@ -251,6 +256,7 @@ class _FillEffectsPainter extends CustomPainter {
     required this.gridWidth,
     required this.gridHeight,
     required this.lifetime,
+    this.tiltNotifier,
     required Listenable repaint,
   }) : super(repaint: repaint);
 
@@ -377,6 +383,13 @@ class _FillEffectsPainter extends CustomPainter {
     double t,
     _FillEffect e,
   ) {
+    final isGem = FlavorConfig.current.cellStyle == CellRenderStyle.gem;
+    final tilt = tiltNotifier?.value ?? Offset.zero;
+    
+    // Sparkles drift under gravity/tilt. The drift increases quadratically over time.
+    final driftX = isGem ? -tilt.dx * cellPx * 2.2 * t * t : 0.0;
+    final driftY = isGem ? tilt.dy * cellPx * 2.2 * t * t : 0.0;
+
     paint
       ..style = PaintingStyle.fill
       ..color = Colors.white.withValues(alpha: (1 - t).clamp(0.0, 1.0));
@@ -386,19 +399,45 @@ class _FillEffectsPainter extends CustomPainter {
     for (var i = 0; i < e.sparkleCount; i++) {
       // Golden-angle spread keeps the particles visually even.
       final angle = e.seed + i * 2.399963;
-      final pos = c + Offset(math.cos(angle) * dist, math.sin(angle) * dist);
-      _drawDiamond(canvas, paint, pos, pSize);
+      final pos = c + Offset(
+        math.cos(angle) * dist + driftX,
+        math.sin(angle) * dist + driftY,
+      );
+      final rotation = isGem ? (e.seed * 5.0 + t * 4.0 * math.pi + i * 0.5) : 0.0;
+      _drawDiamond(canvas, paint, pos, pSize, rotation);
     }
   }
 
-  void _drawDiamond(Canvas canvas, Paint paint, Offset c, double r) {
-    final path = Path()
-      ..moveTo(c.dx, c.dy - r)
-      ..lineTo(c.dx + r * 0.6, c.dy)
-      ..lineTo(c.dx, c.dy + r)
-      ..lineTo(c.dx - r * 0.6, c.dy)
-      ..close();
-    canvas.drawPath(path, paint);
+  void _drawDiamond(Canvas canvas, Paint paint, Offset c, double r, [double rotation = 0.0]) {
+    if (rotation == 0.0) {
+      final path = Path()
+        ..moveTo(c.dx, c.dy - r)
+        ..lineTo(c.dx + r * 0.6, c.dy)
+        ..lineTo(c.dx, c.dy + r)
+        ..lineTo(c.dx - r * 0.6, c.dy)
+        ..close();
+      canvas.drawPath(path, paint);
+    } else {
+      final path = Path();
+      final cosA = math.cos(rotation);
+      final sinA = math.sin(rotation);
+      
+      final x1 = c.dx - sinA * (-r);
+      final y1 = c.dy + cosA * (-r);
+      final x2 = c.dx + cosA * (r * 0.6);
+      final y2 = c.dy + sinA * (r * 0.6);
+      final x3 = c.dx - sinA * r;
+      final y3 = c.dy + cosA * r;
+      final x4 = c.dx + cosA * (-r * 0.6);
+      final y4 = c.dy + sinA * (-r * 0.6);
+
+      path.moveTo(x1, y1);
+      path.lineTo(x2, y2);
+      path.lineTo(x3, y3);
+      path.lineTo(x4, y4);
+      path.close();
+      canvas.drawPath(path, paint);
+    }
   }
 
   /// Horizontal head-shake: three quick wiggles that damp out, over a soft
