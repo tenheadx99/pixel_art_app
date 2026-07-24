@@ -58,3 +58,5 @@ flutter:
     - assets/pixel_art_diamond/
     - assets/icons/
     - assets/audio/
+  shaders:
+    - shaders/gem_grid.frag

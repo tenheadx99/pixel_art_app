@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
 import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
+import '../theme/app_style.dart';
 import 'fill_grow_controller.dart';
 
 class PixelGrid extends StatefulWidget {
@@ -72,10 +73,33 @@ class _PixelGridState extends State<PixelGrid> {
   int _activePointers = 0;
   bool _stroking = false;
   Offset? _downPosition;
-
-  /// When the active single-finger stroke started over a non-selected cell it
-  /// moves the canvas (via InteractiveViewer) instead of painting.
   bool _strokeIsPan = false;
+
+  static ui.FragmentProgram? _gemShaderProgram;
+  static bool _isLoadingShader = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadGemShader();
+  }
+
+  void _loadGemShader() async {
+    if (_gemShaderProgram != null || _isLoadingShader) return;
+    _isLoadingShader = true;
+    try {
+      final program = await ui.FragmentProgram.fromAsset('shaders/gem_grid.frag');
+      if (mounted) {
+        setState(() {
+          _gemShaderProgram = program;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading gem GLSL shader: $e');
+    } finally {
+      _isLoadingShader = false;
+    }
+  }
 
   // Swipe-to-fill listens to raw pointer events instead of a pan gesture so
   // it never enters the gesture arena: a pan recognizer here would claim the
@@ -220,6 +244,7 @@ class _PixelGridState extends State<PixelGrid> {
                   gemStyle:
                       FlavorConfig.current.cellStyle == CellRenderStyle.gem,
                   tiltNotifier: widget.tiltNotifier,
+                  shaderProgram: _gemShaderProgram,
                 ),
               ),
             ),
@@ -267,6 +292,7 @@ class _PixelGridPainter extends CustomPainter {
   /// instead of flat squares. Resolved once from [FlavorConfig] in build().
   final bool gemStyle;
   final ValueNotifier<Offset>? tiltNotifier;
+  final ui.FragmentProgram? shaderProgram;
 
   _PixelGridPainter({
     required this.art,
@@ -286,6 +312,7 @@ class _PixelGridPainter extends CustomPainter {
     this.hoverCol,
     this.gemStyle = false,
     this.tiltNotifier,
+    this.shaderProgram,
   }) : super(repaint: Listenable.merge([gridFade, transform, fillGrow, tiltNotifier]));
 
   /// Laid-out number labels, cached across frames and painter instances.
@@ -293,17 +320,17 @@ class _PixelGridPainter extends CustomPainter {
   /// this, every visible cell allocated and laid out a TextPainter per frame.
   static final Map<int, TextPainter> _textCache = {};
 
-  static TextPainter _numberPainter(int number, double fontSize, int alphaStep) {
-    final key = number * 10000 + (fontSize * 10).round() * 10 + alphaStep;
+  static TextPainter _numberPainter(int number, double fontSize, int alphaStep, {bool isContrast = false}) {
+    final textColor = isContrast ? Colors.white : const Color(0xFF555555);
+    final key = (isContrast ? 1000000 : 0) + number * 10000 + (fontSize * 10).round() * 10 + alphaStep;
     return _textCache.putIfAbsent(key, () {
       return TextPainter(
         text: TextSpan(
           text: '$number',
           style: TextStyle(
-            color: const Color(0xFF999999)
-                .withAlpha((255 * alphaStep / 4).round()),
+            color: textColor.withAlpha((255 * alphaStep / 4).round()),
             fontSize: fontSize,
-            fontWeight: FontWeight.w600,
+            fontWeight: isContrast ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -360,6 +387,76 @@ class _PixelGridPainter extends CustomPainter {
           final cx = rect.left + (pc + 0.5) * cw / 5;
           final cy = rect.top + (pr + 0.5) * ch / (rows + 1);
           canvas.drawCircle(Offset(cx, cy), min(cw, ch) / 12, patPaint);
+        }
+      }
+    }
+  }
+
+  void _paintOverlays(
+    Canvas canvas,
+    Size size,
+    double cw,
+    double ch,
+    double cellGap,
+    double effectiveCell,
+    int detailStep,
+    double gridLineOpacity,
+  ) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final fontSize = (cw * 0.38).clamp(2.0, 7.5);
+
+    final clip = canvas.getLocalClipBounds();
+    final firstRow = max(0, (clip.top / ch).floor());
+    final lastRow = min(gridHeight - 1, (clip.bottom / ch).ceil());
+    final firstCol = max(0, (clip.left / cw).floor());
+    final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
+
+    final highlightPaint = Paint()..color = const Color(0x336C63FF);
+
+    for (var row = firstRow; row <= lastRow; row++) {
+      for (var col = firstCol; col <= lastCol; col++) {
+        final expectedNumber = art.grid[row][col] as int;
+        final isFilled = filledGrid[row][col] > 0;
+        final isSelected = expectedNumber == selectedNumber;
+        final isHighlighted =
+            highlightedNumber != null && expectedNumber == highlightedNumber;
+
+        final rect = Rect.fromLTWH(
+          col * cw + cellGap,
+          row * ch + cellGap,
+          cw - cellGap * 2,
+          ch - cellGap * 2,
+        );
+
+        if (isFilled && gemStyle && effectiveCell >= 10.0) {
+          final tilt = tiltNotifier?.value ?? Offset.zero;
+          final shiftX = (-0.707 - tilt.dx * 0.40).clamp(-1.20, 1.20);
+          final shiftY = (-0.707 + tilt.dy * 0.40).clamp(-1.20, 1.20);
+          _drawGemHighlight(canvas, rect, Paint(), effectiveCell, shiftX, shiftY);
+        } else if (!isFilled && expectedNumber > 0) {
+          if (isSelected) {
+            final darkPreviewPaint = Paint()..color = const Color(0xFF808080);
+            canvas.drawRect(rect, darkPreviewPaint);
+          } else if (isHighlighted) {
+            canvas.drawRect(rect, highlightPaint);
+          }
+          if (showNumbers && detailStep > 0) {
+            final isContrastText = isSelected || isHighlighted;
+            final tp = _numberPainter(
+              expectedNumber,
+              fontSize,
+              detailStep,
+              isContrast: isContrastText,
+            );
+            tp.paint(
+              canvas,
+              Offset(
+                col * cw + (cw - tp.width) / 2,
+                row * ch + (ch - tp.height) / 2,
+              ),
+            );
+          }
         }
       }
     }
@@ -546,18 +643,20 @@ class _PixelGridPainter extends CustomPainter {
   static double _bakedWidth = 0.0;
   static double _bakedHeight = 0.0;
 
-  int _computeFillHash(List<List<int>> grid) {
-    int h = 0;
+  int _computeFillHash(List<List<int>> grid, String artId) {
+    int h = artId.hashCode;
     for (var r = 0; r < grid.length; r++) {
       final row = grid[r];
       for (var c = 0; c < row.length; c++) {
-        if (row[c] > 0) {
-          h = (h * 31 + row[c] + r * 17 + c * 13) & 0x7FFFFFFF;
+        final val = row[c];
+        if (val > 0) {
+          h = 0x1fffffff & (h * 31 + val + r * 10007 + c * 1009);
         }
       }
     }
     return h;
   }
+
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -568,14 +667,14 @@ class _PixelGridPainter extends CustomPainter {
 
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = 0.5 * gridLineOpacity;
+    final cellGap = 0.2 * gridLineOpacity;
 
     // Level of detail by on-screen cell size
     final effectiveCell = min(cw, ch) * viewerScale;
     final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
     final detailStep = (detail * 4).round();
 
-    final currentFillHash = gemStyle ? _computeFillHash(filledGrid) : 0;
+    final currentFillHash = gemStyle ? _computeFillHash(filledGrid, art.id) : 0;
     if (gemStyle) {
       if (_bakedBasePicture == null ||
           _bakedFillHash != currentFillHash ||
@@ -589,23 +688,35 @@ class _PixelGridPainter extends CustomPainter {
 
         recorderCanvas.drawRRect(
           RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-          Paint()..color = const Color(0xFFF0F0F0),
+          Paint()..color = const Color(0xFFFFFFFF),
         );
 
         final recPaint = Paint();
         for (var r = 0; r < gridHeight; r++) {
           for (var c = 0; c < gridWidth; c++) {
             final isFilled = filledGrid[r][c] > 0;
-            if (!isFilled) continue;
             final expectedNumber = art.grid[r][c] as int;
-            final color = filledColors[expectedNumber] ?? Colors.grey;
             final rect = Rect.fromLTWH(
               c * cw + cellGap,
               r * ch + cellGap,
               cw - cellGap * 2,
               ch - cellGap * 2,
             );
-            _drawGemBase(recorderCanvas, rect, color, recPaint, effectiveCell);
+            if (isFilled) {
+              final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+              _drawGemBase(recorderCanvas, rect, color, recPaint, effectiveCell);
+            } else if (expectedNumber > 0) {
+              if (detailStep == 0) {
+                final previewColor = _previewColor(expectedNumber, 0);
+                recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+              } else {
+                final borderPaint = Paint()
+                  ..color = const Color(0xFFE0E0E0)
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 0.36;
+                recorderCanvas.drawRect(rect, borderPaint);
+              }
+            }
           }
         }
 
@@ -619,6 +730,8 @@ class _PixelGridPainter extends CustomPainter {
       }
 
       canvas.drawPicture(_bakedBasePicture!);
+      _paintOverlays(canvas, size, cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
+      return;
     } else {
       canvas.drawRRect(
         RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
@@ -862,9 +975,9 @@ class _PixelGridPainter extends CustomPainter {
 
   void _paintEdge(Canvas canvas, Size size) {
     final edgePaint = Paint()
-      ..color = const Color(0x44000000)
+      ..color = const Color(0x33000000)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
+      ..strokeWidth = 0.8;
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
       edgePaint,
