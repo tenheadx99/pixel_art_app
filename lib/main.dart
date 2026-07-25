@@ -21,6 +21,7 @@ import 'data/services/notification_service.dart';
 import 'data/services/analytics_service.dart';
 import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
+import 'ui/widgets/pixel_grid.dart';
 import 'providers/coloring_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
@@ -78,6 +79,13 @@ Future<void> bootstrapApp() async {
   AppConfig.disableIap = !flavor.iapEnabled;
   AppConfig.disableFullScreenAds = !flavor.fullScreenAdsEnabled;
   AppConfig.disableBannerAds = !flavor.bannerAdsEnabled;
+
+  // Warm the gem fragment shader before any grid paints; without this the
+  // first gem frame falls back to a whole-grid CPU bake. Fire-and-forget —
+  // PixelGrid retries on its own if this hasn't finished (or failed).
+  if (flavor.cellStyle == CellRenderStyle.gem) {
+    PixelGrid.preloadGemShader();
+  }
 
   // Initialize Firebase early so Crashlytics can capture errors from the very
   // start. Guarded so a Firebase misconfig never blocks core gameplay.

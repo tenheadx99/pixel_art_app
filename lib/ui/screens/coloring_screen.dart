@@ -46,7 +46,7 @@ class ColoringScreen extends StatefulWidget {
 }
 
 class _ColoringScreenState extends State<ColoringScreen>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   double _cellSize = AppConfig.defaultCellSize;
   final TransformationController _transformController =
       TransformationController();
@@ -96,8 +96,22 @@ class _ColoringScreenState extends State<ColoringScreen>
   final DateTime _sessionStart = DateTime.now();
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The tilt stream has no visible effect while the app is backgrounded;
+    // pausing it stops sensor wakeups (and the repaints they schedule).
+    if (state == AppLifecycleState.resumed) {
+      if (_accelerometerSubscription?.isPaused ?? false) {
+        _accelerometerSubscription?.resume();
+      }
+    } else if (!(_accelerometerSubscription?.isPaused ?? true)) {
+      _accelerometerSubscription?.pause();
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Tilt only drives the gem/diamond flavor's specular highlight. On flat
     // flavors the sensor stream would repaint the whole grid for no visible
     // change, so only subscribe when a gem flavor is active.
@@ -429,6 +443,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _canvasPanNotifier.dispose();
     _accelerometerSubscription?.cancel();
     _tiltNotifier.dispose();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 

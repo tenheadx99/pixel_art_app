@@ -62,6 +62,12 @@ class PixelGrid extends StatefulWidget {
     this.tiltNotifier,
   });
 
+  /// Warms the gem fragment shader. Call from main() for the gem flavor so
+  /// the program is compiled before the first grid frame; otherwise that
+  /// frame falls back to the (expensive) CPU whole-grid bake.
+  static Future<void> preloadGemShader() =>
+      _PixelGridState.preloadGemShader();
+
   @override
   State<PixelGrid> createState() => _PixelGridState();
 }
@@ -76,28 +82,28 @@ class _PixelGridState extends State<PixelGrid> {
   bool _strokeIsPan = false;
 
   static ui.FragmentProgram? _gemShaderProgram;
-  static bool _isLoadingShader = false;
+  static Future<void>? _shaderLoad;
+
+  /// Loads the gem fragment shader once per process. Safe to call repeatedly;
+  /// concurrent callers share one load, and a failed load allows a retry.
+  static Future<void> preloadGemShader() {
+    return _shaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/gem_grid.frag').then((program) {
+      _gemShaderProgram = program;
+    }).catchError((Object e) {
+      debugPrint('Error loading gem GLSL shader: $e');
+      _shaderLoad = null;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
-    _loadGemShader();
-  }
-
-  void _loadGemShader() async {
-    if (_gemShaderProgram != null || _isLoadingShader) return;
-    _isLoadingShader = true;
-    try {
-      final program = await ui.FragmentProgram.fromAsset('shaders/gem_grid.frag');
-      if (mounted) {
-        setState(() {
-          _gemShaderProgram = program;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading gem GLSL shader: $e');
-    } finally {
-      _isLoadingShader = false;
+    // Normally already warm via main(); this is the fallback path.
+    if (_gemShaderProgram == null) {
+      preloadGemShader().then((_) {
+        if (mounted && _gemShaderProgram != null) setState(() {});
+      });
     }
   }
 
@@ -185,8 +191,6 @@ class _PixelGridState extends State<PixelGrid> {
       child: GestureDetector(
         onTapUp: (details) {
           final pos = _gridPos(details.globalPosition, art);
-          // ignore: avoid_print
-          print('TAPDBG onTapUp global=${details.globalPosition} pos=$pos');
           if (pos != null) widget.onCellTap(pos.$1, pos.$2);
         },
         onLongPressStart: (details) {
@@ -219,41 +223,74 @@ class _PixelGridState extends State<PixelGrid> {
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(8),
-              child: CustomPaint(
+              child: SizedBox(
                 key: _gridKey,
-                isComplex: true,
-                willChange: false,
-                size: Size(
-                  art.gridWidth * widget.cellSize,
-                  art.gridHeight * widget.cellSize,
-                ),
-                painter: _PixelGridPainter(
-                  art: art,
-                  filledGrid: widget.provider.filledGrid,
-                  filledColors: widget.provider.filledColors,
-                  selectedNumber: widget.provider.selectedNumber,
-                  showNumbers: widget.provider.showNumbers,
-                  highlightedNumber: widget.provider.highlightedNumber,
-                  cellSize: widget.cellSize,
-                  isEraseMode: widget.isEraseMode,
-                  brushSize: widget.brushSize,
-                  colorblindMode: widget.colorblindMode,
-                  gridFade: widget.gridFade,
-                  transform: widget.transform,
-                  fillGrow: widget.fillGrow,
-                  hoverRow: _hoverRow,
-                  hoverCol: _hoverCol,
-                  gemStyle:
-                      FlavorConfig.current.cellStyle == CellRenderStyle.gem,
-                  tiltNotifier: widget.tiltNotifier,
-                  shaderProgram: _gemShaderProgram,
-                  fillVersion: widget.provider.fillVersion,
-                ),
+                width: art.gridWidth * widget.cellSize,
+                height: art.gridHeight * widget.cellSize,
+                child: _buildCanvas(art),
               ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  _PixelGridPainter _buildPainter(dynamic art, _GridLayer layer) {
+    return _PixelGridPainter(
+      layer: layer,
+      art: art,
+      filledGrid: widget.provider.filledGrid,
+      filledColors: widget.provider.filledColors,
+      selectedNumber: widget.provider.selectedNumber,
+      showNumbers: widget.provider.showNumbers,
+      highlightedNumber: widget.provider.highlightedNumber,
+      cellSize: widget.cellSize,
+      isEraseMode: widget.isEraseMode,
+      brushSize: widget.brushSize,
+      colorblindMode: widget.colorblindMode,
+      gridFade: widget.gridFade,
+      transform: widget.transform,
+      fillGrow: widget.fillGrow,
+      hoverRow: _hoverRow,
+      hoverCol: _hoverCol,
+      gemStyle: FlavorConfig.current.cellStyle == CellRenderStyle.gem,
+      tiltNotifier: widget.tiltNotifier,
+      shaderProgram: _gemShaderProgram,
+      fillVersion: widget.provider.fillVersion,
+    );
+  }
+
+  Widget _buildCanvas(dynamic art) {
+    if (FlavorConfig.current.cellStyle != CellRenderStyle.gem) {
+      return CustomPaint(
+        isComplex: true,
+        willChange: false,
+        painter: _buildPainter(art, _GridLayer.full),
+      );
+    }
+    // Gem mode paints in two isolated layers: the art body (repaints per
+    // tilt/zoom tick — on the GPU path that's just one shader quad) and the
+    // labels/selection overlay (repaints on fills and selection changes).
+    // Without the split, every accelerometer tick re-ran the full label pass
+    // and every fill re-drew the body twice.
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        RepaintBoundary(
+          child: CustomPaint(
+            isComplex: true,
+            willChange: false,
+            painter: _buildPainter(art, _GridLayer.gemBase),
+          ),
+        ),
+        RepaintBoundary(
+          child: CustomPaint(
+            willChange: false,
+            painter: _buildPainter(art, _GridLayer.gemOverlay),
+          ),
+        ),
+      ],
     );
   }
 
@@ -267,12 +304,6 @@ class _PixelGridState extends State<PixelGrid> {
     final localPos = renderBox.globalToLocal(globalPos);
     final col = (localPos.dx / renderBox.size.width * art.gridWidth).floor();
     final row = (localPos.dy / renderBox.size.height * art.gridHeight).floor();
-    // ignore: avoid_print
-    print('TAPDBG _gridPos global=${globalPos.dx.toStringAsFixed(1)},'
-        '${globalPos.dy.toStringAsFixed(1)} '
-        'local=${localPos.dx.toStringAsFixed(1)},${localPos.dy.toStringAsFixed(1)} '
-        'box=${renderBox.size.width.toStringAsFixed(1)}x'
-        '${renderBox.size.height.toStringAsFixed(1)} row=$row col=$col');
     if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth) {
       return (row, col);
     }
@@ -280,7 +311,13 @@ class _PixelGridState extends State<PixelGrid> {
   }
 }
 
+/// Which slice of the grid a painter instance draws. Gem mode splits the
+/// canvas into an art-body layer and a labels/selection overlay so each can
+/// repaint on its own triggers; flat flavors keep the single full painter.
+enum _GridLayer { full, gemBase, gemOverlay }
+
 class _PixelGridPainter extends CustomPainter {
+  final _GridLayer layer;
   final dynamic art;
   final List<List<int>> filledGrid;
   final Map<int, Color> filledColors;
@@ -310,6 +347,7 @@ class _PixelGridPainter extends CustomPainter {
   final int fillVersion;
 
   _PixelGridPainter({
+    this.layer = _GridLayer.full,
     required this.art,
     required this.filledGrid,
     required this.filledColors,
@@ -329,7 +367,16 @@ class _PixelGridPainter extends CustomPainter {
     this.tiltNotifier,
     this.shaderProgram,
     this.fillVersion = 0,
-  }) : super(repaint: Listenable.merge([gridFade, transform, fillGrow, tiltNotifier]));
+  }) : super(
+          // Each layer repaints only on its own triggers: tilt ticks must not
+          // re-run the overlay label pass, and fill-grow animation frames must
+          // not re-draw the art body.
+          repaint: Listenable.merge(switch (layer) {
+            _GridLayer.full => [gridFade, transform, fillGrow, tiltNotifier],
+            _GridLayer.gemBase => [gridFade, transform, tiltNotifier],
+            _GridLayer.gemOverlay => [gridFade, transform, fillGrow],
+          }),
+        );
 
   /// Laid-out number labels, cached across frames and painter instances.
   /// Keyed by number, font size, and the quantized LOD fade step — without
@@ -408,32 +455,52 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
-  void _paintOverlays(
-    Canvas canvas,
+  static ui.Picture? _overlayStaticPicture;
+  static String _overlayArtId = '';
+  static int _overlayFillVersion = -1;
+  static int _overlayDetailStep = -1;
+  static int _overlaySelected = -1;
+  static int _overlayHighlighted = -2; // -1 encodes "no highlight"
+  static bool _overlayShowNumbers = false;
+  static double _overlayWidth = 0.0;
+  static double _overlayHeight = 0.0;
+
+  /// Records the overlay's static content — selection/highlight tints and
+  /// number labels for every unfilled cell — once per (fill, selection,
+  /// LOD-bucket) state. Replaying one picture per frame replaces hundreds of
+  /// TextPainter.paint calls during pans; the engine culls off-clip ops.
+  void _ensureOverlayStatics(
     Size size,
     double cw,
     double ch,
     double cellGap,
-    double effectiveCell,
     int detailStep,
-    double gridLineOpacity,
   ) {
+    final highlightKey = highlightedNumber ?? -1;
+    if (_overlayStaticPicture != null &&
+        _overlayArtId == art.id &&
+        _overlayFillVersion == fillVersion &&
+        _overlayDetailStep == detailStep &&
+        _overlaySelected == selectedNumber &&
+        _overlayHighlighted == highlightKey &&
+        _overlayShowNumbers == showNumbers &&
+        _overlayWidth == size.width &&
+        _overlayHeight == size.height) {
+      return;
+    }
+
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     final fontSize = (cw * 0.38).clamp(2.0, 7.5);
-
-    final clip = canvas.getLocalClipBounds();
-    final firstRow = max(0, (clip.top / ch).floor());
-    final lastRow = min(gridHeight - 1, (clip.bottom / ch).ceil());
-    final firstCol = max(0, (clip.left / cw).floor());
-    final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
-
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder);
     final highlightPaint = Paint()..color = const Color(0x336C63FF);
+    final darkPreviewPaint = Paint()..color = const Color(0xFF808080);
 
-    for (var row = firstRow; row <= lastRow; row++) {
-      for (var col = firstCol; col <= lastCol; col++) {
+    for (var row = 0; row < gridHeight; row++) {
+      for (var col = 0; col < gridWidth; col++) {
         final expectedNumber = art.grid[row][col] as int;
-        final isFilled = filledGrid[row][col] > 0;
+        if (expectedNumber == 0 || filledGrid[row][col] > 0) continue;
         final isSelected = expectedNumber == selectedNumber;
         final isHighlighted =
             highlightedNumber != null && expectedNumber == highlightedNumber;
@@ -445,42 +512,42 @@ class _PixelGridPainter extends CustomPainter {
           ch - cellGap * 2,
         );
 
-        if (isFilled && gemStyle && effectiveCell >= 10.0) {
-          final tilt = tiltNotifier?.value ?? Offset.zero;
-          final shiftX = (-0.707 - tilt.dx * 0.40).clamp(-1.20, 1.20);
-          final shiftY = (-0.707 + tilt.dy * 0.40).clamp(-1.20, 1.20);
-          _drawGemHighlight(canvas, rect, Paint(), effectiveCell, shiftX, shiftY);
-        } else if (!isFilled && expectedNumber > 0) {
-          if (isSelected) {
-            final darkPreviewPaint = Paint()..color = const Color(0xFF808080);
-            canvas.drawRect(rect, darkPreviewPaint);
-          } else if (isHighlighted) {
-            canvas.drawRect(rect, highlightPaint);
-          }
-          if (showNumbers && detailStep > 0) {
-            final isContrastText = isSelected || isHighlighted;
-            final tp = _numberPainter(
-              expectedNumber,
-              fontSize,
-              detailStep,
-              isContrast: isContrastText,
-            );
-            tp.paint(
-              canvas,
-              Offset(
-                col * cw + (cw - tp.width) / 2,
-                row * ch + (ch - tp.height) / 2,
-              ),
-            );
-          }
+        if (isSelected) {
+          c.drawRect(rect, darkPreviewPaint);
+        } else if (isHighlighted) {
+          c.drawRect(rect, highlightPaint);
+        }
+        if (showNumbers && detailStep > 0) {
+          final tp = _numberPainter(
+            expectedNumber,
+            fontSize,
+            detailStep,
+            isContrast: isSelected || isHighlighted,
+          );
+          tp.paint(
+            c,
+            Offset(
+              col * cw + (cw - tp.width) / 2,
+              row * ch + (ch - tp.height) / 2,
+            ),
+          );
         }
       }
     }
+
+    _overlayStaticPicture = recorder.endRecording();
+    _overlayArtId = art.id as String;
+    _overlayFillVersion = fillVersion;
+    _overlayDetailStep = detailStep;
+    _overlaySelected = selectedNumber;
+    _overlayHighlighted = highlightKey;
+    _overlayShowNumbers = showNumbers;
+    _overlayWidth = size.width;
+    _overlayHeight = size.height;
   }
 
   // Gem rendering tuning — kept as named constants for quick visual iteration.
   static const double _gemRingWidth = 0.18; // stroke width as fraction of radius
-  static const double _gemRingRadius = 0.9; // bevel-ring radius as fraction of r
   static const double _gemHighlightOffset = 0.35; // specular dot offset from center
   static const int _gemHighlightCoreAlpha = 160;
   static const int _gemHighlightHaloAlpha = 90;
@@ -661,20 +728,27 @@ class _PixelGridPainter extends CustomPainter {
   static int _bakedFillVersion = -1;
   static bool _bakedLowDetail = false;
   static String _bakedArtId = '';
-  static bool _bakedGemStyle = false;
   static double _bakedWidth = 0.0;
   static double _bakedHeight = 0.0;
 
-  // GPU fast path: a small grid-sized image (one texel per cell) holding each
-  // filled cell's color. The gem fragment shader samples it, so filling a cell
-  // only rewrites one texel instead of re-recording the whole gem picture.
-  // Rebuilt only when the fill actually changes — keyed on fillVersion (+ art
-  // and dimensions), never a per-frame full-grid scan.
+  // GPU fast path: a small grid-sized image (one texel per cell) that encodes
+  // the full board state in alpha — 0 = empty cell, ~0.5 = unfilled numbered
+  // cell (rgb carries the grayscale ghost-preview color), 1.0 = filled (rgb
+  // carries the fill color). The gem fragment shader renders every zoom level
+  // from this alone, so a fill rewrites texels instead of re-recording any
+  // CPU picture. Rebuilt only when the fill actually changes — keyed on
+  // fillVersion (+ art and dimensions), never a per-frame full-grid scan.
   static ui.Image? _cachedGridImage;
   static int _cachedImageFillVersion = -1;
   static String _cachedImageArtId = '';
   static int _cachedImageW = 0;
   static int _cachedImageH = 0;
+
+  // The unfilled-preview texels never change for a given artwork, so they are
+  // recorded once per art and replayed under the filled texels on rebuilds,
+  // keeping the per-fill rebuild cost proportional to the filled count.
+  static ui.Picture? _previewLayerPicture;
+  static String _previewLayerArtId = '';
 
   void _updateGridTextureIfNeeded() {
     final width = art.gridWidth as int;
@@ -687,9 +761,30 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
+    // Texels must stay exact: no anti-aliased edges bleeding into neighbors.
+    final paint = Paint()..isAntiAlias = false;
+
+    if (_previewLayerPicture == null || _previewLayerArtId != art.id) {
+      final previewRecorder = ui.PictureRecorder();
+      final pc = Canvas(previewRecorder);
+      for (var r = 0; r < height; r++) {
+        for (var col = 0; col < width; col++) {
+          final expectedNumber = art.grid[r][col] as int;
+          if (expectedNumber <= 0) continue;
+          paint.color = _previewColor(expectedNumber, 0).withAlpha(128);
+          pc.drawRect(
+            Rect.fromLTWH(col.toDouble(), r.toDouble(), 1.0, 1.0),
+            paint,
+          );
+        }
+      }
+      _previewLayerPicture = previewRecorder.endRecording();
+      _previewLayerArtId = art.id as String;
+    }
+
     final recorder = ui.PictureRecorder();
     final c = Canvas(recorder);
-    final paint = Paint();
+    c.drawPicture(_previewLayerPicture!);
     for (var r = 0; r < height; r++) {
       final row = filledGrid[r];
       for (var col = 0; col < width; col++) {
@@ -717,31 +812,40 @@ class _PixelGridPainter extends CustomPainter {
     _cachedImageH = height;
   }
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    final gridWidth = art.gridWidth as int;
-    final gridHeight = art.gridHeight as int;
-    final cw = size.width / gridWidth;
-    final ch = size.height / gridHeight;
-
+  /// Shared level-of-detail math for all layers.
+  (double, double, double, double, int, double) _layout(Size size) {
+    final cw = size.width / (art.gridWidth as int);
+    final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
     final cellGap = 0.2 * gridLineOpacity;
-
-    // Level of detail by on-screen cell size
     final effectiveCell = min(cw, ch) * viewerScale;
     final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
     final detailStep = (detail * 4).round();
+    return (cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
+  }
 
-    // GPU fast path: render every gem cell in a single fragment-shader draw.
-    // Used only when zoomed in enough to show detail (detailStep > 0) — that's
-    // where per-fill re-baking hurt. Falls through to the CPU baked-picture
-    // path when the shader hasn't loaded, in colorblind mode (the shader can't
-    // draw the per-number accessibility patterns), or when zoomed out, where
-    // the CPU path renders the grayscale "ghost" preview of unfilled cells that
-    // the shader's flat background can't reproduce. Zoomed-out is static and
-    // cheap, so keeping it on the CPU costs nothing.
-    if (gemStyle && shaderProgram != null && !colorblindMode && detailStep > 0) {
+  @override
+  void paint(Canvas canvas, Size size) {
+    switch (layer) {
+      case _GridLayer.gemBase:
+        _paintGemBase(canvas, size);
+      case _GridLayer.gemOverlay:
+        _paintGemOverlay(canvas, size);
+      case _GridLayer.full:
+        _paintFull(canvas, size);
+    }
+  }
+
+  /// Gem art body: one fragment-shader draw on the GPU path, or the baked
+  /// whole-grid picture when the shader is unavailable / colorblind mode
+  /// needs CPU-drawn accessibility patterns.
+  void _paintGemBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (shaderProgram != null && !colorblindMode) {
       _updateGridTextureIfNeeded();
       final gridImage = _cachedGridImage;
       if (gridImage != null) {
@@ -756,16 +860,10 @@ class _PixelGridPainter extends CustomPainter {
         shader.setFloat(6, effectiveCell);
         shader.setImageSampler(0, gridImage);
 
-        final clip = canvas.getLocalClipBounds();
-        final gridRect = Offset.zero & size;
-        final drawRect = clip.intersect(gridRect);
-        if (drawRect.width > 0 && drawRect.height > 0) {
-          canvas.drawRect(drawRect, Paint()..shader = shader);
-        }
-
-        // Numbers and selection/highlight overlays are drawn on the CPU on top.
-        _paintOverlays(
-          canvas, size, cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
+        // Always draw the full grid rect: the canvas clip already limits
+        // rasterization, and anchoring the geometry at the canvas origin
+        // keeps FlutterFragCoord's cell math identical on every backend.
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
         return;
       }
     }
@@ -777,69 +875,113 @@ class _PixelGridPainter extends CustomPainter {
     // grid mid-gesture. The fill itself is tracked by fillVersion, which the
     // provider bumps on every fill and on art load, so no per-frame grid scan.
     final lowDetail = detailStep == 0;
-    if (gemStyle) {
-      if (_bakedBasePicture == null ||
-          _bakedFillVersion != fillVersion ||
-          _bakedLowDetail != lowDetail ||
-          _bakedArtId != art.id ||
-          _bakedGemStyle != gemStyle ||
-          _bakedWidth != size.width ||
-          _bakedHeight != size.height) {
-        final recorder = ui.PictureRecorder();
-        final recorderCanvas = Canvas(recorder);
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
 
-        recorderCanvas.drawRRect(
-          RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-          Paint()..color = const Color(0xFFFFFFFF),
-        );
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        Paint()..color = const Color(0xFFFFFFFF),
+      );
 
-        final recPaint = Paint();
-        for (var r = 0; r < gridHeight; r++) {
-          for (var c = 0; c < gridWidth; c++) {
-            final isFilled = filledGrid[r][c] > 0;
-            final expectedNumber = art.grid[r][c] as int;
-            final rect = Rect.fromLTWH(
-              c * cw + cellGap,
-              r * ch + cellGap,
-              cw - cellGap * 2,
-              ch - cellGap * 2,
-            );
-            if (isFilled) {
-              final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
-              _drawGemBase(recorderCanvas, rect, color, recPaint, effectiveCell);
-            } else if (expectedNumber > 0) {
-              if (detailStep == 0) {
-                final previewColor = _previewColor(expectedNumber, 0);
-                recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-              } else {
-                final borderPaint = Paint()
-                  ..color = const Color(0xFFE0E0E0)
-                  ..style = PaintingStyle.stroke
-                  ..strokeWidth = 0.36;
-                recorderCanvas.drawRect(rect, borderPaint);
-              }
+      final recPaint = Paint();
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled = filledGrid[r][c] > 0;
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+            _drawGemBase(recorderCanvas, rect, color, recPaint, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (detailStep == 0) {
+              final previewColor = _previewColor(expectedNumber, 0);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            } else {
+              final borderPaint = Paint()
+                ..color = const Color(0xFFE0E0E0)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.36;
+              recorderCanvas.drawRect(rect, borderPaint);
             }
           }
         }
-
-        _bakedBasePicture = recorder.endRecording();
-        _bakedFillVersion = fillVersion;
-        _bakedLowDetail = lowDetail;
-        _bakedArtId = art.id;
-        _bakedGemStyle = gemStyle;
-        _bakedWidth = size.width;
-        _bakedHeight = size.height;
       }
 
-      canvas.drawPicture(_bakedBasePicture!);
-      _paintOverlays(canvas, size, cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
-      return;
-    } else {
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-        Paint()..color = const Color(0xFFF0F0F0),
-      );
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
     }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  /// Gem overlay: cached static picture (selection tints + number labels)
+  /// plus the tilt-driven specular pass when the base is CPU-baked (the
+  /// shader draws its own specular).
+  void _paintGemOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    final shaderActive =
+        shaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive || effectiveCell < 10.0) return;
+
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final clip = canvas.getLocalClipBounds();
+    final firstRow = max(0, (clip.top / ch).floor());
+    final lastRow = min(gridHeight - 1, (clip.bottom / ch).ceil());
+    final firstCol = max(0, (clip.left / cw).floor());
+    final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
+    final tilt = tiltNotifier?.value ?? Offset.zero;
+    final shiftX = (-0.707 - tilt.dx * 0.40).clamp(-1.20, 1.20);
+    final shiftY = (-0.707 + tilt.dy * 0.40).clamp(-1.20, 1.20);
+    final cellPaint = Paint();
+    for (var row = firstRow; row <= lastRow; row++) {
+      for (var col = firstCol; col <= lastCol; col++) {
+        if (filledGrid[row][col] <= 0) continue;
+        final rect = Rect.fromLTWH(
+          col * cw + cellGap,
+          row * ch + cellGap,
+          cw - cellGap * 2,
+          ch - cellGap * 2,
+        );
+        _drawGemHighlight(canvas, rect, cellPaint, effectiveCell, shiftX, shiftY);
+      }
+    }
+  }
+
+  /// Flat-flavor painter (single layer, unchanged behavior).
+  void _paintFull(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity) =
+        _layout(size);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+      Paint()..color = const Color(0xFFF0F0F0),
+    );
 
     final borderPaint = Paint()
       ..color = Color.fromARGB((0x22 * gridLineOpacity).round(), 0, 0, 0)
@@ -1088,6 +1230,7 @@ class _PixelGridPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PixelGridPainter old) =>
+      layer != old.layer ||
       fillVersion != old.fillVersion ||
       selectedNumber != old.selectedNumber ||
       showNumbers != old.showNumbers ||

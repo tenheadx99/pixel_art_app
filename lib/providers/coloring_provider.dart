@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
@@ -49,6 +49,10 @@ class ColoringProvider extends ChangeNotifier {
   int _strokeTimeLapseStart = 0;
   final Map<int, int> _totalPerNumber = {};
   final Map<int, int> _filledPerNumber = {};
+  // Grid-wide tallies maintained incrementally by [_setCell]; rebuilt by the
+  // full rescan in [_calculateProgress] on load/undo/restore.
+  int _totalCellCount = 0;
+  int _filledCellsCount = 0;
 
   VoidCallback? onCellFilledCorrectly;
   VoidCallback? onSectionCompleted;
@@ -260,29 +264,46 @@ class ColoringProvider extends ChangeNotifier {
     }
   }
 
-  void saveProgress() {
+  // Invalidates in-flight async saves; bumped whenever a newer save starts or
+  // the saved-state lifecycle changes (clearProgress), so a slow encode can
+  // never overwrite fresher data or resurrect cleared progress.
+  int _saveSeq = 0;
+
+  Future<void> saveProgress() async {
     if (_currentArt == null) return;
-    final data = _filledGrid.map((row) => row.join(',')).join(';');
-    _storageService.setString(_saveKey, data);
-    _storageService.setInt('${_saveKey}_fills', _totalFillCount);
-    _storageService.setInt('${_saveKey}_erases', _totalEraseCount);
-    // Persist the paint history so Replay / Share GIF keep working when a
-    // finished artwork is reopened later (the in-memory list is reset on load).
+    final saveKey = _saveKey;
+    // Cheap scalar writes stay synchronous.
+    _storageService.setInt('${saveKey}_fills', _totalFillCount);
+    _storageService.setInt('${saveKey}_erases', _totalEraseCount);
     _storageService.setString(
-      '${_saveKey}_timelapse',
-      _timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
-    );
-    _storageService.setString(
-      '${_saveKey}_milestones',
+      '${saveKey}_milestones',
       _claimedMilestones.join(','),
     );
     // Lightweight percent so list screens can show progress without parsing
     // the full grid string.
-    _storageService.setInt('${_saveKey}_pct', (_progress * 100).round());
+    _storageService.setInt('${saveKey}_pct', (_progress * 100).round());
     _storageService.setString(_achieveKey, _achievements.join(','));
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
     _storageService.setInt('bombs_count', _bombsCount);
     _storageService.setInt('brushes_count', _brushesCount);
+
+    // The grid and time-lapse strings grow with artwork size (tens of KB on
+    // large grids); building them blocked the UI thread on every debounced
+    // save. Snapshot the state now, encode on a worker isolate, then write.
+    final gridSnapshot = _filledGrid
+        .map((row) => List<int>.of(row, growable: false))
+        .toList(growable: false);
+    final timeLapseSnapshot = List<(int, int)>.of(_timeLapse, growable: false);
+    final seq = ++_saveSeq;
+    final encoded = await compute(
+      _encodeSaveStrings,
+      (grid: gridSnapshot, timeLapse: timeLapseSnapshot),
+    );
+    if (seq != _saveSeq) return; // superseded by a newer save or a clear
+    _storageService.setString(saveKey, encoded.grid);
+    // Persist the paint history so Replay / Share GIF keep working when a
+    // finished artwork is reopened later (the in-memory list is reset on load).
+    _storageService.setString('${saveKey}_timelapse', encoded.timeLapse);
   }
 
   void _debouncedSave() {
@@ -311,7 +332,8 @@ class ColoringProvider extends ChangeNotifier {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _strokeFlushScheduled = false;
       if (_disposed) return;
-      _calculateProgress();
+      // Counters are already fresh (updated per cell in _setCell); the flush
+      // only needs to publish them once per frame.
       notifyListeners();
     });
   }
@@ -394,6 +416,7 @@ class ColoringProvider extends ChangeNotifier {
 
   void clearProgress() {
     if (_currentArt == null) return;
+    _saveSeq++; // drop any in-flight async save so it can't resurrect data
     _storageService.setString(_saveKey, '');
     _storageService.setInt('${_saveKey}_pct', 0);
     _storageService.setString('${_saveKey}_timelapse', '');
@@ -413,8 +436,26 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void _setCell(int row, int col, int value) {
-    _pendingUndo?.add((row, col, _filledGrid[row][col]));
+    final prev = _filledGrid[row][col];
+    _pendingUndo?.add((row, col, prev));
     _filledGrid[row][col] = value;
+    _fillVersion++;
+    // Keep progress counters in sync incrementally: a full-grid rescan per
+    // fill (the old _calculateProgress-on-every-tap) was O(W×H) and the main
+    // provider cost during fast swipes. Full rescans remain only on
+    // load/undo/restore, where the grid changes wholesale.
+    final expected = _currentArt?.grid[row][col] ?? 0;
+    if (expected > 0) {
+      if (prev == 0 && value > 0) {
+        _filledCellsCount++;
+        _filledPerNumber[expected] = (_filledPerNumber[expected] ?? 0) + 1;
+      } else if (prev > 0 && value == 0) {
+        _filledCellsCount--;
+        _filledPerNumber[expected] = (_filledPerNumber[expected] ?? 1) - 1;
+      }
+    }
+    _progress =
+        _totalCellCount == 0 ? 1.0 : _filledCellsCount / _totalCellCount;
   }
 
   void _commitUndo() {
@@ -525,6 +566,12 @@ class ColoringProvider extends ChangeNotifier {
       _nextFillable = null;
       return;
     }
+    // O(1) exit for the common case — the selected color has no cells left —
+    // so exhausting a color doesn't pay for a futile full-grid scan per tap.
+    if (!_hasUnfilled(_selectedNumber)) {
+      _nextFillable = null;
+      return;
+    }
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
         if (_currentArt!.grid[row][col] == _selectedNumber &&
@@ -538,13 +585,6 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   bool tryFillCell(int row, int col) {
-    final inBounds = _currentArt != null &&
-        row >= 0 && row < _currentArt!.gridHeight &&
-        col >= 0 && col < _currentArt!.gridWidth;
-    // ignore: avoid_print
-    print('TAPDBG tryFillCell row=$row col=$col selected=$_selectedNumber '
-        'expected=${inBounds ? _currentArt!.grid[row][col] : 'OOB'} '
-        'alreadyFilled=${inBounds ? _filledGrid[row][col] : 'OOB'}');
     return _runWithCompletionCheck(() {
       if (_currentArt == null) return false;
       if (row < 0 || row >= _currentArt!.gridHeight) return false;
@@ -618,7 +658,6 @@ class ColoringProvider extends ChangeNotifier {
           }
         }
       }
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -761,7 +800,6 @@ class ColoringProvider extends ChangeNotifier {
     _totalFillCount++;
     onCellFilledCorrectly?.call();
     onCellFilledAt?.call(r, c);
-    _calculateProgress();
     _checkCompletion();
     _checkAchievements();
     _updateNextFillable();
@@ -809,7 +847,6 @@ class ColoringProvider extends ChangeNotifier {
     _commitUndo();
     _totalEraseCount++;
     _consecutiveFills = 0;
-    _calculateProgress();
     _isComplete = false;
     _updateNextFillable();
     _debouncedSave();
@@ -839,7 +876,6 @@ class ColoringProvider extends ChangeNotifier {
     }
     _commitUndo();
     {
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -889,13 +925,16 @@ class ColoringProvider extends ChangeNotifier {
     _consecutiveFills = 0;
     _nextFillable = null;
     _fillVersion++;
+    _filledPerNumber.clear();
+    _filledCellsCount = 0;
     clearProgress();
     notifyListeners();
   }
 
-  /// Recomputes overall progress and the per-number tallies in one pass.
-  /// The tallies feed the palette chips and auto-advance, which previously
-  /// rescanned the whole grid per color on every rebuild.
+  /// Full-rescan recompute of progress and per-number tallies. Only needed
+  /// when the grid changes wholesale (load, undo, restore, cancelled stroke);
+  /// ordinary fills/erases keep the same counters fresh incrementally in
+  /// [_setCell], so the per-tap hot path never scans the grid.
   void _calculateProgress() {
     if (_currentArt == null) return;
     _fillVersion++;
@@ -915,6 +954,8 @@ class ColoringProvider extends ChangeNotifier {
         }
       }
     }
+    _totalCellCount = total;
+    _filledCellsCount = filled;
     _progress = total == 0 ? 1.0 : filled / total;
   }
 
@@ -1051,7 +1092,6 @@ class ColoringProvider extends ChangeNotifier {
       _isMagicWandMode = false;
       _totalFillCount++;
       _haptic(HapticFeedback.mediumImpact);
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -1097,7 +1137,6 @@ class ColoringProvider extends ChangeNotifier {
       _isBombMode = false;
       _totalFillCount++;
       _haptic(HapticFeedback.mediumImpact);
-      _calculateProgress();
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -1110,4 +1149,16 @@ class ColoringProvider extends ChangeNotifier {
       return false;
     }
   }
+}
+
+/// Builds the persisted grid / time-lapse strings. Top-level so
+/// [ColoringProvider.saveProgress] can run it on a worker isolate via
+/// [compute]; the payload lists are snapshots, never live provider state.
+({String grid, String timeLapse}) _encodeSaveStrings(
+  ({List<List<int>> grid, List<(int, int)> timeLapse}) data,
+) {
+  return (
+    grid: data.grid.map((row) => row.join(',')).join(';'),
+    timeLapse: data.timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
+  );
 }

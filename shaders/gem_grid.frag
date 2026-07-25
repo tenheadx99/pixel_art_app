@@ -47,20 +47,33 @@ void main() {
     texUV.y = 1.0 - texUV.y;
 #endif
     vec4 cellColor = texture(uTexture, texUV);
-    
-    // Unfilled cell -> cellColor.a == 0.0
+
+    // The grid texture encodes each cell's state in alpha:
+    //   a == 0.0  -> empty cell (no number in the artwork)
+    //   a ~= 0.5  -> unfilled numbered cell; rgb holds the grayscale preview
+    //   a == 1.0  -> filled cell; rgb holds the fill color
+    // This lets the shader render every zoom level (including the zoomed-out
+    // "ghost" preview), so the CPU never re-bakes the grid on fills.
+
+    // Empty cell -> plain background, no border.
     if (cellColor.a < 0.01) {
-        // Zoomed Out LOD (< 10.0): Display complete artwork preview
+        fragColor = vec4(1.0);
+        return;
+    }
+
+    // Unfilled numbered cell -> preview ghost, fading to white grid at zoom.
+    if (cellColor.a < 0.75) {
+        // Texture samples are premultiplied; recover the straight color.
+        vec3 preview = cellColor.rgb / max(cellColor.a, 0.001);
+        // Zoomed Out LOD (< 10.0): complete artwork ghost preview
         if (uEffectiveCell < 10.0) {
-            fragColor = vec4(cellColor.rgb, 1.0);
+            fragColor = vec4(preview, 1.0);
             return;
         }
-        
-        // Zoomed In LOD (>= 10.0): Transition background to clean white #FFFFFF with hairline #CCCCCC grid lines
+        // Zoomed In LOD (>= 10.0): fade to clean white with hairline grid
         float fade = clamp((uEffectiveCell - 10.0) / 6.0, 0.0, 1.0);
         vec3 bgWhite = isCellBorder ? vec3(0.82, 0.82, 0.82) : vec3(1.0, 1.0, 1.0);
-        vec3 finalBg = mix(cellColor.rgb, bgWhite, fade);
-        fragColor = vec4(finalBg, 1.0);
+        fragColor = vec4(mix(preview, bgWhite, fade), 1.0);
         return;
     }
 
