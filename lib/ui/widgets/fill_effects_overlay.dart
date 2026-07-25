@@ -465,12 +465,8 @@ class _FillEffectsPainter extends CustomPainter {
       Radius.circular(cellPx * 0.16),
     );
     paint
-      ..style = PaintingStyle.fill
-      ..color = color.withValues(alpha: fade * 0.35);
-    canvas.drawRRect(rrect, paint);
-    paint
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (cellPx * 0.08).clamp(1.0, 3.0)
+      ..strokeWidth = (cellPx * 0.08).clamp(1.5, 3.5)
       ..color = color.withValues(alpha: fade * 0.9);
     canvas.drawRRect(rrect, paint);
     paint.style = PaintingStyle.fill;

@@ -95,6 +95,17 @@ void main() {
       expect(provider.filledGrid[target!.$1][target.$2], 2);
       expect(provider.selectedNumber, 2);
     });
+
+    test('undo reverts timeLapse entries for filled cells', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(twoColorArt());
+      provider.selectNumber(2);
+      expect(provider.timeLapse.length, 0);
+      provider.tryFillCell(0, 1);
+      expect(provider.timeLapse.length, 1);
+      provider.undo();
+      expect(provider.timeLapse.length, 0);
+    });
   });
 
   group('ASMR sounds and section completion callbacks', () {
@@ -130,6 +141,103 @@ void main() {
 
       provider.tryFillCell(1, 0);
       expect(sectionCompletedCalls, 1); // Now completed!
+    });
+  });
+
+  group('other fill tools (magic wand, bomb, erase)', () {
+    PixelArt largerTestArt() => PixelArt(
+      id: 'larger_test',
+      name: 'Larger Test',
+      gridWidth: 3,
+      gridHeight: 3,
+      grid: [
+        [1, 1, 2],
+        [1, 0, 2],
+        [2, 1, 1],
+      ],
+      colorMap: {1: Color(0xFFFF0000), 2: Color(0xFF0000FF)},
+    );
+
+    test('magic wand fills connected region of same number and decrements wand count', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(largerTestArt());
+      expect(provider.magicWandsCount, 5);
+
+      provider.toggleMagicWandMode();
+      expect(provider.isMagicWandMode, isTrue);
+
+      // Tap (0, 0), which has number 1
+      final success = provider.tryFillCell(0, 0);
+      expect(success, isTrue);
+      expect(provider.isMagicWandMode, isFalse);
+      expect(provider.magicWandsCount, 4);
+
+      // (0,0), (0,1), (1,0) are connected and should be filled
+      expect(provider.filledGrid[0][0], 1);
+      expect(provider.filledGrid[0][1], 1);
+      expect(provider.filledGrid[1][0], 1);
+
+      // (2,1) and (2,2) are also 1 but not connected, so they should not be filled
+      expect(provider.filledGrid[2][1], 0);
+      expect(provider.filledGrid[2][2], 0);
+    });
+
+    test('bomb fills all non-zero cells in a 3x3 region and decrements bomb count', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(largerTestArt());
+      expect(provider.bombsCount, 5);
+
+      provider.toggleBombMode();
+      expect(provider.isBombMode, isTrue);
+
+      // Tap at the center (1, 1)
+      final success = provider.tryFillCell(1, 1);
+      expect(success, isTrue);
+      expect(provider.isBombMode, isFalse);
+      expect(provider.bombsCount, 4);
+
+      // All non-zero cells in the grid should be filled
+      expect(provider.filledGrid[0][0], 1);
+      expect(provider.filledGrid[0][1], 1);
+      expect(provider.filledGrid[0][2], 2);
+      expect(provider.filledGrid[1][0], 1);
+      expect(provider.filledGrid[1][1], 0); // (1, 1) is 0 in the art grid
+      expect(provider.filledGrid[1][2], 2);
+      expect(provider.filledGrid[2][0], 2);
+      expect(provider.filledGrid[2][1], 1);
+      expect(provider.filledGrid[2][2], 1);
+    });
+
+    test('erase mode sets filled cell back to 0', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(largerTestArt());
+      provider.selectNumber(1);
+
+      // Fill a cell
+      provider.tryFillCell(0, 0);
+      expect(provider.filledGrid[0][0], 1);
+
+      // Toggle erase mode
+      provider.toggleEraseMode();
+      expect(provider.isEraseMode, isTrue);
+
+      // Erase the cell
+      final success = provider.tryFillCell(0, 0);
+      expect(success, isTrue);
+      expect(provider.filledGrid[0][0], 0);
+    });
+
+    test('single tap on another color cell auto-selects that color and fills cell correctly', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(largerTestArt());
+      provider.selectNumber(1);
+      expect(provider.selectedNumber, 1);
+
+      // Tap cell (0, 2) which has number 2
+      final success = provider.tryFillCell(0, 2);
+      expect(success, isTrue);
+      expect(provider.selectedNumber, 2);
+      expect(provider.filledGrid[0][2], 2);
     });
   });
 }

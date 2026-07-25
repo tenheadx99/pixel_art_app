@@ -31,42 +31,53 @@ void main() {
     bool isCellBorder = cellUV.x < borderThresh.x || cellUV.x > (1.0 - borderThresh.x) ||
                         cellUV.y < borderThresh.y || cellUV.y > (1.0 - borderThresh.y);
 
-    // Sample texture for cell color & preview
+
+    // Sample the grid texture at the texel center for this cell. The image is
+    // built with toImageSync and sampled top-left-origin, matching
+    // FlutterFragCoord — no orientation fixup needed. (A previous "Y-flip
+    // fallback" here re-sampled the mirrored texel for empty cells, which
+    // painted every fill onto its vertically mirrored cell as well.)
     vec2 texUV = (cellCoord + vec2(0.5)) / uGrid;
+#ifdef IMPELLER_TARGET_OPENGLES
+    // On Impeller's OpenGLES backend sampled images are vertically flipped
+    // (see the texture-sampling note in Flutter's fragment-shader docs), so
+    // flip the row lookup only for that backend. Never "detect" the flip at
+    // runtime by re-sampling the mirrored texel: that renders every fill at
+    // both its real and mirrored cell.
+    texUV.y = 1.0 - texUV.y;
+#endif
     vec4 cellColor = texture(uTexture, texUV);
     
-    // Unfilled cell -> cellColor.a == 0.0 (RGB contains grayscale artwork preview!)
+    // Unfilled cell -> cellColor.a == 0.0
     if (cellColor.a < 0.01) {
-        // Zoomed Out LOD (< 10.0): Display complete grayscale artwork preview (Image 1)
+        // Zoomed Out LOD (< 10.0): Display complete artwork preview
         if (uEffectiveCell < 10.0) {
             fragColor = vec4(cellColor.rgb, 1.0);
             return;
         }
         
-        // Zoomed In LOD (>= 10.0): Transition background to clean white #FFFFFF with hairline #CCCCCC grid lines (Image 2)
+        // Zoomed In LOD (>= 10.0): Transition background to clean white #FFFFFF with hairline #CCCCCC grid lines
         float fade = clamp((uEffectiveCell - 10.0) / 6.0, 0.0, 1.0);
-        vec3 bgWhite = isCellBorder ? vec3(0.86, 0.86, 0.86) : vec3(1.0, 1.0, 1.0);
+        vec3 bgWhite = isCellBorder ? vec3(0.82, 0.82, 0.82) : vec3(1.0, 1.0, 1.0);
         vec3 finalBg = mix(cellColor.rgb, bgWhite, fade);
         fragColor = vec4(finalBg, 1.0);
         return;
     }
 
-    // Filled Gem -> cellColor.a > 0.01
-    vec2 center = vec2(0.5);
-    float r = 0.45;
-    float dist = length(cellUV - center);
-
-    // Outside round gem -> render cell background + grid line
-    if (dist > r) {
-        vec3 bgWhite = isCellBorder ? vec3(0.86, 0.86, 0.86) : vec3(1.0, 1.0, 1.0);
-        fragColor = vec4(bgWhite, 1.0);
+    // Hairline Grid Border between filled gems
+    if (isCellBorder) {
+        fragColor = vec4(0.82, 0.82, 0.82, 1.0);
         return;
     }
 
-    // Low LOD: Flat Circle
+    // Filled Gem -> Full 3D Cushion Gem Tile
+    vec2 center = vec2(0.5);
+    vec2 dir = cellUV - center;
+    float dist = length(dir);
+
+    // Low LOD (< 10.0): Flat Square Tile
     if (uEffectiveCell < 10.0) {
-        vec3 col = (dist > (r - 0.03)) ? cellColor.rgb * 0.70 : cellColor.rgb;
-        fragColor = vec4(col, 1.0);
+        fragColor = vec4(cellColor.rgb, 1.0);
         return;
     }
 
@@ -83,39 +94,41 @@ void main() {
     vec3 darkShade = cellColor.rgb * 0.58;
     vec3 baseColor = mix(lightShade, darkShade, t);
 
-    // Bevel Outer Ring for crisp gem edge definition
-    if (dist > (r * 0.82)) {
-        baseColor = mix(baseColor, darkShade * 0.60, 0.60);
+    // Bevel Outer Edges for crisp 3D tile definition
+    vec2 edgeDist = abs(cellUV - center);
+    float maxEdge = max(edgeDist.x, edgeDist.y);
+    if (maxEdge > 0.42) {
+        float bevel = smoothstep(0.42, 0.48, maxEdge);
+        baseColor = mix(baseColor, darkShade * 0.50, bevel * 0.70);
     }
 
     // Tier 3 High Detail: 8 Crown Facet Lines & Table Facet (uEffectiveCell >= 18.0)
     if (uEffectiveCell >= 18.0) {
-        vec2 dir = cellUV - center;
         float angle = atan(dir.y, dir.x);
         float facetLine = abs(sin(angle * 4.0));
-        if (facetLine < 0.08 && dist > 0.18 && dist < (r * 0.86)) {
-            baseColor = mix(baseColor, vec3(1.0), 0.18);
+        if (facetLine < 0.08 && dist > 0.12 && maxEdge < 0.44) {
+            baseColor = mix(baseColor, vec3(1.0), 0.22);
         }
-        // Table Facet (Flat top cut)
-        if (dist < 0.18) {
-            baseColor = mix(baseColor, lightShade, 0.22);
+        // Table Facet (Flat top cut in center)
+        if (dist < 0.16) {
+            baseColor = mix(baseColor, lightShade, 0.25);
         }
     }
 
-    // Dynamic Specular Highlight & Glint Halo (Smooth spherical dome reflection)
-    vec2 specPos = center + shift * 0.20;
+    // Dynamic Specular Highlight & Glint Halo
+    vec2 specPos = center + shift * 0.18;
     float specDist = length(cellUV - specPos);
     
     // Soft Specular Halo
-    if (specDist < 0.18) {
-        float halo = smoothstep(0.18, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), halo * 0.50);
+    if (specDist < 0.20) {
+        float halo = smoothstep(0.20, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), halo * 0.45);
     }
     
     // Sharp Core Specular Highlight
     if (specDist < 0.08) {
         float core = smoothstep(0.08, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), core * 0.80);
+        baseColor = mix(baseColor, vec3(1.0), core * 0.85);
     }
 
     fragColor = vec4(baseColor, 1.0);

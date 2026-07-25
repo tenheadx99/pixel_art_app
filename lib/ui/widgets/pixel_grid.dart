@@ -185,6 +185,8 @@ class _PixelGridState extends State<PixelGrid> {
       child: GestureDetector(
         onTapUp: (details) {
           final pos = _gridPos(details.globalPosition, art);
+          // ignore: avoid_print
+          print('TAPDBG onTapUp global=${details.globalPosition} pos=$pos');
           if (pos != null) widget.onCellTap(pos.$1, pos.$2);
         },
         onLongPressStart: (details) {
@@ -245,6 +247,7 @@ class _PixelGridState extends State<PixelGrid> {
                       FlavorConfig.current.cellStyle == CellRenderStyle.gem,
                   tiltNotifier: widget.tiltNotifier,
                   shaderProgram: _gemShaderProgram,
+                  fillVersion: widget.provider.fillVersion,
                 ),
               ),
             ),
@@ -264,6 +267,12 @@ class _PixelGridState extends State<PixelGrid> {
     final localPos = renderBox.globalToLocal(globalPos);
     final col = (localPos.dx / renderBox.size.width * art.gridWidth).floor();
     final row = (localPos.dy / renderBox.size.height * art.gridHeight).floor();
+    // ignore: avoid_print
+    print('TAPDBG _gridPos global=${globalPos.dx.toStringAsFixed(1)},'
+        '${globalPos.dy.toStringAsFixed(1)} '
+        'local=${localPos.dx.toStringAsFixed(1)},${localPos.dy.toStringAsFixed(1)} '
+        'box=${renderBox.size.width.toStringAsFixed(1)}x'
+        '${renderBox.size.height.toStringAsFixed(1)} row=$row col=$col');
     if (row >= 0 && row < art.gridHeight && col >= 0 && col < art.gridWidth) {
       return (row, col);
     }
@@ -294,6 +303,12 @@ class _PixelGridPainter extends CustomPainter {
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
 
+  /// Monotonic counter from the provider that bumps on every fill (and on art
+  /// load). Used as the cache key for the baked gem picture and the shader's
+  /// grid texture so neither is regenerated while the fill is unchanged —
+  /// cheaper and more reliable than rescanning all cells for a hash each frame.
+  final int fillVersion;
+
   _PixelGridPainter({
     required this.art,
     required this.filledGrid,
@@ -313,6 +328,7 @@ class _PixelGridPainter extends CustomPainter {
     this.gemStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
+    this.fillVersion = 0,
   }) : super(repaint: Listenable.merge([gridFade, transform, fillGrow, tiltNotifier]));
 
   /// Laid-out number labels, cached across frames and painter instances.
@@ -475,13 +491,13 @@ class _PixelGridPainter extends CustomPainter {
     final c = rect.center;
     final r = rect.shortestSide / 2;
 
-    // 1. Zoomed out LOD (< 10.0): Fast flat circle
+    // 1. Zoomed out LOD (< 10.0): Fast flat rounded tile
     if (effectiveCell < 10.0) {
       cellPaint
         ..shader = null
         ..style = PaintingStyle.fill
         ..color = base;
-      canvas.drawCircle(c, r, cellPaint);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), cellPaint);
       return;
     }
 
@@ -494,7 +510,13 @@ class _PixelGridPainter extends CustomPainter {
       ..shader = null
       ..style = PaintingStyle.fill
       ..color = const Color(0x35000000);
-    canvas.drawCircle(shadowOffset, r, cellPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: shadowOffset, width: rect.width, height: rect.height),
+        const Radius.circular(3),
+      ),
+      cellPaint,
+    );
 
     // 3. 3D Spherical Radial Gradient Body
     final focalOffset = Offset(c.dx + r * shiftX * 0.3, c.dy + r * shiftY * 0.3);
@@ -509,15 +531,15 @@ class _PixelGridPainter extends CustomPainter {
         [lightShade, base, darkShade],
         [0.0, 0.55, 1.0],
       );
-    canvas.drawCircle(c, r, cellPaint);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
     cellPaint.shader = null;
 
     // Bevel outer ring for edge definition
     cellPaint
       ..style = PaintingStyle.stroke
-      ..strokeWidth = r * _gemRingWidth
+      ..strokeWidth = max(0.8, r * _gemRingWidth)
       ..color = darkShade.withAlpha(160);
-    canvas.drawCircle(c, r * _gemRingRadius, cellPaint);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
     cellPaint.style = PaintingStyle.fill;
 
     // 4. Tier 3 High Detail: 8-Facet Crown Cut Lines & Table Facet (Zoom >= 20.0)
@@ -636,27 +658,64 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   static ui.Picture? _bakedBasePicture;
-  static int _bakedFillHash = -1;
-  static int _bakedDetailStep = -1;
+  static int _bakedFillVersion = -1;
+  static bool _bakedLowDetail = false;
   static String _bakedArtId = '';
   static bool _bakedGemStyle = false;
   static double _bakedWidth = 0.0;
   static double _bakedHeight = 0.0;
 
-  int _computeFillHash(List<List<int>> grid, String artId) {
-    int h = artId.hashCode;
-    for (var r = 0; r < grid.length; r++) {
-      final row = grid[r];
-      for (var c = 0; c < row.length; c++) {
-        final val = row[c];
-        if (val > 0) {
-          h = 0x1fffffff & (h * 31 + val + r * 10007 + c * 1009);
+  // GPU fast path: a small grid-sized image (one texel per cell) holding each
+  // filled cell's color. The gem fragment shader samples it, so filling a cell
+  // only rewrites one texel instead of re-recording the whole gem picture.
+  // Rebuilt only when the fill actually changes — keyed on fillVersion (+ art
+  // and dimensions), never a per-frame full-grid scan.
+  static ui.Image? _cachedGridImage;
+  static int _cachedImageFillVersion = -1;
+  static String _cachedImageArtId = '';
+  static int _cachedImageW = 0;
+  static int _cachedImageH = 0;
+
+  void _updateGridTextureIfNeeded() {
+    final width = art.gridWidth as int;
+    final height = art.gridHeight as int;
+    if (_cachedGridImage != null &&
+        _cachedImageFillVersion == fillVersion &&
+        _cachedImageArtId == art.id &&
+        _cachedImageW == width &&
+        _cachedImageH == height) {
+      return;
+    }
+
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder);
+    final paint = Paint();
+    for (var r = 0; r < height; r++) {
+      final row = filledGrid[r];
+      for (var col = 0; col < width; col++) {
+        if (row[col] > 0) {
+          // Match the CPU fallback: colour a filled cell by its expected
+          // number so both render paths look identical.
+          final expectedNumber = art.grid[r][col] as int;
+          paint.color =
+              filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+          c.drawRect(
+            Rect.fromLTWH(col.toDouble(), r.toDouble(), 1.0, 1.0),
+            paint,
+          );
         }
       }
     }
-    return h;
-  }
 
+    final picture = recorder.endRecording();
+    _cachedGridImage?.dispose();
+    _cachedGridImage = picture.toImageSync(width, height);
+    picture.dispose();
+    _cachedImageFillVersion = fillVersion;
+    _cachedImageArtId = art.id;
+    _cachedImageW = width;
+    _cachedImageH = height;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -674,11 +733,54 @@ class _PixelGridPainter extends CustomPainter {
     final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
     final detailStep = (detail * 4).round();
 
-    final currentFillHash = gemStyle ? _computeFillHash(filledGrid, art.id) : 0;
+    // GPU fast path: render every gem cell in a single fragment-shader draw.
+    // Used only when zoomed in enough to show detail (detailStep > 0) — that's
+    // where per-fill re-baking hurt. Falls through to the CPU baked-picture
+    // path when the shader hasn't loaded, in colorblind mode (the shader can't
+    // draw the per-number accessibility patterns), or when zoomed out, where
+    // the CPU path renders the grayscale "ghost" preview of unfilled cells that
+    // the shader's flat background can't reproduce. Zoomed-out is static and
+    // cheap, so keeping it on the CPU costs nothing.
+    if (gemStyle && shaderProgram != null && !colorblindMode && detailStep > 0) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      if (gridImage != null) {
+        final shader = shaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setImageSampler(0, gridImage);
+
+        final clip = canvas.getLocalClipBounds();
+        final gridRect = Offset.zero & size;
+        final drawRect = clip.intersect(gridRect);
+        if (drawRect.width > 0 && drawRect.height > 0) {
+          canvas.drawRect(drawRect, Paint()..shader = shader);
+        }
+
+        // Numbers and selection/highlight overlays are drawn on the CPU on top.
+        _paintOverlays(
+          canvas, size, cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
+        return;
+      }
+    }
+
+    // The baked gem picture only distinguishes "low detail" (unfilled cells
+    // drawn as flat preview fills) from detailed (unfilled cells drawn as thin
+    // borders), so key the cache on that boolean rather than the full
+    // detailStep — otherwise every zoom-threshold crossing re-bakes the whole
+    // grid mid-gesture. The fill itself is tracked by fillVersion, which the
+    // provider bumps on every fill and on art load, so no per-frame grid scan.
+    final lowDetail = detailStep == 0;
     if (gemStyle) {
       if (_bakedBasePicture == null ||
-          _bakedFillHash != currentFillHash ||
-          _bakedDetailStep != detailStep ||
+          _bakedFillVersion != fillVersion ||
+          _bakedLowDetail != lowDetail ||
           _bakedArtId != art.id ||
           _bakedGemStyle != gemStyle ||
           _bakedWidth != size.width ||
@@ -721,8 +823,8 @@ class _PixelGridPainter extends CustomPainter {
         }
 
         _bakedBasePicture = recorder.endRecording();
-        _bakedFillHash = currentFillHash;
-        _bakedDetailStep = detailStep;
+        _bakedFillVersion = fillVersion;
+        _bakedLowDetail = lowDetail;
         _bakedArtId = art.id;
         _bakedGemStyle = gemStyle;
         _bakedWidth = size.width;
@@ -985,5 +1087,22 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PixelGridPainter oldDelegate) => true;
+  bool shouldRepaint(_PixelGridPainter old) =>
+      fillVersion != old.fillVersion ||
+      selectedNumber != old.selectedNumber ||
+      showNumbers != old.showNumbers ||
+      highlightedNumber != old.highlightedNumber ||
+      cellSize != old.cellSize ||
+      isEraseMode != old.isEraseMode ||
+      brushSize != old.brushSize ||
+      colorblindMode != old.colorblindMode ||
+      gemStyle != old.gemStyle ||
+      hoverRow != old.hoverRow ||
+      hoverCol != old.hoverCol ||
+      art.id != old.art.id ||
+      gridFade != old.gridFade ||
+      transform != old.transform ||
+      fillGrow != old.fillGrow ||
+      tiltNotifier != old.tiltNotifier ||
+      shaderProgram != old.shaderProgram;
 }

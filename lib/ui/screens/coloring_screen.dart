@@ -98,17 +98,31 @@ class _ColoringScreenState extends State<ColoringScreen>
   @override
   void initState() {
     super.initState();
-    try {
-      _accelerometerSubscription = accelerometerEventStream().listen((AccelerometerEvent event) {
-        if (!mounted) return;
-        final normX = (event.x / 9.8).clamp(-1.0, 1.0);
-        final normY = (event.y / 9.8).clamp(-1.0, 1.0);
-        _smoothTiltX = _smoothTiltX * 0.8 + normX * 0.2;
-        _smoothTiltY = _smoothTiltY * 0.8 + normY * 0.2;
-        _tiltNotifier.value = Offset(_smoothTiltX, _smoothTiltY);
-      });
-    } catch (e) {
-      debugPrint('Accelerometer sensors not supported: $e');
+    // Tilt only drives the gem/diamond flavor's specular highlight. On flat
+    // flavors the sensor stream would repaint the whole grid for no visible
+    // change, so only subscribe when a gem flavor is active.
+    if (FlavorConfig.current.cellStyle == CellRenderStyle.gem) {
+      try {
+        _accelerometerSubscription = accelerometerEventStream(
+          samplingPeriod: SensorInterval.uiInterval,
+        ).listen((AccelerometerEvent event) {
+          if (!mounted) return;
+          final normX = (event.x / 9.8).clamp(-1.0, 1.0);
+          final normY = (event.y / 9.8).clamp(-1.0, 1.0);
+          _smoothTiltX = _smoothTiltX * 0.8 + normX * 0.2;
+          _smoothTiltY = _smoothTiltY * 0.8 + normY * 0.2;
+          // Dead-zone: don't publish sub-perceptual jitter, so a grid held
+          // still stops repainting instead of chasing sensor noise every tick.
+          final prev = _tiltNotifier.value;
+          if ((_smoothTiltX - prev.dx).abs() < 0.01 &&
+              (_smoothTiltY - prev.dy).abs() < 0.01) {
+            return;
+          }
+          _tiltNotifier.value = Offset(_smoothTiltX, _smoothTiltY);
+        });
+      } catch (e) {
+        debugPrint('Accelerometer sensors not supported: $e');
+      }
     }
     _confettiController = AnimationController(
       vsync: this,

@@ -538,6 +538,13 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   bool tryFillCell(int row, int col) {
+    final inBounds = _currentArt != null &&
+        row >= 0 && row < _currentArt!.gridHeight &&
+        col >= 0 && col < _currentArt!.gridWidth;
+    // ignore: avoid_print
+    print('TAPDBG tryFillCell row=$row col=$col selected=$_selectedNumber '
+        'expected=${inBounds ? _currentArt!.grid[row][col] : 'OOB'} '
+        'alreadyFilled=${inBounds ? _filledGrid[row][col] : 'OOB'}');
     return _runWithCompletionCheck(() {
       if (_currentArt == null) return false;
       if (row < 0 || row >= _currentArt!.gridHeight) return false;
@@ -568,7 +575,13 @@ class ColoringProvider extends ChangeNotifier {
           final expectedNumber = _currentArt!.grid[r][c];
           if (expectedNumber == 0) continue;
           if (_filledGrid[r][c] > 0) continue;
-          if (expectedNumber != _selectedNumber) continue;
+          if (expectedNumber != _selectedNumber) {
+            if (_brushSize == 1 && dr == 0 && dc == 0) {
+              selectNumber(expectedNumber);
+            } else {
+              continue;
+            }
+          }
           _setCell(r, c, expectedNumber);
           _recordTimeLapse(r, c);
           anyFilled = true;
@@ -845,8 +858,15 @@ class ColoringProvider extends ChangeNotifier {
   void undo() {
     if (_undoStack.isEmpty) return;
     final entry = _undoStack.removeLast();
+    int fillCount = 0;
     for (final (row, col, prev) in entry.reversed) {
+      if (prev == 0 && _filledGrid[row][col] > 0) {
+        fillCount++;
+      }
       _filledGrid[row][col] = prev;
+    }
+    if (fillCount > 0 && _timeLapse.length >= fillCount) {
+      _timeLapse.removeRange(_timeLapse.length - fillCount, _timeLapse.length);
     }
     _calculateProgress();
     _isComplete = false;
