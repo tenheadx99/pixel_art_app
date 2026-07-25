@@ -94,7 +94,9 @@ class AppSettingsProvider extends ChangeNotifier {
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
     _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
-    _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey, defaultValue: true);
+    // Light theme by default for every flavor; dark mode is opt-in via
+    // settings (a saved preference always wins over this default).
+    _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey);
     _colorblindMode = _storageService.getBool('colorblind_mode');
     _hapticsEnabled = _storageService.getBool(
       'haptics_enabled',
