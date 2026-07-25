@@ -141,7 +141,7 @@ class SettingsSheet extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (_) => const PaywallScreen(),
+                          builder: (_) => const PaywallScreen(source: 'settings'),
                         ),
                       );
                     },

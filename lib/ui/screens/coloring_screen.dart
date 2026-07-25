@@ -17,6 +17,7 @@ import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../data/services/ad_service.dart';
+import '../../data/services/analytics_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/local_storage_service.dart';
@@ -370,10 +371,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   void _checkMilestones(ColoringProvider provider, AppSettingsProvider settings) {
     if (provider.claimMilestone(30)) {
       provider.addBombs(AppConstants.milestone30Bomb);
+      AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 30);
       _showInfoSnack('Milestone reached · +${AppConstants.milestone30Bomb} Bomb');
     }
     if (provider.claimMilestone(65)) {
       settings.addDiamonds(AppConstants.milestone65Diamonds);
+      AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 65);
       showCoinBurst(context);
       _showInfoSnack('Milestone reached · +${AppConstants.milestone65Diamonds} 💎');
     }
@@ -434,6 +437,14 @@ class _ColoringScreenState extends State<ColoringScreen>
     // would kill the next artwork's fill effects / sound / section haptics.
     // (The per-instance listener is always safe to remove.)
     if (provider != null && provider.currentArt?.id == widget.art.id) {
+      // Core retention signal: how long the session ran, how far it got,
+      // and whether the artwork was finished.
+      AnalyticsService().logSessionEnd(
+        artId: widget.art.id,
+        seconds: DateTime.now().difference(_sessionStart).inSeconds,
+        progressPct: (provider.progress * 100).round(),
+        completed: provider.isComplete,
+      );
       provider.onCellFilledCorrectly = null;
       provider.onSectionCompleted = null;
       provider.onCellFilledAt = null;
@@ -729,7 +740,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       return;
     }
     adService.loadRewardedAd(
-      onLoaded: () => adService.showRewardedAd(onRewarded: grant),
+      onLoaded: () => adService.showRewardedAd(
+        placement: 'double_reward',
+        onRewarded: grant,
+      ),
       onFailed: () =>
           _showInfoSnack('No ad available right now — try again later.'),
     );
@@ -1222,6 +1236,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/pixely_${widget.art.id}.png');
     await file.writeAsBytes(pngBytes);
+    AnalyticsService().logArtworkShared(artId: widget.art.id, format: 'png');
     await Share.shareXFiles([
       XFile(file.path, mimeType: 'image/png'),
     ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
@@ -1245,6 +1260,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/pixely_${widget.art.id}_timelapse.gif');
       await file.writeAsBytes(bytes);
+      AnalyticsService().logArtworkShared(artId: widget.art.id, format: 'gif');
       await Share.shareXFiles([
         XFile(file.path, mimeType: 'image/gif'),
       ], text: 'Watch me paint "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
@@ -1283,6 +1299,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _replayController.duration = Duration(
       milliseconds: max(1000, _replayActions.length * 30),
     );
+    AnalyticsService().logReplayWatched(artId: widget.art.id);
     _replayController.forward(from: 0);
     setState(() {});
   }
@@ -1614,6 +1631,8 @@ class _ColoringScreenState extends State<ColoringScreen>
       return;
     }
     settings.useHint();
+    AnalyticsService()
+        .logBoosterUsed(type: 'hint', remaining: settings.hintsAvailable);
     _zoomToCell(target.$1, target.$2);
   }
 
@@ -1684,6 +1703,7 @@ class _ColoringScreenState extends State<ColoringScreen>
               }
               adService.loadRewardedAd(
                 onLoaded: () => adService.showRewardedAd(
+                  placement: forHints ? 'refill_hints' : 'refill_wands',
                   onRewarded: () {
                     if (forHints) {
                       settings.addHints(adAmount);

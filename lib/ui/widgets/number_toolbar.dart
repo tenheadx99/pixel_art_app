@@ -54,6 +54,7 @@ class NumberToolbar extends StatelessWidget {
     adService.loadRewardedAd(
       onLoaded: () {
         adService.showRewardedAd(
+          placement: 'refill_${toolName.toLowerCase().replaceAll(' ', '_')}',
           onRewarded: () {
             onRefilled();
             ScaffoldMessenger.of(context).showSnackBar(

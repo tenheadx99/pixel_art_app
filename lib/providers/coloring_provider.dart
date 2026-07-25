@@ -499,8 +499,12 @@ class ColoringProvider extends ChangeNotifier {
     return _filledColors[_filledGrid[row][col]];
   }
 
+  /// When the current artwork was loaded; feeds artwork_completed's duration.
+  DateTime? _artStartedAt;
+
   void loadArt(PixelArt art) {
     _currentArt = art;
+    _artStartedAt = DateTime.now();
     _filledGrid = List.generate(
       art.gridHeight,
       (_) => List.filled(art.gridWidth, 0),
@@ -650,6 +654,8 @@ class ColoringProvider extends ChangeNotifier {
       if (_brushSize > 1) {
         if (_brushesCount > 0) {
           _brushesCount--;
+          AnalyticsService()
+              .logBoosterUsed(type: 'brush', remaining: _brushesCount);
           if (_brushesCount == 0) {
             _brushSize = 1;
           }
@@ -745,6 +751,8 @@ class ColoringProvider extends ChangeNotifier {
       if (_brushSize > 1) {
         if (_brushesCount > 0) {
           _brushesCount--;
+          AnalyticsService()
+              .logBoosterUsed(type: 'brush', remaining: _brushesCount);
           if (_brushesCount == 0) {
             _brushSize = 1;
           }
@@ -977,6 +985,9 @@ class ColoringProvider extends ChangeNotifier {
         AnalyticsService().logArtworkCompleted(
           artId: _currentArt!.id,
           category: _currentArt!.category,
+          durationSeconds: _artStartedAt == null
+              ? null
+              : DateTime.now().difference(_artStartedAt!).inSeconds,
         );
       }
       _isComplete = true;
@@ -1088,6 +1099,8 @@ class ColoringProvider extends ChangeNotifier {
       _magicWandsCount--;
       _isMagicWandMode = false;
       _totalFillCount++;
+      AnalyticsService()
+          .logBoosterUsed(type: 'magic_wand', remaining: _magicWandsCount);
       _haptic(HapticFeedback.mediumImpact);
       _checkCompletion();
       _checkAchievements();
@@ -1133,6 +1146,7 @@ class ColoringProvider extends ChangeNotifier {
       _bombsCount--;
       _isBombMode = false;
       _totalFillCount++;
+      AnalyticsService().logBoosterUsed(type: 'bomb', remaining: _bombsCount);
       _haptic(HapticFeedback.mediumImpact);
       _checkCompletion();
       _checkAchievements();

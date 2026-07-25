@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import '../../config/app_config.dart';
 import '../../config/app_constants.dart';
+import 'analytics_service.dart';
 
 class IAPService {
   static final IAPService _instance = IAPService._();
@@ -81,6 +82,7 @@ class IAPService {
   Future<void> _buy(String productId, {required bool consumable}) async {
     if (!_enabled) return;
     try {
+      AnalyticsService().logPurchaseStart(productId: productId);
       final purchase = InAppPurchase.instance;
       final response = await purchase.queryProductDetails({productId});
       if (response.productDetails.isEmpty) return;

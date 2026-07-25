@@ -555,6 +555,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final messenger = ScaffoldMessenger.of(context);
     adService.loadRewardedAd(
       onLoaded: () => adService.showRewardedAd(
+        placement: 'premium_try',
         onRewarded: () {
           if (!mounted) return;
           context.read<GalleryProvider>().unlockForSession(art.id);
@@ -714,7 +715,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.pop(ctx);
                           Navigator.push(
                             context,
-                            fadeThroughRoute(const PaywallScreen()),
+                            fadeThroughRoute(const PaywallScreen(source: 'home')),
                           );
                         },
                         style: ElevatedButton.styleFrom(

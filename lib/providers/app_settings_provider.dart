@@ -117,6 +117,8 @@ class AppSettingsProvider extends ChangeNotifier {
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
     _lifetimeCellsColored = _storageService.getInt(_lifetimeCellsPrefKey);
+    AnalyticsService()
+        .setPlayerProperties(level: _playerLevel, isPro: _isProUser);
     notifyListeners();
   }
 
@@ -144,6 +146,7 @@ class AppSettingsProvider extends ChangeNotifier {
       _storageService.setInt(_playerLevelPrefKey, _playerLevel);
       _diamondsAvailable += diamondsAwarded;
       _storageService.setInt('diamonds_available', _diamondsAvailable);
+      AnalyticsService().setPlayerProperties(level: _playerLevel);
     }
     notifyListeners();
     return LevelUpResult(
@@ -331,6 +334,7 @@ class AppSettingsProvider extends ChangeNotifier {
           }
           if (purchase.productID == AppConstants.proProductId) {
             setProUser(true);
+            AnalyticsService().setPlayerProperties(isPro: true);
           } else if (purchase.productID ==
               AppConstants.plusMonthlyProductId) {
             extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);

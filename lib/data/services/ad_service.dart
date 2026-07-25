@@ -182,7 +182,10 @@ class AdService {
     );
   }
 
-  void showRewardedAd({required void Function() onRewarded}) {
+  void showRewardedAd({
+    required void Function() onRewarded,
+    String placement = 'user_reward',
+  }) {
     _rewardedAd?.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (ad) {
         ad.dispose();
@@ -194,9 +197,12 @@ class AdService {
       },
     );
     _lastRewardedAt = DateTime.now();
-    AnalyticsService().logAdImpression(adFormat: 'rewarded', placement: 'user_reward');
+    AnalyticsService().logAdImpression(adFormat: 'rewarded', placement: placement);
     _rewardedAd?.show(
       onUserEarnedReward: (ad, reward) {
+        // Earned = watched through; distinct from the impression above so
+        // completion rate per placement is measurable.
+        AnalyticsService().logAdRewardEarned(placement: placement);
         onRewarded();
       },
     );

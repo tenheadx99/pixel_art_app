@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
+import '../../data/services/analytics_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
@@ -12,7 +13,11 @@ import '../theme/app_style.dart';
 /// purchase stream (AppSettingsProvider.listenToIAP); this screen just starts
 /// the billing flow and pops itself once the entitlement lands.
 class PaywallScreen extends StatefulWidget {
-  const PaywallScreen({super.key});
+  /// What led the user here (e.g. 'home', 'settings') — logged with
+  /// paywall_shown so conversion can be attributed per entry point.
+  final String source;
+
+  const PaywallScreen({super.key, this.source = 'unknown'});
 
   @override
   State<PaywallScreen> createState() => _PaywallScreenState();
@@ -29,6 +34,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
+    AnalyticsService().logPaywallShown(source: widget.source);
     _loadPrices();
   }
 

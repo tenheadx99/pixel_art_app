@@ -149,6 +149,174 @@ class AnalyticsService {
     }
   }
 
+  /// Logs the end of a coloring session (screen exit), the core
+  /// retention/abandonment signal: how long, how far, finished or not.
+  Future<void> logSessionEnd({
+    required String artId,
+    required int seconds,
+    required int progressPct,
+    required bool completed,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'coloring_session_end',
+        parameters: {
+          'art_id': artId,
+          'seconds': seconds,
+          'progress_pct': progressPct,
+          'completed': completed ? 1 : 0,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logSessionEnd: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs a booster consumption (bomb / magic_wand / brush / hint) and, when
+  /// the last one was just spent, a separate depletion event — the moment
+  /// rewarded-ad and IAP willingness peaks.
+  Future<void> logBoosterUsed({
+    required String type,
+    required int remaining,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'booster_used',
+        parameters: {'type': type, 'remaining': remaining},
+      );
+      if (remaining == 0) {
+        await a.logEvent(
+          name: 'booster_depleted',
+          parameters: {'type': type},
+        );
+      }
+    } catch (e) {
+      developer.log('Error logging logBoosterUsed: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs that a rewarded ad's reward was actually earned (watched through),
+  /// as opposed to merely shown.
+  Future<void> logAdRewardEarned({required String placement}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'ad_reward_earned',
+        parameters: {'placement': placement},
+      );
+    } catch (e) {
+      developer.log('Error logging logAdRewardEarned: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs a finished-artwork share (png still or gif time-lapse).
+  Future<void> logArtworkShared({
+    required String artId,
+    required String format,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'artwork_shared',
+        parameters: {'art_id': artId, 'format': format},
+      );
+    } catch (e) {
+      developer.log('Error logging logArtworkShared: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs a time-lapse replay view.
+  Future<void> logReplayWatched({required String artId}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'replay_watched',
+        parameters: {'art_id': artId},
+      );
+    } catch (e) {
+      developer.log('Error logging logReplayWatched: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs a claimed progress milestone gift (30/65/100 percent).
+  Future<void> logMilestoneClaimed({
+    required String artId,
+    required int percent,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'milestone_claimed',
+        parameters: {'art_id': artId, 'percent': percent},
+      );
+    } catch (e) {
+      developer.log('Error logging logMilestoneClaimed: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs the paywall becoming visible, keyed by what led the user there.
+  Future<void> logPaywallShown({required String source}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'paywall_shown',
+        parameters: {'source': source},
+      );
+    } catch (e) {
+      developer.log('Error logging logPaywallShown: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs a purchase attempt starting (store sheet about to open), so
+  /// conversion rate = iap_purchase_success / iap_purchase_start.
+  Future<void> logPurchaseStart({required String productId}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'iap_purchase_start',
+        parameters: {'product_id': productId},
+      );
+    } catch (e) {
+      developer.log('Error logging logPurchaseStart: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Sets audience-segmentation user properties (call on load and whenever
+  /// the values change).
+  Future<void> setPlayerProperties({int? level, bool? isPro}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      if (level != null) {
+        await a.setUserProperty(name: 'player_level', value: '$level');
+      }
+      if (isPro != null) {
+        await a.setUserProperty(name: 'is_pro', value: isPro ? 'true' : 'false');
+      }
+    } catch (e) {
+      developer.log('Error setting player properties: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
   /// Logs daily reward claims.
   Future<void> logDailyRewardClaimed({
     required int dayStreak,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
+import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 
@@ -177,6 +178,7 @@ class GalleryProvider extends ChangeNotifier {
     _dailyStreak = last == yesterday ? _dailyStreak + 1 : 1;
     _storageService.setInt(_streakPrefKey, _dailyStreak);
     _storageService.setString(_streakDatePrefKey, today);
+    AnalyticsService().logDailyRewardClaimed(dayStreak: _dailyStreak, coins: 0);
     if (_dailyStreak > _bestStreak) {
       _bestStreak = _dailyStreak;
       _storageService.setInt(_bestStreakPrefKey, _bestStreak);
