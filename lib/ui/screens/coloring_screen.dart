@@ -66,6 +66,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   late AnimationController _replayController;
   late AnimationController _gridFadeController;
   late AnimationController _zoomAnimController;
+  // Section-complete shimmer sweep across the gem board (shader-driven).
+  // Idles at 1.0 (= inactive in the shader); forward(from: 0) runs one sweep.
+  late AnimationController _shimmerController;
   Matrix4Tween? _zoomTween;
   List<(int, int)> _replayActions = [];
   int _replayIndex = 0;
@@ -142,6 +145,11 @@ class _ColoringScreenState extends State<ColoringScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     );
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+      value: 1.0,
+    );
     _replayController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -208,12 +216,14 @@ class _ColoringScreenState extends State<ColoringScreen>
           if (_settings?.hapticsEnabled ?? true) {
             _playSectionCompletedHaptic();
           }
-          // Celebrate a finished color with a bigger sparkle at the last cell.
+          // Celebrate a finished color with a bigger sparkle at the last cell
+          // and one shimmer sweep across all placed gems.
           if (_settings?.fillEffectsEnabled ?? true) {
             final color =
                 provider.cellFillColor(_lastFillRow, _lastFillCol) ??
                 Colors.amber;
             _fxKey.currentState?.spawnBurst(_lastFillRow, _lastFillCol, color);
+            _shimmerController.forward(from: 0);
           }
         }
         ..onCellFilledAt = _onCellFilledAt
@@ -243,24 +253,25 @@ class _ColoringScreenState extends State<ColoringScreen>
     final color = provider.cellFillColor(row, col) ?? AppStyle.primary;
     final combo = provider.consecutiveFills;
     final stroking = provider.isStroking;
-    // On taps the grid itself grows the cell in, so skip the overlay pop (it
-    // would mask the grow); keep ripple/splash/sparkle. Strokes have no grid
-    // grow, so they keep the lightweight pop.
+    // The grid animates every fill itself now (gem: shader settle/glint;
+    // flat: grow + afterglow), so the overlay never adds its own cell pop —
+    // it would be double feedback. Strokes keep the throttled sparkle trail.
     _fxKey.currentState?.spawn(
       row,
       col,
       color,
       full: !stroking,
       combo: combo,
-      pop: stroking,
+      pop: false,
     );
 
-    // Grow the cell in — taps/hints only; strokes snap so fast swipes stay
-    // smooth (the grid would otherwise repaint-animate every swiped cell).
-    if (!stroking) {
-      _growController.add(row, col, DateTime.now().millisecondsSinceEpoch);
-      if (!_growTicker.isAnimating) _growTicker.repeat();
-    }
+    // Register every fill's timestamp: it drives the tap grow and afterglow
+    // on the flat grid, and the shader's settle/glint/wave-stagger in gem
+    // mode. Stroke registration is safe now — stroke rebuilds are coalesced
+    // per frame and the registry is capped, unlike the per-cell rebuild storm
+    // that originally forced strokes to snap.
+    _growController.add(row, col, DateTime.now().millisecondsSinceEpoch);
+    if (!_growTicker.isAnimating) _growTicker.repeat();
 
     // Combo callouts: fire once per crossed threshold; reset when the streak
     // drops back below what we last announced.
@@ -438,6 +449,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _replayController.dispose();
     _gridFadeController.dispose();
     _zoomAnimController.dispose();
+    _shimmerController.dispose();
     _growTicker.dispose();
     _growController.dispose();
     _canvasPanNotifier.dispose();
@@ -1452,6 +1464,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     gridFade: _gridFadeController,
                     transform: _transformController,
                     fillGrow: _growController,
+                    sectionShimmer: _shimmerController,
                     tiltNotifier: _tiltNotifier,
                     onCellTap: (row, col) => provider.tryFillCell(row, col),
                     onCellLongPress: (row, col) {

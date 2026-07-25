@@ -615,13 +615,10 @@ class ColoringProvider extends ChangeNotifier {
           final expectedNumber = _currentArt!.grid[r][c];
           if (expectedNumber == 0) continue;
           if (_filledGrid[r][c] > 0) continue;
-          if (expectedNumber != _selectedNumber) {
-            if (_brushSize == 1 && dr == 0 && dc == 0) {
-              selectNumber(expectedNumber);
-            } else {
-              continue;
-            }
-          }
+          // Number selection happens only in the palette: a tap on a cell of
+          // a different number never switches colors — it falls through to
+          // the wrong-tap nudge below.
+          if (expectedNumber != _selectedNumber) continue;
           _setCell(r, c, expectedNumber);
           _recordTimeLapse(r, c);
           anyFilled = true;

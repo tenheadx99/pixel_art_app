@@ -27,7 +27,13 @@ class PixelGrid extends StatefulWidget {
 
   /// Drives the per-cell "grow in" animation on freshly tapped cells. Also the
   /// painter's repaint source while cells animate. Null disables the effect.
+  /// In gem mode its timestamps additionally feed the shader's fill-age
+  /// texture (settle pop / glint / afterglow / swipe wave).
   final FillGrowController? fillGrow;
+
+  /// Progress (0..1) of the section-complete shimmer sweep across the board.
+  /// Idle at 1.0; the coloring screen runs it forward when a color finishes.
+  final Animation<double>? sectionShimmer;
 
   final void Function(int row, int col) onCellTap;
   final void Function(int row, int col)? onCellLongPress;
@@ -52,6 +58,7 @@ class PixelGrid extends StatefulWidget {
     this.gridFade,
     this.transform,
     this.fillGrow,
+    this.sectionShimmer,
     required this.onCellTap,
     this.onCellLongPress,
     this.onCellDragStart,
@@ -252,6 +259,7 @@ class _PixelGridState extends State<PixelGrid> {
       gridFade: widget.gridFade,
       transform: widget.transform,
       fillGrow: widget.fillGrow,
+      sectionShimmer: widget.sectionShimmer,
       hoverRow: _hoverRow,
       hoverCol: _hoverCol,
       gemStyle: FlavorConfig.current.cellStyle == CellRenderStyle.gem,
@@ -331,6 +339,7 @@ class _PixelGridPainter extends CustomPainter {
   final Animation<double>? gridFade;
   final ValueListenable<Matrix4>? transform;
   final FillGrowController? fillGrow;
+  final Animation<double>? sectionShimmer;
   final int? hoverRow;
   final int? hoverCol;
 
@@ -361,6 +370,7 @@ class _PixelGridPainter extends CustomPainter {
     this.gridFade,
     this.transform,
     this.fillGrow,
+    this.sectionShimmer,
     this.hoverRow,
     this.hoverCol,
     this.gemStyle = false,
@@ -370,10 +380,24 @@ class _PixelGridPainter extends CustomPainter {
   }) : super(
           // Each layer repaints only on its own triggers: tilt ticks must not
           // re-run the overlay label pass, and fill-grow animation frames must
-          // not re-draw the art body.
+          // not re-draw the label pass either. The gem base listens to
+          // fillGrow/sectionShimmer because they clock the shader's fill and
+          // shimmer animations (a repaint there is one shader-quad draw).
           repaint: Listenable.merge(switch (layer) {
-            _GridLayer.full => [gridFade, transform, fillGrow, tiltNotifier],
-            _GridLayer.gemBase => [gridFade, transform, tiltNotifier],
+            _GridLayer.full => [
+                gridFade,
+                transform,
+                fillGrow,
+                tiltNotifier,
+                sectionShimmer,
+              ],
+            _GridLayer.gemBase => [
+                gridFade,
+                transform,
+                tiltNotifier,
+                fillGrow,
+                sectionShimmer,
+              ],
             _GridLayer.gemOverlay => [gridFade, transform, fillGrow],
           }),
         );
@@ -750,6 +774,14 @@ class _PixelGridPainter extends CustomPainter {
   static ui.Picture? _previewLayerPicture;
   static String _previewLayerArtId = '';
 
+  // Companion age texture for the shader's fill animations: each texel's red
+  // channel holds that cell's age at bake time over a [_fillAnimWindowMs]
+  // window (255 = long done). The shader adds uTime (seconds since the bake)
+  // so animations advance frame-by-frame without any texture rebuilds.
+  static const int _fillAnimWindowMs = 1600;
+  static ui.Image? _cachedAgeImage;
+  static int _ageEpochMs = 0;
+
   void _updateGridTextureIfNeeded() {
     final width = art.gridWidth as int;
     final height = art.gridHeight as int;
@@ -810,6 +842,42 @@ class _PixelGridPainter extends CustomPainter {
     _cachedImageArtId = art.id;
     _cachedImageW = width;
     _cachedImageH = height;
+
+    _rebuildAgeTexture(width, height);
+  }
+
+  /// Bakes the per-cell fill-age texture from [fillGrow]'s timestamps. Cost is
+  /// one full-rect draw plus a rect per *recently* filled cell (the registry
+  /// is capped), and it only runs when the color texture rebuilds anyway.
+  void _rebuildAgeTexture(int width, int height) {
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder);
+    final paint = Paint()..isAntiAlias = false;
+
+    // Default every cell to "finished" (255) so only fresh fills animate.
+    paint.color = const Color(0xFFFFFFFF);
+    c.drawRect(
+      Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
+      paint,
+    );
+
+    fillGrow?.forEachActive((row, col, startMs) {
+      final ageMs = nowMs - startMs;
+      if (ageMs >= _fillAnimWindowMs) return;
+      final enc = (ageMs * 255 ~/ _fillAnimWindowMs).clamp(0, 255);
+      paint.color = Color.fromARGB(255, enc, 0, 0);
+      c.drawRect(
+        Rect.fromLTWH(col.toDouble(), row.toDouble(), 1.0, 1.0),
+        paint,
+      );
+    });
+
+    final picture = recorder.endRecording();
+    _cachedAgeImage?.dispose();
+    _cachedAgeImage = picture.toImageSync(width, height);
+    picture.dispose();
+    _ageEpochMs = nowMs;
   }
 
   /// Shared level-of-detail math for all layers.
@@ -848,7 +916,8 @@ class _PixelGridPainter extends CustomPainter {
     if (shaderProgram != null && !colorblindMode) {
       _updateGridTextureIfNeeded();
       final gridImage = _cachedGridImage;
-      if (gridImage != null) {
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
         final shader = shaderProgram!.fragmentShader();
         shader.setFloat(0, size.width);
         shader.setFloat(1, size.height);
@@ -858,7 +927,14 @@ class _PixelGridPainter extends CustomPainter {
         shader.setFloat(4, tilt.dx);
         shader.setFloat(5, tilt.dy);
         shader.setFloat(6, effectiveCell);
+        // Seconds since the age texture was baked — clocks fill animations.
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
         shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
 
         // Always draw the full grid rect: the canvas clip already limits
         // rasterization, and anchoring the geometry at the canvas origin
@@ -1098,6 +1174,20 @@ class _PixelGridPainter extends CustomPainter {
               glossPaint,
             );
           }
+
+          // Afterglow: a soft warm flash that fades over 450ms after the
+          // fill, sharing the grow's clock. Stroke fills carry naturally
+          // staggered timestamps, so a swipe leaves a glowing trail.
+          final fillStartMs = fillGrow?.startMsOf(row, col);
+          if (fillStartMs != null) {
+            final age = (nowMs - fillStartMs) / 1000.0;
+            if (age >= 0 && age < 0.45) {
+              final glow = 1.0 - age / 0.45;
+              cellPaint.color = const Color(0xFFFFF3D6)
+                  .withAlpha((80 * glow * glow).round());
+              canvas.drawRect(drawRect, cellPaint);
+            }
+          }
         } else if (expectedNumber == 0) {
           cellPaint.color = const Color(0xFFE8E8E8);
           canvas.drawRect(rect, cellPaint);
@@ -1128,6 +1218,35 @@ class _PixelGridPainter extends CustomPainter {
               col * cw + (cw - tp.width) / 2,
               row * ch + (ch - tp.height) / 2,
             ),
+          );
+        }
+      }
+    }
+
+    // Section-complete shimmer: one skewed bright band sweeping the filled
+    // cells — the CPU twin of the gem shader's effect. Runs for 600ms only,
+    // over visible cells, so the extra rects never outlast the celebration.
+    final shimmer = sectionShimmer?.value ?? 1.0;
+    if (shimmer > 0.001 && shimmer < 0.999) {
+      final band = -0.2 + 1.4 * shimmer;
+      final denom = size.width + size.height * 0.35;
+      final shimmerPaint = Paint();
+      for (var row = firstRow; row <= lastRow; row++) {
+        for (var col = firstCol; col <= lastCol; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((115 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(
+              col * cw + cellGap,
+              row * ch + cellGap,
+              cw - cellGap * 2,
+              ch - cellGap * 2,
+            ),
+            shimmerPaint,
           );
         }
       }
@@ -1246,6 +1365,7 @@ class _PixelGridPainter extends CustomPainter {
       gridFade != old.gridFade ||
       transform != old.transform ||
       fillGrow != old.fillGrow ||
+      sectionShimmer != old.sectionShimmer ||
       tiltNotifier != old.tiltNotifier ||
       shaderProgram != old.shaderProgram;
 }

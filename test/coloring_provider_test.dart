@@ -227,17 +227,22 @@ void main() {
       expect(provider.filledGrid[0][0], 0);
     });
 
-    test('single tap on another color cell auto-selects that color and fills cell correctly', () async {
+    test('tap on another color cell never fills or switches selection', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
       provider.selectNumber(1);
       expect(provider.selectedNumber, 1);
 
-      // Tap cell (0, 2) which has number 2
+      // Tap cell (0, 2) which has number 2: selection comes only from the
+      // palette, so the tap must fail, leave the cell empty, keep the
+      // selection, and fire the wrong-tap nudge.
+      (int, int)? wrongTapAt;
+      provider.onWrongTap = (row, col) => wrongTapAt = (row, col);
       final success = provider.tryFillCell(0, 2);
-      expect(success, isTrue);
-      expect(provider.selectedNumber, 2);
-      expect(provider.filledGrid[0][2], 2);
+      expect(success, isFalse);
+      expect(provider.selectedNumber, 1);
+      expect(provider.filledGrid[0][2], 0);
+      expect(wrongTapAt, (0, 2));
     });
   });
 }

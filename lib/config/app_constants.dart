@@ -134,4 +134,8 @@ class AppConstants {
   // only; strokes snap so fast swipes stay smooth). Cap bounds the registry.
   static const int fillGrowMs = 220;
   static const int fillGrowMaxCells = 64;
+  // How long a fill's timestamp stays available after the flat-grid grow ends:
+  // the gem shader's settle/glint/afterglow timeline (~0.55s) plus swipe
+  // stagger headroom reads ages from this registry.
+  static const int fillGrowRetentionMs = 700;
 }

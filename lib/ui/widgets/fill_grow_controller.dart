@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import '../../config/app_constants.dart';
 
-/// Tracks cells that are mid "grow-in" so [PixelGrid]'s painter can scale the
-/// colour up from the preview instead of snapping. Acts as the painter's
-/// repaint [Listenable]: an external ticker calls [handleTick] each frame while
-/// any cell is animating, which prunes finished cells and notifies a repaint.
+/// Tracks recently filled cells and their fill timestamps. Two consumers:
+/// the flat-flavor painter scales cells in via [factor], and the gem shader
+/// bakes the timestamps into a per-cell age texture that drives its
+/// settle-pop / glint / afterglow timeline (swipes get a wave stagger from
+/// the natural spread of stroke fill times). Acts as the painter's repaint
+/// [Listenable]: an external ticker calls [handleTick] each frame while any
+/// cell is animating, which prunes finished cells and notifies a repaint.
 ///
-/// Kept tiny on purpose — only tap/hint fills register here (strokes snap), and
-/// the registry is capped — so per-cell `factor()` lookups during paint stay
-/// cheap even on 64x64 grids.
+/// Kept tiny on purpose — the registry is capped — so per-cell `factor()`
+/// lookups during paint stay cheap even on 64x64 grids.
 class FillGrowController extends ChangeNotifier {
   final int gridWidth;
   final Map<int, int> _startMs = {};
@@ -16,6 +18,7 @@ class FillGrowController extends ChangeNotifier {
   FillGrowController(this.gridWidth);
 
   static const int _durationMs = AppConstants.fillGrowMs;
+  static const int _retentionMs = AppConstants.fillGrowRetentionMs;
 
   int _key(int row, int col) => row * gridWidth + col;
 
@@ -43,9 +46,24 @@ class FillGrowController extends ChangeNotifier {
 
   bool get isEmpty => _startMs.isEmpty;
 
+  /// The fill timestamp of a still-registered cell, or null once it has been
+  /// pruned. Lets the flat-flavor painter run its afterglow directly off the
+  /// same clock the grow uses.
+  int? startMsOf(int row, int col) => _startMs[_key(row, col)];
+
+  /// Visits every registered cell with its fill timestamp; used to bake the
+  /// gem shader's per-cell age texture.
+  void forEachActive(void Function(int row, int col, int startMs) visit) {
+    _startMs.forEach((key, startMs) {
+      visit(key ~/ gridWidth, key % gridWidth, startMs);
+    });
+  }
+
   /// Called by the driving ticker each frame: drop finished cells and repaint.
+  /// Cells are retained past the flat grow so the shader timeline (glint,
+  /// afterglow) keeps its timing source until it finishes.
   void handleTick(int nowMs) {
-    _startMs.removeWhere((_, start) => nowMs - start >= _durationMs);
+    _startMs.removeWhere((_, start) => nowMs - start >= _retentionMs);
     notifyListeners();
   }
 
