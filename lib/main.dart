@@ -418,6 +418,7 @@ class _IntroFlow extends StatelessWidget {
       onFinished: () {
         Navigator.of(context).pushReplacement(
           PageRouteBuilder(
+            settings: const RouteSettings(name: 'home'),
             pageBuilder: (_, _, _) => const HomeScreen(),
             transitionDuration: const Duration(milliseconds: 600),
             transitionsBuilder: (_, animation, _, child) =>

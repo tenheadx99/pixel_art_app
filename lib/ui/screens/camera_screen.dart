@@ -469,6 +469,7 @@ class _CameraScreenBody extends StatelessWidget {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
+        settings: const RouteSettings(name: 'coloring'),
         builder: (_) => ChangeNotifierProvider.value(
           value: context.read<ColoringProvider>(),
           child: ColoringScreen(art: art),

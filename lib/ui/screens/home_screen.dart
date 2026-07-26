@@ -509,7 +509,8 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _openProfile(BuildContext context) {
-    Navigator.push(context, fadeThroughRoute(const ProfileScreen()));
+    Navigator.push(
+        context, fadeThroughRoute(const ProfileScreen(), name: 'profile'));
   }
 
   void _openColoring(BuildContext context, PixelArt art) {
@@ -526,6 +527,7 @@ class _HomeScreenState extends State<HomeScreen> {
           value: context.read<ColoringProvider>(),
           child: ColoringScreen(art: art),
         ),
+        name: 'coloring',
       ),
     ).then((_) {
       // Progress badges and the continue row read prefs written while
@@ -537,14 +539,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _openCamera(BuildContext context) {
     Navigator.push(
       context,
-      fadeThroughRoute(const CameraScreen()),
+      fadeThroughRoute(const CameraScreen(), name: 'camera'),
     );
   }
 
   void _openGallery(BuildContext context) {
     Navigator.push(
       context,
-      fadeThroughRoute(const GalleryScreen()),
+      fadeThroughRoute(const GalleryScreen(), name: 'gallery'),
     );
   }
 
@@ -715,7 +717,10 @@ class _HomeScreenState extends State<HomeScreen> {
                           Navigator.pop(ctx);
                           Navigator.push(
                             context,
-                            fadeThroughRoute(const PaywallScreen(source: 'home')),
+                            fadeThroughRoute(
+                              const PaywallScreen(source: 'home'),
+                              name: 'paywall',
+                            ),
                           );
                         },
                         style: ElevatedButton.styleFrom(

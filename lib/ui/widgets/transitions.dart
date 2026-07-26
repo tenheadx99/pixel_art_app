@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 /// default platform slide. The new screen fades in while easing up from a
 /// subtle scale, which reads calmer than an abrupt push — fitting a relaxing
 /// pixel-art experience.
-Route<T> fadeThroughRoute<T>(Widget page) {
+/// [name] labels the route for Firebase's automatic screen_view tracking
+/// (and debugging); it has no effect on navigation itself.
+Route<T> fadeThroughRoute<T>(Widget page, {String? name}) {
   return PageRouteBuilder<T>(
+    settings: RouteSettings(name: name),
     transitionDuration: const Duration(milliseconds: 320),
     reverseTransitionDuration: const Duration(milliseconds: 260),
     pageBuilder: (_, _, _) => page,

@@ -824,7 +824,10 @@ class _ColoringScreenState extends State<ColoringScreen>
     _maybeShowExitInterstitial();
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(builder: (_) => ColoringScreen(art: next)),
+      MaterialPageRoute(
+        settings: const RouteSettings(name: 'coloring'),
+        builder: (_) => ColoringScreen(art: next),
+      ),
     );
   }
 

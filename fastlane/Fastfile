@@ -355,7 +355,7 @@ platform :android do
     upload_params = {
       package_name: package_name,
       track: "production",
-      release_status: "draft",
+      release_status: "completed",
       aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab"),
       skip_upload_apk: true,
       skip_upload_metadata: build_only,
