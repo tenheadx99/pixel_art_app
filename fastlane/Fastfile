@@ -295,6 +295,7 @@ platform :android do
   lane :deploy_flavor do |options|
     flavor = options[:flavor]
     build_only = options[:build_only] == true || options[:build_only] == "true"
+    metadata_only = options[:metadata_only] == true || options[:metadata_only] == "true"
     UI.user_error!("Please specify a flavor (e.g. fastlane android deploy_flavor flavor:devotional)") unless flavor
 
     package_names = {
@@ -343,12 +344,13 @@ platform :android do
       UI.message("No metadata file found at #{metadata_file}. Skipping text sync.")
     end
 
-    # 2. Build the signed release AAB
-    target_file = flavor == "original" ? "lib/main.dart" : "lib/main_#{flavor}.dart"
-    
-    UI.message("Building signed App Bundle for flavor: #{flavor}...")
-    sh("flutter", "pub", "get")
-    sh("flutter", "build", "appbundle", "--release", "--flavor", flavor, "-t", target_file, "--dart-define=FLAVOR=#{flavor}")
+    # 2. Build the signed release AAB (unless metadata_only)
+    unless metadata_only
+      target_file = flavor == "original" ? "lib/main.dart" : "lib/main_#{flavor}.dart"
+      UI.message("Building signed App Bundle for flavor: #{flavor}...")
+      sh("flutter", "pub", "get")
+      sh("flutter", "build", "appbundle", "--release", "--flavor", flavor, "-t", target_file, "--dart-define=FLAVOR=#{flavor}")
+    end
 
     # 3. Upload to Google Play
     flavor_meta_dir = flavor == "original" ? "android" : File.join(flavor, "android")
@@ -356,13 +358,18 @@ platform :android do
       package_name: package_name,
       track: "production",
       release_status: "completed",
-      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab"),
       skip_upload_apk: true,
+      skip_upload_aab: metadata_only,
       skip_upload_metadata: build_only,
       skip_upload_images: build_only,
       skip_upload_screenshots: build_only,
+      skip_upload_changelogs: metadata_only,
       metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata", flavor_meta_dir)
     }
+
+    unless metadata_only
+      upload_params[:aab] = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+    end
 
     if play_key
       if play_key.strip.start_with?("{")
@@ -372,7 +379,7 @@ platform :android do
       end
     end
 
-    UI.message("Uploading #{flavor} AAB to Play Store for package: #{package_name}...")
+    UI.message("Uploading #{flavor} metadata to Play Store for package: #{package_name}...")
     upload_to_play_store(upload_params)
     UI.success("Successfully deployed flavor #{flavor} to production on Google Play!")
   end

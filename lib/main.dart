@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'l10n/app_localizations.dart';
 import 'config/app_constants.dart';
 import 'config/app_config.dart';
 import 'config/flavor.dart';
@@ -380,6 +381,8 @@ class _AppShell extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: AppStyle.lightTheme(),
       darkTheme: AppStyle.darkTheme(),
+      localizationsDelegates: AppLocalizations.localizationsDelegates,
+      supportedLocales: AppLocalizations.supportedLocales,
       home: child,
     );
   }
@@ -398,6 +401,9 @@ class _AppShellWithDeps extends StatelessWidget {
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
           theme: AppStyle.lightTheme(),
           darkTheme: AppStyle.darkTheme(),
+          locale: settings.appLocale,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
           navigatorObservers: [AnalyticsService().observer],
           home: const _IntroFlow(),
         );

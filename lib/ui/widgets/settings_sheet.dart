@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../l10n/app_localizations.dart';
 import '../../config/app_constants.dart';
-import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
-import '../screens/paywall_screen.dart';
 import '../theme/app_style.dart';
 import '../../config/flavor.dart';
 
@@ -25,6 +24,7 @@ class SettingsSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return SafeArea(
@@ -33,11 +33,11 @@ class SettingsSheet extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(24, 0, 24, 8),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
                   child: Text(
-                    'Settings',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    l10n.settings,
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                 ),
                 SwitchListTile(
@@ -55,122 +55,33 @@ class SettingsSheet extends StatelessWidget {
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.vibration),
-                  title: const Text('Haptic feedback'),
+                  title: Text(l10n.hapticFeedback),
                   value: settings.hapticsEnabled,
                   onChanged: (_) => settings.toggleHaptics(),
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.volume_up_outlined),
-                  title: const Text('ASMR Sound effects'),
+                  title: Text(l10n.soundEffects),
                   value: settings.soundsEnabled,
                   onChanged: (_) => settings.toggleSounds(),
                 ),
-                SwitchListTile(
-                  secondary: const Icon(Icons.auto_awesome_outlined),
-                  title: const Text('Fill effects'),
-                  subtitle: const Text('Pops, sparkles & combos while coloring'),
-                  value: settings.fillEffectsEnabled,
-                  onChanged: (_) => settings.toggleFillEffects(),
-                ),
-                if (settings.soundsEnabled)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.music_note_outlined,
-                          size: 24,
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.white70
-                              : Colors.black54,
-                        ),
-                        const SizedBox(width: 16),
-                        const Expanded(
-                          child: Text(
-                            'Sound style',
-                            style: TextStyle(fontSize: 16),
-                          ),
-                        ),
-                        SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: 'bubble_pop',
-                              label: Text('Pop'),
-                            ),
-                            ButtonSegment(
-                              value: 'light_click',
-                              label: Text('Click'),
-                            ),
-                          ],
-                          selected: {settings.soundType},
-                          onSelectionChanged: (value) {
-                            settings.setSoundType(value.first);
-                          },
-                          showSelectedIcon: false,
-                          style: SegmentedButton.styleFrom(
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 const Divider(height: 8),
-                SwitchListTile(
-                  secondary: const Icon(Icons.notifications_active_outlined),
-                  title: const Text('Daily reminders'),
-                  subtitle: const Text(
-                    'Gentle morning & evening nudges to relax with a fresh canvas',
-                  ),
-                  value: settings.dailyRemindersEnabled,
-                  onChanged: (value) =>
-                      settings.setDailyRemindersEnabled(value),
-                ),
-                const Divider(height: 8),
-                if (!settings.isProUser)
-                  ListTile(
-                    leading: const Icon(
-                      Icons.workspace_premium_rounded,
-                      color: Color(0xFFFF9D2E),
-                    ),
-                    title: Text('${FlavorConfig.current.appName} Plus'),
-                    subtitle: const Text(
-                      'No ads · all premium art · daily diamonds',
-                    ),
-                    onTap: () {
-                      Navigator.pop(context);
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          settings: const RouteSettings(name: 'paywall'),
-                          builder: (_) => const PaywallScreen(source: 'settings'),
-                        ),
-                      );
-                    },
-                  ),
                 ListTile(
-                  leading: const Icon(Icons.restore),
-                  title: const Text('Restore purchases'),
-                  onTap: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    await context.read<IAPService>().restorePurchases();
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text(
-                          'Restore requested — purchases re-apply in a moment.',
-                        ),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    );
-                  },
+                  leading: const Icon(Icons.language_outlined),
+                  title: Text(l10n.language),
+                  subtitle: Text(_getLanguageName(settings.appLocale, l10n)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showLanguagePicker(context, settings, l10n),
                 ),
+                const Divider(height: 8),
                 ListTile(
                   leading: const Icon(Icons.privacy_tip_outlined),
-                  title: const Text('Privacy policy'),
+                  title: Text(l10n.privacyPolicy),
                   onTap: () => _openUrl(AppConstants.privacyPolicyUrl),
                 ),
                 ListTile(
                   leading: const Icon(Icons.description_outlined),
-                  title: const Text('Terms of service'),
+                  title: Text(l10n.termsOfService),
                   onTap: () => _openUrl(AppConstants.termsUrl),
                 ),
                 FutureBuilder<PackageInfo>(
@@ -202,5 +113,71 @@ class SettingsSheet extends StatelessWidget {
 
   void _openUrl(String url) {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  String _getLanguageName(Locale? locale, AppLocalizations l10n) {
+    if (locale == null) return l10n.systemDefault;
+    switch (locale.languageCode) {
+      case 'en':
+        return 'English';
+      case 'hi':
+        return 'हिन्दी (Hindi)';
+      case 'ja':
+        return '日本語 (Japanese)';
+      case 'es':
+        return 'Español (Spanish)';
+      case 'pt':
+        return 'Português (Portuguese)';
+      default:
+        return locale.languageCode;
+    }
+  }
+
+  void _showLanguagePicker(
+    BuildContext context,
+    AppSettingsProvider settings,
+    AppLocalizations l10n,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final options = [
+          {'locale': null, 'label': l10n.systemDefault},
+          {'locale': const Locale('en'), 'label': 'English'},
+          {'locale': const Locale('hi'), 'label': 'हिन्दी (Hindi)'},
+          {'locale': const Locale('ja'), 'label': '日本語 (Japanese)'},
+          {'locale': const Locale('es'), 'label': 'Español (Spanish)'},
+          {'locale': const Locale('pt'), 'label': 'Português (Portuguese)'},
+        ];
+
+        return AlertDialog(
+          title: Text(l10n.language),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: options.map((opt) {
+              final loc = opt['locale'] as Locale?;
+              final label = opt['label'] as String;
+              final isSelected = settings.appLocale == loc;
+              return RadioListTile<Locale?>(
+                title: Text(label),
+                value: loc,
+                selected: isSelected,
+                groupValue: settings.appLocale,
+                onChanged: (selected) {
+                  settings.setAppLocale(selected);
+                  Navigator.pop(dialogContext);
+                },
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(l10n.cancel),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

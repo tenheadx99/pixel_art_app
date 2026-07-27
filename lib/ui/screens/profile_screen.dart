@@ -6,6 +6,8 @@ import '../../providers/coloring_provider.dart';
 import '../../data/services/local_storage_service.dart';
 import '../theme/app_style.dart';
 
+import '../../l10n/app_localizations.dart';
+
 /// Player profile / stats: level + XP, lifetime stats, and the achievements
 /// grid (earned vs. still-locked).
 class ProfileScreen extends StatelessWidget {
@@ -23,6 +25,7 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final settings = context.watch<AppSettingsProvider>();
     final gallery = context.watch<GalleryProvider>();
     final storage = context.read<LocalStorageService>();
@@ -34,7 +37,7 @@ class ProfileScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Your Studio'),
+        title: Text(l10n.navProfile),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),

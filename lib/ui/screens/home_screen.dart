@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' show PointMode;
 import 'package:flutter/material.dart';
+import '../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
@@ -298,7 +299,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 fontSize: 14,
                               ),
                               decoration: InputDecoration(
-                                hintText: 'Search artworks...',
+                                hintText: AppLocalizations.of(context)?.searchHint ?? 'Search artworks...',
                                 hintStyle: TextStyle(
                                   color: Colors.white.withAlpha(160),
                                   fontSize: 13,

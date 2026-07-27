@@ -7,6 +7,7 @@ import '../../data/services/analytics_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
+import '../../l10n/app_localizations.dart';
 
 /// The Plus subscription paywall: monthly/yearly plans plus the existing
 /// lifetime Pro as a one-time alternative. Purchases resolve through the IAP
@@ -242,25 +243,25 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             onPressed: () => context
                                 .read<IAPService>()
                                 .restorePurchases(),
-                            child: const Text(
-                              'Restore',
-                              style: TextStyle(fontSize: 12),
+                            child: Text(
+                              AppLocalizations.of(context)?.restorePurchases ?? 'Restore',
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ),
                           TextButton(
                             onPressed: () =>
                                 _openUrl(AppConstants.termsUrl),
-                            child: const Text(
-                              'Terms',
-                              style: TextStyle(fontSize: 12),
+                            child: Text(
+                              AppLocalizations.of(context)?.termsOfService ?? 'Terms',
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ),
                           TextButton(
                             onPressed: () =>
                                 _openUrl(AppConstants.privacyPolicyUrl),
-                            child: const Text(
-                              'Privacy',
-                              style: TextStyle(fontSize: 12),
+                            child: Text(
+                              AppLocalizations.of(context)?.privacyPolicy ?? 'Privacy',
+                              style: const TextStyle(fontSize: 12),
                             ),
                           ),
                         ],

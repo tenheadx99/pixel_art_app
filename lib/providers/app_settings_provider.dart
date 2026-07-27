@@ -39,6 +39,7 @@ class AppSettingsProvider extends ChangeNotifier {
   int _totalXp = 0;
   int _playerLevel = 1;
   int _lifetimeCellsColored = 0;
+  Locale? _appLocale;
 
   static const String _dailyRemindersPrefKey = 'daily_reminders_enabled';
   static const String _totalXpPrefKey = 'total_xp';
@@ -70,6 +71,17 @@ class AppSettingsProvider extends ChangeNotifier {
   int get totalXp => _totalXp;
   int get playerLevel => _playerLevel;
   int get lifetimeCellsColored => _lifetimeCellsColored;
+  Locale? get appLocale => _appLocale;
+
+  void setAppLocale(Locale? locale) {
+    _appLocale = locale;
+    if (locale == null) {
+      _storageService.setString('app_locale', '');
+    } else {
+      _storageService.setString('app_locale', locale.languageCode);
+    }
+    notifyListeners();
+  }
 
   /// XP threshold to *enter* [level] (the inverse of the sqrt level curve).
   int xpForLevel(int level) =>
@@ -117,6 +129,12 @@ class AppSettingsProvider extends ChangeNotifier {
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
     _lifetimeCellsColored = _storageService.getInt(_lifetimeCellsPrefKey);
+    final localeCode = _storageService.getString('app_locale');
+    if (localeCode.isNotEmpty) {
+      _appLocale = Locale(localeCode);
+    } else {
+      _appLocale = null;
+    }
     AnalyticsService()
         .setPlayerProperties(level: _playerLevel, isPro: _isProUser);
     notifyListeners();

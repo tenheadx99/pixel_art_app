@@ -7,6 +7,7 @@ import '../../config/app_constants.dart';
 import '../../data/services/analytics_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
+import '../../l10n/app_localizations.dart';
 
 class CameraScreen extends StatelessWidget {
   const CameraScreen({super.key});
@@ -28,9 +29,9 @@ class _CameraScreenBody extends StatelessWidget {
         return Scaffold(
           extendBodyBehindAppBar: true,
           appBar: AppBar(
-            title: const Text(
-              'Pixel Art Camera',
-              style: TextStyle(color: Colors.white),
+            title: Text(
+              AppLocalizations.of(context)?.navCamera ?? 'Camera',
+              style: const TextStyle(color: Colors.white),
             ),
             leading: IconButton(
               icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),

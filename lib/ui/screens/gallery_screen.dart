@@ -6,6 +6,8 @@ import '../../data/services/local_storage_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/user_artwork.dart';
 
+import '../../l10n/app_localizations.dart';
+
 class GalleryScreen extends StatefulWidget {
   const GalleryScreen({super.key});
 
@@ -37,7 +39,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        title: const Text('My Artwork', style: TextStyle(color: Colors.white)),
+        title: Text(AppLocalizations.of(context)?.navGallery ?? 'My Works', style: const TextStyle(color: Colors.white)),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white),
           onPressed: () => Navigator.pop(context),
