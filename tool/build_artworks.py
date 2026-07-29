@@ -40,6 +40,22 @@ def quantize_channel(v):
     return (v // 32) * 32
 
 
+def nearest_color_number(q_to_idx, q):
+    """Nearest kept palette color by squared RGB distance — mirrors
+    ImageProcessingService._nearestColorNumber (iteration order and strict `<`
+    comparison must match for tie parity)."""
+    r, g, b = (q >> 16) & 0xFF, (q >> 8) & 0xFF, q & 0xFF
+    best, best_dist = 0, 1 << 30
+    for pq, idx in q_to_idx.items():
+        dr = r - ((pq >> 16) & 0xFF)
+        dg = g - ((pq >> 8) & 0xFF)
+        db = b - (pq & 0xFF)
+        dist = dr * dr + dg * dg + db * db
+        if dist < best_dist:
+            best_dist, best = dist, idx
+    return best
+
+
 def convert_image(path, gw, gh, max_colors=16):
     """Return (grid:list[list[int]], color_map:dict[int,int]) matching the app."""
     im = Image.open(path).convert("RGBA").resize((gw, gh), Image.Resampling.BOX)
@@ -58,13 +74,22 @@ def convert_image(path, gw, gh, max_colors=16):
     q_to_idx = {q: i + 1 for i, (q, _) in enumerate(top)}
 
     grid = [[0] * gw for _ in range(gh)]
+    # Colors that missed the top-N palette map to the nearest kept color
+    # instead of an empty cell (mirrors buildGridFromImage in the app/admin).
+    nearest_cache = {}
     for y in range(gh):
         for x in range(gw):
             r, g, b, a = px[x, y]
             if a < 128:
                 continue
             q = (quantize_channel(r) << 16) | (quantize_channel(g) << 8) | quantize_channel(b)
-            grid[y][x] = q_to_idx.get(q, 0)
+            idx = q_to_idx.get(q)
+            if idx is None:
+                idx = nearest_cache.get(q)
+                if idx is None:
+                    idx = nearest_color_number(q_to_idx, q)
+                    nearest_cache[q] = idx
+            grid[y][x] = idx
 
     color_map = {}
     for q, idx in q_to_idx.items():

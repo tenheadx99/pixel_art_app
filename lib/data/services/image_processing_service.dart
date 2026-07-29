@@ -65,6 +65,10 @@ class ImageProcessingService {
       image.height,
       (_) => List.filled(image.width, 0),
     );
+    // Opaque pixels whose quantized color missed the top-N palette map to
+    // the NEAREST kept color instead of an empty cell — otherwise busy
+    // photos at low color counts get speckled with holes.
+    final nearestCache = <int, int>{};
     for (var y = 0; y < image.height; y++) {
       for (var x = 0; x < image.width; x++) {
         final pixel = image.getPixel(x, y);
@@ -80,10 +84,31 @@ class ImageProcessingService {
             _quantizeChannel(r) << 16 |
             _quantizeChannel(g) << 8 |
             _quantizeChannel(b);
-        grid[y][x] = colorMap[quantized] ?? 0;
+        grid[y][x] = colorMap[quantized] ??
+            nearestCache.putIfAbsent(
+                quantized, () => _nearestColorNumber(colorMap, quantized));
       }
     }
     return grid;
+  }
+
+  int _nearestColorNumber(Map<int, int> colorMap, int quantized) {
+    final r = (quantized >> 16) & 0xFF;
+    final g = (quantized >> 8) & 0xFF;
+    final b = quantized & 0xFF;
+    var best = 0;
+    var bestDist = 1 << 30;
+    for (final entry in colorMap.entries) {
+      final dr = r - ((entry.key >> 16) & 0xFF);
+      final dg = g - ((entry.key >> 8) & 0xFF);
+      final db = b - (entry.key & 0xFF);
+      final dist = dr * dr + dg * dg + db * db;
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = entry.value;
+      }
+    }
+    return best;
   }
 
   Map<int, ui.Color> buildColorMap(Map<int, int> quantizedMap) {
