@@ -33,6 +33,9 @@ CATEGORY_ORDER = {
     "anime": ["Kawaii", "Chibi", "Eyes", "Mecha"],
     "pixelcalm": ["Zen", "Mandalas", "Patterns", "Nature"],
     "diamond": ["Gems", "Mandalas", "Patterns", "Nature", "Celestial"],
+    "original": ["Shapes", "Animals", "Nature", "Food", "Gems", "Mandalas",
+                 "Patterns", "Celestial", "Adults", "Tarot", "Cyberpunk",
+                 "Gothic", "Synthwave"],
 }
 
 
@@ -112,8 +115,10 @@ def find_source(src_dir, entry_id):
 def main(flavor):
     spec_path = os.path.join(ROOT, "tool", f"{flavor}_artwork_spec.json")
     src_dir = os.path.join(ROOT, "tool", f"{flavor}_sources")
-    out_dir = os.path.join(ROOT, "assets", f"pixel_art_{flavor}")
-    asset_prefix = f"assets/pixel_art_{flavor}"
+    # The launch flavor's catalog predates the per-flavor suffix convention.
+    folder = "pixel_art" if flavor == "original" else f"pixel_art_{flavor}"
+    out_dir = os.path.join(ROOT, "assets", folder)
+    asset_prefix = f"assets/{folder}"
     os.makedirs(src_dir, exist_ok=True)
     os.makedirs(out_dir, exist_ok=True)
 

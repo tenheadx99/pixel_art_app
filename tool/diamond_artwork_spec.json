@@ -1,52 +1,370 @@
 [
-  {"id": "diamond_heart", "name": "Diamond Heart", "category": "Gems", "grid": 32, "difficulty": 2, "premium": false},
-  {"id": "ruby_gem", "name": "Ruby Gem", "category": "Gems", "grid": 32, "difficulty": 2, "premium": false},
-  {"id": "emerald_cut", "name": "Emerald Cut", "category": "Gems", "grid": 32, "difficulty": 3, "premium": false},
-  {"id": "sapphire_teardrop", "name": "Sapphire Teardrop", "category": "Gems", "grid": 32, "difficulty": 3, "premium": false},
-  {"id": "sapphire_star", "name": "Sapphire Star", "category": "Gems", "grid": 48, "difficulty": 4, "premium": true},
-  {"id": "crystal_cluster", "name": "Crystal Cluster", "category": "Gems", "grid": 48, "difficulty": 5, "premium": true},
-  {"id": "ruby_ring", "name": "Ruby Ring", "category": "Gems", "grid": 48, "difficulty": 5, "premium": false},
-  {"id": "opal_cluster", "name": "Opal Cluster", "category": "Gems", "grid": 48, "difficulty": 6, "premium": false},
-  {"id": "amethyst_geode", "name": "Amethyst Geode", "category": "Gems", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "treasure_chest", "name": "Treasure Chest", "category": "Gems", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "crystal_cave", "name": "Crystal Cave", "category": "Gems", "grid": 96, "difficulty": 8, "premium": true},
-  {"id": "birthstone_wheel", "name": "Birthstone Wheel", "category": "Gems", "grid": 128, "difficulty": 10, "premium": true},
-
-  {"id": "snowflake_mandala", "name": "Snowflake Mandala", "category": "Mandalas", "grid": 48, "difficulty": 5, "premium": false},
-  {"id": "sapphire_star_mandala", "name": "Sapphire Star Mandala", "category": "Mandalas", "grid": 48, "difficulty": 6, "premium": false},
-  {"id": "rose_mandala", "name": "Rose Mandala", "category": "Mandalas", "grid": 64, "difficulty": 6, "premium": true},
-  {"id": "lotus_jewel", "name": "Lotus Jewel", "category": "Mandalas", "grid": 64, "difficulty": 6, "premium": true},
-  {"id": "sun_moon_mandala", "name": "Sun & Moon Mandala", "category": "Mandalas", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "ocean_wave_mandala", "name": "Ocean Wave Mandala", "category": "Mandalas", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "diwali_diya_mandala", "name": "Diwali Diya Mandala", "category": "Mandalas", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "chakra_mandala", "name": "Chakra Mandala", "category": "Mandalas", "grid": 96, "difficulty": 8, "premium": false},
-  {"id": "royal_sapphire_mandala", "name": "Royal Sapphire Mandala", "category": "Mandalas", "grid": 128, "difficulty": 10, "premium": true},
-
-  {"id": "evil_eye", "name": "Evil Eye Charm", "category": "Patterns", "grid": 32, "difficulty": 3, "premium": false},
-  {"id": "mermaid_scales", "name": "Mermaid Scales", "category": "Patterns", "grid": 32, "difficulty": 4, "premium": false},
-  {"id": "art_deco_fan", "name": "Art Deco Fans", "category": "Patterns", "grid": 48, "difficulty": 5, "premium": false},
-  {"id": "moroccan_tile", "name": "Moroccan Tile", "category": "Patterns", "grid": 48, "difficulty": 6, "premium": false},
-  {"id": "rangoli_burst", "name": "Rangoli Burst", "category": "Patterns", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "faberge_egg", "name": "Fabergé Egg", "category": "Patterns", "grid": 64, "difficulty": 8, "premium": true},
-  {"id": "stained_glass_peacock", "name": "Stained Glass Peacock", "category": "Patterns", "grid": 128, "difficulty": 10, "premium": true},
-
-  {"id": "crystal_rose", "name": "Crystal Rose", "category": "Nature", "grid": 32, "difficulty": 4, "premium": false},
-  {"id": "monarch_butterfly", "name": "Monarch Butterfly", "category": "Nature", "grid": 32, "difficulty": 4, "premium": false},
-  {"id": "peony_bloom", "name": "Peony Bloom", "category": "Nature", "grid": 48, "difficulty": 4, "premium": false},
-  {"id": "tulip_field", "name": "Tulip Field", "category": "Nature", "grid": 48, "difficulty": 4, "premium": false},
-  {"id": "butterfly_wing", "name": "Butterfly Wing", "category": "Nature", "grid": 48, "difficulty": 5, "premium": true},
-  {"id": "dragonfly_wings", "name": "Dragonfly Wings", "category": "Nature", "grid": 48, "difficulty": 5, "premium": false},
-  {"id": "cherry_blossom", "name": "Cherry Blossom Branch", "category": "Nature", "grid": 48, "difficulty": 5, "premium": false},
-  {"id": "hummingbird_hibiscus", "name": "Hummingbird & Hibiscus", "category": "Nature", "grid": 48, "difficulty": 6, "premium": false},
-  {"id": "peacock_jewel", "name": "Peacock Jewel", "category": "Nature", "grid": 64, "difficulty": 6, "premium": true},
-  {"id": "koi_pond", "name": "Koi Pond", "category": "Nature", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "sea_turtle_shell", "name": "Sea Turtle Shell", "category": "Nature", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "tropical_parrot", "name": "Tropical Parrot", "category": "Nature", "grid": 64, "difficulty": 8, "premium": false},
-
-  {"id": "crescent_moon_stars", "name": "Crescent Moon & Stars", "category": "Celestial", "grid": 32, "difficulty": 3, "premium": false},
-  {"id": "shooting_star", "name": "Shooting Star", "category": "Celestial", "grid": 32, "difficulty": 3, "premium": false},
-  {"id": "sun_face", "name": "Golden Sun Face", "category": "Celestial", "grid": 48, "difficulty": 5, "premium": false},
-  {"id": "aurora_sky", "name": "Aurora Sky", "category": "Celestial", "grid": 64, "difficulty": 7, "premium": false},
-  {"id": "nebula_heart", "name": "Nebula Heart", "category": "Celestial", "grid": 64, "difficulty": 8, "premium": false},
-  {"id": "zodiac_wheel", "name": "Zodiac Wheel", "category": "Celestial", "grid": 96, "difficulty": 9, "premium": true}
+ {
+  "id": "diamond_heart",
+  "name": "Diamond Heart",
+  "category": "Gems",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "ruby_gem",
+  "name": "Ruby Gem",
+  "category": "Gems",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "emerald_cut",
+  "name": "Emerald Cut",
+  "category": "Gems",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "sapphire_teardrop",
+  "name": "Sapphire Teardrop",
+  "category": "Gems",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "sapphire_star",
+  "name": "Sapphire Star",
+  "category": "Gems",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": true
+ },
+ {
+  "id": "crystal_cluster",
+  "name": "Crystal Cluster",
+  "category": "Gems",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": true
+ },
+ {
+  "id": "ruby_ring",
+  "name": "Ruby Ring",
+  "category": "Gems",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "opal_cluster",
+  "name": "Opal Cluster",
+  "category": "Gems",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": false
+ },
+ {
+  "id": "amethyst_geode",
+  "name": "Amethyst Geode",
+  "category": "Gems",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "treasure_chest",
+  "name": "Treasure Chest",
+  "category": "Gems",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "snowflake_mandala",
+  "name": "Snowflake Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "sapphire_star_mandala",
+  "name": "Sapphire Star Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": false
+ },
+ {
+  "id": "rose_mandala",
+  "name": "Rose Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 6,
+  "premium": true
+ },
+ {
+  "id": "lotus_jewel",
+  "name": "Lotus Jewel",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 6,
+  "premium": true
+ },
+ {
+  "id": "sun_moon_mandala",
+  "name": "Sun & Moon Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "ocean_wave_mandala",
+  "name": "Ocean Wave Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "diwali_diya_mandala",
+  "name": "Diwali Diya Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "evil_eye",
+  "name": "Evil Eye Charm",
+  "category": "Patterns",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "mermaid_scales",
+  "name": "Mermaid Scales",
+  "category": "Patterns",
+  "grid": 32,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "art_deco_fan",
+  "name": "Art Deco Fans",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "moroccan_tile",
+  "name": "Moroccan Tile",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": false
+ },
+ {
+  "id": "rangoli_burst",
+  "name": "Rangoli Burst",
+  "category": "Patterns",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "faberge_egg",
+  "name": "Faberg\u00e9 Egg",
+  "category": "Patterns",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": true
+ },
+ {
+  "id": "crystal_rose",
+  "name": "Crystal Rose",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "monarch_butterfly",
+  "name": "Monarch Butterfly",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "peony_bloom",
+  "name": "Peony Bloom",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "tulip_field",
+  "name": "Tulip Field",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "butterfly_wing",
+  "name": "Butterfly Wing",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": true
+ },
+ {
+  "id": "dragonfly_wings",
+  "name": "Dragonfly Wings",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "cherry_blossom",
+  "name": "Cherry Blossom Branch",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "hummingbird_hibiscus",
+  "name": "Hummingbird & Hibiscus",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": false
+ },
+ {
+  "id": "peacock_jewel",
+  "name": "Peacock Jewel",
+  "category": "Nature",
+  "grid": 64,
+  "difficulty": 6,
+  "premium": true
+ },
+ {
+  "id": "koi_pond",
+  "name": "Koi Pond",
+  "category": "Nature",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "sea_turtle_shell",
+  "name": "Sea Turtle Shell",
+  "category": "Nature",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "tropical_parrot",
+  "name": "Tropical Parrot",
+  "category": "Nature",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": false
+ },
+ {
+  "id": "crescent_moon_stars",
+  "name": "Crescent Moon & Stars",
+  "category": "Celestial",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "shooting_star",
+  "name": "Shooting Star",
+  "category": "Celestial",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "sun_face",
+  "name": "Golden Sun Face",
+  "category": "Celestial",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "aurora_sky",
+  "name": "Aurora Sky",
+  "category": "Celestial",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "nebula_heart",
+  "name": "Nebula Heart",
+  "category": "Celestial",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": false
+ },
+ {
+  "id": "crystal_cave",
+  "name": "Crystal Cave",
+  "category": "Gems",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": true
+ },
+ {
+  "id": "birthstone_wheel",
+  "name": "Birthstone Wheel",
+  "category": "Gems",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": true
+ },
+ {
+  "id": "chakra_mandala",
+  "name": "Chakra Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": false
+ },
+ {
+  "id": "royal_sapphire_mandala",
+  "name": "Royal Sapphire Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": true
+ },
+ {
+  "id": "stained_glass_peacock",
+  "name": "Stained Glass Peacock",
+  "category": "Patterns",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": true
+ },
+ {
+  "id": "zodiac_wheel",
+  "name": "Zodiac Wheel",
+  "category": "Celestial",
+  "grid": 64,
+  "difficulty": 8,
+  "premium": true
+ }
 ]

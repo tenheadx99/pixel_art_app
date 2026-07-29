@@ -1,0 +1,23 @@
+[
+ {"id": "heart_01", "name": "Heart", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "smiley_01", "name": "Smiley", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "star_01", "name": "Star", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "diamond_01", "name": "Diamond", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "ghost_01", "name": "Ghost", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "moon_01", "name": "Moon", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "house_01", "name": "House", "category": "Shapes", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "rocket_01", "name": "Rocket", "category": "Shapes", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "bird_01", "name": "Bird", "category": "Animals", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "fish_01", "name": "Fish", "category": "Animals", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "cat_01", "name": "Cat", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "dog_01", "name": "Dog", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "fox_01", "name": "Fox", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "panda_01", "name": "Panda", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "cactus_01", "name": "Cactus", "category": "Nature", "grid": 32, "difficulty": 2, "premium": false},
+ {"id": "tree_01", "name": "Tree", "category": "Nature", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "rainbow_01", "name": "Rainbow", "category": "Nature", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "ice_cream_01", "name": "Ice Cream", "category": "Food", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "pizza_01", "name": "Pizza Slice", "category": "Food", "grid": 32, "difficulty": 3, "premium": false},
+ {"id": "cosmic_tarot", "name": "Cosmic Tarot Moon", "category": "Tarot", "grid": 32, "difficulty": 3, "premium": true},
+ {"id": "cyberpunk_neon", "name": "Neon Cyber Pyramid", "category": "Cyberpunk", "grid": 32, "difficulty": 3, "premium": false}
+]

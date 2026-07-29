@@ -294,32 +294,6 @@ def _(im, d, C):
     sparkle(d, c - C * 0.10, c - C * 0.14, C * 0.035)
 
 
-@art("crystal_cave", 96)
-def _(im, d, C):
-    d.rectangle([0, 0, C, C], fill=(18, 14, 40, 255))
-    d.rectangle([0, 0, C, C * 0.35], fill=(28, 20, 58, 255))
-    circle(d, C * 0.5, C * 0.55, C * 0.42, fill=(40, 28, 80, 255))   # glow
-    circle(d, C * 0.5, C * 0.60, C * 0.30, fill=(58, 40, 110, 255))
-    # floor
-    d.polygon([(0, C * 0.86), (C, C * 0.80), (C, C), (0, C)], fill=(30, 24, 55, 255))
-    # stalactites (hanging crystals, drawn with negative height)
-    for x, w, h, cols in [(0.16, 0.09, 0.26, ((70, 190, 210, 255), (130, 230, 240, 255))),
-                          (0.34, 0.06, 0.16, ((150, 90, 230, 255), (200, 160, 250, 255))),
-                          (0.66, 0.07, 0.20, ((150, 90, 230, 255), (200, 160, 250, 255))),
-                          (0.85, 0.09, 0.28, ((70, 190, 210, 255), (130, 230, 240, 255)))]:
-        crystal(d, C * x, 0, C * w, -C * h, 0, cols[0], cols[1])
-    # floor clusters
-    crystal(d, C * 0.20, C * 0.88, C * 0.10, C * 0.34, 14, (120, 70, 200, 255), (175, 130, 240, 255))
-    crystal(d, C * 0.12, C * 0.90, C * 0.07, C * 0.20, -8, (35, 140, 170, 255), (95, 200, 220, 255))
-    crystal(d, C * 0.50, C * 0.84, C * 0.13, C * 0.46, 0, (225, 90, 180, 255), (250, 150, 215, 255))
-    crystal(d, C * 0.42, C * 0.86, C * 0.07, C * 0.22, 12, (150, 90, 230, 255), (200, 160, 250, 255))
-    crystal(d, C * 0.60, C * 0.86, C * 0.08, C * 0.26, -14, (70, 190, 210, 255), (130, 230, 240, 255))
-    crystal(d, C * 0.82, C * 0.90, C * 0.10, C * 0.32, -10, (120, 70, 200, 255), (175, 130, 240, 255))
-    crystal(d, C * 0.90, C * 0.92, C * 0.06, C * 0.18, 8, (225, 90, 180, 255), (250, 150, 215, 255))
-    for x, y in [(0.28, 0.30), (0.55, 0.22), (0.75, 0.35), (0.40, 0.45), (0.65, 0.55)]:
-        sparkle(d, C * x, C * y, C * 0.022)
-
-
 @art("treasure_chest", 64)
 def _(im, d, C):
     # open lid
@@ -352,34 +326,6 @@ def _(im, d, C):
     circle(d, C * 0.50, C * 0.60, C * 0.022, fill=(96, 60, 30, 255))
     sparkle(d, C * 0.24, C * 0.22, C * 0.05)
     sparkle(d, C * 0.78, C * 0.18, C * 0.04)
-
-
-@art("birthstone_wheel", 128)
-def _(im, d, C):
-    c = C / 2
-    stones = [(150, 30, 50), (150, 90, 220), (140, 210, 230), (240, 240, 250),
-              (30, 160, 90), (245, 230, 205), (220, 40, 80), (170, 210, 70),
-              (35, 80, 190), (250, 180, 200), (250, 160, 60), (90, 100, 220)]
-    circle(d, c, c, C * 0.435, outline=(215, 170, 40, 255), width=int(C * 0.035))
-    ring_dots(d, c, c, 12, C * 0.435, C * 0.018, (255, 220, 120, 255), rot=15)
-    for i, (r, g, b) in enumerate(stones):
-        a = math.radians(i * 30 - 90)
-        x, y = c + C * 0.435 * math.cos(a), c + C * 0.435 * math.sin(a)
-        R = C * 0.062
-        circle(d, x, y, R, fill=(max(0, r - 60), max(0, g - 60), max(0, b - 60), 255))
-        circle(d, x, y, R * 0.72, fill=(r, g, b, 255))
-        d.polygon(ngon(x, y, R * 0.45, 6), fill=(min(255, r + 55), min(255, g + 55), min(255, b + 55), 255))
-    # center diamond
-    R = C * 0.16
-    circle(d, c, c, R, fill=(120, 140, 170, 255))
-    tab = ngon(c, c, R * 0.52, 8)
-    gir = ngon(c, c, R * 0.95, 8, rot=-67.5)
-    for i in range(8):
-        col = (200, 215, 235, 255) if i % 2 == 0 else (160, 180, 205, 255)
-        d.polygon([tab[i], gir[i], tab[(i + 1) % 8]], fill=col)
-    d.polygon(tab, fill=(240, 245, 252, 255))
-    sparkle(d, c + R * 0.65, c - R * 0.75, C * 0.028)
-    ring_diamonds(d, c, c, 12, C * 0.27, C * 0.35, C * 0.022, (215, 170, 40, 255), rot=15)
 
 
 # ---------------------------------------------------------------- mandalas
@@ -455,22 +401,6 @@ def _(im, d, C):
           fill=(140, 80, 20, 255), width=S // 2)
 
 
-@art("chakra_mandala", 96)
-def _(im, d, C):
-    c = C / 2
-    chakra = [(150, 60, 200, 255), (70, 90, 220, 255), (60, 160, 230, 255),
-              (60, 190, 120, 255), (245, 210, 70, 255), (245, 140, 60, 255),
-              (225, 60, 80, 255)]
-    circle(d, c, c, C * 0.475, fill=(28, 20, 55, 255))
-    radii = [0.46, 0.40, 0.34, 0.28, 0.22, 0.16, 0.10]
-    counts = [24, 20, 18, 14, 12, 8, 6]
-    for col, r, k in zip(chakra, radii, counts):
-        ring_petals(d, c, c, k, C * (r - 0.065), C * r, C * 0.028, col,
-                    rot=180 / k)
-    circle(d, c, c, C * 0.055, fill=(255, 240, 200, 255))
-    circle(d, c, c, C * 0.028, fill=(150, 60, 200, 255))
-
-
 @art("snowflake_mandala", 48)
 def _(im, d, C):
     c = C / 2
@@ -531,30 +461,6 @@ def _(im, d, C):
               fill=(255, 235, 160, 255))
     ring_dots(d, c, c, 8, C * 0.245, C * 0.014, (250, 180, 60, 255), rot=22.5)
 
-
-@art("royal_sapphire_mandala", 128)
-def _(im, d, C):
-    c = C / 2
-    circle(d, c, c, C * 0.485, fill=(10, 18, 50, 255))
-    ring_petals(d, c, c, 16, C * 0.30, C * 0.48, C * 0.055, (25, 60, 150, 255))
-    ring_petals(d, c, c, 16, C * 0.28, C * 0.42, C * 0.045, (55, 105, 205, 255), rot=180 / 16)
-    ring_dots(d, c, c, 16, C * 0.455, C * 0.014, (215, 170, 40, 255), rot=180 / 16)
-    circle(d, c, c, C * 0.285, fill=(16, 32, 90, 255))
-    d.polygon(star_pts(c, c, C * 0.275, C * 0.165, 12), fill=(215, 170, 40, 255))
-    d.polygon(star_pts(c, c, C * 0.235, C * 0.145, 12), fill=(120, 165, 235, 255))
-    ring_diamonds(d, c, c, 12, C * 0.150, C * 0.205, C * 0.020, (235, 240, 255, 255), rot=15)
-    circle(d, c, c, C * 0.135, fill=(25, 60, 150, 255))
-    # faceted sapphire core
-    R = C * 0.115
-    d.polygon(ngon(c, c, R, 8), fill=(15, 40, 110, 255))
-    tab = ngon(c, c, R * 0.52, 8)
-    gir = ngon(c, c, R * 0.94, 8, rot=-67.5)
-    for i in range(8):
-        col = (70, 125, 220, 255) if i % 2 == 0 else (35, 80, 180, 255)
-        d.polygon([tab[i], gir[i], tab[(i + 1) % 8]], fill=col)
-    d.polygon(tab, fill=(150, 190, 245, 255))
-    sparkle(d, c + R * 0.5, c - R * 0.6, C * 0.022)
-    ring_dots(d, c, c, 24, C * 0.335, C * 0.010, (235, 240, 255, 255), rot=7.5)
 
 # ---------------------------------------------------------------- nature
 
@@ -903,42 +809,6 @@ def _(im, d, C):
     d.polygon(star_pts(C * 0.18, C * 0.18, C * 0.055, C * 0.022, 4), fill=(200, 215, 245, 255))
 
 
-@art("zodiac_wheel", 96)
-def _(im, d, C):
-    c = C / 2
-    circle(d, c, c, C * 0.48, fill=(20, 16, 50, 255))
-    circle(d, c, c, C * 0.48, outline=(215, 170, 40, 255), width=int(C * 0.022))
-    circle(d, c, c, C * 0.34, outline=(215, 170, 40, 255), width=int(C * 0.012))
-    stones = [(220, 40, 80), (150, 90, 220), (140, 210, 230), (240, 240, 250),
-              (30, 160, 90), (245, 230, 205), (250, 160, 60), (170, 210, 70),
-              (35, 80, 190), (250, 180, 200), (90, 100, 220), (60, 190, 110)]
-    for i in range(12):
-        a = math.radians(i * 30 - 90 + 15)
-        # spokes
-        d.line([(c + C * 0.34 * math.cos(a - math.radians(15)), c + C * 0.34 * math.sin(a - math.radians(15))),
-                (c + C * 0.47 * math.cos(a - math.radians(15)), c + C * 0.47 * math.sin(a - math.radians(15)))],
-               fill=(215, 170, 40, 255), width=int(C * 0.008))
-        # segment gem
-        x, y = c + C * 0.41 * math.cos(a), c + C * 0.41 * math.sin(a)
-        r, g, b = stones[i]
-        d.polygon(ngon(x, y, C * 0.038, 6, rot=math.degrees(a)), fill=(r, g, b, 255))
-        d.polygon(ngon(x, y, C * 0.021, 6, rot=math.degrees(a)),
-                  fill=(min(255, r + 60), min(255, g + 60), min(255, b + 60), 255))
-    # inner star field
-    rnd = random.Random(9)
-    for i in range(22):
-        a = rnd.uniform(0, 2 * math.pi)
-        rr = rnd.uniform(0.08, 0.30)
-        circle(d, c + C * rr * math.cos(a), c + C * rr * math.sin(a),
-               C * rnd.uniform(0.005, 0.010), fill=(200, 215, 245, 255))
-    # center sun/moon
-    circle(d, c, c, C * 0.115, fill=(250, 200, 90, 255))
-    circle(d, c + C * 0.035, c, C * 0.095, fill=(20, 16, 50, 255))
-    circle(d, c - C * 0.01, c, C * 0.082, fill=(205, 215, 235, 255))
-    d.polygon(star_pts(c + C * 0.20, c - C * 0.16, C * 0.028, C * 0.011, 4),
-              fill=(250, 220, 120, 255))
-
-
 @art("aurora_sky", 64)
 def _(im, d, C):
     d.rectangle([0, 0, C, C], fill=(14, 16, 44, 255))
@@ -1187,7 +1057,135 @@ def _(im, d, C):
     ring_dots(d, c, c, 16, C * 0.475, C * 0.014, (255, 235, 160, 255), rot=11.25)
 
 
-@art("stained_glass_peacock", 128)
+# -------------------------------------------------- former 96/128 pieces, at 64
+
+@art("crystal_cave", 64)
+def _(im, d, C):
+    d.rectangle([0, 0, C, C], fill=(18, 14, 40, 255))
+    d.rectangle([0, 0, C, C * 0.35], fill=(28, 20, 58, 255))
+    circle(d, C * 0.5, C * 0.55, C * 0.42, fill=(40, 28, 80, 255))   # glow
+    circle(d, C * 0.5, C * 0.60, C * 0.30, fill=(58, 40, 110, 255))
+    # floor
+    d.polygon([(0, C * 0.86), (C, C * 0.80), (C, C), (0, C)], fill=(30, 24, 55, 255))
+    # stalactites (hanging crystals, drawn with negative height)
+    for x, w, h, cols in [(0.16, 0.09, 0.26, ((70, 190, 210, 255), (130, 230, 240, 255))),
+                          (0.34, 0.06, 0.16, ((150, 90, 230, 255), (200, 160, 250, 255))),
+                          (0.66, 0.07, 0.20, ((150, 90, 230, 255), (200, 160, 250, 255))),
+                          (0.85, 0.09, 0.28, ((70, 190, 210, 255), (130, 230, 240, 255)))]:
+        crystal(d, C * x, 0, C * w, -C * h, 0, cols[0], cols[1])
+    # floor clusters
+    crystal(d, C * 0.20, C * 0.88, C * 0.10, C * 0.34, 14, (120, 70, 200, 255), (175, 130, 240, 255))
+    crystal(d, C * 0.12, C * 0.90, C * 0.07, C * 0.20, -8, (35, 140, 170, 255), (95, 200, 220, 255))
+    crystal(d, C * 0.50, C * 0.84, C * 0.13, C * 0.46, 0, (225, 90, 180, 255), (250, 150, 215, 255))
+    crystal(d, C * 0.42, C * 0.86, C * 0.07, C * 0.22, 12, (150, 90, 230, 255), (200, 160, 250, 255))
+    crystal(d, C * 0.60, C * 0.86, C * 0.08, C * 0.26, -14, (70, 190, 210, 255), (130, 230, 240, 255))
+    crystal(d, C * 0.82, C * 0.90, C * 0.10, C * 0.32, -10, (120, 70, 200, 255), (175, 130, 240, 255))
+    crystal(d, C * 0.90, C * 0.92, C * 0.06, C * 0.18, 8, (225, 90, 180, 255), (250, 150, 215, 255))
+    for x, y in [(0.28, 0.30), (0.55, 0.22), (0.75, 0.35), (0.40, 0.45), (0.65, 0.55)]:
+        sparkle(d, C * x, C * y, C * 0.028)
+
+
+@art("birthstone_wheel", 64)
+def _(im, d, C):
+    c = C / 2
+    stones = [(150, 30, 50), (150, 90, 220), (140, 210, 230), (240, 240, 250),
+              (30, 160, 90), (245, 230, 205), (220, 40, 80), (170, 210, 70),
+              (35, 80, 190), (250, 180, 200), (250, 160, 60), (90, 100, 220)]
+    circle(d, c, c, C * 0.425, outline=(215, 170, 40, 255), width=int(C * 0.035))
+    for i, (r, g, b) in enumerate(stones):
+        a = math.radians(i * 30 - 90)
+        x, y = c + C * 0.425 * math.cos(a), c + C * 0.425 * math.sin(a)
+        R = C * 0.075
+        circle(d, x, y, R, fill=(max(0, r - 60), max(0, g - 60), max(0, b - 60), 255))
+        circle(d, x, y, R * 0.72, fill=(r, g, b, 255))
+        d.polygon(ngon(x, y, R * 0.45, 6), fill=(min(255, r + 55), min(255, g + 55), min(255, b + 55), 255))
+    # center diamond
+    R = C * 0.17
+    circle(d, c, c, R, fill=(120, 140, 170, 255))
+    tab = ngon(c, c, R * 0.52, 8)
+    gir = ngon(c, c, R * 0.95, 8, rot=-67.5)
+    for i in range(8):
+        col = (200, 215, 235, 255) if i % 2 == 0 else (160, 180, 205, 255)
+        d.polygon([tab[i], gir[i], tab[(i + 1) % 8]], fill=col)
+    d.polygon(tab, fill=(240, 245, 252, 255))
+    sparkle(d, c + R * 0.65, c - R * 0.75, C * 0.032)
+    ring_diamonds(d, c, c, 12, C * 0.26, C * 0.335, C * 0.024, (215, 170, 40, 255), rot=15)
+
+
+@art("chakra_mandala", 64)
+def _(im, d, C):
+    c = C / 2
+    chakra = [(150, 60, 200, 255), (70, 90, 220, 255), (60, 160, 230, 255),
+              (60, 190, 120, 255), (245, 210, 70, 255), (245, 140, 60, 255),
+              (225, 60, 80, 255)]
+    circle(d, c, c, C * 0.475, fill=(28, 20, 55, 255))
+    radii = [0.46, 0.40, 0.34, 0.28, 0.22, 0.16, 0.10]
+    counts = [18, 16, 14, 12, 10, 8, 6]
+    for col, r, k in zip(chakra, radii, counts):
+        ring_petals(d, c, c, k, C * (r - 0.068), C * r, C * 0.036, col,
+                    rot=180 / k)
+    circle(d, c, c, C * 0.055, fill=(255, 240, 200, 255))
+    circle(d, c, c, C * 0.028, fill=(150, 60, 200, 255))
+
+
+@art("royal_sapphire_mandala", 64)
+def _(im, d, C):
+    c = C / 2
+    circle(d, c, c, C * 0.485, fill=(10, 18, 50, 255))
+    ring_petals(d, c, c, 14, C * 0.30, C * 0.48, C * 0.060, (25, 60, 150, 255))
+    ring_petals(d, c, c, 14, C * 0.28, C * 0.42, C * 0.048, (55, 105, 205, 255), rot=180 / 14)
+    ring_dots(d, c, c, 14, C * 0.45, C * 0.018, (215, 170, 40, 255), rot=180 / 14)
+    circle(d, c, c, C * 0.285, fill=(16, 32, 90, 255))
+    d.polygon(star_pts(c, c, C * 0.275, C * 0.165, 10), fill=(215, 170, 40, 255))
+    d.polygon(star_pts(c, c, C * 0.235, C * 0.145, 10), fill=(120, 165, 235, 255))
+    circle(d, c, c, C * 0.145, fill=(25, 60, 150, 255))
+    # faceted sapphire core
+    R = C * 0.125
+    d.polygon(ngon(c, c, R, 8), fill=(15, 40, 110, 255))
+    tab = ngon(c, c, R * 0.52, 8)
+    gir = ngon(c, c, R * 0.94, 8, rot=-67.5)
+    for i in range(8):
+        col = (70, 125, 220, 255) if i % 2 == 0 else (35, 80, 180, 255)
+        d.polygon([tab[i], gir[i], tab[(i + 1) % 8]], fill=col)
+    d.polygon(tab, fill=(150, 190, 245, 255))
+    sparkle(d, c + R * 0.5, c - R * 0.6, C * 0.028)
+
+
+@art("zodiac_wheel", 64)
+def _(im, d, C):
+    c = C / 2
+    circle(d, c, c, C * 0.48, fill=(20, 16, 50, 255))
+    circle(d, c, c, C * 0.48, outline=(215, 170, 40, 255), width=int(C * 0.025))
+    circle(d, c, c, C * 0.33, outline=(215, 170, 40, 255), width=int(C * 0.014))
+    stones = [(220, 40, 80), (150, 90, 220), (140, 210, 230), (240, 240, 250),
+              (30, 160, 90), (245, 230, 205), (250, 160, 60), (170, 210, 70),
+              (35, 80, 190), (250, 180, 200), (90, 100, 220), (60, 190, 110)]
+    for i in range(12):
+        a = math.radians(i * 30 - 90 + 15)
+        d.line([(c + C * 0.33 * math.cos(a - math.radians(15)), c + C * 0.33 * math.sin(a - math.radians(15))),
+                (c + C * 0.47 * math.cos(a - math.radians(15)), c + C * 0.47 * math.sin(a - math.radians(15)))],
+               fill=(215, 170, 40, 255), width=int(C * 0.010))
+        x, y = c + C * 0.405 * math.cos(a), c + C * 0.405 * math.sin(a)
+        r, g, b = stones[i]
+        d.polygon(ngon(x, y, C * 0.050, 6, rot=math.degrees(a)), fill=(r, g, b, 255))
+        d.polygon(ngon(x, y, C * 0.028, 6, rot=math.degrees(a)),
+                  fill=(min(255, r + 60), min(255, g + 60), min(255, b + 60), 255))
+    # inner star field
+    rnd = random.Random(9)
+    for i in range(14):
+        a = rnd.uniform(0, 2 * math.pi)
+        rr = rnd.uniform(0.10, 0.28)
+        circle(d, c + C * rr * math.cos(a), c + C * rr * math.sin(a),
+               C * rnd.uniform(0.008, 0.013), fill=(200, 215, 245, 255))
+    # center sun/moon
+    circle(d, c, c, C * 0.13, fill=(250, 200, 90, 255))
+    circle(d, c + C * 0.040, c, C * 0.107, fill=(20, 16, 50, 255))
+    circle(d, c - C * 0.012, c, C * 0.093, fill=(205, 215, 235, 255))
+    d.polygon(star_pts(c + C * 0.21, c - C * 0.17, C * 0.034, C * 0.014, 4),
+              fill=(250, 220, 120, 255))
+
+
+@art("stained_glass_peacock", 64)
 def _(im, d, C):
     c = C / 2
     cy = C * 0.62
@@ -1198,19 +1196,19 @@ def _(im, d, C):
         a0 = i * 30
         col = (25, 60, 90, 255) if i % 2 == 0 else (35, 80, 115, 255)
         d.pieslice([c - C * 0.475, c - C * 0.475, c + C * 0.475, c + C * 0.475],
-                   a0 + 1.5, a0 + 28.5, fill=col)
-    # tail feathers: 11 across the top fan
-    for i in range(11):
-        a = -180 + i * 18
-        d.polygon(petal_pts(c, cy, a, C * 0.08, C * 0.46, C * 0.055), fill=lead)
-        d.polygon(petal_pts(c, cy, a, C * 0.095, C * 0.445, C * 0.042),
+                   a0 + 2, a0 + 28, fill=col)
+    # tail feathers: 9 across the top fan
+    for i in range(9):
+        a = -180 + i * 22.5
+        d.polygon(petal_pts(c, cy, a, C * 0.08, C * 0.46, C * 0.062), fill=lead)
+        d.polygon(petal_pts(c, cy, a, C * 0.095, C * 0.445, C * 0.048),
                   fill=(20, 130, 110, 255) if i % 2 == 0 else (30, 160, 130, 255))
         ar = math.radians(a)
         ex, ey = c + C * 0.345 * math.cos(ar), cy + C * 0.345 * math.sin(ar)
-        circle(d, ex, ey, C * 0.040, fill=lead)
-        circle(d, ex, ey, C * 0.033, fill=(250, 180, 60, 255))
-        circle(d, ex, ey, C * 0.021, fill=(25, 65, 160, 255))
-        circle(d, ex, ey, C * 0.010, fill=(120, 210, 230, 255))
+        circle(d, ex, ey, C * 0.046, fill=lead)
+        circle(d, ex, ey, C * 0.038, fill=(250, 180, 60, 255))
+        circle(d, ex, ey, C * 0.024, fill=(25, 65, 160, 255))
+        circle(d, ex, ey, C * 0.012, fill=(120, 210, 230, 255))
     # body
     d.ellipse([c - C * 0.075, cy - C * 0.10, c + C * 0.075, cy + C * 0.24], fill=lead)
     d.ellipse([c - C * 0.062, cy - C * 0.085, c + C * 0.062, cy + C * 0.225],
@@ -1225,14 +1223,15 @@ def _(im, d, C):
         tx = c + C * 0.10 * math.cos(ar)
         ty = cy - C * 0.135 + C * 0.10 * math.sin(ar)
         d.line([(c, cy - C * 0.135), (tx, ty)], fill=lead, width=S // 2)
-        circle(d, tx, ty, C * 0.013, fill=(250, 180, 60, 255))
-    d.polygon([(c + C * 0.04, cy - C * 0.145), (c + C * 0.085, cy - C * 0.128),
-               (c + C * 0.04, cy - C * 0.112)], fill=(250, 180, 60, 255))
-    circle(d, c + C * 0.018, cy - C * 0.145, C * 0.008, fill=(255, 255, 255, 255))
+        circle(d, tx, ty, C * 0.015, fill=(250, 180, 60, 255))
+    d.polygon([(c + C * 0.04, cy - C * 0.148), (c + C * 0.09, cy - C * 0.128),
+               (c + C * 0.04, cy - C * 0.108)], fill=(250, 180, 60, 255))
+    circle(d, c + C * 0.018, cy - C * 0.148, C * 0.010, fill=(255, 255, 255, 255))
     # base perch
     d.rectangle([c - C * 0.16, cy + C * 0.24, c + C * 0.16, cy + C * 0.27],
                 fill=(215, 170, 40, 255))
     circle(d, c, c, C * 0.49, outline=lead, width=int(C * 0.012))
+
 
 # ---------------------------------------------------------------- main
 
