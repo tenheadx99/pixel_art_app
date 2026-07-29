@@ -1,23 +1,970 @@
 [
- {"id": "heart_01", "name": "Heart", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "smiley_01", "name": "Smiley", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "star_01", "name": "Star", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "diamond_01", "name": "Diamond", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "ghost_01", "name": "Ghost", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "moon_01", "name": "Moon", "category": "Shapes", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "house_01", "name": "House", "category": "Shapes", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "rocket_01", "name": "Rocket", "category": "Shapes", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "bird_01", "name": "Bird", "category": "Animals", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "fish_01", "name": "Fish", "category": "Animals", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "cat_01", "name": "Cat", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "dog_01", "name": "Dog", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "fox_01", "name": "Fox", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "panda_01", "name": "Panda", "category": "Animals", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "cactus_01", "name": "Cactus", "category": "Nature", "grid": 32, "difficulty": 2, "premium": false},
- {"id": "tree_01", "name": "Tree", "category": "Nature", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "rainbow_01", "name": "Rainbow", "category": "Nature", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "ice_cream_01", "name": "Ice Cream", "category": "Food", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "pizza_01", "name": "Pizza Slice", "category": "Food", "grid": 32, "difficulty": 3, "premium": false},
- {"id": "cosmic_tarot", "name": "Cosmic Tarot Moon", "category": "Tarot", "grid": 32, "difficulty": 3, "premium": true},
- {"id": "cyberpunk_neon", "name": "Neon Cyber Pyramid", "category": "Cyberpunk", "grid": 32, "difficulty": 3, "premium": false}
+ {
+  "id": "heart_01",
+  "name": "Heart",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "smiley_01",
+  "name": "Smiley",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "star_01",
+  "name": "Star",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "diamond_01",
+  "name": "Diamond",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "ghost_01",
+  "name": "Ghost",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "moon_01",
+  "name": "Moon",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "house_01",
+  "name": "House",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "rocket_01",
+  "name": "Rocket",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "bird_01",
+  "name": "Bird",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "fish_01",
+  "name": "Fish",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "cat_01",
+  "name": "Cat",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "dog_01",
+  "name": "Dog",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "fox_01",
+  "name": "Fox",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "panda_01",
+  "name": "Panda",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "cactus_01",
+  "name": "Cactus",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "tree_01",
+  "name": "Tree",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "rainbow_01",
+  "name": "Rainbow",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "ice_cream_01",
+  "name": "Ice Cream",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "pizza_01",
+  "name": "Pizza Slice",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "cosmic_tarot",
+  "name": "Cosmic Tarot Moon",
+  "category": "Tarot",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": true
+ },
+ {
+  "id": "cyberpunk_neon",
+  "name": "Neon Cyber Pyramid",
+  "category": "Cyberpunk",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "bear_face",
+  "name": "Teddy Bear",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "koala_face",
+  "name": "Koala",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "bunny_face",
+  "name": "Bunny",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "pig_face",
+  "name": "Piglet",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "frog_face",
+  "name": "Froggy",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "tiger_face",
+  "name": "Tiger Cub",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "lion_face",
+  "name": "Little Lion",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "mouse_face",
+  "name": "Mouse",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "hamster_face",
+  "name": "Hamster",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "owl_branch",
+  "name": "Wise Owl",
+  "category": "Animals",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "penguin",
+  "name": "Penguin",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "chick_hatch",
+  "name": "Hatching Chick",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "cow_face",
+  "name": "Happy Cow",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "sheep_fluffy",
+  "name": "Fluffy Sheep",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "monkey_face",
+  "name": "Monkey",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "raccoon_face",
+  "name": "Raccoon",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "deer_face",
+  "name": "Little Deer",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "duckling",
+  "name": "Duckling",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "ladybug",
+  "name": "Ladybug",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "bumble_bee",
+  "name": "Bumble Bee",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "garden_snail",
+  "name": "Garden Snail",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "hedgehog",
+  "name": "Hedgehog",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "sloth_face",
+  "name": "Sleepy Sloth",
+  "category": "Animals",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "unicorn",
+  "name": "Rainbow Unicorn",
+  "category": "Animals",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": true
+ },
+ {
+  "id": "cupcake",
+  "name": "Cherry Cupcake",
+  "category": "Food",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "donut_sprinkles",
+  "name": "Sprinkle Donut",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "strawberry",
+  "name": "Strawberry",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "watermelon_slice",
+  "name": "Watermelon",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "avocado",
+  "name": "Happy Avocado",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "boba_tea",
+  "name": "Boba Tea",
+  "category": "Food",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "sushi_roll",
+  "name": "Sushi Roll",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "burger",
+  "name": "Big Burger",
+  "category": "Food",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "taco",
+  "name": "Taco Time",
+  "category": "Food",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "choc_chip_cookie",
+  "name": "Choc Chip Cookie",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "wrapped_candy",
+  "name": "Sweet Candy",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "lollipop_swirl",
+  "name": "Lollipop Swirl",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "cherry_pair",
+  "name": "Cherry Pair",
+  "category": "Food",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "pineapple",
+  "name": "Party Pineapple",
+  "category": "Food",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "rose_bloom",
+  "name": "Rose Bloom",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "tulip_single",
+  "name": "Sweet Tulip",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "daisy",
+  "name": "Daisy",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "sunflower_face",
+  "name": "Smiling Sunflower",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "toadstool",
+  "name": "Toadstool",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "lucky_clover",
+  "name": "Lucky Clover",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "maple_leaf",
+  "name": "Maple Leaf",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "palm_island",
+  "name": "Palm Island",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "mountain_lake",
+  "name": "Mountain Lake",
+  "category": "Nature",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": true
+ },
+ {
+  "id": "snowman",
+  "name": "Jolly Snowman",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "blossom_wreath",
+  "name": "Blossom Wreath",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": false
+ },
+ {
+  "id": "acorn_autumn",
+  "name": "Autumn Acorn",
+  "category": "Nature",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "potted_monstera",
+  "name": "Monstera Plant",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "rainbow_butterfly",
+  "name": "Rainbow Butterfly",
+  "category": "Nature",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "happy_whale",
+  "name": "Happy Whale",
+  "category": "Ocean",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "octopus",
+  "name": "Little Octopus",
+  "category": "Ocean",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "jellyfish",
+  "name": "Jolly Jellyfish",
+  "category": "Ocean",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "seahorse",
+  "name": "Seahorse",
+  "category": "Ocean",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "beach_crab",
+  "name": "Beach Crab",
+  "category": "Ocean",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "seashell",
+  "name": "Seashell",
+  "category": "Ocean",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "starfish",
+  "name": "Starfish",
+  "category": "Ocean",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "dolphin",
+  "name": "Dolphin Leap",
+  "category": "Ocean",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "axolotl",
+  "name": "Axolotl",
+  "category": "Ocean",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": true
+ },
+ {
+  "id": "coral_reef",
+  "name": "Coral Reef",
+  "category": "Ocean",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": true
+ },
+ {
+  "id": "ringed_planet",
+  "name": "Ringed Planet",
+  "category": "Celestial",
+  "grid": 48,
+  "difficulty": 4,
+  "premium": false
+ },
+ {
+  "id": "cute_ufo",
+  "name": "Cute UFO",
+  "category": "Celestial",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "hot_air_balloon",
+  "name": "Hot Air Balloon",
+  "category": "Celestial",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "astro_kitty",
+  "name": "Astro Kitty",
+  "category": "Celestial",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": true
+ },
+ {
+  "id": "comet_trail",
+  "name": "Icy Comet",
+  "category": "Celestial",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ },
+ {
+  "id": "sunny_cloud",
+  "name": "Sunny Cloud",
+  "category": "Celestial",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "starry_hills",
+  "name": "Starry Hills",
+  "category": "Celestial",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "planet_earth",
+  "name": "Planet Earth",
+  "category": "Celestial",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "citrus_mandala",
+  "name": "Citrus Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "berry_mandala",
+  "name": "Berry Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "forest_mandala",
+  "name": "Forest Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "sunset_mandala",
+  "name": "Sunset Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": false
+ },
+ {
+  "id": "candy_mandala",
+  "name": "Candy Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "midnight_mandala",
+  "name": "Midnight Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": true
+ },
+ {
+  "id": "flamingo_mandala",
+  "name": "Flamingo Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "lagoon_mandala",
+  "name": "Lagoon Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "terracotta_mandala",
+  "name": "Terracotta Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "orchid_mandala",
+  "name": "Orchid Mandala",
+  "category": "Mandalas",
+  "grid": 64,
+  "difficulty": 7,
+  "premium": true
+ },
+ {
+  "id": "golden_hour_mandala",
+  "name": "Golden Hour Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": false
+ },
+ {
+  "id": "arctic_mandala",
+  "name": "Arctic Mandala",
+  "category": "Mandalas",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "polka_hearts",
+  "name": "Polka Hearts",
+  "category": "Patterns",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "seigaiha_waves",
+  "name": "Ocean Waves Pattern",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "argyle",
+  "name": "Cozy Argyle",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "honeycomb",
+  "name": "Honeycomb",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "gingham_picnic",
+  "name": "Picnic Gingham",
+  "category": "Patterns",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "quilt_stars",
+  "name": "Star Quilt",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 6,
+  "premium": true
+ },
+ {
+  "id": "chevron_sunset",
+  "name": "Sunset Chevron",
+  "category": "Patterns",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "terrazzo",
+  "name": "Terrazzo",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "tartan_cozy",
+  "name": "Cozy Tartan",
+  "category": "Patterns",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "bubble_pop",
+  "name": "Bubble Pop",
+  "category": "Patterns",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "royal_crown",
+  "name": "Royal Crown",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "vintage_key",
+  "name": "Vintage Key",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "party_balloons",
+  "name": "Party Balloons",
+  "category": "Shapes",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "gift_box",
+  "name": "Gift Box",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 3,
+  "premium": false
+ },
+ {
+  "id": "umbrella_rain",
+  "name": "Rainy Umbrella",
+  "category": "Shapes",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "teacup",
+  "name": "Cozy Teacup",
+  "category": "Shapes",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "game_controller",
+  "name": "Game Controller",
+  "category": "Shapes",
+  "grid": 48,
+  "difficulty": 5,
+  "premium": false
+ },
+ {
+  "id": "music_notes",
+  "name": "Music Notes",
+  "category": "Shapes",
+  "grid": 32,
+  "difficulty": 2,
+  "premium": false
+ }
 ]

@@ -33,9 +33,9 @@ CATEGORY_ORDER = {
     "anime": ["Kawaii", "Chibi", "Eyes", "Mecha"],
     "pixelcalm": ["Zen", "Mandalas", "Patterns", "Nature"],
     "diamond": ["Gems", "Mandalas", "Patterns", "Nature", "Celestial"],
-    "original": ["Shapes", "Animals", "Nature", "Food", "Gems", "Mandalas",
-                 "Patterns", "Celestial", "Adults", "Tarot", "Cyberpunk",
-                 "Gothic", "Synthwave"],
+    "original": ["Shapes", "Animals", "Nature", "Food", "Ocean", "Gems",
+                 "Mandalas", "Patterns", "Celestial", "Adults", "Tarot",
+                 "Cyberpunk", "Gothic", "Synthwave"],
 }
 
 
