@@ -35,7 +35,7 @@ class AppSettingsProvider extends ChangeNotifier {
   String _soundType = 'bubble_pop';
   bool _dailyRemindersEnabled = true;
   int _hintsAvailable = 0;
-  int _diamondsAvailable = 320;
+  int _diamondsAvailable = 50;
   int _totalXp = 0;
   int _playerLevel = 1;
   int _lifetimeCellsColored = 0;
@@ -125,7 +125,7 @@ class AppSettingsProvider extends ChangeNotifier {
       defaultValue: true,
     );
     _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
-    _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 320);
+    _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 50);
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
     _lifetimeCellsColored = _storageService.getInt(_lifetimeCellsPrefKey);

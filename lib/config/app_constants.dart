@@ -107,7 +107,7 @@ class AppConstants {
   // milestone claims, never per-cell. Level grows on a gentle sqrt curve:
   // level = floor(sqrt(totalXp / xpLevelDivisor)) + 1.
   static const int xpPerCell = 1;
-  static const int xpPerCompletion = 100;
+  static const int xpPerCompletion = 50;
   static const int xpLevelDivisor = 100;
   // Diamonds granted each time the player levels up.
   static const int diamondsPerLevelUp = 50;

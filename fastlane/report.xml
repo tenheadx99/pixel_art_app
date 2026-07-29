@@ -5,22 +5,22 @@
     
     
       
-      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.001082054">
+      <testcase classname="fastlane.lanes" name="0: default_platform" time="0.000398381">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="1: flutter pub get" time="2.030216296">
+      <testcase classname="fastlane.lanes" name="1: flutter pub get" time="2.321882946">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="2: flutter build appbundle --release --flavor diamond -t lib/main_diamond.dart --dart-define\=FLAVOR\=diamond" time="238.403202998">
+      <testcase classname="fastlane.lanes" name="2: flutter build appbundle --release --flavor original -t lib/main.dart --dart-define\=FLAVOR\=original" time="241.239624804">
         
       </testcase>
     
       
-      <testcase classname="fastlane.lanes" name="3: upload_to_play_store" time="140.831716194">
+      <testcase classname="fastlane.lanes" name="3: upload_to_play_store" time="55.716262045">
         
       </testcase>
     
