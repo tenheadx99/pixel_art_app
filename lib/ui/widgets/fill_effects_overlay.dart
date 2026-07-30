@@ -4,7 +4,7 @@ import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 
 /// The kinds of joyful flourish spawned when a cell is colored.
-enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong }
+enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong, bombExplosion, bombEmber }
 
 class _FillEffect {
   final _EffectKind kind;
@@ -15,6 +15,8 @@ class _FillEffect {
   final int sparkleCount;
   final double seed;
   final int combo;
+  final double velocityX;
+  final double velocityY;
 
   _FillEffect({
     required this.kind,
@@ -25,6 +27,8 @@ class _FillEffect {
     this.sparkleCount = 0,
     this.seed = 0,
     this.combo = 0,
+    this.velocityX = 0.0,
+    this.velocityY = 0.0,
   });
 }
 
@@ -212,6 +216,41 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     ));
   }
 
+  /// Spawns a high-impact bomb explosion animation with shockwave rings,
+  /// fiery flash cores, and exploding particle embers across the 7x7 area.
+  void spawnBombExplosion(int row, int col, Color color) {
+    final now = _nowMs;
+
+    // 1. Shockwave & Central Flash
+    _add(_FillEffect(
+      kind: _EffectKind.bombExplosion,
+      row: row,
+      col: col,
+      color: color,
+      startMs: now,
+    ));
+
+    // 2. High-density exploding embers (16 flying particles)
+    for (var i = 0; i < 16; i++) {
+      final angle = _rnd.nextDouble() * math.pi * 2;
+      final speed = 2.5 + _rnd.nextDouble() * 3.5;
+      final emberColor = i % 3 == 0
+          ? const Color(0xFFFFD700)
+          : (i % 3 == 1 ? const Color(0xFFFF4500) : const Color(0xFFFF8C00));
+
+      _add(_FillEffect(
+        kind: _EffectKind.bombEmber,
+        row: row,
+        col: col,
+        color: emberColor,
+        startMs: now,
+        seed: _rnd.nextDouble() * math.pi * 2,
+        velocityX: math.cos(angle) * speed,
+        velocityY: math.sin(angle) * speed,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // RepaintBoundary is critical: this layer repaints every frame while
@@ -306,6 +345,12 @@ class _FillEffectsPainter extends CustomPainter {
           break;
         case _EffectKind.wrong:
           _paintWrong(canvas, paint, center, cellPx, t, e.color);
+          break;
+        case _EffectKind.bombExplosion:
+          _paintBombExplosion(canvas, paint, center, cellPx, t, e.color);
+          break;
+        case _EffectKind.bombEmber:
+          _paintBombEmber(canvas, paint, center, cellPx, t, e);
           break;
       }
     }
@@ -495,6 +540,79 @@ class _FillEffectsPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
     tp.paint(canvas, Offset(c.dx - tp.width / 2, c.dy - rise - tp.height / 2));
+  }
+
+  void _paintBombExplosion(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double cellPx,
+    double t,
+    Color color,
+  ) {
+    // 7x7 radius in pixels is cellPx * 3.8
+    final maxRadius = cellPx * 3.8;
+
+    // A. Expanding Fiery Core Flash
+    final flashProgress = (t / 0.5).clamp(0.0, 1.0);
+    final flashScale = Curves.easeOutCubic.transform(flashProgress);
+    final flashRadius = maxRadius * 0.75 * flashScale;
+    final flashAlpha = (1.0 - t).clamp(0.0, 1.0);
+
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFFFF5252).withValues(alpha: flashAlpha * 0.45)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, cellPx * 0.5);
+    canvas.drawCircle(c, flashRadius, paint);
+
+    paint
+      ..color = const Color(0xFFFFD700).withValues(alpha: flashAlpha * 0.7)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, cellPx * 0.2);
+    canvas.drawCircle(c, flashRadius * 0.5, paint);
+    paint.maskFilter = null;
+
+    // B. Primary Expanding Outer Shockwave Ring
+    final shockRadius = maxRadius * Curves.decelerate.transform(t);
+    final shockAlpha = (1.0 - t).clamp(0.0, 1.0);
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (cellPx * 0.35 * (1.0 - t)).clamp(1.5, 8.0)
+      ..color = const Color(0xFFFF4500).withValues(alpha: shockAlpha * 0.85);
+    canvas.drawCircle(c, shockRadius, paint);
+
+    // C. Inner Secondary Golden Ring
+    final innerRadius = maxRadius * 0.65 * Curves.easeOutQuad.transform(t);
+    paint
+      ..strokeWidth = (cellPx * 0.2 * (1.0 - t)).clamp(1.0, 4.0)
+      ..color = const Color(0xFFFFD700).withValues(alpha: shockAlpha * 0.9);
+    canvas.drawCircle(c, innerRadius, paint);
+  }
+
+  void _paintBombEmber(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double cellPx,
+    double t,
+    _FillEffect e,
+  ) {
+    // Ember position travels outward along velocity vector
+    final dist = cellPx * (0.8 + t * 3.5);
+    final offset = Offset(
+      c.dx + e.velocityX * dist * 0.4,
+      c.dy + e.velocityY * dist * 0.4,
+    );
+
+    final alpha = (1.0 - t).clamp(0.0, 1.0);
+    final size = cellPx * 0.35 * (1.0 - t * 0.7);
+    if (size <= 0.3) return;
+
+    paint
+      ..style = PaintingStyle.fill
+      ..color = e.color.withValues(alpha: alpha);
+
+    final rotation = e.seed + t * math.pi * 4;
+    _drawDiamond(canvas, paint, offset, size, rotation);
   }
 
   @override

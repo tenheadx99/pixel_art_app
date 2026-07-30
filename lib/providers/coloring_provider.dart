@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
@@ -28,12 +29,12 @@ class ColoringProvider extends ChangeNotifier {
   int? _highlightedNumber;
   Timer? _saveTimer;
   bool _isMagicWandMode = false;
-  int _magicWandsCount = 5;
+  int _magicWandsCount = 3;
   bool _isBombMode = false;
-  int _bombsCount = 5;
+  int _bombsCount = 3;
   bool _isEraseMode = false;
   int _brushSize = 1;
-  int _brushesCount = 5;
+  int _brushesCount = 3;
   (int, int)? _nextFillable;
   int _totalFillCount = 0;
   int _totalEraseCount = 0;
@@ -63,6 +64,8 @@ class ColoringProvider extends ChangeNotifier {
   // Fired when a plain tap lands on a cell whose number isn't the selected
   // one, so the UI can give a gentle "not this one" nudge instead of silence.
   void Function(int row, int col)? onWrongTap;
+  // Fired when a bomb explodes so the UI can trigger high-impact explosion visual effects.
+  void Function(int row, int col)? onBombExploded;
 
   Set<int> _getCompletedNumbers() {
     final completed = <int>{};
@@ -345,11 +348,11 @@ class ColoringProvider extends ChangeNotifier {
     // -1 means "never saved": only then grant the starting wands. A stored 0
     // must stay 0, otherwise spent wands come back on every reload.
     final wands = _storageService.getInt(AppConstants.magicWandsPrefKey, defaultValue: -1);
-    _magicWandsCount = wands >= 0 ? wands : 5;
+    _magicWandsCount = wands >= 0 ? wands : 3;
     final bombs = _storageService.getInt('bombs_count', defaultValue: -1);
-    _bombsCount = bombs >= 0 ? bombs : 5;
+    _bombsCount = bombs >= 0 ? bombs : 3;
     final brushes = _storageService.getInt('brushes_count', defaultValue: -1);
-    _brushesCount = brushes >= 0 ? brushes : 5;
+    _brushesCount = brushes >= 0 ? brushes : 3;
     final raw = _storageService.getString(_saveKey);
     if (raw.isEmpty) return;
     final rows = raw.split(';');
@@ -1125,8 +1128,11 @@ class ColoringProvider extends ChangeNotifier {
     _beginUndo();
 
     bool changed = false;
-    for (var dr = -1; dr <= 1; dr++) {
-      for (var dc = -1; dc <= 1; dc++) {
+
+    // Primary explosion: 7x7 area (radius 3) around the tapped position
+    const radius = 3;
+    for (var dr = -radius; dr <= radius; dr++) {
+      for (var dc = -radius; dc <= radius; dc++) {
         final r = row + dr;
         final c = col + dc;
         if (r < 0 || r >= _currentArt!.gridHeight) continue;
@@ -1141,13 +1147,47 @@ class ColoringProvider extends ChangeNotifier {
       }
     }
 
+    // Fallback: If the immediate 7x7 area was already completely filled,
+    // search outwards to explode the nearest unfilled cells so a bomb is NEVER wasted.
+    if (!changed) {
+      final maxDist = math.max(_currentArt!.gridHeight, _currentArt!.gridWidth);
+      int filledInFallback = 0;
+      const targetMaxFills = 25;
+
+      for (var dist = radius + 1; dist <= maxDist; dist++) {
+        for (var dr = -dist; dr <= dist; dr++) {
+          for (var dc = -dist; dc <= dist; dc++) {
+            if (dr.abs() != dist && dc.abs() != dist) continue;
+            final r = row + dr;
+            final c = col + dc;
+            if (r < 0 || r >= _currentArt!.gridHeight) continue;
+            if (c < 0 || c >= _currentArt!.gridWidth) continue;
+            final expectedNumber = _currentArt!.grid[r][c];
+            if (expectedNumber == 0) continue;
+            if (_filledGrid[r][c] > 0) continue;
+
+            _setCell(r, c, expectedNumber);
+            _recordTimeLapse(r, c);
+            changed = true;
+            filledInFallback++;
+            onCellFilledCorrectly?.call();
+
+            if (filledInFallback >= targetMaxFills) break;
+          }
+          if (filledInFallback >= targetMaxFills) break;
+        }
+        if (changed && filledInFallback >= targetMaxFills) break;
+      }
+    }
+
     if (changed) {
       _commitUndo();
       _bombsCount--;
       _isBombMode = false;
       _totalFillCount++;
       AnalyticsService().logBoosterUsed(type: 'bomb', remaining: _bombsCount);
-      _haptic(HapticFeedback.mediumImpact);
+      _haptic(HapticFeedback.heavyImpact);
+      onBombExploded?.call(row, col);
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();

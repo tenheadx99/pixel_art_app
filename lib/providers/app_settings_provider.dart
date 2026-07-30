@@ -35,7 +35,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _fillEffectsEnabled = true;
   String _soundType = 'bubble_pop';
   bool _dailyRemindersEnabled = true;
-  int _hintsAvailable = 0;
+  int _hintsAvailable = 3;
   int _diamondsAvailable = 50;
   int _totalXp = 0;
   int _playerLevel = 1;
@@ -125,7 +125,10 @@ class AppSettingsProvider extends ChangeNotifier {
       _dailyRemindersPrefKey,
       defaultValue: true,
     );
-    _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
+    _hintsAvailable = _storageService.getInt(
+      AppConstants.hintsPrefKey,
+      defaultValue: 3,
+    );
     _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 50);
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
@@ -375,7 +378,7 @@ class AppSettingsProvider extends ChangeNotifier {
   void addWands(int count) {
     final current = _storageService.getInt(
       AppConstants.magicWandsPrefKey,
-      defaultValue: 5,
+      defaultValue: 3,
     );
     _storageService.setInt(AppConstants.magicWandsPrefKey, current + count);
     notifyListeners();

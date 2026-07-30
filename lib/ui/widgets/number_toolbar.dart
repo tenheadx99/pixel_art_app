@@ -108,7 +108,7 @@ class NumberToolbar extends StatelessWidget {
             },
           ),
 
-          // 2. Bomb Tool (Fills 3x3 correct pixels)
+          // 2. Bomb Tool (Fills 7x7 correct pixels)
           _ToolCircleButton(
             icon: SizedBox(
               width: 24,

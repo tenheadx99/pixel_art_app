@@ -238,6 +238,15 @@ class _ColoringScreenState extends State<ColoringScreen>
           if (_settings?.soundsEnabled ?? true) {
             soundService.playWrongTap();
           }
+        }
+        ..onBombExploded = (row, col) {
+          if (_settings?.fillEffectsEnabled ?? true) {
+            final color = provider.cellFillColor(row, col) ?? const Color(0xFFFF5252);
+            _fxKey.currentState?.spawnBombExplosion(row, col, color);
+          }
+          if (_settings?.soundsEnabled ?? true) {
+            soundService.playComboChime(rate: 0.85);
+          }
         };
       _maybeShowLongPressTip();
     });
@@ -450,6 +459,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       provider.onSectionCompleted = null;
       provider.onCellFilledAt = null;
       provider.onWrongTap = null;
+      provider.onBombExploded = null;
     }
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
