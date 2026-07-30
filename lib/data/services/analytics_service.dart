@@ -337,4 +337,39 @@ class AnalyticsService {
           name: 'AnalyticsService');
     }
   }
+
+  /// Logs when the Force Update screen is shown to a user.
+  Future<void> logForceUpdateShown({required String minVersion}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'force_update_shown',
+        parameters: {
+          'min_version': minVersion,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logForceUpdateShown: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs when a user clicks the "Update Now" button on the Force Update screen.
+  Future<void> logForceUpdateClicked({required String updateUrl}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'force_update_clicked',
+        parameters: {
+          'update_url': updateUrl,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logForceUpdateClicked: $e',
+          name: 'AnalyticsService');
+    }
+  }
 }
+

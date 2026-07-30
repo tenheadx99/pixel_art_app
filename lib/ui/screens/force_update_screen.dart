@@ -6,6 +6,9 @@ import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/ui/theme/app_style.dart';
 import 'package:pixel_art_app/config/flavor.dart';
 
+import 'package:pixel_art_app/data/services/analytics_service.dart';
+import 'package:pixel_art_app/data/services/remote_config_service.dart';
+
 class ForceUpdateScreen extends StatefulWidget {
   final String updateUrl;
 
@@ -23,12 +26,15 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen>
   late AnimationController _floatingController;
   late AnimationController _bubbleController;
   late Animation<double> _floatingAnim;
-  late Animation<double> _scaleButtonAnim;
   bool _isButtonPressed = false;
 
   @override
   void initState() {
     super.initState();
+    // Log analytics when force update screen is shown
+    final minVersion = RemoteConfigService().minRequiredVersion;
+    AnalyticsService().logForceUpdateShown(minVersion: minVersion);
+
     // Floating animation for the update icon
     _floatingController = AnimationController(
       vsync: this,
@@ -68,6 +74,9 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen>
         finalUrl = AppConstants.appStoreUrl;
       }
     }
+
+    // Log analytics when update button is clicked
+    AnalyticsService().logForceUpdateClicked(updateUrl: finalUrl);
 
     final Uri uri = Uri.parse(finalUrl);
     try {

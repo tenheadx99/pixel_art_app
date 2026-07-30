@@ -1,8 +1,6 @@
 import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart';
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:pixel_art_app/config/app_config.dart';
-import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/config/flavor.dart';
 
 class RemoteConfigService {
