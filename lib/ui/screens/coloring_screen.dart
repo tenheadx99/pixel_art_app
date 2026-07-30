@@ -21,6 +21,7 @@ import '../../data/services/analytics_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/local_storage_service.dart';
+import '../../data/services/remote_config_service.dart';
 import '../../data/services/review_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../data/services/timelapse_service.dart';
@@ -739,12 +740,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       grant(); // Simulated ad in dev/no-ads builds.
       return;
     }
-    adService.loadRewardedAd(
-      onLoaded: () => adService.showRewardedAd(
-        placement: 'double_reward',
-        onRewarded: grant,
-      ),
-      onFailed: () =>
+    adService.showRewardedAd(
+      placement: 'double_reward',
+      onRewarded: grant,
+      onUnavailable: () =>
           _showInfoSnack('No ad available right now — try again later.'),
     );
   }
@@ -1141,6 +1140,14 @@ class _ColoringScreenState extends State<ColoringScreen>
                       ),
                     ),
                     const Divider(height: 8),
+                    if (!AppConfig.disableAds &&
+                        AppConfig.showAds &&
+                        RemoteConfigService().freeDiamondsEnabled)
+                      _FreeDiamondsTile(
+                        amount: RemoteConfigService().rewardedDiamondsAmount,
+                        remaining: s.freeDiamondClaimsRemaining,
+                        onWatch: () => _watchAdForFreeDiamonds(s),
+                      ),
                     _ShopTile(
                       icon: Icons.lightbulb_rounded,
                       color: const Color(0xFFFFC107),
@@ -1205,6 +1212,27 @@ class _ColoringScreenState extends State<ColoringScreen>
           },
         );
       },
+    );
+  }
+
+  /// Watch a rewarded ad for a capped daily diamond payout (shop tile).
+  void _watchAdForFreeDiamonds(AppSettingsProvider settings) {
+    void grant() {
+      final amount = settings.claimFreeDiamonds();
+      if (amount <= 0) return;
+      showCoinBurst(context);
+      _showInfoSnack('+$amount diamonds!');
+    }
+
+    if (AppConfig.disableAds || !AppConfig.showAds) {
+      grant(); // Simulated ad in dev/no-ads builds.
+      return;
+    }
+    context.read<AdService>().showRewardedAd(
+      placement: 'shop_free_diamonds',
+      onRewarded: grant,
+      onUnavailable: () =>
+          _showInfoSnack('No ad available right now — try again later.'),
     );
   }
 
@@ -1704,19 +1732,9 @@ class _ColoringScreenState extends State<ColoringScreen>
                 _showInfoSnack('[Simulated Ad] +$adAmount $label earned!');
                 return;
               }
-              adService.loadRewardedAd(
-                onLoaded: () => adService.showRewardedAd(
-                  placement: forHints ? 'refill_hints' : 'refill_wands',
-                  onRewarded: () {
-                    if (forHints) {
-                      settings.addHints(adAmount);
-                    } else {
-                      provider.addMagicWands(adAmount);
-                    }
-                    _showInfoSnack('+$adAmount $label earned!');
-                  },
-                ),
-                onFailed: () {
+              adService.showRewardedAd(
+                placement: forHints ? 'refill_hints' : 'refill_wands',
+                onRewarded: () {
                   if (forHints) {
                     settings.addHints(adAmount);
                   } else {
@@ -1724,6 +1742,8 @@ class _ColoringScreenState extends State<ColoringScreen>
                   }
                   _showInfoSnack('+$adAmount $label earned!');
                 },
+                onUnavailable: () => _showInfoSnack(
+                    'No ad available right now — try again later.'),
               );
             },
           ),
@@ -1852,6 +1872,58 @@ class _HudAction extends StatelessWidget {
 
 /// A shop row that plays a satisfying buy animation — the icon pops and a
 /// green check sweeps in — when [onPurchase] reports a successful purchase.
+/// "Watch an ad, earn diamonds" tile at the top of the shop — the earn path
+/// for players who open the sheet with an empty balance. Shares its daily
+/// claim pool with the home screen's diamond pill.
+class _FreeDiamondsTile extends StatelessWidget {
+  final int amount;
+  final int remaining;
+  final VoidCallback onWatch;
+
+  const _FreeDiamondsTile({
+    required this.amount,
+    required this.remaining,
+    required this.onWatch,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final capped = remaining <= 0;
+    const green = Color(0xFF00B894);
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: green.withAlpha(40),
+        child: const Icon(Icons.play_circle_fill_rounded, color: green),
+      ),
+      title: const Text('Free Diamonds'),
+      subtitle: Text(
+        capped
+            ? 'Come back tomorrow!'
+            : 'Watch a short ad · $remaining left today',
+      ),
+      trailing: ElevatedButton(
+        onPressed: capped ? null : onWatch,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: green,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('+$amount'),
+            const SizedBox(width: 4),
+            const Icon(Icons.diamond_rounded, size: 14),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _ShopTile extends StatefulWidget {
   final IconData icon;
   final Color color;

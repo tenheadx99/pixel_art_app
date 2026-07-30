@@ -96,6 +96,13 @@ class AppConstants {
   // Permanently unlock a single premium artwork with diamonds.
   static const int diamondCostUnlockArt = 200;
 
+  // Free-diamond rewarded placements. The shop tile and home pill share one
+  // daily claim pool; the streak bonus claims once per day on its own stamp.
+  // Amounts and caps live in Remote Config.
+  static const String freeDiamondsDayPrefKey = 'free_diamonds_claim_day';
+  static const String freeDiamondsCountPrefKey = 'free_diamonds_claim_count';
+  static const String streakBonusDayPrefKey = 'daily_streak_bonus_day';
+
   // Shop prices (in diamonds).
   static const int diamondCostHint = 30;
   static const int diamondCostWand = 40;

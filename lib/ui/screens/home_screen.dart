@@ -7,10 +7,14 @@ import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
+import '../../config/app_config.dart';
 import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/services/notification_service.dart';
+import '../../data/services/remote_config_service.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/coin_fly.dart';
+import '../widgets/reward_popup.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/transitions.dart';
 import '../../data/services/ad_service.dart';
@@ -98,6 +102,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: _DailyPixelBanner(
                       gallery: gallery,
                       onPlay: () => _openColoring(context, gallery.dailyArt!),
+                      showBonusClaim: _canEarnDiamondsViaAd &&
+                          !settings.dailyStreakBonusClaimedToday,
+                      bonusAmount: RemoteConfigService().dailyStreakAdBonus,
+                      onClaimBonus: _claimDailyStreakBonus,
                     ),
                   ),
                 ),
@@ -476,33 +484,53 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(width: 12),
-            // Diamond balance.
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(40),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${settings.diamondsAvailable}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
+            // Diamond balance. When free-diamond claims remain, a "+" appears
+            // and tapping the chip offers a rewarded ad instead of opening
+            // the profile.
+            Builder(builder: (context) {
+              final canEarn = _canEarnDiamondsViaAd &&
+                  settings.freeDiamondClaimsRemaining > 0;
+              return GestureDetector(
+                onTap: canEarn
+                    ? () => _watchAdForDiamonds('home_free_diamonds')
+                    : null,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(40),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.diamond_rounded,
-                    color: Color(0xFFFFE08A),
-                    size: 15,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        '${settings.diamondsAvailable}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.diamond_rounded,
+                        color: Color(0xFFFFE08A),
+                        size: 15,
+                      ),
+                      if (canEarn) ...[
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.add_circle_rounded,
+                          color: Colors.white70,
+                          size: 14,
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            }),
           ],
         ),
       ),
@@ -556,16 +584,79 @@ class _HomeScreenState extends State<HomeScreen> {
   void _tryPremiumWithAd(PixelArt art) {
     final adService = context.read<AdService>();
     final messenger = ScaffoldMessenger.of(context);
-    adService.loadRewardedAd(
-      onLoaded: () => adService.showRewardedAd(
-        placement: 'premium_try',
-        onRewarded: () {
-          if (!mounted) return;
-          context.read<GalleryProvider>().unlockForSession(art.id);
-          _openColoring(context, art);
-        },
+    adService.showRewardedAd(
+      placement: 'premium_try',
+      onRewarded: () {
+        if (!mounted) return;
+        context.read<GalleryProvider>().unlockForSession(art.id);
+        _openColoring(context, art);
+      },
+      onUnavailable: () => messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No ad available right now — try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
       ),
-      onFailed: () => messenger.showSnackBar(
+    );
+  }
+
+  /// Whether the diamond-earning rewarded affordances (home pill, streak
+  /// bonus) should render: ads on for this flavor + Remote Config kill switch.
+  bool get _canEarnDiamondsViaAd =>
+      !AppConfig.disableAds &&
+      AppConfig.showAds &&
+      RemoteConfigService().freeDiamondsEnabled;
+
+  /// Watch a rewarded ad for a capped daily diamond payout. Shares its daily
+  /// claim pool with the coloring screen's shop tile.
+  void _watchAdForDiamonds(String placement) {
+    final settings = context.read<AppSettingsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    void grant() {
+      final amount = settings.claimFreeDiamonds();
+      if (amount <= 0 || !mounted) return;
+      showCoinBurst(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('+$amount diamonds!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+
+    context.read<AdService>().showRewardedAd(
+      placement: placement,
+      onRewarded: grant,
+      onUnavailable: () => messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No ad available right now — try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+    );
+  }
+
+  /// Once-a-day rewarded bonus for keeping the daily streak going, claimed
+  /// from the daily banner after today's artwork is finished.
+  void _claimDailyStreakBonus() {
+    final settings = context.read<AppSettingsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    void grant() {
+      final amount = settings.claimDailyStreakBonus();
+      if (amount <= 0 || !mounted) return;
+      showRewardPopup(
+        context,
+        icon: Icons.local_fire_department,
+        title: 'Streak Bonus!',
+        subtitle: '${context.read<GalleryProvider>().dailyStreak} day streak',
+        diamonds: amount,
+      );
+    }
+
+    context.read<AdService>().showRewardedAd(
+      placement: 'daily_streak_bonus',
+      onRewarded: grant,
+      onUnavailable: () => messenger.showSnackBar(
         const SnackBar(
           content: Text('No ad available right now — try again later.'),
           behavior: SnackBarBehavior.floating,
@@ -876,12 +967,25 @@ class _DailyPixelBanner extends StatelessWidget {
   final GalleryProvider gallery;
   final VoidCallback onPlay;
 
-  const _DailyPixelBanner({required this.gallery, required this.onPlay});
+  /// When true and today's daily is done, the trailing chip becomes a
+  /// watch-ad streak-bonus claim instead of the static "Done" state.
+  final bool showBonusClaim;
+  final int bonusAmount;
+  final VoidCallback? onClaimBonus;
+
+  const _DailyPixelBanner({
+    required this.gallery,
+    required this.onPlay,
+    this.showBonusClaim = false,
+    this.bonusAmount = 0,
+    this.onClaimBonus,
+  });
 
   @override
   Widget build(BuildContext context) {
     final art = gallery.dailyArt!;
     final done = gallery.dailyCompletedToday;
+    final claimable = done && showBonusClaim && onClaimBonus != null;
     final now = DateTime.now();
     final hoursToNext = DateTime(
       now.year,
@@ -972,30 +1076,60 @@ class _DailyPixelBanner extends StatelessWidget {
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    done ? Icons.check_circle : Icons.play_arrow_rounded,
-                    color: const Color(0xFFFF5E62),
-                    size: 18,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    done ? 'Done' : 'Play',
-                    style: const TextStyle(
-                      color: Color(0xFFFF5E62),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
+            GestureDetector(
+              // Intercepts the banner's onPlay tap when the bonus is claimable.
+              onTap: claimable ? onClaimBonus : null,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: claimable
+                      ? [
+                          const Icon(
+                            Icons.card_giftcard_rounded,
+                            color: Color(0xFFFF5E62),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '+$bonusAmount',
+                            style: const TextStyle(
+                              color: Color(0xFFFF5E62),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+                          const Icon(
+                            Icons.diamond_rounded,
+                            color: Color(0xFFFF5E62),
+                            size: 14,
+                          ),
+                        ]
+                      : [
+                          Icon(
+                            done
+                                ? Icons.check_circle
+                                : Icons.play_arrow_rounded,
+                            color: const Color(0xFFFF5E62),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            done ? 'Done' : 'Play',
+                            style: const TextStyle(
+                              color: Color(0xFFFF5E62),
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                ),
               ),
             ),
           ],

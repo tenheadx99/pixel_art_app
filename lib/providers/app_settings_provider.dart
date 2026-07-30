@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/notification_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
+import 'package:pixel_art_app/data/services/remote_config_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 
 /// Result of an [AppSettingsProvider.addXp] call, so the UI can celebrate a
@@ -275,6 +276,53 @@ class AppSettingsProvider extends ChangeNotifier {
     _storageService.setString(AppConstants.plusStipendDayPrefKey, today);
     addDiamonds(AppConstants.diamondsDailyPlusStipend);
     return AppConstants.diamondsDailyPlusStipend;
+  }
+
+  String get _todayStamp {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  /// Free-diamond rewarded claims left today. The shop tile and home pill
+  /// draw from this one pool so the Remote Config cap bounds the total faucet.
+  int get freeDiamondClaimsRemaining {
+    final cap = RemoteConfigService().rewardedDiamondsDailyCap;
+    if (_storageService.getString(AppConstants.freeDiamondsDayPrefKey) !=
+        _todayStamp) {
+      return cap;
+    }
+    final used = _storageService.getInt(AppConstants.freeDiamondsCountPrefKey);
+    return math.max(0, cap - used);
+  }
+
+  /// Consumes one capped free-diamond claim and pays out. Returns the amount
+  /// granted (0 when today's pool is exhausted) so the UI can celebrate.
+  int claimFreeDiamonds() {
+    if (freeDiamondClaimsRemaining <= 0) return 0;
+    final today = _todayStamp;
+    final used =
+        _storageService.getString(AppConstants.freeDiamondsDayPrefKey) == today
+            ? _storageService.getInt(AppConstants.freeDiamondsCountPrefKey)
+            : 0;
+    _storageService.setString(AppConstants.freeDiamondsDayPrefKey, today);
+    _storageService.setInt(AppConstants.freeDiamondsCountPrefKey, used + 1);
+    final amount = RemoteConfigService().rewardedDiamondsAmount;
+    addDiamonds(amount);
+    return amount;
+  }
+
+  bool get dailyStreakBonusClaimedToday =>
+      _storageService.getString(AppConstants.streakBonusDayPrefKey) ==
+      _todayStamp;
+
+  /// Once-per-day streak bonus behind a rewarded ad on the daily banner.
+  /// Returns the amount granted (0 if already claimed today).
+  int claimDailyStreakBonus() {
+    if (dailyStreakBonusClaimedToday) return 0;
+    _storageService.setString(AppConstants.streakBonusDayPrefKey, _todayStamp);
+    final amount = RemoteConfigService().dailyStreakAdBonus;
+    addDiamonds(amount);
+    return amount;
   }
 
   void toggleDarkMode() {

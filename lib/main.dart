@@ -194,6 +194,11 @@ class _AppBootstrapState extends State<AppBootstrap>
     final localStorageService = LocalStorageService();
     await localStorageService.init();
 
+    // UMP consent + Mobile Ads SDK init needs neither Remote Config nor IAP
+    // (ad unit IDs are read from RC at load time, after the await below), so
+    // it runs concurrently with the rest of bootstrap instead of serially.
+    final adInitFuture = AdService().initialize();
+
     // Remote Config + force-update check. Firebase itself is initialized earlier
     // in bootstrapApp(); these are non-critical, so failures fall back to
     // defaults without blocking the app.
@@ -238,10 +243,13 @@ class _AppBootstrapState extends State<AppBootstrap>
     final hadFirstSession = localStorageService.getBool('had_first_session');
     localStorageService.setBool('had_first_session', true);
 
-    await AdService().initialize();
+    await adInitFuture;
     AdService()
       ..isFirstSession = !hadFirstSession
-      ..loadAppOpenAd();
+      ..loadAppOpenAd()
+      // Warm the rewarded cache so the first watch-ad tap shows instantly.
+      // Not gated by isFirstSession: rewarded ads are user-initiated.
+      ..preloadRewardedAd();
 
     if (!mounted) return;
     setState(() {

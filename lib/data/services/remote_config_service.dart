@@ -31,6 +31,12 @@ class RemoteConfigService {
         'pixelyart_interstitial_cooldown_s': 90,
         'pixelyart_interstitial_min_session_s': 120,
         'pixelyart_app_open_cooldown_s': 14400,
+        // Free-diamond rewarded placements (shop tile, home pill, streak
+        // bonus) — amounts and caps tunable per flavor from the console.
+        'pixelyart_free_diamonds_enabled': true,
+        'pixelyart_rewarded_diamonds_amount': 25,
+        'pixelyart_rewarded_diamonds_daily_cap': 5,
+        'pixelyart_daily_streak_ad_bonus': 30,
         // Flavor-specific show_ads defaults. All flavors monetize with ads;
         // PixelCalm is limited to banner + rewarded via
         // FlavorConfig.fullScreenAdsEnabled (no interstitial/app-open there).
@@ -130,4 +136,20 @@ class RemoteConfigService {
   /// Minimum gap between two app-open ads.
   int get appOpenCooldownSeconds =>
       _getInt('app_open_cooldown_s', 14400);
+
+  // --- Free-diamond rewarded placements ---
+
+  /// Kill switch for the diamond-earning rewarded placements. A bool because
+  /// [_getInt] treats 0 as "unset" and can't express "off".
+  bool get freeDiamondsEnabled => _getBool('free_diamonds_enabled');
+
+  /// Diamonds granted per capped free-diamond claim (shop tile + home pill).
+  int get rewardedDiamondsAmount => _getInt('rewarded_diamonds_amount', 25);
+
+  /// Shared daily cap across the shop tile and home pill.
+  int get rewardedDiamondsDailyCap =>
+      _getInt('rewarded_diamonds_daily_cap', 5);
+
+  /// Diamonds for the once-a-day streak bonus claim on the daily banner.
+  int get dailyStreakAdBonus => _getInt('daily_streak_ad_bonus', 30);
 }

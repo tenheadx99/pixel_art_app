@@ -152,23 +152,25 @@ class SettingsSheet extends StatelessWidget {
 
         return AlertDialog(
           title: Text(l10n.language),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: options.map((opt) {
-              final loc = opt['locale'] as Locale?;
-              final label = opt['label'] as String;
-              final isSelected = settings.appLocale == loc;
-              return RadioListTile<Locale?>(
-                title: Text(label),
-                value: loc,
-                selected: isSelected,
-                groupValue: settings.appLocale,
-                onChanged: (selected) {
-                  settings.setAppLocale(selected);
-                  Navigator.pop(dialogContext);
-                },
-              );
-            }).toList(),
+          content: RadioGroup<Locale?>(
+            groupValue: settings.appLocale,
+            onChanged: (selected) {
+              settings.setAppLocale(selected);
+              Navigator.pop(dialogContext);
+            },
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: options.map((opt) {
+                final loc = opt['locale'] as Locale?;
+                final label = opt['label'] as String;
+                final isSelected = settings.appLocale == loc;
+                return RadioListTile<Locale?>(
+                  title: Text(label),
+                  value: loc,
+                  selected: isSelected,
+                );
+              }).toList(),
+            ),
           ),
           actions: [
             TextButton(

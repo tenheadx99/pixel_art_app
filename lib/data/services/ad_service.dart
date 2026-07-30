@@ -23,6 +23,22 @@ class AdService {
   DateTime? _lastRewardedAt;
   DateTime? _lastAppOpenAt;
 
+  // Failed loads retry at most this many times (20s, then 40s — same schedule
+  // as AdBanner) and then stop until the next show/preload attempt re-arms
+  // them, so a no-fill streak can't snowball into request spam.
+  static const int _maxLoadRetries = 2;
+  Duration _retryDelay(int attempt) => Duration(seconds: 20 * attempt);
+
+  // Cached ads expire server-side (1h for interstitial/rewarded, 4h for
+  // app-open). Showing an expired ad silently no-ops — a request with no
+  // impression — so treat anything older than this as absent.
+  static const Duration _fullScreenAdTtl = Duration(minutes: 50);
+  static const Duration _appOpenAdTtl = Duration(hours: 3, minutes: 30);
+
+  int _rewardedRetries = 0, _interstitialRetries = 0, _appOpenRetries = 0;
+  DateTime? _rewardedLoadedAt, _interstitialLoadedAt, _appOpenLoadedAt;
+  bool _rewardedLoading = false;
+
   /// Set during bootstrap; no full-screen ads in a user's very first session.
   bool isFirstSession = false;
 
@@ -31,6 +47,9 @@ class AdService {
   /// Interstitial + app-open only; banner/rewarded follow [_adsEnabled].
   bool get _fullScreenAdsEnabled =>
       _adsEnabled && !AppConfig.disableFullScreenAds;
+
+  bool _isFresh(DateTime? loadedAt, Duration ttl) =>
+      loadedAt != null && DateTime.now().difference(loadedAt) < ttl;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -110,16 +129,33 @@ class AdService {
       onFailed?.call();
       return;
     }
+    if (_interstitialAd != null &&
+        _isFresh(_interstitialLoadedAt, _fullScreenAdTtl)) {
+      onLoaded?.call();
+      return;
+    }
     _interstitialAd?.dispose();
+    _interstitialAd = null;
     InterstitialAd.load(
       adUnitId: RemoteConfigService().interstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
+          _interstitialLoadedAt = DateTime.now();
+          _interstitialRetries = 0;
           onLoaded?.call();
         },
-        onAdFailedToLoad: (error) => onFailed?.call(),
+        onAdFailedToLoad: (error) {
+          developer.log('Interstitial load failed: ${error.message}',
+              name: 'Ads');
+          onFailed?.call();
+          if (_interstitialRetries < _maxLoadRetries) {
+            _interstitialRetries++;
+            Future.delayed(
+                _retryDelay(_interstitialRetries), loadInterstitialAd);
+          }
+        },
       ),
     );
   }
@@ -128,7 +164,10 @@ class AdService {
   /// the first session, only after real coloring time, with a cooldown and
   /// never right on the heels of a rewarded ad. All tunable via RemoteConfig.
   bool canShowSessionInterstitial(Duration sessionLength) {
-    if (!_fullScreenAdsEnabled || isFirstSession || _interstitialAd == null) {
+    if (!_fullScreenAdsEnabled ||
+        isFirstSession ||
+        _interstitialAd == null ||
+        !_isFresh(_interstitialLoadedAt, _fullScreenAdTtl)) {
       return false;
     }
     final rc = RemoteConfigService();
@@ -153,52 +192,100 @@ class AdService {
     _interstitialAd = null;
     if (ad == null) return;
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (a) => a.dispose(),
-      onAdFailedToShowFullScreenContent: (a, error) => a.dispose(),
+      onAdDismissedFullScreenContent: (a) {
+        a.dispose();
+        loadInterstitialAd();
+      },
+      onAdFailedToShowFullScreenContent: (a, error) {
+        a.dispose();
+        loadInterstitialAd();
+      },
     );
     _lastInterstitialAt = DateTime.now();
     AnalyticsService().logAdImpression(adFormat: 'interstitial', placement: 'session_exit');
     ad.show();
   }
 
-  // --- Rewarded ---
+  // --- Rewarded (cache-ahead: preloaded at startup, refilled after show) ---
 
-  void loadRewardedAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
-    if (!_adsEnabled) {
-      onFailed?.call();
-      return;
-    }
+  bool get isRewardedAdReady =>
+      _rewardedAd != null && _isFresh(_rewardedLoadedAt, _fullScreenAdTtl);
+
+  /// Fire-and-forget cache fill. Safe to call anytime; no-ops if a fresh ad
+  /// is already cached or a load is in flight.
+  void preloadRewardedAd() {
+    if (!_adsEnabled || _rewardedLoading || isRewardedAdReady) return;
     _rewardedAd?.dispose();
+    _rewardedAd = null;
+    _rewardedLoading = true;
+    developer.log('Rewarded load start', name: 'Ads');
     RewardedAd.load(
       adUnitId: RemoteConfigService().rewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
           _rewardedAd = ad;
-          onLoaded?.call();
+          _rewardedLoadedAt = DateTime.now();
+          _rewardedLoading = false;
+          _rewardedRetries = 0;
+          developer.log('Rewarded loaded', name: 'Ads');
         },
-        onAdFailedToLoad: (error) => onFailed?.call(),
+        onAdFailedToLoad: (error) {
+          _rewardedLoading = false;
+          developer.log('Rewarded load failed: ${error.message}', name: 'Ads');
+          if (_rewardedRetries < _maxLoadRetries) {
+            _rewardedRetries++;
+            Future.delayed(_retryDelay(_rewardedRetries), preloadRewardedAd);
+          }
+        },
       ),
     );
   }
 
-  void showRewardedAd({
-    required void Function() onRewarded,
+  /// Shows the cached rewarded ad instantly. If a load is in flight (cold
+  /// cache), waits up to ~5s for it — preserving the old tap-then-brief-wait
+  /// UX as a worst case. When no ad can be shown, [onUnavailable] fires and a
+  /// preload is re-armed for next time; the reward is NEVER granted without
+  /// the SDK's earned-reward callback.
+  Future<void> showRewardedAd({
+    required VoidCallback onRewarded,
+    VoidCallback? onUnavailable,
     String placement = 'user_reward',
-  }) {
-    _rewardedAd?.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _rewardedAd = null;
+  }) async {
+    if (!_adsEnabled) {
+      onUnavailable?.call();
+      return;
+    }
+    if (!isRewardedAdReady) {
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      _rewardedRetries = 0; // user intent re-arms a stopped retry cycle
+      preloadRewardedAd();
+      final waitUntil = DateTime.now().add(const Duration(seconds: 5));
+      while (_rewardedLoading && DateTime.now().isBefore(waitUntil)) {
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+    }
+    final ad = _rewardedAd;
+    if (ad == null || !_isFresh(_rewardedLoadedAt, _fullScreenAdTtl)) {
+      onUnavailable?.call();
+      return;
+    }
+    _rewardedAd = null;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) {
+        a.dispose();
+        preloadRewardedAd();
       },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        ad.dispose();
-        _rewardedAd = null;
+      onAdFailedToShowFullScreenContent: (a, error) {
+        developer.log('Rewarded show failed: ${error.message}', name: 'Ads');
+        a.dispose();
+        preloadRewardedAd();
       },
     );
     _lastRewardedAt = DateTime.now();
     AnalyticsService().logAdImpression(adFormat: 'rewarded', placement: placement);
-    _rewardedAd?.show(
+    ad.show(
       onUserEarnedReward: (ad, reward) {
         // Earned = watched through; distinct from the impression above so
         // completion rate per placement is measurable.
@@ -206,20 +293,34 @@ class AdService {
         onRewarded();
       },
     );
-    _rewardedAd = null;
   }
 
   // --- App open (on resume, heavily capped) ---
 
   void loadAppOpenAd() {
-    if (!_fullScreenAdsEnabled || _appOpenAd != null) return;
+    if (!_fullScreenAdsEnabled) return;
+    if (_appOpenAd != null && _isFresh(_appOpenLoadedAt, _appOpenAdTtl)) {
+      return;
+    }
+    _appOpenAd?.dispose();
+    _appOpenAd = null;
     AppOpenAd.load(
       adUnitId: RemoteConfigService().appOpenAdUnitId,
       request: const AdRequest(),
       orientation: AppOpenAd.orientationPortrait,
       adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) => _appOpenAd = ad,
-        onAdFailedToLoad: (error) {},
+        onAdLoaded: (ad) {
+          _appOpenAd = ad;
+          _appOpenLoadedAt = DateTime.now();
+          _appOpenRetries = 0;
+        },
+        onAdFailedToLoad: (error) {
+          developer.log('App-open load failed: ${error.message}', name: 'Ads');
+          if (_appOpenRetries < _maxLoadRetries) {
+            _appOpenRetries++;
+            Future.delayed(_retryDelay(_appOpenRetries), loadAppOpenAd);
+          }
+        },
       ),
     );
   }
@@ -239,6 +340,12 @@ class AdService {
       loadAppOpenAd(); // be ready for the next resume
       return;
     }
+    if (!_isFresh(_appOpenLoadedAt, _appOpenAdTtl)) {
+      ad.dispose();
+      _appOpenAd = null;
+      loadAppOpenAd();
+      return;
+    }
     _appOpenAd = null;
     _showingAppOpen = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
@@ -250,6 +357,7 @@ class AdService {
       onAdFailedToShowFullScreenContent: (a, error) {
         a.dispose();
         _showingAppOpen = false;
+        loadAppOpenAd();
       },
     );
     _lastAppOpenAt = now;

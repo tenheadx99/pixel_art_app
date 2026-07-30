@@ -45,37 +45,23 @@ class NumberToolbar extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Loading Ad to refill $toolName...'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-    adService.loadRewardedAd(
-      onLoaded: () {
-        adService.showRewardedAd(
-          placement: 'refill_${toolName.toLowerCase().replaceAll(' ', '_')}',
-          onRewarded: () {
-            onRefilled();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('+1 $toolName refilled!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          },
-        );
-      },
-      onFailed: () {
-        // Fallback in case loading fails on some devices during testing
+    adService.showRewardedAd(
+      placement: 'refill_${toolName.toLowerCase().replaceAll(' ', '_')}',
+      onRewarded: () {
+        onRefilled();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load ad. Refilling anyway for test...'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text('+1 $toolName refilled!'),
+            backgroundColor: Colors.green,
           ),
         );
-        onRefilled();
+      },
+      onUnavailable: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No ad available right now — try again later.'),
+          ),
+        );
       },
     );
   }
