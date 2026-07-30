@@ -316,15 +316,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     final unlocked = provider.lastUnlockedAchievement;
     if (unlocked != null) {
       provider.clearLastUnlockedAchievement();
-      // Achievements now pay out diamonds and celebrate with the reward popup.
+      // Award achievement diamonds silently without showing a popup dialog.
       settings.addDiamonds(AppConstants.diamondsPerAchievement);
-      showRewardPopup(
-        context,
-        icon: Icons.emoji_events_rounded,
-        title: 'Achievement Unlocked!',
-        subtitle: provider.achievementName(unlocked),
-        diamonds: AppConstants.diamondsPerAchievement,
-      );
     }
 
     _checkMilestones(provider, settings);
