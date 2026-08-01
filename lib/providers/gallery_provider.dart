@@ -3,11 +3,13 @@ import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
+import 'package:pixel_art_app/data/services/remote_catalog_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 
 class GalleryProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   final DatabaseService _databaseService;
+  final RemoteCatalogService? _remoteCatalogService;
 
   List<PixelArt> _catalog = [];
   Set<String> _completedIds = {};
@@ -15,7 +17,11 @@ class GalleryProvider extends ChangeNotifier {
   String _selectedCategory = 'All';
   bool _isLoading = false;
 
-  GalleryProvider(this._storageService, this._databaseService);
+  GalleryProvider(
+    this._storageService,
+    this._databaseService, [
+    this._remoteCatalogService,
+  ]);
 
   List<PixelArt> get catalog => _catalog;
   Set<String> get completedIds => _completedIds;
@@ -127,6 +133,19 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Replaces the catalog once the remote (admin-published) merge lands.
+  /// User state (completed/favorites/progress) is keyed by art id and needs
+  /// no migration.
+  void updateCatalog(List<PixelArt> catalog) {
+    _catalog = catalog;
+    // The selected category may have been renamed/hidden by the update.
+    if (_selectedCategory != 'All' &&
+        !_catalog.any((a) => a.category == _selectedCategory)) {
+      _selectedCategory = 'All';
+    }
+    notifyListeners();
+  }
+
   // --- Daily Pixel ---
 
   static const String _streakPrefKey = 'daily_streak';
@@ -219,6 +238,7 @@ class GalleryProvider extends ChangeNotifier {
     _completedIds.add(id);
     _storageService.addToStringSet(AppConstants.completedIdsPrefKey, id);
     _databaseService.incrementCompleted(id);
+    _remoteCatalogService?.reportCompletion(id);
     if (id == dailyArt?.id) _registerDailyCompletion();
     notifyListeners();
   }

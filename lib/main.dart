@@ -17,6 +17,7 @@ import 'data/services/ad_service.dart';
 import 'data/services/iap_service.dart';
 import 'data/services/screenshot_service.dart';
 import 'data/services/pixel_converter_service.dart';
+import 'data/services/remote_catalog_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/analytics_service.dart';
@@ -122,6 +123,7 @@ class AppDependencies {
   final IAPService iapService;
   final ScreenshotService screenshotService;
   final SoundService soundService;
+  final RemoteCatalogService remoteCatalogService;
 
   const AppDependencies({
     required this.localStorageService,
@@ -129,6 +131,7 @@ class AppDependencies {
     required this.iapService,
     required this.screenshotService,
     required this.soundService,
+    required this.remoteCatalogService,
   });
 
   void dispose() {
@@ -241,6 +244,7 @@ class _AppBootstrapState extends State<AppBootstrap>
       iapService: IAPService(),
       screenshotService: ScreenshotService(localStorageService),
       soundService: soundService,
+      remoteCatalogService: RemoteCatalogService(localStorageService),
     );
 
     await deps.iapService.initialize();
@@ -327,8 +331,18 @@ class _AppBootstrapState extends State<AppBootstrap>
             final provider = GalleryProvider(
               _dependencies!.localStorageService,
               _dependencies!.databaseService,
+              _dependencies!.remoteCatalogService,
             );
             provider.loadCatalog(_preMadeArts);
+            // Bundled art shows immediately; the admin-published Firestore
+            // catalog (new artworks + overrides) merges in when the fetch
+            // lands. Unchanged catalogs are served from Firestore's local
+            // cache, so this is one doc read on most launches.
+            _dependencies!.remoteCatalogService
+                .fetchCatalog(_preMadeArts)
+                .then((merged) {
+              if (merged != null) provider.updateCatalog(merged);
+            });
             return provider;
           },
         ),

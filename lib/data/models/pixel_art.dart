@@ -12,6 +12,11 @@ class PixelArt {
   final int difficulty;
   final bool isPremium;
 
+  /// Seasonal availability window, set by the admin panel on remote artworks
+  /// only (null = always available). Bundled artworks never carry these.
+  final DateTime? availableFrom;
+  final DateTime? availableUntil;
+
   PixelArt({
     required this.id,
     required this.name,
@@ -23,6 +28,8 @@ class PixelArt {
     this.category = 'General',
     this.difficulty = 1,
     this.isPremium = false,
+    this.availableFrom,
+    this.availableUntil,
   });
 
   int get totalCells => gridWidth * gridHeight;
@@ -69,7 +76,29 @@ class PixelArt {
       'category': category,
       'difficulty': difficulty,
       'isPremium': isPremium,
+      if (availableFrom != null)
+        'availableFrom': availableFrom!.toIso8601String(),
+      if (availableUntil != null)
+        'availableUntil': availableUntil!.toIso8601String(),
     };
+  }
+
+  /// Copy with admin-overridden metadata (grid data is never overridden).
+  PixelArt copyWith({String? category, bool? isPremium}) {
+    return PixelArt(
+      id: id,
+      name: name,
+      gridWidth: gridWidth,
+      gridHeight: gridHeight,
+      grid: grid,
+      colorMap: colorMap,
+      thumbnailPath: thumbnailPath,
+      category: category ?? this.category,
+      difficulty: difficulty,
+      isPremium: isPremium ?? this.isPremium,
+      availableFrom: availableFrom,
+      availableUntil: availableUntil,
+    );
   }
 
   factory PixelArt.fromJson(Map<String, dynamic> json) {
@@ -87,13 +116,15 @@ class PixelArt {
     return PixelArt(
       id: json['id'] as String,
       name: json['name'] as String,
-      gridWidth: json['gridWidth'] as int,
-      gridHeight: json['gridHeight'] as int,
+      gridWidth: (json['gridWidth'] as num).toInt(),
+      gridHeight: (json['gridHeight'] as num).toInt(),
       grid: grid,
       colorMap: colorMap,
       category: json['category'] as String? ?? 'General',
-      difficulty: json['difficulty'] as int? ?? 1,
+      difficulty: (json['difficulty'] as num?)?.toInt() ?? 1,
       isPremium: json['isPremium'] as bool? ?? false,
+      availableFrom: DateTime.tryParse(json['availableFrom'] as String? ?? ''),
+      availableUntil: DateTime.tryParse(json['availableUntil'] as String? ?? ''),
     );
   }
 }
