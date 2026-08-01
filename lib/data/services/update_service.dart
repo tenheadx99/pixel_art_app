@@ -104,8 +104,12 @@ class AppUpdateService {
     final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
     final requiredParts = requiredClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
 
-    while (currentParts.length < 3) currentParts.add(0);
-    while (requiredParts.length < 3) requiredParts.add(0);
+    while (currentParts.length < 3) {
+      currentParts.add(0);
+    }
+    while (requiredParts.length < 3) {
+      requiredParts.add(0);
+    }
 
     for (int i = 0; i < 3; i++) {
       if (currentParts[i] < requiredParts[i]) return true;
