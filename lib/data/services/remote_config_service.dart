@@ -1,5 +1,7 @@
 import 'dart:developer' as developer;
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/config/flavor.dart';
 
@@ -10,13 +12,23 @@ class RemoteConfigService {
 
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
+  void Function(String updateUrl)? onForceUpdateTriggered;
+
   Future<void> initialize() async {
     try {
-      // Set Remote Config settings (low fetch interval for debugging/development)
+      // Set Remote Config settings (0s in debug for instant testing, 5m in production)
       await _remoteConfig.setConfigSettings(RemoteConfigSettings(
         fetchTimeout: const Duration(seconds: 10),
-        minimumFetchInterval: const Duration(hours: 1),
+        minimumFetchInterval: kDebugMode ? Duration.zero : const Duration(minutes: 5),
       ));
+
+      // Listen for real-time Remote Config updates published from Firebase Console
+      _remoteConfig.onConfigUpdated.listen((event) async {
+        await _remoteConfig.activate();
+        AppConfig.showAds = showAds;
+        developer.log('Remote Config updated in real-time!', name: 'RemoteConfig');
+        _checkForceUpdateRealtime();
+      });
 
       // Set defaults for Remote Config
       await _remoteConfig.setDefaults(<String, dynamic>{
@@ -152,4 +164,38 @@ class RemoteConfigService {
 
   /// Diamonds for the once-a-day streak bonus claim on the daily banner.
   int get dailyStreakAdBonus => _getInt('daily_streak_ad_bonus', 30);
+
+  Future<void> _checkForceUpdateRealtime() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final minVersion = minRequiredVersion;
+      if (_isVersionOlder(currentVersion, minVersion)) {
+        onForceUpdateTriggered?.call(forceUpdateUrl);
+      }
+    } catch (e) {
+      developer.log('Realtime force update check error', error: e);
+    }
+  }
+
+  static bool _isVersionOlder(String current, String required) {
+    final currentClean = current.split('+')[0];
+    final requiredClean = required.split('+')[0];
+
+    final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final requiredParts = requiredClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+    while (currentParts.length < 3) {
+      currentParts.add(0);
+    }
+    while (requiredParts.length < 3) {
+      requiredParts.add(0);
+    }
+
+    for (int i = 0; i < 3; i++) {
+      if (currentParts[i] < requiredParts[i]) return true;
+      if (currentParts[i] > requiredParts[i]) return false;
+    }
+    return false;
+  }
 }

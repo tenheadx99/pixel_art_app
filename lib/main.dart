@@ -205,6 +205,14 @@ class _AppBootstrapState extends State<AppBootstrap>
     try {
       await AnalyticsService().init(flavorName: currentFlavor.name);
       final remoteConfig = RemoteConfigService();
+      remoteConfig.onForceUpdateTriggered = (url) {
+        if (mounted) {
+          setState(() {
+            _forceUpdateRequired = true;
+            _updateUrl = url;
+          });
+        }
+      };
       await remoteConfig.initialize();
 
       final packageInfo = await PackageInfo.fromPlatform();
