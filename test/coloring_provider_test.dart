@@ -29,10 +29,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('magic wand persistence', () {
-    test('fresh install grants 5 wands', () async {
+    test('fresh install grants 3 wands', () async {
       final provider = await _providerWith({});
       provider.loadArt(_testArt());
-      expect(provider.magicWandsCount, 5);
+      expect(provider.magicWandsCount, 3);
     });
 
     test('a stored count of 0 stays 0 instead of refilling', () async {
@@ -161,7 +161,7 @@ void main() {
     test('magic wand fills connected region of same number and decrements wand count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
-      expect(provider.magicWandsCount, 5);
+      expect(provider.magicWandsCount, 3);
 
       provider.toggleMagicWandMode();
       expect(provider.isMagicWandMode, isTrue);
@@ -170,7 +170,7 @@ void main() {
       final success = provider.tryFillCell(0, 0);
       expect(success, isTrue);
       expect(provider.isMagicWandMode, isFalse);
-      expect(provider.magicWandsCount, 4);
+      expect(provider.magicWandsCount, 2);
 
       // (0,0), (0,1), (1,0) are connected and should be filled
       expect(provider.filledGrid[0][0], 1);
@@ -185,7 +185,7 @@ void main() {
     test('bomb fills all non-zero cells in a 3x3 region and decrements bomb count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
-      expect(provider.bombsCount, 5);
+      expect(provider.bombsCount, 3);
 
       provider.toggleBombMode();
       expect(provider.isBombMode, isTrue);
@@ -194,7 +194,7 @@ void main() {
       final success = provider.tryFillCell(1, 1);
       expect(success, isTrue);
       expect(provider.isBombMode, isFalse);
-      expect(provider.bombsCount, 4);
+      expect(provider.bombsCount, 2);
 
       // All non-zero cells in the grid should be filled
       expect(provider.filledGrid[0][0], 1);

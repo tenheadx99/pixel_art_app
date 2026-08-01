@@ -12,6 +12,7 @@ import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/services/notification_service.dart';
 import '../../data/services/remote_config_service.dart';
+import '../../data/services/update_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/coin_fly.dart';
 import '../widgets/reward_popup.dart';
@@ -63,6 +64,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         );
       }
+      // Check for Google Play Flexible in-app updates
+      AppUpdateService().checkForUpdate(context: context);
     });
   }
 
