@@ -8,8 +8,12 @@ import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/providers/gallery_provider.dart';
 
 class _FakeDatabaseService extends DatabaseService {
+  final List<String> incremented = [];
+
   @override
-  Future<void> incrementCompleted(String id) async {}
+  Future<void> incrementCompleted(String id) async {
+    incremented.add(id);
+  }
 }
 
 PixelArt _art(String id) => PixelArt(
@@ -86,6 +90,112 @@ void main() {
         'daily_last_date': '2020-01-01',
       });
       expect(provider.dailyStreak, 0);
+    });
+  });
+
+  group('split artworks', () {
+    // 4x4 parent split 2x2 (each part 2x2); the top-left tile is empty, the
+    // top-right tile has 2 fillable cells, the bottom tiles 4 each.
+    PixelArt splitParent() => PixelArt(
+      id: 'rmt_split',
+      name: 'Split',
+      gridWidth: 4,
+      gridHeight: 4,
+      grid: const [
+        [0, 0, 1, 0],
+        [0, 0, 0, 1],
+        [1, 1, 1, 1],
+        [1, 1, 1, 1],
+      ],
+      colorMap: const {1: Color(0xFFFF0000)},
+      partsX: 2,
+      partsY: 2,
+    );
+
+    String pctKey(int part) => 'pixelart_progress_rmt_split_p${part}_pct';
+
+    Future<(GalleryProvider, _FakeDatabaseService)> providerWith(
+      Map<String, Object> prefs,
+    ) async {
+      SharedPreferences.setMockInitialValues(prefs);
+      final storage = LocalStorageService();
+      await storage.init();
+      final db = _FakeDatabaseService();
+      final provider = GalleryProvider(storage, db);
+      await provider.loadCatalog([splitParent(), ...catalog]);
+      return (provider, db);
+    }
+
+    test('artProgressPercent weights parts by fillable cells', () async {
+      final (provider, _) = await providerWith({
+        pctKey(1): 100, // 2 fillable cells
+        pctKey(2): 50, // 4 fillable cells
+      });
+      final parent = provider.catalog.first;
+      // done = 2*100 + 4*50 = 400 of total 10 fillable => 40%.
+      expect(provider.artProgressPercent(parent), 40);
+      // Non-split art still reads its own pct key.
+      expect(provider.artProgressPercent(catalog.first), 0);
+    });
+
+    test('untouched split art reports zero progress', () async {
+      final (provider, _) = await providerWith({});
+      expect(provider.artProgressPercent(provider.catalog.first), 0);
+      expect(provider.inProgressArts, isEmpty);
+    });
+
+    test('a started split parent appears in the continue row', () async {
+      final (provider, _) = await providerWith({pctKey(2): 50});
+      expect(
+        provider.inProgressArts.map((a) => a.id),
+        contains('rmt_split'),
+      );
+    });
+
+    test('empty parts count as complete', () async {
+      final (provider, _) = await providerWith({
+        pctKey(1): 100,
+        pctKey(2): 100,
+        pctKey(3): 100,
+        // part 0 has no fillable cells and no save at all.
+      });
+      expect(provider.partsAllComplete(provider.catalog.first), isTrue);
+      expect(provider.partProgressPercent(provider.catalog.first, 0), 100);
+    });
+
+    test('finishing the last part cascades completion to the parent', () async {
+      final (provider, db) = await providerWith({
+        pctKey(1): 100,
+        pctKey(2): 100,
+        pctKey(3): 100,
+      });
+      provider.markCompleted('rmt_split_p3');
+      expect(provider.isCompleted('rmt_split'), isTrue);
+      // Stats are reported once for the parent, never for part ids.
+      expect(db.incremented, ['rmt_split']);
+    });
+
+    test('an unfinished sibling blocks the parent cascade', () async {
+      final (provider, db) = await providerWith({
+        pctKey(1): 100,
+        pctKey(2): 60,
+        pctKey(3): 100,
+      });
+      provider.markCompleted('rmt_split_p3');
+      expect(provider.isCompleted('rmt_split_p3'), isTrue);
+      expect(provider.isCompleted('rmt_split'), isFalse);
+      expect(db.incremented, isEmpty);
+    });
+
+    test('parent completion is not reported twice', () async {
+      final (provider, db) = await providerWith({
+        pctKey(1): 100,
+        pctKey(2): 100,
+        pctKey(3): 100,
+      });
+      provider.markCompleted('rmt_split_p3');
+      provider.markCompleted('rmt_split_p1');
+      expect(db.incremented, ['rmt_split']);
     });
   });
 }

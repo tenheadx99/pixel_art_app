@@ -1,7 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../config/flavor.dart';
+import '../../config/version_utils.dart';
 import '../models/pixel_art.dart';
+import '../models/split_art.dart';
 import 'local_storage_service.dart';
 
 /// Reads the admin-published catalog from Firestore and merges it with the
@@ -53,7 +56,13 @@ class RemoteCatalogService {
       if (snaps == null) return null;
 
       _storage.setInt(_versionPrefKey, version);
-      return mergeCatalog(bundled, snaps.$1, snaps.$2);
+      final appVersion = (await PackageInfo.fromPlatform()).version;
+      return mergeCatalog(
+        bundled,
+        snaps.$1,
+        snaps.$2,
+        currentAppVersion: appVersion,
+      );
     } catch (_) {
       return null;
     }
@@ -106,14 +115,17 @@ class RemoteCatalogService {
   /// Merge rule (mirrors the admin panel's `CatalogEntry`):
   ///  - bundled art: dropped when its override says `hidden`; `isPremium` and
   ///    `category` overridden when set; sortOrder = override or manifest index
-  ///  - remote art: dropped when not `visible` or outside its availability
-  ///    window; sortOrder from the doc (default 0)
+  ///  - remote art: dropped when not `visible`, outside its availability
+  ///    window, gated behind a newer `minAppVersion` (schema features this
+  ///    build can't render, e.g. split artworks), or carrying unusable split
+  ///    metadata; sortOrder from the doc (default 0)
   ///  - sorted by sortOrder, insertion order as the tiebreak
   static List<PixelArt> mergeCatalog(
     List<PixelArt> bundled,
     List<Map<String, dynamic>> artworkDocs,
-    Map<String, Map<String, dynamic>> overrides,
-  ) {
+    Map<String, Map<String, dynamic>> overrides, {
+    String? currentAppVersion,
+  }) {
     final entries = <(PixelArt, int, int)>[];
 
     for (var i = 0; i < bundled.length; i++) {
@@ -136,12 +148,21 @@ class RemoteCatalogService {
     final now = DateTime.now();
     for (final data in artworkDocs) {
       if (data['visible'] == false) continue;
+      final minVersion = data['minAppVersion'] as String?;
+      if (minVersion != null &&
+          currentAppVersion != null &&
+          isVersionOlder(currentAppVersion, minVersion)) {
+        continue;
+      }
       final PixelArt art;
       try {
         art = PixelArt.fromJson(data);
       } catch (_) {
         continue; // One malformed doc must not take down the whole catalog.
       }
+      // Malformed split metadata (dims not divisible, absurd tile count)
+      // would break the part picker — drop the doc, not the app.
+      if (art.isSplit && !SplitArt.validSplit(art)) continue;
       if (art.availableFrom != null && now.isBefore(art.availableFrom!)) {
         continue;
       }

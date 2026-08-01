@@ -17,6 +17,11 @@ class PixelArt {
   final DateTime? availableFrom;
   final DateTime? availableUntil;
 
+  /// Uniform split layout for large artworks (1x1 = not split). A split
+  /// artwork is colored one tile at a time; grid dims must divide evenly.
+  final int partsX;
+  final int partsY;
+
   PixelArt({
     required this.id,
     required this.name,
@@ -30,9 +35,16 @@ class PixelArt {
     this.isPremium = false,
     this.availableFrom,
     this.availableUntil,
+    this.partsX = 1,
+    this.partsY = 1,
   });
 
   int get totalCells => gridWidth * gridHeight;
+
+  bool get isSplit => partsX > 1 || partsY > 1;
+  int get partCount => partsX * partsY;
+  int get partWidth => gridWidth ~/ partsX;
+  int get partHeight => gridHeight ~/ partsY;
 
   // Grid-derived values are cached: these are hit on every palette/card
   // rebuild, and rescanning a 128x128 grid each time is a 16k-cell loop.
@@ -80,6 +92,7 @@ class PixelArt {
         'availableFrom': availableFrom!.toIso8601String(),
       if (availableUntil != null)
         'availableUntil': availableUntil!.toIso8601String(),
+      if (partsX > 1 || partsY > 1) ...{'partsX': partsX, 'partsY': partsY},
     };
   }
 
@@ -98,6 +111,8 @@ class PixelArt {
       isPremium: isPremium ?? this.isPremium,
       availableFrom: availableFrom,
       availableUntil: availableUntil,
+      partsX: partsX,
+      partsY: partsY,
     );
   }
 
@@ -125,6 +140,8 @@ class PixelArt {
       isPremium: json['isPremium'] as bool? ?? false,
       availableFrom: DateTime.tryParse(json['availableFrom'] as String? ?? ''),
       availableUntil: DateTime.tryParse(json['availableUntil'] as String? ?? ''),
+      partsX: (json['partsX'] as num?)?.toInt() ?? 1,
+      partsY: (json['partsY'] as num?)?.toInt() ?? 1,
     );
   }
 }

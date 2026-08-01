@@ -1,5 +1,7 @@
+import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
+import 'package:pixel_art_app/data/models/split_art.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
@@ -211,9 +213,47 @@ class GalleryProvider extends ChangeNotifier {
   int progressPercent(String id) =>
       _storageService.getInt('pixelart_progress_${id}_pct');
 
+  /// Fillable cell counts per part, memoized per parent id (one 36k-cell scan
+  /// for a 192x192 parent; the catalog instance is stable between updates).
+  final Map<String, List<int>> _partFillableCache = {};
+
+  List<int> _partFillables(PixelArt parent) => _partFillableCache.putIfAbsent(
+    parent.id,
+    () => SplitArt.partFillableCounts(parent),
+  );
+
+  /// Progress (0-100) for [art], aggregating part saves for split artworks
+  /// weighted by each part's fillable cells. Empty parts count as complete.
+  int artProgressPercent(PixelArt art) {
+    if (!art.isSplit) return progressPercent(art.id);
+    final fillables = _partFillables(art);
+    int total = 0;
+    int done = 0;
+    for (int i = 0; i < art.partCount; i++) {
+      total += fillables[i];
+      done += fillables[i] * partProgressPercent(art, i);
+    }
+    return total == 0 ? 100 : done ~/ total;
+  }
+
+  /// Progress (0-100) of part [index] of a split [parent]. Parts with no
+  /// fillable cells are always 100 (there is nothing to color).
+  int partProgressPercent(PixelArt parent, int index) {
+    if (_partFillables(parent)[index] == 0) return 100;
+    return progressPercent(SplitArt.partId(parent.id, index));
+  }
+
+  /// Whether every (non-empty) part of a split [parent] is fully colored.
+  bool partsAllComplete(PixelArt parent) {
+    for (int i = 0; i < parent.partCount; i++) {
+      if (partProgressPercent(parent, i) < 100) return false;
+    }
+    return true;
+  }
+
   /// Artworks the user has started but not finished, for a "continue" row.
   List<PixelArt> get inProgressArts => _catalog.where((a) {
-    final p = progressPercent(a.id);
+    final p = artProgressPercent(a);
     return p > 0 && p < 100;
   }).toList();
 
@@ -237,6 +277,20 @@ class GalleryProvider extends ChangeNotifier {
   void markCompleted(String id) {
     _completedIds.add(id);
     _storageService.addToStringSet(AppConstants.completedIdsPrefKey, id);
+    if (SplitArt.isPartId(id)) {
+      // Parts are user-invisible sub-artworks: no completion stats for them.
+      // Finishing the last part completes the parent (stats reported once).
+      final parentId = SplitArt.parentIdOf(id);
+      final parent = _catalog.where((a) => a.id == parentId).firstOrNull;
+      if (parent != null &&
+          !isCompleted(parent.id) &&
+          partsAllComplete(parent)) {
+        markCompleted(parent.id);
+        return;
+      }
+      notifyListeners();
+      return;
+    }
     _databaseService.incrementCompleted(id);
     _remoteCatalogService?.reportCompletion(id);
     if (id == dailyArt?.id) _registerDailyCompletion();

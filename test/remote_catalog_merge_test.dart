@@ -124,5 +124,63 @@ void main() {
       expect(ids(merged), contains('rmt_ok'));
       expect(ids(merged), isNot(contains('rmt_broken')));
     });
+
+    test('a split doc survives the merge with its part layout', () {
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [
+          {...remoteDoc('rmt_split'), 'partsX': 2, 'partsY': 2},
+        ],
+        {},
+      );
+      final split = merged.firstWhere((a) => a.id == 'rmt_split');
+      expect(split.isSplit, isTrue);
+      expect(split.partCount, 4);
+    });
+
+    test('a split doc whose dims do not divide evenly is dropped', () {
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [
+          // 2x2 grid claiming a 3x3 split.
+          {...remoteDoc('rmt_badsplit'), 'partsX': 3, 'partsY': 3},
+          remoteDoc('rmt_ok'),
+        ],
+        {},
+      );
+      expect(ids(merged), contains('rmt_ok'));
+      expect(ids(merged), isNot(contains('rmt_badsplit')));
+    });
+
+    test('minAppVersion gates docs for older app builds', () {
+      final docs = [
+        {...remoteDoc('rmt_gated'), 'minAppVersion': '1.0.12'},
+        remoteDoc('rmt_open'),
+      ];
+      final older = RemoteCatalogService.mergeCatalog(
+        bundled,
+        docs,
+        {},
+        currentAppVersion: '1.0.11',
+      );
+      expect(ids(older), isNot(contains('rmt_gated')));
+      expect(ids(older), contains('rmt_open'));
+
+      final equal = RemoteCatalogService.mergeCatalog(
+        bundled,
+        docs,
+        {},
+        currentAppVersion: '1.0.12',
+      );
+      expect(ids(equal), contains('rmt_gated'));
+
+      final newer = RemoteCatalogService.mergeCatalog(
+        bundled,
+        docs,
+        {},
+        currentAppVersion: '1.1.0',
+      );
+      expect(ids(newer), contains('rmt_gated'));
+    });
   });
 }

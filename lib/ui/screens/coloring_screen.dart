@@ -12,6 +12,7 @@ import '../../config/app_config.dart';
 import '../../config/flavor.dart';
 import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
+import '../../data/models/split_art.dart';
 import '../../data/models/user_artwork.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
@@ -802,9 +803,44 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  /// Suggests another piece to color right after finishing one.
+  /// True when this canvas holds one tile of a split artwork rather than a
+  /// standalone piece.
+  bool get _isPart => SplitArt.isPartId(widget.art.id);
+
+  /// Suggests another piece to color right after finishing one. For a split
+  /// part that's the next unfinished sibling tile; when none remain, pop back
+  /// to the part picker so it can play the merge reveal.
   void _openNextArt() {
     final gallery = context.read<GalleryProvider>();
+    if (_isPart) {
+      final parentId = SplitArt.parentIdOf(widget.art.id);
+      final partIndex = SplitArt.partIndexOf(widget.art.id) ?? 0;
+      PixelArt? parent;
+      for (final a in gallery.catalog) {
+        if (a.id == parentId) {
+          parent = a;
+          break;
+        }
+      }
+      if (parent != null) {
+        for (int step = 1; step < parent.partCount; step++) {
+          final i = (partIndex + step) % parent.partCount;
+          if (gallery.partProgressPercent(parent, i) < 100) {
+            _maybeShowExitInterstitial();
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                settings: const RouteSettings(name: 'coloring'),
+                builder: (_) => ColoringScreen(art: SplitArt.partOf(parent!, i)),
+              ),
+            );
+            return;
+          }
+        }
+      }
+      Navigator.pop(context);
+      return;
+    }
     final settings = context.read<AppSettingsProvider>();
     final candidates = gallery.catalog
         .where(
@@ -1022,7 +1058,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       child: ElevatedButton.icon(
                         onPressed: _openNextArt,
                         icon: const Icon(Icons.skip_next_rounded),
-                        label: const Text('Next Artwork'),
+                        label: Text(_isPart ? 'Next Part' : 'Next Artwork'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppStyle.primary,
                           foregroundColor: Colors.white,
@@ -1775,6 +1811,16 @@ class _ColoringScreenState extends State<ColoringScreen>
     BuildContext context,
     ColoringProvider provider,
   ) async {
+    if (_isPart) {
+      // Parts never export their own PNG — the merged parent is saved by
+      // PartSelectionScreen once every tile is done. Flush the save first:
+      // markCompleted's all-parts check reads the _pct pref written there.
+      await provider.saveProgress();
+      if (context.mounted && provider.isComplete) {
+        context.read<GalleryProvider>().markCompleted(widget.art.id);
+      }
+      return;
+    }
     final storageService = context.read<LocalStorageService>();
     final databaseService = context.read<DatabaseService>();
     final screenshotService = ScreenshotService(storageService);

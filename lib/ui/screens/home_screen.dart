@@ -1,6 +1,3 @@
-import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui' show PointMode;
 import 'package:flutter/material.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
@@ -10,10 +7,12 @@ import '../../providers/coloring_provider.dart';
 import '../../config/app_config.dart';
 import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
+import '../../data/models/split_art.dart';
 import '../../data/services/notification_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../data/services/update_service.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/art_preview_painter.dart';
 import '../widgets/coin_fly.dart';
 import '../widgets/reward_popup.dart';
 import '../widgets/settings_sheet.dart';
@@ -21,6 +20,7 @@ import '../widgets/transitions.dart';
 import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
+import '../../ui/screens/part_selection_screen.dart';
 import '../../ui/screens/camera_screen.dart';
 import '../../ui/screens/gallery_screen.dart';
 import '../../ui/screens/paywall_screen.dart';
@@ -160,7 +160,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               art,
                               settings.isProUser,
                             ),
-                            progressPercent: gallery.progressPercent(art.id),
+                            progressPercent: gallery.artProgressPercent(art),
                             onTap: () => _openColoring(context, art),
                             onFavorite: () => gallery.toggleFavorite(art.id),
                           );
@@ -552,6 +552,20 @@ class _HomeScreenState extends State<HomeScreen> {
       _showLockedDialog(context, art);
       return;
     }
+    // Split artworks open on the part picker; each tile is then colored as
+    // its own small canvas.
+    if (art.isSplit && SplitArt.validSplit(art)) {
+      Navigator.push(
+        context,
+        fadeThroughRoute(
+          PartSelectionScreen(parent: art),
+          name: 'part_selection',
+        ),
+      ).then((_) {
+        if (context.mounted) context.read<GalleryProvider>().refresh();
+      });
+      return;
+    }
     Navigator.push(
       context,
       fadeThroughRoute(
@@ -892,7 +906,7 @@ class _ContinueRow extends StatelessWidget {
             itemCount: arts.length,
             itemBuilder: (context, index) {
               final art = arts[index];
-              final pct = gallery.progressPercent(art.id);
+              final pct = gallery.artProgressPercent(art);
               return GestureDetector(
                 onTap: () => onOpen(art),
                 child: Container(
@@ -911,7 +925,7 @@ class _ContinueRow extends StatelessWidget {
                         height: 56,
                         child: RepaintBoundary(
                           child: CustomPaint(
-                            painter: _PixelArtPreviewPainter(
+                            painter: ArtPreviewPainter(
                               art: art,
                               isCompleted: true,
                             ),
@@ -1026,7 +1040,7 @@ class _DailyPixelBanner extends StatelessWidget {
               ),
               child: RepaintBoundary(
                 child: CustomPaint(
-                  painter: _PixelArtPreviewPainter(art: art, isCompleted: true),
+                  painter: ArtPreviewPainter(art: art, isCompleted: true),
                 ),
               ),
             ),
@@ -1375,7 +1389,7 @@ class _PixelArtCard extends StatelessWidget {
                             // must not re-rasterize the preview.
                             child: RepaintBoundary(
                               child: CustomPaint(
-                                painter: _PixelArtPreviewPainter(
+                                painter: ArtPreviewPainter(
                                   art: art,
                                   isCompleted: isCompleted,
                                 ),
@@ -1763,46 +1777,3 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _PixelArtPreviewPainter extends CustomPainter {
-  final PixelArt art;
-  final bool isCompleted;
-
-  _PixelArtPreviewPainter({required this.art, required this.isCompleted});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cw = size.width / art.gridWidth;
-    final ch = size.height / art.gridHeight;
-
-    // One drawRawPoints call per color instead of a drawRect per cell —
-    // a 128x128 preview is otherwise ~16k draw ops per card.
-    final batches = <int, List<double>>{};
-    for (var r = 0; r < art.gridHeight; r++) {
-      for (var c = 0; c < art.gridWidth; c++) {
-        final val = art.grid[r][c];
-        if (val <= 0) continue;
-        final color = art.colorForNumber(val) ?? Colors.transparent;
-        final key = (isCompleted ? color : color.withAlpha(90)).toARGB32();
-        batches.putIfAbsent(key, () => <double>[])
-          ..add(c * cw + cw / 2)
-          ..add(r * ch + ch / 2);
-      }
-    }
-
-    final paint = Paint()
-      ..strokeCap = StrokeCap.square
-      ..strokeWidth = max(cw, ch);
-    for (final entry in batches.entries) {
-      paint.color = Color(entry.key);
-      canvas.drawRawPoints(
-        PointMode.points,
-        Float32List.fromList(entry.value),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PixelArtPreviewPainter oldDelegate) =>
-      oldDelegate.art != art || oldDelegate.isCompleted != isCompleted;
-}
