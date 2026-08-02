@@ -138,6 +138,51 @@ void main() {
       expect(split.partCount, 4);
     });
 
+    test('an admin-published portrait split doc (full field set) survives', () {
+      // Exactly the map RemoteArtwork.toMap() writes in the admin panel for
+      // an aspect-preset split artwork: PixelArt JSON + publish metadata.
+      final portrait = PixelArt(
+        id: 'rmt_krishna_1',
+        name: 'Krishna',
+        gridWidth: 6,
+        gridHeight: 8,
+        grid: List.generate(8, (_) => List.filled(6, 1)),
+        colorMap: {1: const Color(0xFF2244AA)},
+        category: 'Devotional',
+        partsX: 3,
+        partsY: 4,
+      );
+      final doc = {
+        ...portrait.toJson(),
+        'visible': true,
+        'sortOrder': 0,
+        'minAppVersion': '1.0.12',
+      };
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [doc],
+        {},
+        currentAppVersion: '1.0.12',
+      );
+      final art = merged.firstWhere((a) => a.id == 'rmt_krishna_1');
+      expect(art.gridWidth, 6);
+      expect(art.gridHeight, 8);
+      expect(art.partsX, 3);
+      expect(art.partsY, 4);
+    });
+
+    test('minAppVersion docs are kept when the app version is unknown', () {
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [
+          {...remoteDoc('rmt_gated'), 'minAppVersion': '1.0.12'},
+        ],
+        {},
+        currentAppVersion: null,
+      );
+      expect(ids(merged), contains('rmt_gated'));
+    });
+
     test('a non-square split doc survives with its part layout', () {
       final portrait = PixelArt(
         id: 'rmt_portrait',

@@ -56,7 +56,14 @@ class RemoteCatalogService {
       if (snaps == null) return null;
 
       _storage.setInt(_versionPrefKey, version);
-      final appVersion = (await PackageInfo.fromPlatform()).version;
+      String? appVersion;
+      try {
+        appVersion = (await PackageInfo.fromPlatform()).version;
+      } catch (_) {
+        // Best-effort: without a version, gated docs are simply kept — any
+        // build new enough to contain this code can render them. Failing the
+        // whole fetch here would silently drop the entire remote catalog.
+      }
       return mergeCatalog(
         bundled,
         snaps.$1,
