@@ -923,11 +923,18 @@ class _ContinueRow extends StatelessWidget {
                       SizedBox(
                         width: 56,
                         height: 56,
-                        child: RepaintBoundary(
-                          child: CustomPaint(
-                            painter: ArtPreviewPainter(
-                              art: art,
-                              isCompleted: true,
+                        // Center + AspectRatio so portrait/landscape art
+                        // letterboxes instead of stretching to the square box.
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: art.gridWidth / art.gridHeight,
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: ArtPreviewPainter(
+                                  art: art,
+                                  isCompleted: true,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -1038,9 +1045,14 @@ class _DailyPixelBanner extends StatelessWidget {
                 color: Colors.white.withAlpha(220),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: ArtPreviewPainter(art: art, isCompleted: true),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: art.gridWidth / art.gridHeight,
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: ArtPreviewPainter(art: art, isCompleted: true),
+                    ),
+                  ),
                 ),
               ),
             ),

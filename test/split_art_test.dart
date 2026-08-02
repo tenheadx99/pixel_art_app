@@ -176,4 +176,65 @@ void main() {
       ]);
     });
   });
+
+  group('portrait split (partsX != partsY)', () {
+    // 6 wide × 8 tall in 3×4 parts: twelve 2×2 tiles, top-left tile empty.
+    PixelArt portraitParent() => PixelArt(
+      id: 'rmt_portrait',
+      name: 'Portrait',
+      gridWidth: 6,
+      gridHeight: 8,
+      grid: const [
+        [0, 0, 1, 2, 3, 1],
+        [0, 0, 2, 1, 1, 3],
+        [1, 1, 2, 2, 3, 3],
+        [1, 1, 2, 2, 3, 3],
+        [2, 2, 3, 3, 1, 1],
+        [2, 2, 3, 3, 1, 1],
+        [3, 3, 1, 1, 2, 2],
+        [3, 3, 1, 1, 2, 2],
+      ],
+      colorMap: const {
+        1: Color(0xFFFF0000),
+        2: Color(0xFF00FF00),
+        3: Color(0xFF0000FF),
+      },
+      partsX: 3,
+      partsY: 4,
+    );
+
+    test('is valid and slices row-major 2x2 tiles', () {
+      final parent = portraitParent();
+      expect(SplitArt.validSplit(parent), isTrue);
+      expect(parent.partCount, 12);
+      expect(parent.partWidth, 2);
+      expect(parent.partHeight, 2);
+
+      final p1 = SplitArt.partOf(parent, 1); // top-middle: rows 0-1, cols 2-3
+      expect(p1.grid, const [
+        [1, 2],
+        [2, 1],
+      ]);
+
+      final p4 = SplitArt.partOf(parent, 4); // rows 2-3, cols 2-3
+      expect(p4.grid, const [
+        [2, 2],
+        [2, 2],
+      ]);
+
+      final p11 = SplitArt.partOf(parent, 11); // rows 6-7, cols 4-5
+      expect(p11.grid, const [
+        [2, 2],
+        [2, 2],
+      ]);
+      expect(p11.name, contains('Part 12/12'));
+    });
+
+    test('fillable counts stay row-major across unequal axes', () {
+      expect(
+        SplitArt.partFillableCounts(portraitParent()),
+        [0, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4],
+      );
+    });
+  });
 }

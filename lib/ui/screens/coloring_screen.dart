@@ -692,37 +692,46 @@ class _ColoringScreenState extends State<ColoringScreen>
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        // Two layers so a pinch/pan frame repaints only the viewport
-        // rectangle: the base map (every cell) repaints only when fill state
-        // actually changes (fillVersion), behind its own RepaintBoundary.
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            RepaintBoundary(
-              child: CustomPaint(
-                painter: _MiniMapPainter(
-                  art: widget.art,
-                  filledGrid: provider.filledGrid,
-                  filledColors: provider.filledColors,
-                  fillVersion: provider.fillVersion,
+        // The aspect box keeps non-square (portrait/landscape) artworks from
+        // stretching to fill the square minimap chrome.
+        child: Center(
+          child: AspectRatio(
+            aspectRatio: widget.art.gridWidth / widget.art.gridHeight,
+            // Two layers so a pinch/pan frame repaints only the viewport
+            // rectangle: the base map (every cell) repaints only when fill
+            // state actually changes (fillVersion), behind its own
+            // RepaintBoundary.
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(
+                  child: CustomPaint(
+                    painter: _MiniMapPainter(
+                      art: widget.art,
+                      filledGrid: provider.filledGrid,
+                      filledColors: provider.filledColors,
+                      fillVersion: provider.fillVersion,
+                    ),
+                  ),
                 ),
-              ),
+                ValueListenableBuilder<Matrix4>(
+                  valueListenable: _transformController,
+                  builder: (context, transform, _) {
+                    final viewportRect = _calculateViewportRect(
+                      transform,
+                      _viewerSize,
+                      _cellSize,
+                      widget.art,
+                    );
+                    return CustomPaint(
+                      painter:
+                          _MiniMapViewportPainter(viewportRect: viewportRect),
+                    );
+                  },
+                ),
+              ],
             ),
-            ValueListenableBuilder<Matrix4>(
-              valueListenable: _transformController,
-              builder: (context, transform, _) {
-                final viewportRect = _calculateViewportRect(
-                  transform,
-                  _viewerSize,
-                  _cellSize,
-                  widget.art,
-                );
-                return CustomPaint(
-                  painter: _MiniMapViewportPainter(viewportRect: viewportRect),
-                );
-              },
-            ),
-          ],
+          ),
         ),
       ),
     );
@@ -2101,10 +2110,19 @@ Rect _calculateViewportRect(Matrix4 transform, Size viewerSize, double cellSize,
   final canvasWidth = art.gridWidth * cellSize;
   final canvasHeight = art.gridHeight * cellSize;
 
-  final left = (-tx / scale).clamp(0.0, canvasWidth);
-  final top = (-ty / scale).clamp(0.0, canvasHeight);
-  final right = ((viewerSize.width - tx) / scale).clamp(0.0, canvasWidth);
-  final bottom = ((viewerSize.height - ty) / scale).clamp(0.0, canvasHeight);
+  // The grid sits Center-ed inside the viewer, so its origin in child
+  // coordinates is offset by the letterbox margins — subtract them or the
+  // minimap viewport drifts (obvious on portrait art, where height is the
+  // binding fit axis and the horizontal margin is large).
+  final gridLeft = max(0.0, (viewerSize.width - canvasWidth) / 2);
+  final gridTop = max(0.0, (viewerSize.height - canvasHeight) / 2);
+
+  final left = (-tx / scale - gridLeft).clamp(0.0, canvasWidth);
+  final top = (-ty / scale - gridTop).clamp(0.0, canvasHeight);
+  final right =
+      ((viewerSize.width - tx) / scale - gridLeft).clamp(0.0, canvasWidth);
+  final bottom =
+      ((viewerSize.height - ty) / scale - gridTop).clamp(0.0, canvasHeight);
 
   return Rect.fromLTRB(
     left / canvasWidth,

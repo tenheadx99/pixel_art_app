@@ -138,6 +138,28 @@ void main() {
       expect(split.partCount, 4);
     });
 
+    test('a non-square split doc survives with its part layout', () {
+      final portrait = PixelArt(
+        id: 'rmt_portrait',
+        name: 'p',
+        gridWidth: 6,
+        gridHeight: 8,
+        grid: List.generate(8, (_) => List.filled(6, 1)),
+        colorMap: {1: const Color(0xFF000000)},
+        partsX: 3,
+        partsY: 4,
+      );
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [portrait.toJson()],
+        {},
+      );
+      final art = merged.firstWhere((a) => a.id == 'rmt_portrait');
+      expect(art.gridWidth, 6);
+      expect(art.gridHeight, 8);
+      expect(art.partCount, 12);
+    });
+
     test('a split doc whose dims do not divide evenly is dropped', () {
       final merged = RemoteCatalogService.mergeCatalog(
         bundled,
