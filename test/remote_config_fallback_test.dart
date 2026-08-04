@@ -41,5 +41,12 @@ void main() {
         'diamond_show_ads',
       );
     });
+
+    test('resolves correct keys for bible flavor', () {
+      expect(
+        FlavorConfig.getFlavorKey(AppFlavor.bible, 'show_ads'),
+        'bible_show_ads',
+      );
+    });
   });
 }

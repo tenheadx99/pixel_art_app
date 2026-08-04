@@ -58,6 +58,7 @@ class RemoteConfigService {
         'anime_show_ads': true,
         'pixelcalm_show_ads': true,
         'diamond_show_ads': true,
+        'bible_show_ads': true,
       });
 
       // Fetch and activate config parameters

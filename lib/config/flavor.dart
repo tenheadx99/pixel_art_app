@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Build flavors of the app. Selected at build time via
 /// `--dart-define=FLAVOR=<name>` (defaults to [AppFlavor.original]).
-enum AppFlavor { original, devotional, anime, pixelcalm, diamond }
+enum AppFlavor { original, devotional, anime, pixelcalm, diamond, bible }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor.
@@ -24,6 +24,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.pixelcalm;
     case 'diamond':
       return AppFlavor.diamond;
+    case 'bible':
+      return AppFlavor.bible;
     case 'original':
     default:
       return AppFlavor.original;
@@ -142,6 +144,17 @@ class FlavorConfig {
       // interstitial/app-open.
       fullScreenAdsEnabled: false,
       bannerAdsEnabled: false,
+    ),
+    AppFlavor.bible: FlavorConfig(
+      appName: 'Bible Pixels',
+      splashTitle: 'Bible Pixels',
+      splashTagline: 'Color the Word',
+      appIconPath: 'assets/icons/bible.png',
+      primary: Color(0xFF1A3FA8), // Royal Blue (stained glass)
+      secondary: Color(0xFFE8B923), // Gold
+      accent: Color(0xFF7B4FBF), // Violet
+      brandGradient: [Color(0xFF1A3FA8), Color(0xFF7B4FBF)],
+      manifestPath: 'assets/pixel_art_bible/manifest.json',
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',
