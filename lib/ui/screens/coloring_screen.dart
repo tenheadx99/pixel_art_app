@@ -38,6 +38,8 @@ import '../../ui/widgets/reward_popup.dart';
 import '../../ui/widgets/coin_fly.dart';
 import '../../ui/widgets/fill_effects_overlay.dart';
 import '../../ui/widgets/fill_grow_controller.dart';
+import '../../ui/widgets/rolling_count.dart';
+import '../../ui/widgets/transitions.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -72,6 +74,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   // Section-complete shimmer sweep across the gem board (shader-driven).
   // Idles at 1.0 (= inactive in the shader); forward(from: 0) runs one sweep.
   late AnimationController _shimmerController;
+  // Staged entrance for the completion HUD: scrim → card → trophy → content.
+  // Idles at 1.0 (fully shown); forward(from: 0) plays the entrance.
+  late AnimationController _hudController;
   Matrix4Tween? _zoomTween;
   List<(int, int)> _replayActions = [];
   int _replayIndex = 0;
@@ -100,6 +105,27 @@ class _ColoringScreenState extends State<ColoringScreen>
   double _smoothTiltX = 0.0;
   double _smoothTiltY = 0.0;
   final DateTime _sessionStart = DateTime.now();
+
+  // Coin bursts fly to the top bar's diamond chip, which pulses on arrival.
+  final GlobalKey _diamondChipKey = GlobalKey();
+  bool _diamondChipPulse = false;
+
+  void _pulseDiamondChip() {
+    if (!mounted) return;
+    setState(() => _diamondChipPulse = true);
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (mounted) setState(() => _diamondChipPulse = false);
+    });
+  }
+
+  /// A coin burst that arcs into the diamond chip and pulses it on arrival.
+  void _coinBurstToChip() {
+    showCoinBurst(
+      context,
+      target: centerOfKey(_diamondChipKey),
+      onArrive: _pulseDiamondChip,
+    );
+  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -151,6 +177,11 @@ class _ColoringScreenState extends State<ColoringScreen>
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
+      value: 1.0,
+    );
+    _hudController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
       value: 1.0,
     );
     _replayController = AnimationController(
@@ -347,6 +378,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         _rewardDoubled = false;
         _hudDismissed = false;
       });
+      _hudController.forward(from: 0);
       if (levelUp.leveledUp) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -376,12 +408,19 @@ class _ColoringScreenState extends State<ColoringScreen>
     if (provider.claimMilestone(30)) {
       provider.addBombs(AppConstants.milestone30Bomb);
       AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 30);
+      // Same visual payoff class as the 65% milestone — a burst at the last
+      // painted cell — so the first milestone doesn't feel like a mere toast.
+      _fxKey.currentState?.spawnBurst(
+        _lastFillRow,
+        _lastFillCol,
+        const Color(0xFFFF9D2E),
+      );
       _showInfoSnack('Milestone reached · +${AppConstants.milestone30Bomb} Bomb');
     }
     if (provider.claimMilestone(65)) {
       settings.addDiamonds(AppConstants.milestone65Diamonds);
       AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 65);
-      showCoinBurst(context);
+      _coinBurstToChip();
       _showInfoSnack('Milestone reached · +${AppConstants.milestone65Diamonds} 💎');
     }
   }
@@ -466,6 +505,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _gridFadeController.dispose();
     _zoomAnimController.dispose();
     _shimmerController.dispose();
+    _hudController.dispose();
     _growTicker.dispose();
     _growController.dispose();
     _canvasPanNotifier.dispose();
@@ -621,16 +661,12 @@ class _ColoringScreenState extends State<ColoringScreen>
 
               ListenableBuilder(
                 listenable: provider,
-                builder: (context, _) {
-                  if (provider.isEraseMode ||
-                      provider.isMagicWandMode ||
-                      provider.isBombMode) {
-                    return _buildModePill(provider);
-                  }
-                  return const SizedBox.shrink();
-                },
+                builder: (context, _) => _buildModePill(provider),
               ),
-              ConfettiOverlay(animation: _confettiController),
+              ConfettiOverlay(
+                animation: _confettiController,
+                seed: widget.art.id.hashCode,
+              ),
 
               // 4. Bottom Section: the toolbar/palette/banner while there's
               // still something to color. Once complete it gives way to the
@@ -745,7 +781,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     void grant() {
       settings.addDiamonds(baseAward);
       if (mounted) setState(() => _rewardDoubled = true);
-      showCoinBurst(context);
+      _coinBurstToChip();
       _showInfoSnack('Reward doubled! +$baseAward diamonds');
     }
 
@@ -764,6 +800,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// Clear feedback that a destructive/special mode is active — the toolbar
   /// label alone is easy to miss.
   Widget _buildModePill(ColoringProvider provider) {
+    final active = provider.isEraseMode ||
+        provider.isMagicWandMode ||
+        provider.isBombMode;
     final Color color;
     final IconData icon;
     final String text;
@@ -786,27 +825,41 @@ class _ColoringScreenState extends State<ColoringScreen>
       left: 0,
       right: 0,
       child: Center(
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(
-            color: color,
-            borderRadius: BorderRadius.circular(20),
+        // Pop in/out (and morph between modes) instead of snapping.
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutBack,
+          switchOutCurve: Curves.easeInCubic,
+          transitionBuilder: (child, anim) => FadeTransition(
+            opacity: anim,
+            child: ScaleTransition(scale: anim, child: child),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(icon, color: Colors.white, size: 14),
-              const SizedBox(width: 6),
-              Text(
-                text,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+          child: !active
+              ? const SizedBox.shrink(key: ValueKey('pill-off'))
+              : Container(
+                  key: ValueKey(text),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(icon, color: Colors.white, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        text,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );
@@ -838,9 +891,9 @@ class _ColoringScreenState extends State<ColoringScreen>
             _maybeShowExitInterstitial();
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                settings: const RouteSettings(name: 'coloring'),
-                builder: (_) => ColoringScreen(art: SplitArt.partOf(parent!, i)),
+              fadeThroughRoute(
+                ColoringScreen(art: SplitArt.partOf(parent, i)),
+                name: 'coloring',
               ),
             );
             return;
@@ -871,26 +924,60 @@ class _ColoringScreenState extends State<ColoringScreen>
     _maybeShowExitInterstitial();
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        settings: const RouteSettings(name: 'coloring'),
-        builder: (_) => ColoringScreen(art: next),
-      ),
+      fadeThroughRoute(ColoringScreen(art: next), name: 'coloring'),
     );
   }
 
   /// The "level complete" HUD: a centered card over a dimmed scrim with the
   /// celebration summary plus Replay / Share / Share GIF / Next actions.
+  /// A slice of the HUD entrance timeline.
+  Animation<double> _hudStage(
+    double begin,
+    double end, [
+    Curve curve = Curves.easeOutCubic,
+  ]) {
+    return CurvedAnimation(
+      parent: _hudController,
+      curve: Interval(begin, end, curve: curve),
+    );
+  }
+
+  /// Fade + rise for HUD content rows, staggered by [slot].
+  Widget _hudReveal(int slot, Widget child) {
+    final anim = _hudStage(
+      (0.35 + slot * 0.07).clamp(0.0, 0.9),
+      (0.60 + slot * 0.07).clamp(0.0, 1.0),
+    );
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position: Tween<Offset>(
+          begin: const Offset(0, 0.2),
+          end: Offset.zero,
+        ).animate(anim),
+        child: child,
+      ),
+    );
+  }
+
   Widget _buildCompletionHud(ColoringProvider provider) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
     final subColor = isDark ? Colors.white70 : Colors.black54;
     return Positioned.fill(
-      child: Container(
-        color: Colors.black.withAlpha(150),
-        child: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              child: Container(
+      // Staged entrance: the scrim settles first, the card scales in over it,
+      // then the trophy pops and the content rows rise one after another.
+      child: FadeTransition(
+        opacity: _hudStage(0, 0.3, Curves.easeOut),
+        child: Container(
+          color: Colors.black.withAlpha(150),
+          child: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                child: ScaleTransition(
+                  scale: Tween<double>(begin: 0.9, end: 1.0)
+                      .animate(_hudStage(0.1, 0.5, Curves.easeOutBack)),
+                  child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 32),
                 padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
                 decoration: BoxDecoration(
@@ -917,27 +1004,31 @@ class _ColoringScreenState extends State<ColoringScreen>
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Container(
-                      width: 72,
-                      height: 72,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                          colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFFFF9D2E).withAlpha(130),
-                            blurRadius: 22,
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 0.3, end: 1.0)
+                          .animate(_hudStage(0.3, 0.85, Curves.elasticOut)),
+                      child: Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
                           ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.emoji_events_rounded,
-                        color: Colors.white,
-                        size: 40,
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFF9D2E).withAlpha(130),
+                              blurRadius: 22,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.emoji_events_rounded,
+                          color: Colors.white,
+                          size: 40,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -957,55 +1048,61 @@ class _ColoringScreenState extends State<ColoringScreen>
                       style: TextStyle(fontSize: 14, color: subColor),
                     ),
                     const SizedBox(height: 14),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: AppStyle.primary.withAlpha(isDark ? 40 : 20),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.celebration_rounded,
-                            color: AppStyle.primary,
-                            size: 16,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _completionStats(provider),
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: titleColor,
+                    _hudReveal(
+                      0,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppStyle.primary.withAlpha(isDark ? 40 : 20),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.celebration_rounded,
+                              color: AppStyle.primary,
+                              size: 16,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              _completionStats(provider),
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: titleColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                     if (_lastDiamondAward > 0) ...[
                       const SizedBox(height: 12),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.diamond_rounded,
-                            color: Color(0xFFFF9D2E),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            '+$_lastDiamondAward diamonds',
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: titleColor,
+                      _hudReveal(
+                        1,
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.diamond_rounded,
+                              color: Color(0xFFFF9D2E),
+                              size: 18,
                             ),
-                          ),
-                        ],
+                            const SizedBox(width: 6),
+                            Text(
+                              '+$_lastDiamondAward diamonds',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: titleColor,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                     // Rewarded-ad offer to double the payout (non-Pro, once).
@@ -1013,90 +1110,106 @@ class _ColoringScreenState extends State<ColoringScreen>
                         !_rewardDoubled &&
                         !context.read<AppSettingsProvider>().isProUser) ...[
                       const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: () => _watchAdToDouble(_lastDiamondAward),
-                          icon: const Icon(Icons.play_circle_fill_rounded,
-                              size: 20),
-                          label: const Text('Watch ad → 2× diamonds'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFFF9D2E),
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                      _hudReveal(
+                        2,
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () =>
+                                _watchAdToDouble(_lastDiamondAward),
+                            icon: const Icon(Icons.play_circle_fill_rounded,
+                                size: 20),
+                            label: const Text('Watch ad → 2× diamonds'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF9D2E),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ],
                     const SizedBox(height: 20),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _HudAction(
-                            icon: Icons.replay_rounded,
-                            label: 'Replay',
-                            onTap: () => _startTimeLapse(provider),
+                    _hudReveal(
+                      3,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _HudAction(
+                              icon: Icons.replay_rounded,
+                              label: 'Replay',
+                              onTap: () => _startTimeLapse(provider),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _HudAction(
-                            icon: Icons.image_rounded,
-                            label: 'Share',
-                            onTap: () => _sharePng(provider),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _HudAction(
+                              icon: Icons.image_rounded,
+                              label: 'Share',
+                              onTap: () => _sharePng(provider),
+                            ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: _HudAction(
-                            icon: Icons.movie_rounded,
-                            label: _sharingGif ? 'Rendering…' : 'Share GIF',
-                            onTap: _sharingGif
-                                ? null
-                                : () => _shareTimelapse(provider),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: _HudAction(
+                              icon: Icons.movie_rounded,
+                              label: _sharingGif ? 'Rendering…' : 'Share GIF',
+                              onTap: _sharingGif
+                                  ? null
+                                  : () => _shareTimelapse(provider),
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                     const SizedBox(height: 12),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton.icon(
-                        onPressed: _openNextArt,
-                        icon: const Icon(Icons.skip_next_rounded),
-                        label: Text(_isPart ? 'Next Part' : 'Next Artwork'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppStyle.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                    _hudReveal(
+                      4,
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _openNextArt,
+                          icon: const Icon(Icons.skip_next_rounded),
+                          label: Text(_isPart ? 'Next Part' : 'Next Artwork'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppStyle.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    TextButton(
-                      onPressed: () {
-                        setState(() => _hudDismissed = true);
-                        // Celebration just ended and nothing else is on
-                        // screen — the one moment a review ask feels earned.
-                        ReviewService().maybeRequestReview(
-                          storage: context.read<LocalStorageService>(),
-                          completedCount: context
-                              .read<GalleryProvider>()
-                              .completedIds
-                              .length,
-                        );
-                      },
-                      child: Text(
-                        'View artwork',
-                        style: TextStyle(color: subColor),
+                    _hudReveal(
+                      5,
+                      TextButton(
+                        onPressed: () {
+                          setState(() => _hudDismissed = true);
+                          // Celebration just ended and nothing else is on
+                          // screen — the one moment a review ask feels earned.
+                          ReviewService().maybeRequestReview(
+                            storage: context.read<LocalStorageService>(),
+                            completedCount: context
+                                .read<GalleryProvider>()
+                                .completedIds
+                                .length,
+                          );
+                        },
+                        child: Text(
+                          'View artwork',
+                          style: TextStyle(color: subColor),
+                        ),
                       ),
                     ),
                   ],
+                ),
+                  ),
                 ),
               ),
             ),
@@ -1113,7 +1226,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       right: 16,
       bottom: 16 + MediaQuery.of(context).padding.bottom,
       child: FloatingActionButton.extended(
-        onPressed: () => setState(() => _hudDismissed = false),
+        onPressed: () {
+          setState(() => _hudDismissed = false);
+          _hudController.forward(from: 0);
+        },
         backgroundColor: AppStyle.primary,
         foregroundColor: Colors.white,
         icon: const Icon(Icons.emoji_events_rounded),
@@ -1268,7 +1384,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     void grant() {
       final amount = settings.claimFreeDiamonds();
       if (amount <= 0) return;
-      showCoinBurst(context);
+      _coinBurstToChip();
       _showInfoSnack('+$amount diamonds!');
     }
 
@@ -1390,6 +1506,13 @@ class _ColoringScreenState extends State<ColoringScreen>
     while (_replayIndex < target && _replayIndex < _replayActions.length) {
       final (r, c) = _replayActions[_replayIndex];
       provider.timeLapseStep(r, c);
+      // A sparse sparkle trail keeps the replay lively without flooding the
+      // effects pool (which caps at a few dozen live effects anyway).
+      if (_replayIndex % 24 == 0 &&
+          (_settings?.fillEffectsEnabled ?? true)) {
+        final color = provider.cellFillColor(r, c) ?? AppStyle.primary;
+        _fxKey.currentState?.spawn(r, c, color, full: false, pop: false);
+      }
       _replayIndex++;
     }
   }
@@ -1400,8 +1523,13 @@ class _ColoringScreenState extends State<ColoringScreen>
       _savedGridState = null;
     }
     _replayActions = [];
-    // Replay was launched from the HUD; bring it back when the animation ends.
-    if (mounted) setState(() => _hudDismissed = false);
+    // Replay was launched from the HUD; close the show with one shimmer sweep
+    // across the finished board, then bring the HUD back with its entrance.
+    if (mounted) {
+      _shimmerController.forward(from: 0);
+      setState(() => _hudDismissed = false);
+      _hudController.forward(from: 0);
+    }
   }
 
   Widget _buildTopBar(
@@ -1475,7 +1603,12 @@ class _ColoringScreenState extends State<ColoringScreen>
                   ),
                   GestureDetector(
                     onTap: () => _showShop(provider, settings),
-                    child: Container(
+                    child: AnimatedScale(
+                      scale: _diamondChipPulse ? 1.15 : 1.0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutBack,
+                      child: Container(
+                      key: _diamondChipKey,
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                       decoration: BoxDecoration(
                         color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
@@ -1490,8 +1623,8 @@ class _ColoringScreenState extends State<ColoringScreen>
                             size: 12,
                           ),
                           const SizedBox(width: 4),
-                          Text(
-                            '${settings.diamondsAvailable}',
+                          RollingCount(
+                            settings.diamondsAvailable,
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 11,
@@ -1505,6 +1638,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                             size: 12,
                           ),
                         ],
+                      ),
                       ),
                     ),
                   ),

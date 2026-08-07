@@ -7,6 +7,7 @@ import '../../config/app_constants.dart';
 import '../../data/services/analytics_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
+import '../../ui/widgets/transitions.dart';
 import '../../l10n/app_localizations.dart';
 
 class CameraScreen extends StatelessWidget {
@@ -469,12 +470,12 @@ class _CameraScreenBody extends StatelessWidget {
   void _startColoring(BuildContext context, art) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        settings: const RouteSettings(name: 'coloring'),
-        builder: (_) => ChangeNotifierProvider.value(
+      fadeThroughRoute(
+        ChangeNotifierProvider.value(
           value: context.read<ColoringProvider>(),
           child: ColoringScreen(art: art),
         ),
+        name: 'coloring',
       ),
     );
   }

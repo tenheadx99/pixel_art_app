@@ -6,6 +6,31 @@ import 'package:flutter/material.dart';
 /// pixel-art experience.
 /// [name] labels the route for Firebase's automatic screen_view tracking
 /// (and debugging); it has no effect on navigation itself.
+/// Theme-level twin of [fadeThroughRoute] so default routes ([MaterialPageRoute],
+/// dialogs' internal pushes, and every `Navigator.pop`) use the same calm
+/// fade-through instead of the stock Material zoom/slide.
+class FadeThroughPageTransitionsBuilder extends PageTransitionsBuilder {
+  const FadeThroughPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final curved = CurvedAnimation(parent: animation, curve: Curves.easeInOut);
+    return FadeTransition(
+      opacity: curved,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.98, end: 1.0).animate(curved),
+        child: child,
+      ),
+    );
+  }
+}
+
 Route<T> fadeThroughRoute<T>(Widget page, {String? name}) {
   return PageRouteBuilder<T>(
     settings: RouteSettings(name: name),

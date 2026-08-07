@@ -24,6 +24,7 @@ import 'data/services/analytics_service.dart';
 import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
 import 'ui/widgets/pixel_grid.dart';
+import 'ui/widgets/transitions.dart';
 import 'providers/coloring_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
@@ -435,13 +436,7 @@ class _IntroFlow extends StatelessWidget {
       loadingMessage: 'Loading your next canvas...',
       onFinished: () {
         Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            settings: const RouteSettings(name: 'home'),
-            pageBuilder: (_, _, _) => const HomeScreen(),
-            transitionDuration: const Duration(milliseconds: 600),
-            transitionsBuilder: (_, animation, _, child) =>
-                FadeTransition(opacity: animation, child: child),
-          ),
+          fadeThroughRoute(const HomeScreen(), name: 'home'),
         );
       },
     );

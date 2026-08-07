@@ -7,6 +7,7 @@ import '../../data/services/analytics_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
+import '../widgets/entrance.dart';
 import '../../l10n/app_localizations.dart';
 
 /// The Plus subscription paywall: monthly/yearly plans plus the existing
@@ -150,26 +151,44 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         style: TextStyle(fontSize: 14, color: subColor),
                       ),
                       const SizedBox(height: 20),
-                      _Benefit(
-                        icon: Icons.palette_outlined,
-                        text: 'Every premium artwork unlocked',
-                        color: titleColor,
+                      // Benefits slide in one after another — the sell reads
+                      // as a sequence of wins rather than a wall of text.
+                      StaggeredEntrance(
+                        slot: 0,
+                        stepMs: 60,
+                        child: _Benefit(
+                          icon: Icons.palette_outlined,
+                          text: 'Every premium artwork unlocked',
+                          color: titleColor,
+                        ),
                       ),
-                      _Benefit(
-                        icon: Icons.block,
-                        text: 'All ads removed',
-                        color: titleColor,
+                      StaggeredEntrance(
+                        slot: 1,
+                        stepMs: 60,
+                        child: _Benefit(
+                          icon: Icons.block,
+                          text: 'All ads removed',
+                          color: titleColor,
+                        ),
                       ),
-                      _Benefit(
-                        icon: Icons.diamond_rounded,
-                        text:
-                            '+${AppConstants.diamondsDailyPlusStipend} diamonds every day',
-                        color: titleColor,
+                      StaggeredEntrance(
+                        slot: 2,
+                        stepMs: 60,
+                        child: _Benefit(
+                          icon: Icons.diamond_rounded,
+                          text:
+                              '+${AppConstants.diamondsDailyPlusStipend} diamonds every day',
+                          color: titleColor,
+                        ),
                       ),
-                      _Benefit(
-                        icon: Icons.favorite_outline,
-                        text: 'Support new artwork packs',
-                        color: titleColor,
+                      StaggeredEntrance(
+                        slot: 3,
+                        stepMs: 60,
+                        child: _Benefit(
+                          icon: Icons.favorite_outline,
+                          text: 'Support new artwork packs',
+                          color: titleColor,
+                        ),
                       ),
                       const SizedBox(height: 20),
                       _PlanCard(

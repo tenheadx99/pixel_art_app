@@ -6,6 +6,7 @@ import '../../providers/app_settings_provider.dart';
 import '../../data/services/ad_service.dart';
 import '../../config/app_config.dart';
 import '../theme/app_style.dart';
+import 'pressable.dart';
 
 class NumberToolbar extends StatelessWidget {
   final ColoringProvider provider;
@@ -187,8 +188,9 @@ class _ToolCircleButton extends StatelessWidget {
     final isAd = badgeValue == 'ad';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
+      scale: 0.9,
       child: Stack(
         clipBehavior: Clip.none,
         children: [

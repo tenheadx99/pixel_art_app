@@ -5,6 +5,8 @@ import '../../providers/gallery_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../data/services/local_storage_service.dart';
 import '../theme/app_style.dart';
+import '../widgets/entrance.dart';
+import '../widgets/rolling_count.dart';
 
 import '../../l10n/app_localizations.dart';
 
@@ -44,7 +46,7 @@ class ProfileScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
         children: [
-          _LevelCard(settings: settings),
+          StaggeredEntrance(slot: 0, child: _LevelCard(settings: settings)),
           const SizedBox(height: 16),
           GridView.count(
             crossAxisCount: 2,
@@ -54,43 +56,54 @@ class ProfileScreen extends StatelessWidget {
             crossAxisSpacing: 12,
             childAspectRatio: 1.7,
             children: [
-              _StatTile(
+              (
                 icon: Icons.check_circle_rounded,
                 color: const Color(0xFF00B894),
                 label: 'Artworks done',
-                value: '${gallery.completedIds.length}',
+                value: gallery.completedIds.length,
               ),
-              _StatTile(
+              (
                 icon: Icons.grid_on_rounded,
                 color: const Color(0xFF6C5CE7),
                 label: 'Cells colored',
-                value: '${settings.lifetimeCellsColored}',
+                value: settings.lifetimeCellsColored,
               ),
-              _StatTile(
+              (
                 icon: Icons.local_fire_department_rounded,
                 color: const Color(0xFFFF7043),
                 label: 'Current streak',
-                value: '${gallery.dailyStreak}',
+                value: gallery.dailyStreak,
               ),
-              _StatTile(
+              (
                 icon: Icons.emoji_events_rounded,
                 color: const Color(0xFFFFB300),
                 label: 'Best streak',
-                value: '${gallery.bestStreak}',
+                value: gallery.bestStreak,
               ),
-              _StatTile(
+              (
                 icon: Icons.diamond_rounded,
                 color: const Color(0xFFFF9D2E),
                 label: 'Diamonds',
-                value: '${settings.diamondsAvailable}',
+                value: settings.diamondsAvailable,
               ),
-              _StatTile(
+              (
                 icon: Icons.star_rounded,
                 color: const Color(0xFF8A2BE2),
                 label: 'Total XP',
-                value: '${settings.totalXp}',
+                value: settings.totalXp,
               ),
-            ],
+            ].indexed.map((entry) {
+              final (i, s) = entry;
+              return StaggeredEntrance(
+                slot: 1 + i,
+                child: _StatTile(
+                  icon: s.icon,
+                  color: s.color,
+                  label: s.label,
+                  value: s.value,
+                ),
+              );
+            }).toList(),
           ),
           const SizedBox(height: 24),
           Row(
@@ -207,11 +220,16 @@ class _LevelCard extends StatelessWidget {
           const SizedBox(height: 16),
           ClipRRect(
             borderRadius: BorderRadius.circular(8),
-            child: LinearProgressIndicator(
-              value: settings.xpProgressInLevel,
-              minHeight: 10,
-              backgroundColor: Colors.white.withAlpha(50),
-              valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD24C)),
+            child: TweenAnimationBuilder<double>(
+              tween: Tween(end: settings.xpProgressInLevel),
+              duration: const Duration(milliseconds: 600),
+              curve: Curves.easeOutCubic,
+              builder: (context, v, _) => LinearProgressIndicator(
+                value: v,
+                minHeight: 10,
+                backgroundColor: Colors.white.withAlpha(50),
+                valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD24C)),
+              ),
             ),
           ),
         ],
@@ -224,7 +242,7 @@ class _StatTile extends StatelessWidget {
   final IconData icon;
   final Color color;
   final String label;
-  final String value;
+  final int value;
 
   const _StatTile({
     required this.icon,
@@ -263,7 +281,7 @@ class _StatTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
+                RollingCount(
                   value,
                   style: const TextStyle(
                     fontSize: 18,

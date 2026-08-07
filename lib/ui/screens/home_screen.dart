@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
@@ -14,6 +15,8 @@ import '../../data/services/update_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/art_preview_painter.dart';
 import '../widgets/coin_fly.dart';
+import '../widgets/pressable.dart';
+import '../widgets/rolling_count.dart';
 import '../widgets/reward_popup.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/transitions.dart';
@@ -36,6 +39,18 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
+
+  // Coin bursts fly to the header's diamond chip, which pulses on arrival.
+  final GlobalKey _diamondChipKey = GlobalKey();
+  bool _diamondChipPulse = false;
+
+  void _pulseDiamondChip() {
+    if (!mounted) return;
+    setState(() => _diamondChipPulse = true);
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (mounted) setState(() => _diamondChipPulse = false);
+    });
+  }
 
   @override
   void initState() {
@@ -93,87 +108,97 @@ class _HomeScreenState extends State<HomeScreen> {
         // Filter + sort once per rebuild; the getter recomputes on each call
         // and the grid delegate would otherwise hit it per item.
         final catalog = gallery.filteredCatalog;
-        return Scaffold(
-          body: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              _buildHeader(context, gallery, settings),
-              if (gallery.dailyArt != null)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _DailyPixelBanner(
-                      gallery: gallery,
-                      onPlay: () => _openColoring(context, gallery.dailyArt!),
-                      showBonusClaim: _canEarnDiamondsViaAd &&
-                          !settings.dailyStreakBonusClaimedToday,
-                      bonusAmount: RemoteConfigService().dailyStreakAdBonus,
-                      onClaimBonus: _claimDailyStreakBonus,
-                    ),
-                  ),
-                ),
-              if (gallery.inProgressArts.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _ContinueRow(
-                      gallery: gallery,
-                      onOpen: (art) => _openColoring(context, art),
-                    ),
-                  ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                sliver: SliverToBoxAdapter(
-                  child: _CategoryFilter(gallery: gallery),
-                ),
-              ),
-              if (!gallery.isLoading && catalog.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _ResultsCount(gallery: gallery, count: catalog.length),
-                ),
-              gallery.isLoading
-                  ? const _SkeletonGrid()
-                  : catalog.isEmpty
-                  ? SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _EmptyState(gallery: gallery),
-                    )
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                      sliver: SliverGrid(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 18,
-                              mainAxisSpacing: 18,
-                              childAspectRatio: 0.78,
-                            ),
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final art = catalog[index];
-                          return _PixelArtCard(
-                            art: art,
-                            index: index,
-                            isCompleted: gallery.isCompleted(art.id),
-                            isFavorite: gallery.isFavorite(art.id),
-                            isUnlocked: gallery.isUnlocked(
-                              art,
-                              settings.isProUser,
-                            ),
-                            progressPercent: gallery.artProgressPercent(art),
-                            onTap: () => _openColoring(context, art),
-                            onFavorite: () => gallery.toggleFavorite(art.id),
-                          );
-                        }, childCount: catalog.length),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            final shouldExit = await _showExitConfirmationDialog(context);
+            if (shouldExit && context.mounted) {
+              SystemNavigator.pop();
+            }
+          },
+          child: Scaffold(
+            body: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                _buildHeader(context, gallery, settings),
+                if (gallery.dailyArt != null)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _DailyPixelBanner(
+                        gallery: gallery,
+                        onPlay: () => _openColoring(context, gallery.dailyArt!),
+                        showBonusClaim: _canEarnDiamondsViaAd &&
+                            !settings.dailyStreakBonusClaimedToday,
+                        bonusAmount: RemoteConfigService().dailyStreakAdBonus,
+                        onClaimBonus: _claimDailyStreakBonus,
                       ),
                     ),
-            ],
+                  ),
+                if (gallery.inProgressArts.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _ContinueRow(
+                        gallery: gallery,
+                        onOpen: (art) => _openColoring(context, art),
+                      ),
+                    ),
+                  ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  sliver: SliverToBoxAdapter(
+                    child: _CategoryFilter(gallery: gallery),
+                  ),
+                ),
+                if (!gallery.isLoading && catalog.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _ResultsCount(gallery: gallery, count: catalog.length),
+                  ),
+                gallery.isLoading
+                    ? const _SkeletonGrid()
+                    : catalog.isEmpty
+                    ? SliverFillRemaining(
+                        hasScrollBody: false,
+                        child: _EmptyState(gallery: gallery),
+                      )
+                    : SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+                        sliver: SliverGrid(
+                          gridDelegate:
+                              const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                crossAxisSpacing: 18,
+                                mainAxisSpacing: 18,
+                                childAspectRatio: 0.78,
+                              ),
+                          delegate: SliverChildBuilderDelegate((context, index) {
+                            final art = catalog[index];
+                            return _PixelArtCard(
+                              art: art,
+                              index: index,
+                              isCompleted: gallery.isCompleted(art.id),
+                              isFavorite: gallery.isFavorite(art.id),
+                              isUnlocked: gallery.isUnlocked(
+                                art,
+                                settings.isProUser,
+                              ),
+                              progressPercent: gallery.artProgressPercent(art),
+                              onTap: () => _openColoring(context, art),
+                              onFavorite: () => gallery.toggleFavorite(art.id),
+                            );
+                          }, childCount: catalog.length),
+                        ),
+                      ),
+              ],
+            ),
+            // Camera/Gallery stay reachable via the header icons; the bottom
+            // slot is dedicated to the banner ad (free users only).
+            bottomNavigationBar: settings.isProUser
+                ? null
+                : const SafeArea(child: AdBanner()),
           ),
-          // Camera/Gallery stay reachable via the header icons; the bottom
-          // slot is dedicated to the banner ad (free users only).
-          bottomNavigationBar: settings.isProUser
-              ? null
-              : const SafeArea(child: AdBanner()),
         );
       },
     );
@@ -476,11 +501,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: settings.xpProgressInLevel,
-                      minHeight: 6,
-                      backgroundColor: Colors.white.withAlpha(45),
-                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: settings.xpProgressInLevel),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, v, _) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 6,
+                        backgroundColor: Colors.white.withAlpha(45),
+                        valueColor:
+                            const AlwaysStoppedAnimation(Colors.white),
+                      ),
                     ),
                   ),
                 ],
@@ -497,7 +528,12 @@ class _HomeScreenState extends State<HomeScreen> {
                 onTap: canEarn
                     ? () => _watchAdForDiamonds('home_free_diamonds')
                     : null,
-                child: Container(
+                child: AnimatedScale(
+                  scale: _diamondChipPulse ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutBack,
+                  child: Container(
+                  key: _diamondChipKey,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
@@ -507,8 +543,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        '${settings.diamondsAvailable}',
+                      RollingCount(
+                        settings.diamondsAvailable,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 13,
@@ -530,6 +566,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ],
+                  ),
                   ),
                 ),
               );
@@ -632,7 +669,11 @@ class _HomeScreenState extends State<HomeScreen> {
     void grant() {
       final amount = settings.claimFreeDiamonds();
       if (amount <= 0 || !mounted) return;
-      showCoinBurst(context);
+      showCoinBurst(
+        context,
+        target: centerOfKey(_diamondChipKey),
+        onArrive: _pulseDiamondChip,
+      );
       messenger.showSnackBar(
         SnackBar(
           content: Text('+$amount diamonds!'),
@@ -680,6 +721,162 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+        final subColor = isDark ? Colors.white70 : Colors.black54;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
+                    : [Colors.white, const Color(0xFFF3F0FF)],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: AppStyle.primary.withAlpha(70),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(70),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFF6B6B), Color(0xFFEE5253)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEE5253).withAlpha(130),
+                        blurRadius: 22,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.exit_to_app_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Exit ${FlavorConfig.current.appName}?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to exit the app?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: subColor,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          side: BorderSide(
+                            color: isDark ? Colors.white24 : Colors.black12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFF6B6B), Color(0xFFEE5253)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEE5253).withAlpha(90),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text(
+                            'Exit',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return result ?? false;
   }
 
   void _showLockedDialog(BuildContext context, PixelArt art) {
@@ -787,6 +984,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onPressed: canAfford
                             ? () {
                                 if (settings.useDiamonds(unlockCost)) {
+                                  HapticFeedback.mediumImpact();
                                   context
                                       .read<GalleryProvider>()
                                       .unlockWithDiamonds(art.id);
@@ -907,7 +1105,7 @@ class _ContinueRow extends StatelessWidget {
             itemBuilder: (context, index) {
               final art = arts[index];
               final pct = gallery.artProgressPercent(art);
-              return GestureDetector(
+              return PressableScale(
                 onTap: () => onOpen(art),
                 child: Container(
                   width: 200,
@@ -957,11 +1155,18 @@ class _ContinueRow extends StatelessWidget {
                             const SizedBox(height: 6),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: pct / 100,
-                                minHeight: 5,
-                                backgroundColor: AppStyle.primary.withAlpha(25),
-                                color: AppStyle.primary,
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(end: pct / 100),
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, v, _) =>
+                                    LinearProgressIndicator(
+                                  value: v,
+                                  minHeight: 5,
+                                  backgroundColor:
+                                      AppStyle.primary.withAlpha(25),
+                                  color: AppStyle.primary,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1016,8 +1221,9 @@ class _DailyPixelBanner extends StatelessWidget {
       now.month,
       now.day + 1,
     ).difference(now).inHours;
-    return GestureDetector(
+    return PressableScale(
       onTap: onPlay,
+      scale: 0.98,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -1084,11 +1290,9 @@ class _DailyPixelBanner extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.local_fire_department,
-                        color: Colors.amber,
-                        size: 16,
-                      ),
+                      // Breathes while today's daily is uncolored — a quiet
+                      // "the streak needs you" nudge; still when done.
+                      _BreathingFlame(active: !done),
                       const SizedBox(width: 4),
                       Text(
                         done
@@ -1105,7 +1309,7 @@ class _DailyPixelBanner extends StatelessWidget {
                 ],
               ),
             ),
-            GestureDetector(
+            PressableScale(
               // Intercepts the banner's onPlay tap when the bonus is claimable.
               onTap: claimable ? onClaimBonus : null,
               child: Container(
@@ -1115,54 +1319,122 @@ class _DailyPixelBanner extends StatelessWidget {
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: claimable
-                      ? [
-                          const Icon(
-                            Icons.card_giftcard_rounded,
-                            color: Color(0xFFFF5E62),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            '+$bonusAmount',
-                            style: const TextStyle(
+                // Play → Done → claim transitions pop instead of snapping.
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, anim) =>
+                      ScaleTransition(scale: anim, child: child),
+                  child: Row(
+                    key: ValueKey(
+                      claimable ? 'claim' : (done ? 'done' : 'play'),
+                    ),
+                    mainAxisSize: MainAxisSize.min,
+                    children: claimable
+                        ? [
+                            const Icon(
+                              Icons.card_giftcard_rounded,
                               color: Color(0xFFFF5E62),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                              size: 18,
                             ),
-                          ),
-                          const SizedBox(width: 2),
-                          const Icon(
-                            Icons.diamond_rounded,
-                            color: Color(0xFFFF5E62),
-                            size: 14,
-                          ),
-                        ]
-                      : [
-                          Icon(
-                            done
-                                ? Icons.check_circle
-                                : Icons.play_arrow_rounded,
-                            color: const Color(0xFFFF5E62),
-                            size: 18,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            done ? 'Done' : 'Play',
-                            style: const TextStyle(
+                            const SizedBox(width: 4),
+                            Text(
+                              '+$bonusAmount',
+                              style: const TextStyle(
+                                color: Color(0xFFFF5E62),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            const Icon(
+                              Icons.diamond_rounded,
                               color: Color(0xFFFF5E62),
-                              fontWeight: FontWeight.w700,
-                              fontSize: 13,
+                              size: 14,
                             ),
-                          ),
-                        ],
+                          ]
+                        : [
+                            Icon(
+                              done
+                                  ? Icons.check_circle
+                                  : Icons.play_arrow_rounded,
+                              color: const Color(0xFFFF5E62),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              done ? 'Done' : 'Play',
+                              style: const TextStyle(
+                                color: Color(0xFFFF5E62),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// The streak flame, breathing on a slow cosine while [active] (same rhythm
+/// as the canvas's next-cell pulse) and static otherwise.
+class _BreathingFlame extends StatefulWidget {
+  final bool active;
+
+  const _BreathingFlame({required this.active});
+
+  @override
+  State<_BreathingFlame> createState() => _BreathingFlameState();
+}
+
+class _BreathingFlameState extends State<_BreathingFlame>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    if (widget.active) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_BreathingFlame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    } else if (!widget.active && _ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: Tween<double>(begin: 1.0, end: 1.2).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+      ),
+      child: const Icon(
+        Icons.local_fire_department,
+        color: Colors.amber,
+        size: 16,
       ),
     );
   }
@@ -1233,7 +1505,7 @@ class _CategoryFilter extends StatelessWidget {
             final on = gallery.favoritesOnly;
             return Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: GestureDetector(
+              child: PressableScale(
                 onTap: () => gallery.toggleFavoritesOnly(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
@@ -1272,7 +1544,7 @@ class _CategoryFilter extends StatelessWidget {
           final isSelected = gallery.selectedCategory == cat;
           return Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: GestureDetector(
+            child: PressableScale(
               onTap: () => gallery.setCategory(cat),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 350),
@@ -1357,7 +1629,7 @@ class _PixelArtCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.gradientForIndex(index);
 
-    return GestureDetector(
+    return PressableScale(
       // Locked items must still be tappable so _openColoring can present the
       // unlock dialog; gating onTap here is what made premium taps no-op.
       onTap: onTap,
@@ -1589,8 +1861,9 @@ class _PixelArtCard extends StatelessWidget {
               Positioned(
                 top: 8,
                 right: 8,
-                child: GestureDetector(
+                child: PressableScale(
                   onTap: onFavorite,
+                  scale: 0.85,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.all(6),
@@ -1600,10 +1873,17 @@ class _PixelArtCard extends StatelessWidget {
                           : Colors.black.withAlpha(30),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : Colors.white,
-                      size: 16,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      switchInCurve: Curves.easeOutBack,
+                      transitionBuilder: (child, anim) =>
+                          ScaleTransition(scale: anim, child: child),
+                      child: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        key: ValueKey(isFavorite),
+                        color: isFavorite ? Colors.red : Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -1703,7 +1983,7 @@ class _ShimmerCardState extends State<_ShimmerCard>
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
+  )..repeat();
 
   @override
   void dispose() {
@@ -1719,13 +1999,23 @@ class _ShimmerCardState extends State<_ShimmerCard>
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
+        // A highlight band sweeping diagonally across the card — an actual
+        // shimmer rather than an opacity blink.
         final t = ((_c.value + widget.delayFraction) % 1.0);
-        final opacity = (0.45 + 0.45 * (0.5 - (t - 0.5).abs()) * 2)
-            .clamp(0.0, 1.0);
         return Container(
           decoration: BoxDecoration(
-            color: base.withValues(alpha: opacity),
+            color: base,
             borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [base, Color.lerp(base, Colors.white, 0.35)!, base],
+              stops: [
+                (t * 1.6 - 0.5).clamp(0.0, 1.0),
+                (t * 1.6 - 0.3).clamp(0.0, 1.0),
+                (t * 1.6 - 0.1).clamp(0.0, 1.0),
+              ],
+            ),
           ),
         );
       },

@@ -11,7 +11,9 @@ import '../../data/services/screenshot_service.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../widgets/art_preview_painter.dart';
+import '../motion.dart';
 import '../widgets/confetti_overlay.dart';
+import '../widgets/pressable.dart';
 import '../widgets/transitions.dart';
 import 'coloring_screen.dart';
 
@@ -233,7 +235,10 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
                               ),
                             ),
                             if (!_revealed) _buildTileOverlay(parent),
-                            ConfettiOverlay(animation: _revealController),
+                            ConfettiOverlay(
+                              animation: _revealController,
+                              seed: widget.parent.id.hashCode,
+                            ),
                           ],
                         ),
                       ),
@@ -269,8 +274,7 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
     final empty = _partFillables[index] == 0;
     final pct = _partPcts[index];
     final complete = pct >= 100;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
+    return PressableScale(
       onTap: empty ? null : () => _openPart(index),
       child: Container(
         decoration: BoxDecoration(
@@ -290,16 +294,31 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
                         : Colors.black.withAlpha(120),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: complete
-                      ? const Icon(Icons.check, color: Colors.white, size: 14)
-                      : Text(
-                          pct > 0 ? '$pct%' : '${index + 1}',
-                          style: const TextStyle(
+                  // Pop between the % label and the completed check instead
+                  // of swapping instantly.
+                  child: AnimatedSwitcher(
+                    duration: Motion.base,
+                    switchInCurve: Motion.settle,
+                    switchOutCurve: Curves.easeInCubic,
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: complete
+                        ? const Icon(
+                            Icons.check,
+                            key: ValueKey('check'),
                             color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                            size: 14,
+                          )
+                        : Text(
+                            pct > 0 ? '$pct%' : '${index + 1}',
+                            key: const ValueKey('label'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
-                        ),
+                  ),
                 ),
         ),
       ),
