@@ -91,7 +91,9 @@ class AppConstants {
   // pays out once (re-completing after an erase won't double-reward).
   static const int diamondsPerCompletion = 50;
   static const int diamondsDailyBonus = 25;
+  static const int diamondsWelcomeBonus = 50;
   static const String diamondsAwardedPrefix = 'diamonds_awarded_';
+  static const String welcomeBonusPrefKey = 'welcome_bonus_claimed';
 
   // Permanently unlock a single premium artwork with diamonds.
   static const int diamondCostUnlockArt = 200;

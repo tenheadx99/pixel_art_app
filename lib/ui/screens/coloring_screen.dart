@@ -34,7 +34,6 @@ import '../../ui/widgets/number_palette.dart';
 import '../../ui/widgets/number_toolbar.dart';
 import '../../ui/widgets/confetti_overlay.dart';
 import '../../ui/widgets/next_cell_pulse.dart';
-import '../../ui/widgets/reward_popup.dart';
 import '../../ui/widgets/coin_fly.dart';
 import '../../ui/widgets/fill_effects_overlay.dart';
 import '../../ui/widgets/fill_grow_controller.dart';
@@ -93,6 +92,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   // True once the player has watched an ad to double this completion's reward,
   // so the offer is shown only once per finish.
   bool _rewardDoubled = false;
+  LevelUpResult? _lastLevelUp;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
   AdService? _adService;
@@ -174,6 +174,20 @@ class _ColoringScreenState extends State<ColoringScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     );
+    _confettiController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        final provider = _coloringProvider;
+        if (provider != null &&
+            provider.currentArt?.id == widget.art.id &&
+            provider.isComplete &&
+            _hudDismissed) {
+          setState(() {
+            _hudDismissed = false;
+          });
+          _hudController.forward(from: 0);
+        }
+      }
+    });
     _shimmerController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 600),
@@ -373,26 +387,20 @@ class _ColoringScreenState extends State<ColoringScreen>
       final levelUp = settings.addXp(
         cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion,
       );
+      if (levelUp.leveledUp) {
+        _lastLevelUp = levelUp;
+      } else {
+        _lastLevelUp = null;
+      }
       setState(() {
         _lastDiamondAward = awarded;
         _rewardDoubled = false;
-        _hudDismissed = false;
+        _hudDismissed = true;
       });
-      _hudController.forward(from: 0);
-      if (levelUp.leveledUp) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            showRewardPopup(
-              context,
-              icon: Icons.military_tech_rounded,
-              title: 'Level ${levelUp.newLevel}!',
-              subtitle: 'You leveled up — keep coloring!',
-              diamonds: levelUp.diamondsAwarded,
-              badgeColors: const [Color(0xFFB14CFF), Color(0xFF7A2BE2)],
-            );
-          }
-        });
+      if (_settings?.soundsEnabled ?? true) {
+        context.read<SoundService>().playComboChime(rate: 1.25);
       }
+      _confettiController.forward(from: 0);
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -681,9 +689,6 @@ class _ColoringScreenState extends State<ColoringScreen>
                   final isComplete =
                       provider.currentArt?.id == widget.art.id &&
                           provider.isComplete;
-                  if (isComplete && !_confettiController.isAnimating) {
-                    _confettiController.forward();
-                  }
                   if (!isComplete) {
                     return Positioned(
                       bottom: 0,
@@ -692,7 +697,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       child: _buildBottomSection(context, provider, settings),
                     );
                   }
-                  if (_replayController.isAnimating) {
+                  if (_replayController.isAnimating || _confettiController.isAnimating) {
                     return const SizedBox.shrink();
                   }
                   return _hudDismissed
@@ -977,238 +982,410 @@ class _ColoringScreenState extends State<ColoringScreen>
                 child: ScaleTransition(
                   scale: Tween<double>(begin: 0.9, end: 1.0)
                       .animate(_hudStage(0.1, 0.5, Curves.easeOutBack)),
-                  child: Container(
-                margin: const EdgeInsets.symmetric(horizontal: 32),
-                padding: const EdgeInsets.fromLTRB(24, 28, 24, 16),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                    colors: isDark
-                        ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
-                        : [Colors.white, const Color(0xFFF3F0FF)],
-                  ),
-                  borderRadius: BorderRadius.circular(28),
-                  border: Border.all(
-                    color: AppStyle.primary.withAlpha(70),
-                    width: 1.5,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withAlpha(70),
-                      blurRadius: 30,
-                      offset: const Offset(0, 12),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ScaleTransition(
-                      scale: Tween<double>(begin: 0.3, end: 1.0)
-                          .animate(_hudStage(0.3, 0.85, Curves.elasticOut)),
-                      child: Container(
-                        width: 72,
-                        height: 72,
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 28),
+                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
                         decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: const LinearGradient(
+                          gradient: LinearGradient(
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                            colors: isDark
+                                ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
+                                : [Colors.white, const Color(0xFFF3F0FF)],
+                          ),
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(
+                            color: AppStyle.primary.withAlpha(80),
+                            width: 1.5,
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFFFF9D2E).withAlpha(130),
-                              blurRadius: 22,
+                              color: Colors.black.withAlpha(80),
+                              blurRadius: 30,
+                              offset: const Offset(0, 12),
                             ),
                           ],
                         ),
-                        child: const Icon(
-                          Icons.emoji_events_rounded,
-                          color: Colors.white,
-                          size: 40,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Masterpiece Complete!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: titleColor,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      widget.art.name,
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, color: subColor),
-                    ),
-                    const SizedBox(height: 14),
-                    _hudReveal(
-                      0,
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: AppStyle.primary.withAlpha(isDark ? 40 : 20),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Row(
+                        child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(
-                              Icons.celebration_rounded,
-                              color: AppStyle.primary,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              _completionStats(provider),
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: titleColor,
+                            ScaleTransition(
+                              scale: Tween<double>(begin: 0.3, end: 1.0)
+                                  .animate(_hudStage(0.3, 0.85, Curves.elasticOut)),
+                              child: Container(
+                                width: 76,
+                                height: 76,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: const Color(0xFFFF9D2E).withAlpha(140),
+                                      blurRadius: 24,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: const Icon(
+                                  Icons.emoji_events_rounded,
+                                  color: Colors.white,
+                                  size: 42,
+                                ),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    if (_lastDiamondAward > 0) ...[
-                      const SizedBox(height: 12),
-                      _hudReveal(
-                        1,
-                        Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.diamond_rounded,
-                              color: Color(0xFFFF9D2E),
-                              size: 18,
-                            ),
-                            const SizedBox(width: 6),
+                            const SizedBox(height: 16),
                             Text(
-                              '+$_lastDiamondAward diamonds',
+                              'Masterpiece Complete!',
+                              textAlign: TextAlign.center,
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: 22,
                                 fontWeight: FontWeight.bold,
                                 color: titleColor,
                               ),
                             ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.art.name,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                                color: subColor,
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            _hudReveal(
+                              0,
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppStyle.primary.withAlpha(isDark ? 45 : 22),
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.celebration_rounded,
+                                      color: AppStyle.primary,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 6),
+                                    Text(
+                                      _completionStats(provider),
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: titleColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            // Integrated Level Up Banner (if player leveled up)
+                            if (_lastLevelUp != null) ...[
+                              const SizedBox(height: 12),
+                              _hudReveal(
+                                1,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [Color(0xFFB14CFF), Color(0xFF7A2BE2)],
+                                    ),
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF7A2BE2).withAlpha(120),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withAlpha(50),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: const Icon(
+                                          Icons.military_tech_rounded,
+                                          color: Color(0xFFFFD24C),
+                                          size: 22,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Text(
+                                            'LEVEL UP!',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                              color: Color(0xFFFFE08A),
+                                              letterSpacing: 1.0,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Reached Level ${_lastLevelUp!.newLevel} 🎉',
+                                            style: const TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      if (_lastLevelUp!.diamondsAwarded > 0) ...[
+                                        const SizedBox(width: 10),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Colors.black.withAlpha(60),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: Text(
+                                            '+${_lastLevelUp!.diamondsAwarded} 💎',
+                                            style: const TextStyle(
+                                              color: Color(0xFFFFD24C),
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                            // Catchy Diamond Reward Card
+                            if (_lastDiamondAward > 0) ...[
+                              const SizedBox(height: 12),
+                              _hudReveal(
+                                2,
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 18,
+                                    vertical: 10,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    gradient: isDark
+                                        ? const LinearGradient(
+                                            colors: [Color(0xFF3D2C00), Color(0xFF593E00)],
+                                          )
+                                        : const LinearGradient(
+                                            colors: [Color(0xFFFFF8E7), Color(0xFFFFECB3)],
+                                          ),
+                                    borderRadius: BorderRadius.circular(18),
+                                    border: Border.all(
+                                      color: const Color(0xFFFFB300),
+                                      width: 1.5,
+                                    ),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFFFF9D2E).withAlpha(90),
+                                        blurRadius: 14,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(6),
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          Icons.diamond_rounded,
+                                          color: Colors.white,
+                                          size: 20,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Reward Earned!',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                              color: isDark ? const Color(0xFFFFD24C) : const Color(0xFFB76E00),
+                                            ),
+                                          ),
+                                          Text(
+                                            '+$_lastDiamondAward Diamonds',
+                                            style: TextStyle(
+                                              fontSize: 16,
+                                              fontWeight: FontWeight.w900,
+                                              color: isDark ? Colors.white : const Color(0xFF4A2C00),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                            // Rewarded-ad offer to double payout (non-Pro, once)
+                            if (_lastDiamondAward > 0 &&
+                                !_rewardDoubled &&
+                                !context.read<AppSettingsProvider>().isProUser) ...[
+                              const SizedBox(height: 12),
+                              _hudReveal(
+                                3,
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    onPressed: () =>
+                                        _watchAdToDouble(_lastDiamondAward),
+                                    icon: const Icon(Icons.play_circle_fill_rounded,
+                                        size: 20),
+                                    label: const Text('Watch ad → 2× diamonds'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: const Color(0xFFFF9D2E),
+                                      foregroundColor: Colors.white,
+                                      elevation: 4,
+                                      shadowColor: const Color(0xFFFF9D2E).withAlpha(100),
+                                      padding:
+                                          const EdgeInsets.symmetric(vertical: 12),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(16),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 20),
+                            // Colorful Action Buttons (Replay, Share, Share GIF)
+                            _hudReveal(
+                              4,
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: _HudAction(
+                                      icon: Icons.replay_rounded,
+                                      label: 'Replay',
+                                      color: const Color(0xFF6C5CE7),
+                                      onTap: () => _startTimeLapse(provider),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _HudAction(
+                                      icon: Icons.image_rounded,
+                                      label: 'Share',
+                                      color: const Color(0xFF00CEC9),
+                                      onTap: () => _sharePng(provider),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: _HudAction(
+                                      icon: Icons.movie_rounded,
+                                      label: _sharingGif ? 'Rendering…' : 'Share GIF',
+                                      color: const Color(0xFFE84393),
+                                      onTap: _sharingGif
+                                          ? null
+                                          : () => _shareTimelapse(provider),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(height: 14),
+                            // Next Artwork Button
+                            _hudReveal(
+                              5,
+                              SizedBox(
+                                width: double.infinity,
+                                child: ElevatedButton.icon(
+                                  onPressed: _openNextArt,
+                                  icon: const Icon(Icons.skip_next_rounded, size: 22),
+                                  label: Text(_isPart ? 'Next Part' : 'Next Artwork'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: AppStyle.primary,
+                                    foregroundColor: Colors.white,
+                                    elevation: 4,
+                                    shadowColor: AppStyle.primary.withAlpha(120),
+                                    padding: const EdgeInsets.symmetric(vertical: 14),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(16),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                    ],
-                    // Rewarded-ad offer to double the payout (non-Pro, once).
-                    if (_lastDiamondAward > 0 &&
-                        !_rewardDoubled &&
-                        !context.read<AppSettingsProvider>().isProUser) ...[
-                      const SizedBox(height: 12),
-                      _hudReveal(
-                        2,
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: () =>
-                                _watchAdToDouble(_lastDiamondAward),
-                            icon: const Icon(Icons.play_circle_fill_rounded,
-                                size: 20),
-                            label: const Text('Watch ad → 2× diamonds'),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFFF9D2E),
-                              foregroundColor: Colors.white,
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
+                      // Top Right Cross (Close / X) Button
+                      Positioned(
+                        top: 10,
+                        right: 38,
+                        child: Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(20),
+                            onTap: () {
+                              setState(() => _hudDismissed = true);
+                              ReviewService().maybeRequestReview(
+                                storage: context.read<LocalStorageService>(),
+                                completedCount: context
+                                    .read<GalleryProvider>()
+                                    .completedIds
+                                    .length,
+                              );
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withAlpha(30)
+                                    : Colors.black.withAlpha(20),
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(
+                                Icons.close_rounded,
+                                size: 20,
+                                color: isDark ? Colors.white70 : Colors.black87,
                               ),
                             ),
                           ),
                         ),
                       ),
                     ],
-                    const SizedBox(height: 20),
-                    _hudReveal(
-                      3,
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _HudAction(
-                              icon: Icons.replay_rounded,
-                              label: 'Replay',
-                              onTap: () => _startTimeLapse(provider),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _HudAction(
-                              icon: Icons.image_rounded,
-                              label: 'Share',
-                              onTap: () => _sharePng(provider),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: _HudAction(
-                              icon: Icons.movie_rounded,
-                              label: _sharingGif ? 'Rendering…' : 'Share GIF',
-                              onTap: _sharingGif
-                                  ? null
-                                  : () => _shareTimelapse(provider),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    _hudReveal(
-                      4,
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton.icon(
-                          onPressed: _openNextArt,
-                          icon: const Icon(Icons.skip_next_rounded),
-                          label: Text(_isPart ? 'Next Part' : 'Next Artwork'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppStyle.primary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    _hudReveal(
-                      5,
-                      TextButton(
-                        onPressed: () {
-                          setState(() => _hudDismissed = true);
-                          // Celebration just ended and nothing else is on
-                          // screen — the one moment a review ask feels earned.
-                          ReviewService().maybeRequestReview(
-                            storage: context.read<LocalStorageService>(),
-                            completedCount: context
-                                .read<GalleryProvider>()
-                                .completedIds
-                                .length,
-                          );
-                        },
-                        child: Text(
-                          'View artwork',
-                          style: TextStyle(color: subColor),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
                   ),
                 ),
               ),
@@ -2013,24 +2190,30 @@ class _HudAction extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback? onTap;
+  final Color? color;
 
   const _HudAction({
     required this.icon,
     required this.label,
     this.onTap,
+    this.color,
   });
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final enabled = onTap != null;
+    final activeColor = color ?? AppStyle.primary;
     final fg = enabled
-        ? AppStyle.primary
+        ? activeColor
         : (isDark ? Colors.white30 : Colors.black26);
+    final bg = enabled
+        ? activeColor.withAlpha(isDark ? 45 : 22)
+        : (isDark ? Colors.white10 : Colors.black12);
     return Opacity(
       opacity: enabled ? 1 : 0.6,
       child: Material(
-        color: AppStyle.primary.withAlpha(isDark ? 38 : 18),
+        color: bg,
         borderRadius: BorderRadius.circular(16),
         child: InkWell(
           onTap: onTap,
@@ -2049,8 +2232,8 @@ class _HudAction extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: fg,
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ],

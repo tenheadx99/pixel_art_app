@@ -265,6 +265,22 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Checks if the new user welcome bonus (50 diamonds) should be claimed on first launch.
+  /// Returns 50 on first launch only, 0 for returning users or subsequent launches.
+  int checkAndClaimWelcomeBonus() {
+    if (_storageService.getBool(AppConstants.welcomeBonusPrefKey)) {
+      return 0;
+    }
+    _storageService.setBool(AppConstants.welcomeBonusPrefKey, true);
+    // Ensure diamonds balance reflects the welcome bonus
+    if (_diamondsAvailable < AppConstants.diamondsWelcomeBonus) {
+      _diamondsAvailable = AppConstants.diamondsWelcomeBonus;
+      _storageService.setInt('diamonds_available', _diamondsAvailable);
+      notifyListeners();
+    }
+    return AppConstants.diamondsWelcomeBonus;
+  }
+
   /// Grants the daily Plus diamond stipend once per calendar day. Returns the
   /// amount awarded (0 when not a subscriber or already claimed today) so the
   /// UI can celebrate.

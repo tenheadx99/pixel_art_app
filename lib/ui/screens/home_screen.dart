@@ -65,19 +65,31 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => _handleDailyArtRequest(),
       );
     }
-    // Plus subscribers get their daily diamond stipend on first launch of
-    // the day.
+    // Surface the 50 diamond welcome bonus for new users on first time launch.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final award =
-          context.read<AppSettingsProvider>().maybeClaimDailyPlusStipend();
-      if (award > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Daily Plus bonus · +$award 💎'),
-            behavior: SnackBarBehavior.floating,
-          ),
+      final settings = context.read<AppSettingsProvider>();
+      final welcomeAward = settings.checkAndClaimWelcomeBonus();
+      if (welcomeAward > 0) {
+        showRewardPopup(
+          context,
+          icon: Icons.diamond_rounded,
+          title: 'Welcome Bonus!',
+          subtitle: 'Enjoy 50 free diamonds to start your pixel art journey!',
+          diamonds: welcomeAward,
+          buttonLabel: 'Claim Bonus',
+          badgeColors: const [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
         );
+      } else {
+        final award = settings.maybeClaimDailyPlusStipend();
+        if (award > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Daily Plus bonus · +$award 💎'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
       // Check for Google Play Flexible in-app updates
       AppUpdateService().checkForUpdate(context: context);
