@@ -17,6 +17,7 @@ import '../../data/models/user_artwork.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/gallery_provider.dart';
+import 'part_selection_screen.dart';
 import '../../data/services/ad_service.dart';
 import '../../data/services/analytics_service.dart';
 import '../../data/services/database_service.dart';
@@ -927,6 +928,16 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
     // pushReplacement bypasses PopScope, so cover this exit path too.
     _maybeShowExitInterstitial();
+    if (next.isSplit && SplitArt.validSplit(next)) {
+      Navigator.pushReplacement(
+        context,
+        fadeThroughRoute(
+          PartSelectionScreen(parent: next),
+          name: 'part_selection',
+        ),
+      );
+      return;
+    }
     Navigator.pushReplacement(
       context,
       fadeThroughRoute(ColoringScreen(art: next), name: 'coloring'),
