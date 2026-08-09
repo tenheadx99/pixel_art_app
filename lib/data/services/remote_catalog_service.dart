@@ -35,6 +35,9 @@ class RemoteCatalogService {
 
   String get _versionPrefKey => 'remote_catalog_version_$_flavorId';
 
+  bool _premiumArtworksEnabled = true;
+  bool get premiumArtworksEnabled => _premiumArtworksEnabled;
+
   /// Fetches the remote catalog and returns it merged with [bundled], or null
   /// when nothing remote is reachable (no catalog published yet, offline with
   /// a cold cache, or Firebase failed to initialize) — callers then keep the
@@ -43,7 +46,11 @@ class RemoteCatalogService {
     try {
       final db = FirebaseFirestore.instance;
       final rootSnap = await db.doc('$_root/$_flavorId').get();
-      final version = (rootSnap.data()?['catalogVersion'] as num?)?.toInt();
+      final rootData = rootSnap.data();
+      if (rootData != null && rootData.containsKey('premiumArtworksEnabled')) {
+        _premiumArtworksEnabled = rootData['premiumArtworksEnabled'] == true;
+      }
+      final version = (rootData?['catalogVersion'] as num?)?.toInt();
       if (version == null) return null;
 
       final cachedVersion = _storage.getInt(_versionPrefKey, defaultValue: -1);
@@ -141,12 +148,17 @@ class RemoteCatalogService {
       if (o?['hidden'] == true) continue;
       final premium = o?['isPremium'] as bool?;
       final rawCategory = o?['category'] as String?;
+      final diamondCost = (o?['diamondCost'] as num?)?.toInt();
       final category =
           (rawCategory == null || rawCategory.isEmpty) ? null : rawCategory;
       entries.add((
-        (premium == null && category == null)
+        (premium == null && category == null && diamondCost == null)
             ? art
-            : art.copyWith(isPremium: premium, category: category),
+            : art.copyWith(
+                isPremium: premium,
+                category: category,
+                diamondCost: diamondCost,
+              ),
         (o?['sortOrder'] as num?)?.toInt() ?? i,
         entries.length,
       ));

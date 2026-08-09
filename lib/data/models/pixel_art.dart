@@ -1,4 +1,5 @@
 import 'dart:ui' show Color;
+import '../../config/app_constants.dart';
 
 class PixelArt {
   final String id;
@@ -11,6 +12,14 @@ class PixelArt {
   final String category;
   final int difficulty;
   final bool isPremium;
+
+  /// Per-artwork diamond cost configured by admin (null = default 100).
+  final int? diamondCost;
+
+  /// Effective unlock cost in diamonds (per-artwork admin value, defaulting to 100).
+  int get unlockDiamondCost => (diamondCost != null && diamondCost! > 0)
+      ? diamondCost!
+      : AppConstants.diamondCostUnlockArt;
 
   /// Seasonal availability window, set by the admin panel on remote artworks
   /// only (null = always available). Bundled artworks never carry these.
@@ -33,6 +42,7 @@ class PixelArt {
     this.category = 'General',
     this.difficulty = 1,
     this.isPremium = false,
+    this.diamondCost,
     this.availableFrom,
     this.availableUntil,
     this.partsX = 1,
@@ -88,6 +98,7 @@ class PixelArt {
       'category': category,
       'difficulty': difficulty,
       'isPremium': isPremium,
+      if (diamondCost != null && diamondCost! > 0) 'diamondCost': diamondCost,
       if (availableFrom != null)
         'availableFrom': availableFrom!.toIso8601String(),
       if (availableUntil != null)
@@ -97,7 +108,7 @@ class PixelArt {
   }
 
   /// Copy with admin-overridden metadata (grid data is never overridden).
-  PixelArt copyWith({String? category, bool? isPremium}) {
+  PixelArt copyWith({String? category, bool? isPremium, int? diamondCost}) {
     return PixelArt(
       id: id,
       name: name,
@@ -109,6 +120,7 @@ class PixelArt {
       category: category ?? this.category,
       difficulty: difficulty,
       isPremium: isPremium ?? this.isPremium,
+      diamondCost: diamondCost ?? this.diamondCost,
       availableFrom: availableFrom,
       availableUntil: availableUntil,
       partsX: partsX,
@@ -138,6 +150,7 @@ class PixelArt {
       category: json['category'] as String? ?? 'General',
       difficulty: (json['difficulty'] as num?)?.toInt() ?? 1,
       isPremium: json['isPremium'] as bool? ?? false,
+      diamondCost: (json['diamondCost'] as num?)?.toInt(),
       availableFrom: DateTime.tryParse(json['availableFrom'] as String? ?? ''),
       availableUntil: DateTime.tryParse(json['availableUntil'] as String? ?? ''),
       partsX: (json['partsX'] as num?)?.toInt() ?? 1,

@@ -323,7 +323,9 @@ class GalleryProvider extends ChangeNotifier {
   }
 
   bool isUnlocked(PixelArt art, bool isProUser) {
-    if (!art.isPremium) return true;
+    if (!art.isPremium) {
+      return true;
+    }
     return isProUser ||
         _sessionUnlockedIds.contains(art.id) ||
         _diamondUnlockedIds.contains(art.id);

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/config/app_config.dart';
+import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/config/flavor.dart';
 
 class RemoteConfigService {
@@ -48,7 +49,23 @@ class RemoteConfigService {
         'pixelyart_free_diamonds_enabled': true,
         'pixelyart_rewarded_diamonds_amount': 25,
         'pixelyart_rewarded_diamonds_daily_cap': 5,
-        'pixelyart_daily_streak_ad_bonus': 30,
+        'pixelyart_premium_artworks_enabled': true,
+        'pixelyart_diamond_cost_unlock_art': 100,
+        'pixelyart_plus_1day_product_id': 'pixel_art_plus_1day',
+        'pixelyart_plus_weekly_product_id': 'pixel_art_plus_weekly',
+        'pixelyart_plus_monthly_product_id': 'pixel_art_plus_monthly',
+        'pixelyart_plus_yearly_product_id': 'pixel_art_plus_yearly',
+
+        'pixelyart_plus_1day_price': '\$0.99 / day',
+        'pixelyart_plus_weekly_price': '\$2.99 / wk',
+        'pixelyart_plus_monthly_price': '\$7.99 / mo',
+        'pixelyart_plus_yearly_price': '\$29.99 / yr',
+        'pixelyart_lifetime_pro_price': '\$19.99',
+
+        'pixelyart_plus_1day_offer': '24-Hour Pass',
+        'pixelyart_plus_weekly_offer': '7 Days Free Trial',
+        'pixelyart_plus_monthly_offer': 'Most Popular',
+        'pixelyart_plus_yearly_offer': 'Save 65% Best Value',
         // Flavor-specific show_ads defaults. All flavors monetize with ads;
         // PixelCalm is limited to banner + rewarded via
         // FlavorConfig.fullScreenAdsEnabled (no interstitial/app-open there).
@@ -165,6 +182,82 @@ class RemoteConfigService {
 
   /// Diamonds for the once-a-day streak bonus claim on the daily banner.
   int get dailyStreakAdBonus => _getInt('daily_streak_ad_bonus', 30);
+
+  // --- Dynamic Premium Artworks & Subscription Product IDs ---
+
+  /// Global toggle to enable/disable premium artwork enforcement dynamically from Admin/Remote Config.
+  bool get premiumArtworksEnabled => _getBool('premium_artworks_enabled');
+
+  String get plus1DayProductId {
+    final id = _getString('plus_1day_product_id');
+    return id.isNotEmpty ? id : AppConstants.plus1DayProductId;
+  }
+
+  String get plusWeeklyProductId {
+    final id = _getString('plus_weekly_product_id');
+    return id.isNotEmpty ? id : AppConstants.plusWeeklyProductId;
+  }
+
+  String get plusMonthlyProductId {
+    final id = _getString('plus_monthly_product_id');
+    return id.isNotEmpty ? id : AppConstants.plusMonthlyProductId;
+  }
+
+  String get plusYearlyProductId {
+    final id = _getString('plus_yearly_product_id');
+    return id.isNotEmpty ? id : AppConstants.plusYearlyProductId;
+  }
+
+  // --- Dynamic Fallback Prices & Offer Badges ---
+
+  String get plus1DayFallbackPrice {
+    final p = _getString('plus_1day_price');
+    return p.isNotEmpty ? p : '\$0.99 / day';
+  }
+
+  String get plusWeeklyFallbackPrice {
+    final p = _getString('plus_weekly_price');
+    return p.isNotEmpty ? p : '\$2.99 / wk';
+  }
+
+  String get plusMonthlyFallbackPrice {
+    final p = _getString('plus_monthly_price');
+    return p.isNotEmpty ? p : '\$7.99 / mo';
+  }
+
+  String get plusYearlyFallbackPrice {
+    final p = _getString('plus_yearly_price');
+    return p.isNotEmpty ? p : '\$29.99 / yr';
+  }
+
+  String get lifetimeProFallbackPrice {
+    final p = _getString('lifetime_pro_price');
+    return p.isNotEmpty ? p : '\$19.99';
+  }
+
+  String get plus1DayOfferText {
+    final o = _getString('plus_1day_offer');
+    return o.isNotEmpty ? o : '24-Hour Pass';
+  }
+
+  String get plusWeeklyOfferText {
+    final o = _getString('plus_weekly_offer');
+    return o.isNotEmpty ? o : '7 Days Free Trial';
+  }
+
+  String get plusMonthlyOfferText {
+    final o = _getString('plus_monthly_offer');
+    return o.isNotEmpty ? o : 'Most Popular';
+  }
+
+  String get plusYearlyOfferText {
+    final o = _getString('plus_yearly_offer');
+    return o.isNotEmpty ? o : 'Save 65% Best Value';
+  }
+
+  /// Cost in diamonds to permanently unlock a single premium artwork.
+  int get diamondCostUnlockArt =>
+      _getInt('diamond_cost_unlock_art', AppConstants.diamondCostUnlockArt);
 
   Future<void> _checkForceUpdateRealtime() async {
     try {

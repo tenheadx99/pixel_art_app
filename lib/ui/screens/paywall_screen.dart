@@ -5,6 +5,7 @@ import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../data/services/analytics_service.dart';
 import '../../data/services/iap_service.dart';
+import '../../data/services/remote_config_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
 import '../widgets/entrance.dart';
@@ -27,6 +28,8 @@ class PaywallScreen extends StatefulWidget {
 
 class _PaywallScreenState extends State<PaywallScreen> {
   String _selectedPlan = AppConstants.plusYearlyProductId;
+  String? _oneDayPrice;
+  String? _weeklyPrice;
   String? _monthlyPrice;
   String? _yearlyPrice;
   String? _lifetimePrice;
@@ -37,6 +40,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   void initState() {
     super.initState();
     AnalyticsService().logPaywallShown(source: widget.source);
+    _selectedPlan = RemoteConfigService().plusYearlyProductId;
     _loadPrices();
   }
 
@@ -52,14 +56,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _loadPrices() async {
     final iap = context.read<IAPService>();
-    final monthly = await iap.getPrice(AppConstants.plusMonthlyProductId);
-    final yearly = await iap.getPrice(AppConstants.plusYearlyProductId);
+    final rc = RemoteConfigService();
+    final p1day = await iap.getPrice(rc.plus1DayProductId);
+    final pWeekly = await iap.getPrice(rc.plusWeeklyProductId);
+    final pMonthly = await iap.getPrice(rc.plusMonthlyProductId);
+    final pYearly = await iap.getPrice(rc.plusYearlyProductId);
     final lifetime = await iap.getPrice(AppConstants.proProductId);
     if (!mounted) return;
     setState(() {
-      _monthlyPrice = monthly;
-      _yearlyPrice = yearly;
-      _lifetimePrice = lifetime;
+      _oneDayPrice = p1day ?? rc.plus1DayFallbackPrice;
+      _weeklyPrice = pWeekly ?? rc.plusWeeklyFallbackPrice;
+      _monthlyPrice = pMonthly ?? rc.plusMonthlyFallbackPrice;
+      _yearlyPrice = pYearly ?? rc.plusYearlyFallbackPrice;
+      _lifetimePrice = lifetime ?? rc.lifetimeProFallbackPrice;
     });
   }
 
@@ -86,6 +95,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
     final subColor = isDark ? Colors.white70 : Colors.black54;
+
+    final rc = RemoteConfigService();
+    final id1Day = rc.plus1DayProductId;
+    final idWeekly = rc.plusWeeklyProductId;
+    final idMonthly = rc.plusMonthlyProductId;
+    final idYearly = rc.plusYearlyProductId;
 
     return Scaffold(
       body: Container(
@@ -151,8 +166,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         style: TextStyle(fontSize: 14, color: subColor),
                       ),
                       const SizedBox(height: 20),
-                      // Benefits slide in one after another — the sell reads
-                      // as a sequence of wins rather than a wall of text.
+                      // Benefits slide in one after another
                       StaggeredEntrance(
                         slot: 0,
                         stepMs: 60,
@@ -191,29 +205,41 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                       ),
                       const SizedBox(height: 20),
+                      // 4 Subscription & Pass Plans
                       _PlanCard(
                         title: 'Yearly',
-                        badge: 'Best value',
-                        price: _yearlyPrice,
-                        fallbackPeriod: 'per year',
-                        selected:
-                            _selectedPlan == AppConstants.plusYearlyProductId,
-                        onTap: () => setState(
-                          () =>
-                              _selectedPlan = AppConstants.plusYearlyProductId,
-                        ),
+                        badge: rc.plusYearlyOfferText,
+                        price: _yearlyPrice ?? rc.plusYearlyFallbackPrice,
+                        fallbackPeriod: rc.plusYearlyFallbackPrice,
+                        selected: _selectedPlan == idYearly,
+                        onTap: () => setState(() => _selectedPlan = idYearly),
                       ),
                       const SizedBox(height: 10),
                       _PlanCard(
                         title: 'Monthly',
-                        price: _monthlyPrice,
-                        fallbackPeriod: 'per month',
-                        selected:
-                            _selectedPlan == AppConstants.plusMonthlyProductId,
-                        onTap: () => setState(
-                          () =>
-                              _selectedPlan = AppConstants.plusMonthlyProductId,
-                        ),
+                        badge: rc.plusMonthlyOfferText,
+                        price: _monthlyPrice ?? rc.plusMonthlyFallbackPrice,
+                        fallbackPeriod: rc.plusMonthlyFallbackPrice,
+                        selected: _selectedPlan == idMonthly,
+                        onTap: () => setState(() => _selectedPlan = idMonthly),
+                      ),
+                      const SizedBox(height: 10),
+                      _PlanCard(
+                        title: 'Weekly',
+                        badge: rc.plusWeeklyOfferText,
+                        price: _weeklyPrice ?? rc.plusWeeklyFallbackPrice,
+                        fallbackPeriod: rc.plusWeeklyFallbackPrice,
+                        selected: _selectedPlan == idWeekly,
+                        onTap: () => setState(() => _selectedPlan = idWeekly),
+                      ),
+                      const SizedBox(height: 10),
+                      _PlanCard(
+                        title: '1-Day Pass',
+                        badge: rc.plus1DayOfferText,
+                        price: _oneDayPrice ?? rc.plus1DayFallbackPrice,
+                        fallbackPeriod: rc.plus1DayFallbackPrice,
+                        selected: _selectedPlan == id1Day,
+                        onTap: () => setState(() => _selectedPlan = id1Day),
                       ),
                       const SizedBox(height: 18),
                       SizedBox(

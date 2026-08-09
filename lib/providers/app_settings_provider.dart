@@ -417,13 +417,22 @@ class AppSettingsProvider extends ChangeNotifier {
           if (purchase.status == PurchaseStatus.purchased) {
             AnalyticsService().logPurchase(productId: purchase.productID);
           }
-          if (purchase.productID == AppConstants.proProductId) {
+          final pId = purchase.productID;
+          final rc = RemoteConfigService();
+          if (pId == AppConstants.proProductId) {
             setProUser(true);
             AnalyticsService().setPlayerProperties(isPro: true);
-          } else if (purchase.productID ==
-              AppConstants.plusMonthlyProductId) {
+          } else if (pId == rc.plus1DayProductId ||
+              pId == AppConstants.plus1DayProductId) {
+            extendPlusEntitlement(AppConstants.plus1DayEntitlementDays);
+          } else if (pId == rc.plusWeeklyProductId ||
+              pId == AppConstants.plusWeeklyProductId) {
+            extendPlusEntitlement(AppConstants.plusWeeklyEntitlementDays);
+          } else if (pId == rc.plusMonthlyProductId ||
+              pId == AppConstants.plusMonthlyProductId) {
             extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
-          } else if (purchase.productID == AppConstants.plusYearlyProductId) {
+          } else if (pId == rc.plusYearlyProductId ||
+              pId == AppConstants.plusYearlyProductId) {
             extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {

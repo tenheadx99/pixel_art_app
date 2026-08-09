@@ -6,7 +6,6 @@ import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../config/app_config.dart';
-import '../../config/app_constants.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/models/split_art.dart';
 import '../../data/services/notification_service.dart';
@@ -892,7 +891,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _showLockedDialog(BuildContext context, PixelArt art) {
-    const unlockCost = AppConstants.diamondCostUnlockArt;
+    final unlockCost = art.unlockDiamondCost;
     showDialog(
       context: context,
       builder: (ctx) {
@@ -1028,34 +1027,36 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // Plus paywall — subscriptions + lifetime Pro in one place.
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            fadeThroughRoute(
-                              const PaywallScreen(source: 'home'),
-                              name: 'paywall',
+                    if (RemoteConfigService().premiumArtworksEnabled) ...[
+                      // Plus paywall — subscriptions + lifetime Pro in one place.
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              fadeThroughRoute(
+                                const PaywallScreen(source: 'home'),
+                                name: 'paywall',
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppStyle.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppStyle.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'Unlock everything with ${FlavorConfig.current.appName} Plus ✨',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        child: Text(
-                          'Unlock everything with ${FlavorConfig.current.appName} Plus ✨',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
