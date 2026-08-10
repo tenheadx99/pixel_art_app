@@ -55,17 +55,20 @@ class RemoteConfigService {
         'pixelyart_plus_weekly_product_id': 'pixel_art_plus_weekly',
         'pixelyart_plus_monthly_product_id': 'pixel_art_plus_monthly',
         'pixelyart_plus_yearly_product_id': 'pixel_art_plus_yearly',
+        'pixelyart_remove_ads_product_id': 'pixel_art_remove_ads',
 
         'pixelyart_plus_1day_price': '\$0.99 / day',
         'pixelyart_plus_weekly_price': '\$2.99 / wk',
         'pixelyart_plus_monthly_price': '\$7.99 / mo',
         'pixelyart_plus_yearly_price': '\$29.99 / yr',
+        'pixelyart_remove_ads_price': '\$4.99',
         'pixelyart_lifetime_pro_price': '\$19.99',
 
         'pixelyart_plus_1day_offer': '24-Hour Pass',
         'pixelyart_plus_weekly_offer': '7 Days Free Trial',
         'pixelyart_plus_monthly_offer': 'Most Popular',
         'pixelyart_plus_yearly_offer': 'Save 65% Best Value',
+        'pixelyart_remove_ads_offer': 'One-Time Purchase',
         // Flavor-specific show_ads defaults. All flavors monetize with ads;
         // PixelCalm is limited to banner + rewarded via
         // FlavorConfig.fullScreenAdsEnabled (no interstitial/app-open there).
@@ -208,6 +211,11 @@ class RemoteConfigService {
     return id.isNotEmpty ? id : AppConstants.plusYearlyProductId;
   }
 
+  String get removeAdsProductId {
+    final id = _getString('remove_ads_product_id');
+    return id.isNotEmpty ? id : AppConstants.removeAdsProductId;
+  }
+
   // --- Dynamic Fallback Prices & Offer Badges ---
 
   String get plus1DayFallbackPrice {
@@ -228,6 +236,11 @@ class RemoteConfigService {
   String get plusYearlyFallbackPrice {
     final p = _getString('plus_yearly_price');
     return p.isNotEmpty ? p : '\$29.99 / yr';
+  }
+
+  String get removeAdsFallbackPrice {
+    final p = _getString('remove_ads_price');
+    return p.isNotEmpty ? p : '\$4.99';
   }
 
   String get lifetimeProFallbackPrice {
@@ -253,6 +266,11 @@ class RemoteConfigService {
   String get plusYearlyOfferText {
     final o = _getString('plus_yearly_offer');
     return o.isNotEmpty ? o : 'Save 65% Best Value';
+  }
+
+  String get removeAdsOfferText {
+    final o = _getString('remove_ads_offer');
+    return o.isNotEmpty ? o : 'One-Time Purchase';
   }
 
   /// Cost in diamonds to permanently unlock a single premium artwork.

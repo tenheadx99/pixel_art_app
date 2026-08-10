@@ -27,6 +27,7 @@ class AppSettingsProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
   bool _isProUser = false;
+  bool _isRemoveAds = false;
   int _plusExpiryMs = 0;
   bool _isDarkMode = false;
   bool _colorblindMode = false;
@@ -49,9 +50,11 @@ class AppSettingsProvider extends ChangeNotifier {
 
   AppSettingsProvider(this._storageService);
 
-  /// Pro entitlement: lifetime Pro purchase OR an active Plus subscription.
-  /// Everything that removes ads / unlocks premium art keys off this.
-  bool get isProUser => _isProUser || isPlusActive;
+  /// Pro entitlement: lifetime Pro purchase OR active Plus subscription OR Remove Ads.
+  bool get isProUser => _isProUser || isPlusActive || _isRemoveAds;
+
+  /// Whether standalone Remove Ads was purchased.
+  bool get isRemoveAds => _isRemoveAds;
 
   /// Lifetime Pro only (without an active subscription) — for UI that needs
   /// to distinguish the two (e.g. hiding subscription plans from lifetime
@@ -106,6 +109,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
+    _isRemoveAds = _storageService.getBool(AppConstants.removeAdsPrefKey);
     _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
     // Light theme by default for every flavor; dark mode is opt-in via
     // settings (a saved preference always wins over this default).
@@ -248,6 +252,12 @@ class AppSettingsProvider extends ChangeNotifier {
   void setProUser(bool value) {
     _isProUser = value;
     _storageService.setBool(AppConstants.proPrefKey, value);
+    notifyListeners();
+  }
+
+  void setRemoveAds(bool value) {
+    _isRemoveAds = value;
+    _storageService.setBool(AppConstants.removeAdsPrefKey, value);
     notifyListeners();
   }
 
@@ -422,6 +432,9 @@ class AppSettingsProvider extends ChangeNotifier {
           if (pId == AppConstants.proProductId) {
             setProUser(true);
             AnalyticsService().setPlayerProperties(isPro: true);
+          } else if (pId == rc.removeAdsProductId ||
+              pId == AppConstants.removeAdsProductId) {
+            setRemoveAds(true);
           } else if (pId == rc.plus1DayProductId ||
               pId == AppConstants.plus1DayProductId) {
             extendPlusEntitlement(AppConstants.plus1DayEntitlementDays);
