@@ -134,6 +134,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         perks: [
           '💎 1,000 Bonus Diamonds',
           '🪄 Unlimited Wands & 💣 Bombs',
+          '🛡️ 1 Free Monthly Streak Freeze',
           '🚫 Unlimited Access & No Ads',
         ],
         isBestValue: true,
@@ -157,6 +158,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
         perks: [
           '💎 300 Bonus Diamonds',
           '🪄 10 Daily Wands & 💣 10 Daily Bombs',
+          '🛡️ 1 Free Monthly Streak Freeze',
           '🚫 Unlimited Access & No Ads',
         ],
       ),

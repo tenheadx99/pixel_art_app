@@ -12,6 +12,7 @@ import '../../data/services/notification_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../data/services/update_service.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/native_ad_card.dart';
 import '../widgets/art_preview_painter.dart';
 import '../widgets/coin_fly.dart';
 import '../widgets/pressable.dart';
@@ -116,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Consumer2<GalleryProvider, AppSettingsProvider>(
       builder: (context, gallery, settings, _) {
+        gallery.checkAndGrantPlusMonthlyFreeze(settings.isPlusActive);
         // Filter + sort once per rebuild; the getter recomputes on each call
         // and the grid delegate would otherwise hit it per item.
         final catalog = gallery.filteredCatalog;
@@ -167,41 +169,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   SliverToBoxAdapter(
                     child: _ResultsCount(gallery: gallery, count: catalog.length),
                   ),
-                gallery.isLoading
-                    ? const _SkeletonGrid()
-                    : catalog.isEmpty
-                    ? SliverFillRemaining(
-                        hasScrollBody: false,
-                        child: _EmptyState(gallery: gallery),
-                      )
-                    : SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                        sliver: SliverGrid(
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                                crossAxisCount: 2,
-                                crossAxisSpacing: 18,
-                                mainAxisSpacing: 18,
-                                childAspectRatio: 0.78,
-                              ),
-                          delegate: SliverChildBuilderDelegate((context, index) {
-                            final art = catalog[index];
-                            return _PixelArtCard(
-                              art: art,
-                              index: index,
-                              isCompleted: gallery.isCompleted(art.id),
-                              isFavorite: gallery.isFavorite(art.id),
-                              isUnlocked: gallery.isUnlocked(
-                                art,
-                                settings.isProUser,
-                              ),
-                              progressPercent: gallery.artProgressPercent(art),
-                              onTap: () => _openColoring(context, art),
-                              onFavorite: () => gallery.toggleFavorite(art.id),
-                            );
-                          }, childCount: catalog.length),
-                        ),
-                      ),
+                if (gallery.isLoading)
+                  const _SkeletonGrid()
+                else if (catalog.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _EmptyState(gallery: gallery),
+                  )
+                else
+                  ..._buildCatalogSlivers(gallery, settings, catalog),
               ],
             ),
             // Camera/Gallery stay reachable via the header icons; the bottom
@@ -213,6 +189,70 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  /// The catalog grid, split into segments with a full-row native ad between
+  /// them: after the first 6 artworks (3 grid rows — never above the fold,
+  /// never adjacent to the continue row) and then every 12. Free users only;
+  /// NativeAdCard itself stays at zero height when native ads are
+  /// unconfigured or killed via Remote Config, and the 18dp inter-segment
+  /// padding then reads as the normal row gap.
+  List<Widget> _buildCatalogSlivers(
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+    List<PixelArt> catalog,
+  ) {
+    SliverPadding gridSegment(int start, int end, {required bool last}) {
+      return SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          start == 0 ? 16 : 0,
+          16,
+          last ? 100 : 18,
+        ),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 18,
+            mainAxisSpacing: 18,
+            childAspectRatio: 0.78,
+          ),
+          delegate: SliverChildBuilderDelegate((context, i) {
+            final index = start + i;
+            final art = catalog[index];
+            return _PixelArtCard(
+              art: art,
+              index: index,
+              isCompleted: gallery.isCompleted(art.id),
+              isFavorite: gallery.isFavorite(art.id),
+              isUnlocked: gallery.isUnlocked(art, settings.isProUser),
+              progressPercent: gallery.artProgressPercent(art),
+              onTap: () => _openColoring(context, art),
+              onFavorite: () => gallery.toggleFavorite(art.id),
+            );
+          }, childCount: end - start),
+        ),
+      );
+    }
+
+    if (settings.isProUser) {
+      return [gridSegment(0, catalog.length, last: true)];
+    }
+    final slivers = <Widget>[];
+    var start = 0;
+    var segment = 6;
+    while (start < catalog.length) {
+      final end = start + segment < catalog.length
+          ? start + segment
+          : catalog.length;
+      slivers.add(gridSegment(start, end, last: end == catalog.length));
+      if (end < catalog.length) {
+        slivers.add(const SliverToBoxAdapter(child: NativeAdCard()));
+      }
+      start = end;
+      segment = 12;
+    }
+    return slivers;
   }
 
   Widget _buildHeader(
@@ -1225,6 +1265,112 @@ class _DailyPixelBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (gallery.canRepairStreak) {
+      return PressableScale(
+        onTap: () => _showStreakRepairSheet(
+          context,
+          gallery,
+          context.read<AppSettingsProvider>(),
+        ),
+        scale: 0.98,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE53935), Color(0xFFC2185B)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE53935).withAlpha(40),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(40),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.heart_broken_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'STREAK LOST • REPAIR WITHIN 48H',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Restore ${gallery.streakBrokenValue}-Day Streak!',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Tap to restore with 300 💎 or 1 Ad',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.build_rounded,
+                      color: Color(0xFFE53935),
+                      size: 16,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'Repair',
+                      style: TextStyle(
+                        color: Color(0xFFE53935),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final art = gallery.dailyArt!;
     final done = gallery.dailyCompletedToday;
     final claimable = done && showBonusClaim && onClaimBonus != null;
@@ -1234,6 +1380,8 @@ class _DailyPixelBanner extends StatelessWidget {
       now.month,
       now.day + 1,
     ).difference(now).inHours;
+    final settings = context.read<AppSettingsProvider>();
+
     return PressableScale(
       onTap: onPlay,
       scale: 0.98,
@@ -1317,6 +1465,40 @@ class _DailyPixelBanner extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      // Freeze count indicator / buy affordance
+                      GestureDetector(
+                        onTap: () => _showBuyFreezeDialog(
+                          context,
+                          gallery,
+                          settings,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(40),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🧊', style: TextStyle(fontSize: 11)),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${gallery.streakFreezes}/2',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
@@ -1394,6 +1576,288 @@ class _DailyPixelBanner extends StatelessWidget {
       ),
     );
   }
+}
+
+void _showStreakRepairSheet(
+  BuildContext context,
+  GalleryProvider gallery,
+  AppSettingsProvider settings,
+) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1830) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFFFF9D2E), Color(0xFFFF5E62)],
+                ),
+              ),
+              child: const Icon(
+                Icons.local_fire_department,
+                color: Colors.white,
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Restore Your ${gallery.streakBrokenValue}-Day Streak!',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF2A2440),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Don\'t lose your progress! Restore within 48 hours to keep your streak alive.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      final adService = context.read<AdService>();
+                      gallery.repairStreakWithAd(adService, () {
+                        if (context.mounted) {
+                          showRewardPopup(
+                            context,
+                            icon: Icons.local_fire_department,
+                            title: 'Streak Restored! 🔥',
+                            subtitle: '${gallery.dailyStreak} Day Streak Intact',
+                            badgeColors: const [
+                              Color(0xFFFF9D2E),
+                              Color(0xFFFF5E62),
+                            ],
+                          );
+                        }
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF5E62),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.ondemand_video_rounded, size: 18),
+                        SizedBox(width: 6),
+                        Text(
+                          '1 Free Ad',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (settings.diamondsAvailable < 300) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Not enough diamonds (300 💎 needed)',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      final success =
+                          gallery.repairStreakWithDiamonds(settings);
+                      if (success && context.mounted) {
+                        showRewardPopup(
+                          context,
+                          icon: Icons.local_fire_department,
+                          title: 'Streak Restored! 🔥',
+                          subtitle: '${gallery.dailyStreak} Day Streak Intact',
+                          badgeColors: const [
+                            Color(0xFFFF9D2E),
+                            Color(0xFFFF5E62),
+                          ],
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF9D2E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '300',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.diamond_rounded, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+void _showBuyFreezeDialog(
+  BuildContext context,
+  GalleryProvider gallery,
+  AppSettingsProvider settings,
+) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+  final subColor = isDark ? Colors.white70 : Colors.black54;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1830) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppStyle.primary.withAlpha(70), width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF4FC3F7).withAlpha(40),
+              ),
+              child: const Icon(
+                Icons.ac_unit_rounded,
+                color: Color(0xFF0288D1),
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Streak Freeze',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Equip a freeze to automatically save your streak if you miss a day! (Max 2 held · Currently: ${gallery.streakFreezes}/2)',
+              style: TextStyle(fontSize: 13, color: subColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            if (gallery.streakFreezes >= 2)
+              Text(
+                'Maximum freezes held! (2/2)',
+                style: TextStyle(
+                  color: Colors.green.shade600,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (settings.diamondsAvailable < 150) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Not enough diamonds (150 💎 needed)',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        final success = gallery.buyStreakFreeze(settings);
+                        Navigator.pop(ctx);
+                        if (success && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Streak Freeze equipped! 🧊'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0288D1),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '150',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(Icons.diamond_rounded, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
 }
 
 /// The streak flame, breathing on a slow cosine while [active] (same rhythm

@@ -4,6 +4,7 @@ import 'dart:ui' show VoidCallback;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:pixel_art_app/config/app_config.dart';
+import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 
@@ -16,8 +17,14 @@ class AdService {
 
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
+  RewardedInterstitialAd? _rewardedInterstitialAd;
   AppOpenAd? _appOpenAd;
   bool _showingAppOpen = false;
+
+  /// Backs the per-day interstitial cap; attached during bootstrap. Without
+  /// it (tests) the per-day cap is simply skipped.
+  LocalStorageService? _storage;
+  void attachStorage(LocalStorageService storage) => _storage = storage;
 
   DateTime? _lastInterstitialAt;
   DateTime? _lastRewardedAt;
@@ -36,8 +43,38 @@ class AdService {
   static const Duration _appOpenAdTtl = Duration(hours: 3, minutes: 30);
 
   int _rewardedRetries = 0, _interstitialRetries = 0, _appOpenRetries = 0;
+  int _rewardedInterstitialRetries = 0;
   DateTime? _rewardedLoadedAt, _interstitialLoadedAt, _appOpenLoadedAt;
+  DateTime? _rewardedInterstitialLoadedAt;
   bool _rewardedLoading = false;
+
+  /// Full-screen interruptions shown this app session (interstitial +
+  /// rewarded interstitial — one shared pacing pool).
+  int _interstitialsThisSession = 0;
+
+  static const String _interstitialDayPrefKey = 'interstitial_day';
+  static const String _interstitialDayCountPrefKey = 'interstitial_day_count';
+
+  String get _todayStamp {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  int get _interstitialsToday {
+    final storage = _storage;
+    if (storage == null) return 0;
+    if (storage.getString(_interstitialDayPrefKey) != _todayStamp) return 0;
+    return storage.getInt(_interstitialDayCountPrefKey);
+  }
+
+  void _countInterstitialShown() {
+    _interstitialsThisSession++;
+    final storage = _storage;
+    if (storage == null) return;
+    final count = _interstitialsToday + 1;
+    storage.setString(_interstitialDayPrefKey, _todayStamp);
+    storage.setInt(_interstitialDayCountPrefKey, count);
+  }
 
   /// Set during bootstrap; no full-screen ads in a user's very first session.
   bool isFirstSession = false;
@@ -160,18 +197,23 @@ class AdService {
     );
   }
 
-  /// Caps that keep the exit interstitial from feeling punishing: never in
-  /// the first session, only after real coloring time, with a cooldown and
-  /// never right on the heels of a rewarded ad. All tunable via RemoteConfig.
-  bool canShowSessionInterstitial(Duration sessionLength) {
-    if (!_fullScreenAdsEnabled ||
-        isFirstSession ||
-        _interstitialAd == null ||
-        !_isFresh(_interstitialLoadedAt, _fullScreenAdTtl)) {
+  /// Pacing shared by the exit interstitial and the "next artwork" rewarded
+  /// interstitial (one interruption pool): never in the first session, only
+  /// after real coloring time OR real progress, cooldown between shows,
+  /// session/daily ceilings, never right on the heels of a rewarded ad. All
+  /// tunable via RemoteConfig.
+  bool _passesInterstitialPacing(Duration sessionLength, int progressPct) {
+    if (!_fullScreenAdsEnabled || isFirstSession) return false;
+    final rc = RemoteConfigService();
+    // Short session AND little progress: a drive-by, leave them alone. A user
+    // who coloured a quarter of a piece in 110s earned their exit ad slot.
+    if (sessionLength.inSeconds < rc.interstitialMinSessionSeconds &&
+        progressPct < rc.interstitialMinProgressPct) {
       return false;
     }
-    final rc = RemoteConfigService();
-    if (sessionLength.inSeconds < rc.interstitialMinSessionSeconds) {
+    // Ceilings: the cooldown alone lets a long session serve 20+.
+    if (_interstitialsThisSession >= rc.interstitialMaxPerSession) return false;
+    if (_storage != null && _interstitialsToday >= rc.interstitialMaxPerDay) {
       return false;
     }
     final now = DateTime.now();
@@ -181,10 +223,18 @@ class AdService {
       return false;
     }
     if (_lastRewardedAt != null &&
-        now.difference(_lastRewardedAt!).inSeconds < 60) {
+        now.difference(_lastRewardedAt!).inSeconds <
+            rc.interstitialPostRewardedSeconds) {
       return false;
     }
     return true;
+  }
+
+  bool canShowSessionInterstitial(Duration sessionLength,
+      {int progressPct = 0}) {
+    return _interstitialAd != null &&
+        _isFresh(_interstitialLoadedAt, _fullScreenAdTtl) &&
+        _passesInterstitialPacing(sessionLength, progressPct);
   }
 
   void showInterstitialAd() {
@@ -202,8 +252,91 @@ class AdService {
       },
     );
     _lastInterstitialAt = DateTime.now();
+    _countInterstitialShown();
     AnalyticsService().logAdImpression(adFormat: 'interstitial', placement: 'session_exit');
     ad.show();
+  }
+
+  // --- Rewarded interstitial ("next artwork": same interruption slot as the
+  // exit interstitial, but opt-out and it pays the user) ---
+
+  /// Disabled until a rewarded-interstitial unit id is configured in RC.
+  bool get _rewardedInterstitialEnabled =>
+      _fullScreenAdsEnabled &&
+      RemoteConfigService().rewardedInterstitialAdUnitId.isNotEmpty;
+
+  bool get isRewardedInterstitialReady =>
+      _rewardedInterstitialAd != null &&
+      _isFresh(_rewardedInterstitialLoadedAt, _fullScreenAdTtl);
+
+  void preloadRewardedInterstitial() {
+    if (!_rewardedInterstitialEnabled || isRewardedInterstitialReady) return;
+    _rewardedInterstitialAd?.dispose();
+    _rewardedInterstitialAd = null;
+    RewardedInterstitialAd.load(
+      adUnitId: RemoteConfigService().rewardedInterstitialAdUnitId,
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewardedInterstitialAd = ad;
+          _rewardedInterstitialLoadedAt = DateTime.now();
+          _rewardedInterstitialRetries = 0;
+        },
+        onAdFailedToLoad: (error) {
+          developer.log('Rewarded interstitial load failed: ${error.message}',
+              name: 'Ads');
+          if (_rewardedInterstitialRetries < _maxLoadRetries) {
+            _rewardedInterstitialRetries++;
+            Future.delayed(_retryDelay(_rewardedInterstitialRetries),
+                preloadRewardedInterstitial);
+          }
+        },
+      ),
+    );
+  }
+
+  /// Same pacing pool as [canShowSessionInterstitial], gated on a loaded
+  /// rewarded interstitial instead of a plain one.
+  bool canShowRewardedInterstitial(Duration sessionLength,
+      {int progressPct = 0}) {
+    return isRewardedInterstitialReady &&
+        _passesInterstitialPacing(sessionLength, progressPct);
+  }
+
+  /// Shows the cached rewarded interstitial. Counts toward the interstitial
+  /// session/day caps and cooldown — it occupies the same interruption slot.
+  /// [onRewarded] fires only on the SDK's earned-reward callback (the user
+  /// can opt out during the intro countdown).
+  void showRewardedInterstitialAd({
+    required VoidCallback onRewarded,
+    String placement = 'next_art',
+  }) {
+    final ad = _rewardedInterstitialAd;
+    _rewardedInterstitialAd = null;
+    if (ad == null) return;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) {
+        a.dispose();
+        preloadRewardedInterstitial();
+      },
+      onAdFailedToShowFullScreenContent: (a, error) {
+        developer.log(
+            'Rewarded interstitial show failed: ${error.message}',
+            name: 'Ads');
+        a.dispose();
+        preloadRewardedInterstitial();
+      },
+    );
+    _lastInterstitialAt = DateTime.now();
+    _countInterstitialShown();
+    AnalyticsService()
+        .logAdImpression(adFormat: 'rewarded_interstitial', placement: placement);
+    ad.show(
+      onUserEarnedReward: (ad, reward) {
+        AnalyticsService().logAdRewardEarned(placement: placement);
+        onRewarded();
+      },
+    );
   }
 
   // --- Rewarded (cache-ahead: preloaded at startup, refilled after show) ---
@@ -368,6 +501,7 @@ class AdService {
   void dispose() {
     _interstitialAd?.dispose();
     _rewardedAd?.dispose();
+    _rewardedInterstitialAd?.dispose();
     _appOpenAd?.dispose();
   }
 }

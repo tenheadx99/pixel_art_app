@@ -48,7 +48,11 @@ class _AdBannerState extends State<AdBanner> {
     final banner = BannerAd(
       adUnitId: RemoteConfigService().bannerAdUnitId,
       size: size,
-      request: const AdRequest(),
+      // Collapsible-bottom variant lifts banner eCPM where supported; plain
+      // banner request when the RC flag is off.
+      request: RemoteConfigService().bannerCollapsibleEnabled
+          ? const AdRequest(extras: {'collapsible': 'bottom'})
+          : const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (mounted) setState(() => _loaded = true);

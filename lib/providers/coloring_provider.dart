@@ -285,6 +285,10 @@ class ColoringProvider extends ChangeNotifier {
     // Lightweight percent so list screens can show progress without parsing
     // the full grid string.
     _storageService.setInt('${saveKey}_pct', (_progress * 100).round());
+    _storageService.setInt(
+      '${saveKey}_ts',
+      DateTime.now().millisecondsSinceEpoch,
+    );
     _storageService.setString(_achieveKey, _achievements.join(','));
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
     _storageService.setInt('bombs_count', _bombsCount);

@@ -43,7 +43,23 @@ class RemoteConfigService {
         // Ad pacing — tune from the console without a release.
         'pixelyart_interstitial_cooldown_s': 90,
         'pixelyart_interstitial_min_session_s': 120,
+        'pixelyart_interstitial_max_per_session': 4,
+        'pixelyart_interstitial_max_per_day': 12,
+        'pixelyart_interstitial_post_rewarded_s': 60,
+        'pixelyart_interstitial_min_progress_pct': 25,
         'pixelyart_app_open_cooldown_s': 14400,
+        // Collapsible bottom banner (typical 15-30% eCPM lift); bool so it
+        // can be killed or A/B-tested from the console.
+        'pixelyart_banner_collapsible': true,
+        // Rewarded interstitial at the "next artwork" transition. Disabled
+        // until an ad unit id is set here (create a *rewarded interstitial*
+        // unit in AdMob first — the plain rewarded unit will not serve).
+        'pixelyart_rewarded_interstitial_ad_unit_id': '',
+        'pixelyart_next_art_reward_diamonds': 20,
+        // Native ads in the home grid. Disabled until a *native advanced*
+        // ad unit id is set here.
+        'pixelyart_native_ad_unit_id': '',
+        'pixelyart_home_native_ads_enabled': true,
         // Free-diamond rewarded placements (shop tile, home pill, streak
         // bonus) — amounts and caps tunable per flavor from the console.
         'pixelyart_free_diamonds_enabled': true,
@@ -166,9 +182,46 @@ class RemoteConfigService {
   int get interstitialMinSessionSeconds =>
       _getInt('interstitial_min_session_s', 120);
 
+  /// Hard ceiling on interstitials in one app session. The cooldown alone
+  /// lets a long session serve 20+; this caps the total.
+  int get interstitialMaxPerSession =>
+      _getInt('interstitial_max_per_session', 4);
+
+  /// Hard ceiling on interstitials per calendar day, across sessions.
+  int get interstitialMaxPerDay => _getInt('interstitial_max_per_day', 12);
+
+  /// Suppression window after a rewarded ad — an interstitial right on the
+  /// heels of a rewarded feels like a double-charge.
+  int get interstitialPostRewardedSeconds =>
+      _getInt('interstitial_post_rewarded_s', 60);
+
+  /// A session that reached this much artwork progress may see an exit
+  /// interstitial even below the min-session length (a user who coloured a
+  /// quarter of a piece in 110s is not a drive-by).
+  int get interstitialMinProgressPct =>
+      _getInt('interstitial_min_progress_pct', 25);
+
   /// Minimum gap between two app-open ads.
   int get appOpenCooldownSeconds =>
       _getInt('app_open_cooldown_s', 14400);
+
+  /// Whether banners request the collapsible-bottom variant.
+  bool get bannerCollapsibleEnabled => _getBool('banner_collapsible');
+
+  /// Rewarded-interstitial unit for the "next artwork" moment. Empty (the
+  /// default) disables the placement and falls back to the exit interstitial.
+  String get rewardedInterstitialAdUnitId =>
+      _getString('rewarded_interstitial_ad_unit_id');
+
+  /// Diamonds granted for watching the "next artwork" rewarded interstitial.
+  int get nextArtRewardDiamonds => _getInt('next_art_reward_diamonds', 20);
+
+  /// Native-advanced unit for the home grid. Empty (the default) disables
+  /// native ads entirely.
+  String get nativeAdUnitId => _getString('native_ad_unit_id');
+
+  /// Kill switch for home-grid native ads (unit id must also be set).
+  bool get homeNativeAdsEnabled => _getBool('home_native_ads_enabled');
 
   // --- Free-diamond rewarded placements ---
 

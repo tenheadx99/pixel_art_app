@@ -6,6 +6,7 @@ import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/providers/gallery_provider.dart';
+import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
 class _FakeDatabaseService extends DatabaseService {
   final List<String> incremented = [];
@@ -75,13 +76,15 @@ void main() {
       expect(provider.dailyStreak, 1);
     });
 
-    test('completing a non-daily art does not affect the streak', () async {
+    test('completing a non-daily art keeps the streak, not the daily state',
+        () async {
       final provider = await providerWith({});
       final nonDaily = catalog.firstWhere(
         (a) => a.id != provider.dailyArt!.id,
       );
       provider.markCompleted(nonDaily.id);
-      expect(provider.dailyStreak, 0);
+      expect(provider.dailyStreak, 1);
+      expect(provider.dailyCompletedToday, isFalse);
     });
 
     test('a missed day breaks the streak on load', () async {
@@ -196,6 +199,88 @@ void main() {
       provider.markCompleted('rmt_split_p3');
       provider.markCompleted('rmt_split_p1');
       expect(db.incremented, ['rmt_split']);
+    });
+  });
+
+  group('streak insurance', () {
+    Future<GalleryProvider> providerWith(Map<String, Object> prefs) async {
+      SharedPreferences.setMockInitialValues(prefs);
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(catalog);
+      return provider;
+    }
+
+    test('auto-consumes streak freeze on a missed day', () async {
+      final provider = await providerWith({
+        'daily_streak': 12,
+        'daily_last_date': '2020-01-01',
+        'streak_freezes': 1,
+      });
+      expect(provider.dailyStreak, 12);
+      expect(provider.streakFreezes, 0);
+    });
+
+    test('records broken streak when freezes is zero', () async {
+      final provider = await providerWith({
+        'daily_streak': 15,
+        'daily_last_date': '2020-01-01',
+        'streak_freezes': 0,
+      });
+      expect(provider.dailyStreak, 0);
+      expect(provider.canRepairStreak, isTrue);
+      expect(provider.streakBrokenValue, 15);
+    });
+
+    test('repairs streak with diamonds', () async {
+      final provider = await providerWith({
+        'daily_streak': 0,
+        'streak_broken_at_ms': DateTime.now().millisecondsSinceEpoch,
+        'streak_broken_value': 25,
+        'diamonds_available': 500,
+      });
+      final storage = LocalStorageService();
+      await storage.init();
+      final settings = AppSettingsProvider(storage);
+      await settings.loadSettings();
+
+      expect(provider.canRepairStreak, isTrue);
+      final success = provider.repairStreakWithDiamonds(settings);
+      expect(success, isTrue);
+      expect(provider.dailyStreak, 25);
+      expect(provider.canRepairStreak, isFalse);
+      expect(settings.diamondsAvailable, 200);
+    });
+
+    test('grants 1 monthly streak freeze for Plus subscribers', () async {
+      final provider = await providerWith({'streak_freezes': 0});
+      provider.checkAndGrantPlusMonthlyFreeze(true);
+      expect(provider.streakFreezes, 1);
+      // Second call in same month does not duplicate
+      provider.checkAndGrantPlusMonthlyFreeze(true);
+      expect(provider.streakFreezes, 1);
+    });
+  });
+
+  group('recency ordering', () {
+    test('inProgressArts orders by progress timestamp descending and caps at 10', () async {
+      final manyCatalog = List.generate(15, (i) => _art('art_$i'));
+      final prefs = <String, Object>{};
+      for (int i = 0; i < 15; i++) {
+        prefs['pixelart_progress_art_${i}_pct'] = 50;
+        prefs['pixelart_progress_art_${i}_ts'] = 1000 + i;
+      }
+      SharedPreferences.setMockInitialValues(prefs);
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(manyCatalog);
+
+      final inProgress = provider.inProgressArts;
+      expect(inProgress.length, 10);
+      expect(inProgress.first.id, 'art_14');
+      expect(inProgress.last.id, 'art_5');
     });
   });
 }

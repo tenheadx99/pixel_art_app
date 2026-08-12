@@ -244,10 +244,12 @@ class _ColoringScreenState extends State<ColoringScreen>
       _settings = context.read<AppSettingsProvider>()
         ..addListener(_onSettingsChanged);
       _adService = context.read<AdService>();
-      // Preload the session-exit interstitial; the capping logic decides
-      // later whether it actually shows.
+      // Preload the session-exit interstitial and the "next artwork"
+      // rewarded interstitial; the capping logic decides later what shows.
       if (!(_settings?.isProUser ?? false)) {
-        _adService!.loadInterstitialAd();
+        _adService!
+          ..loadInterstitialAd()
+          ..preloadRewardedInterstitial();
       }
       final soundService = context.read<SoundService>();
       _coloringProvider = provider
@@ -453,15 +455,45 @@ class _ColoringScreenState extends State<ColoringScreen>
     });
   }
 
+  int get _sessionProgressPct =>
+      ((_coloringProvider?.progress ?? 0) * 100).round();
+
   /// Leaving a coloring session is the one interruption point users accept.
-  /// AdService applies the caps (min session length, cooldown, first session,
-  /// recent rewarded); this just reports the session.
+  /// AdService applies the caps (min session length or progress, cooldown,
+  /// session/day ceilings, first session, recent rewarded); this just reports
+  /// the session.
   void _maybeShowExitInterstitial() {
     final adService = _adService;
     if (adService == null || (_settings?.isProUser ?? true)) return;
     final session = DateTime.now().difference(_sessionStart);
-    if (adService.canShowSessionInterstitial(session)) {
+    if (adService.canShowSessionInterstitial(
+      session,
+      progressPct: _sessionProgressPct,
+    )) {
       adService.showInterstitialAd();
+    }
+  }
+
+  /// "Next artwork" ad slot: prefer a rewarded interstitial (+diamonds,
+  /// opt-out, higher eCPM) over the plain exit interstitial — it converts the
+  /// tax into a gift. Falls back to the interstitial when no rewarded
+  /// interstitial is configured/loaded; both share the same pacing pool.
+  void _maybeShowNextArtAd() {
+    final adService = _adService;
+    final settings = _settings;
+    if (adService == null || (settings?.isProUser ?? true)) return;
+    final session = DateTime.now().difference(_sessionStart);
+    if (adService.canShowRewardedInterstitial(
+      session,
+      progressPct: _sessionProgressPct,
+    )) {
+      final amount = RemoteConfigService().nextArtRewardDiamonds;
+      adService.showRewardedInterstitialAd(
+        placement: 'next_art',
+        onRewarded: () => settings?.addDiamonds(amount),
+      );
+    } else {
+      _maybeShowExitInterstitial();
     }
   }
 
@@ -894,7 +926,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         for (int step = 1; step < parent.partCount; step++) {
           final i = (partIndex + step) % parent.partCount;
           if (gallery.partProgressPercent(parent, i) < 100) {
-            _maybeShowExitInterstitial();
+            _maybeShowNextArtAd();
             Navigator.pushReplacement(
               context,
               fadeThroughRoute(
@@ -927,7 +959,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       orElse: () => candidates.first,
     );
     // pushReplacement bypasses PopScope, so cover this exit path too.
-    _maybeShowExitInterstitial();
+    _maybeShowNextArtAd();
     if (next.isSplit && SplitArt.validSplit(next)) {
       Navigator.pushReplacement(
         context,

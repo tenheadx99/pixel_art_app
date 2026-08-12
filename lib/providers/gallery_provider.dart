@@ -2,16 +2,20 @@ import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/models/split_art.dart';
+import 'package:pixel_art_app/data/services/daily_pixel_service.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/remote_catalog_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
+import 'package:pixel_art_app/data/services/ad_service.dart';
+import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
 class GalleryProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   final DatabaseService _databaseService;
   final RemoteCatalogService? _remoteCatalogService;
+  final DailyPixelService? _dailyPixelService;
 
   List<PixelArt> _catalog = [];
   Set<String> _completedIds = {};
@@ -23,6 +27,7 @@ class GalleryProvider extends ChangeNotifier {
     this._storageService,
     this._databaseService, [
     this._remoteCatalogService,
+    this._dailyPixelService,
   ]);
 
   List<PixelArt> get catalog => _catalog;
@@ -148,45 +153,197 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  // --- Daily Pixel ---
+  // --- Daily Pixel & Streak Insurance ---
 
   static const String _streakPrefKey = 'daily_streak';
   static const String _streakDatePrefKey = 'daily_last_date';
   static const String _bestStreakPrefKey = 'daily_best_streak';
+  static const String _streakFreezesPrefKey = 'streak_freezes';
+  static const String _streakBrokenAtPrefKey = 'streak_broken_at_ms';
+  static const String _streakBrokenValuePrefKey = 'streak_broken_value';
+  static const String _plusFreezeMonthPrefKey = 'plus_freeze_month';
+
+  /// Date the daily artwork itself was completed. Drives the banner "done"
+  /// state and the streak-bonus claim — distinct from [_streakDatePrefKey],
+  /// which any completed artwork can advance.
+  static const String _dailyDoneDatePrefKey = 'daily_done_date';
+
+  /// Per-day pin: `daily_art_id_<yyyy-MM-dd>` -> art id. Written once by
+  /// [resolveDailyArt]; while pinned, the daily cannot change mid-day even if
+  /// an admin publish reshuffles the catalog.
+  static const String _dailyPinPrefix = 'daily_art_id_';
+
   int _dailyStreak = 0;
   int _bestStreak = 0;
+  int _streakFreezes = 0;
+  int _streakBrokenAtMs = 0;
+  int _streakBrokenValue = 0;
 
   int get dailyStreak => _dailyStreak;
   int get bestStreak => _bestStreak;
+  int get streakFreezes => _streakFreezes;
+  int get streakBrokenAtMs => _streakBrokenAtMs;
+  int get streakBrokenValue => _streakBrokenValue;
 
-  /// Deterministic featured artwork for [date]: same pick for everyone all
-  /// day, rotating through the whole catalog. No backend needed.
-  static PixelArt? dailyArtFor(DateTime date, List<PixelArt> catalog) {
-    if (catalog.isEmpty) return null;
-    final dayNumber = DateTime(date.year, date.month, date.day)
-        .difference(DateTime(2026))
-        .inDays;
-    return catalog[dayNumber.abs() % catalog.length];
+  bool get canRepairStreak {
+    if (_streakBrokenValue <= 0 || _streakBrokenAtMs <= 0) return false;
+    final diffMs = DateTime.now().millisecondsSinceEpoch - _streakBrokenAtMs;
+    return diffMs >= 0 && diffMs <= 48 * 3600 * 1000;
   }
 
-  PixelArt? get dailyArt => dailyArtFor(DateTime.now(), _catalog);
+  static PixelArt? dailyArtFor(DateTime date, List<PixelArt> catalog) =>
+      DailyPixelService.fallbackDailyFor(date, catalog);
+
+  /// Today's Daily Pixel. Prefers the id pinned by [resolveDailyArt]; until a
+  /// pin lands (first frame, or offline with a cold schedule cache) it serves
+  /// the deterministic fallback rotation.
+  PixelArt? get dailyArt {
+    final pinnedId = _storageService.getString(
+      '$_dailyPinPrefix${_dateKey(DateTime.now())}',
+    );
+    final pinned = _catalog.firstWhereOrNull((a) => a.id == pinnedId);
+    return pinned ??
+        DailyPixelService.fallbackDailyFor(DateTime.now(), _catalog);
+  }
+
+  /// Resolves and pins today's daily: admin schedule doc first, deterministic
+  /// fallback otherwise. Called after the remote catalog merge so a scheduled
+  /// remote artwork is actually present in the catalog. When the schedule is
+  /// unreachable (offline, cold cache) today stays unpinned — [dailyArt]
+  /// serves the fallback and the next launch retries.
+  Future<void> resolveDailyArt() async {
+    final service = _dailyPixelService;
+    if (service == null || _catalog.isEmpty) return;
+    final pinPrefKey = '$_dailyPinPrefix${_dateKey(DateTime.now())}';
+    if (_storageService.getString(pinPrefKey).isNotEmpty) return;
+    final String? scheduledId;
+    try {
+      scheduledId = await service.scheduledArtId(_dateKey(DateTime.now()));
+    } catch (_) {
+      return;
+    }
+    final art = _catalog.firstWhereOrNull((a) => a.id == scheduledId) ??
+        DailyPixelService.fallbackDailyFor(DateTime.now(), _catalog);
+    if (art == null) return;
+    _storageService.setString(pinPrefKey, art.id);
+    notifyListeners();
+  }
 
   bool get dailyCompletedToday =>
-      _storageService.getString(_streakDatePrefKey) == _dateKey(DateTime.now());
+      _storageService.getString(_dailyDoneDatePrefKey) ==
+      _dateKey(DateTime.now());
 
   void _loadStreak() {
     _dailyStreak = _storageService.getInt(_streakPrefKey);
     _bestStreak = _storageService.getInt(_bestStreakPrefKey);
+    _streakFreezes = _storageService.getInt(_streakFreezesPrefKey);
+    _streakBrokenAtMs = _storageService.getInt(_streakBrokenAtPrefKey);
+    _streakBrokenValue = _storageService.getInt(_streakBrokenValuePrefKey);
+
     final last = _storageService.getString(_streakDatePrefKey);
     final today = DateTime.now();
     final yesterday = today.subtract(const Duration(days: 1));
-    // Missed a day (or more): the streak is broken.
+    // Migration: before the pin/widen release, the streak date advancing
+    // meant the daily itself was completed. Seed the new done-date once so
+    // upgraders don't see today's already-finished daily flip back to "to do".
+    if (_storageService.getString(_dailyDoneDatePrefKey).isEmpty &&
+        last == _dateKey(today)) {
+      _storageService.setString(_dailyDoneDatePrefKey, last);
+    }
+    // Missed a day (or more): check freeze or break streak.
     if (last.isNotEmpty &&
         last != _dateKey(today) &&
         last != _dateKey(yesterday)) {
-      _dailyStreak = 0;
-      _storageService.setInt(_streakPrefKey, 0);
+      if (_streakFreezes > 0) {
+        _streakFreezes--;
+        _storageService.setInt(_streakFreezesPrefKey, _streakFreezes);
+        _storageService.setString(_streakDatePrefKey, _dateKey(yesterday));
+        AnalyticsService().logDailyRewardClaimed(
+          dayStreak: _dailyStreak,
+          coins: 0,
+        );
+      } else {
+        if (_dailyStreak > 0) {
+          _streakBrokenAtMs = DateTime.now().millisecondsSinceEpoch;
+          _streakBrokenValue = _dailyStreak;
+          _storageService.setInt(_streakBrokenAtPrefKey, _streakBrokenAtMs);
+          _storageService.setInt(_streakBrokenValuePrefKey, _streakBrokenValue);
+        }
+        _dailyStreak = 0;
+        _storageService.setInt(_streakPrefKey, 0);
+      }
+    } else if (!canRepairStreak && _streakBrokenValue > 0) {
+      _streakBrokenAtMs = 0;
+      _streakBrokenValue = 0;
+      _storageService.setInt(_streakBrokenAtPrefKey, 0);
+      _storageService.setInt(_streakBrokenValuePrefKey, 0);
     }
+  }
+
+  bool buyStreakFreeze(AppSettingsProvider settings) {
+    if (_streakFreezes >= 2) return false;
+    if (settings.useDiamonds(150)) {
+      _streakFreezes++;
+      _storageService.setInt(_streakFreezesPrefKey, _streakFreezes);
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  void checkAndGrantPlusMonthlyFreeze(bool isPlusActive) {
+    if (!isPlusActive) return;
+    final now = DateTime.now();
+    final currentMonth = '${now.year}-${now.month.toString().padLeft(2, '0')}';
+    final lastGranted = _storageService.getString(_plusFreezeMonthPrefKey);
+    if (lastGranted != currentMonth) {
+      _storageService.setString(_plusFreezeMonthPrefKey, currentMonth);
+      if (_streakFreezes < 2) {
+        _streakFreezes++;
+        _storageService.setInt(_streakFreezesPrefKey, _streakFreezes);
+        notifyListeners();
+      }
+    }
+  }
+
+  bool repairStreakWithDiamonds(AppSettingsProvider settings) {
+    if (!canRepairStreak) return false;
+    if (settings.useDiamonds(300)) {
+      _restoreStreak();
+      return true;
+    }
+    return false;
+  }
+
+  void repairStreakWithAd(AdService adService, VoidCallback onRewarded) {
+    if (!canRepairStreak) return;
+    adService.showRewardedAd(
+      placement: 'streak_repair',
+      onRewarded: () {
+        _restoreStreak();
+        onRewarded();
+      },
+    );
+  }
+
+  void _restoreStreak() {
+    _dailyStreak = _streakBrokenValue;
+    _storageService.setInt(_streakPrefKey, _dailyStreak);
+    final todayStr = _dateKey(DateTime.now());
+    final yesterdayStr = _dateKey(DateTime.now().subtract(const Duration(days: 1)));
+    final last = _storageService.getString(_streakDatePrefKey);
+    if (last != todayStr) {
+      _storageService.setString(_streakDatePrefKey, yesterdayStr);
+    }
+    if (_dailyStreak > _bestStreak) {
+      _bestStreak = _dailyStreak;
+      _storageService.setInt(_bestStreakPrefKey, _bestStreak);
+    }
+    _streakBrokenAtMs = 0;
+    _streakBrokenValue = 0;
+    _storageService.setInt(_streakBrokenAtPrefKey, 0);
+    _storageService.setInt(_streakBrokenValuePrefKey, 0);
+    notifyListeners();
   }
 
   void _registerDailyCompletion() {
@@ -251,11 +408,32 @@ class GalleryProvider extends ChangeNotifier {
     return true;
   }
 
-  /// Artworks the user has started but not finished, for a "continue" row.
-  List<PixelArt> get inProgressArts => _catalog.where((a) {
-    final p = artProgressPercent(a);
-    return p > 0 && p < 100;
-  }).toList();
+  /// Timestamp (ms since epoch) of latest coloring progress saved for [art].
+  int artProgressTimestamp(PixelArt art) {
+    int maxTs = _storageService.getInt('pixelart_progress_${art.id}_ts');
+    if (art.isSplit) {
+      for (int i = 0; i < art.partCount; i++) {
+        final partId = SplitArt.partId(art.id, i);
+        final partTs =
+            _storageService.getInt('pixelart_progress_${partId}_ts');
+        if (partTs > maxTs) maxTs = partTs;
+      }
+    }
+    return maxTs;
+  }
+
+  /// Artworks the user has started but not finished, ordered by most recently
+  /// colored first (recency timestamp) and capped at 10 items.
+  List<PixelArt> get inProgressArts {
+    final list = _catalog.where((a) {
+      final p = artProgressPercent(a);
+      return p > 0 && p < 100;
+    }).toList();
+    list.sort(
+      (a, b) => artProgressTimestamp(b).compareTo(artProgressTimestamp(a)),
+    );
+    return list.take(10).toList();
+  }
 
   /// Re-reads derived state (e.g. after returning from the coloring screen).
   void refresh() => notifyListeners();
@@ -293,7 +471,17 @@ class GalleryProvider extends ChangeNotifier {
     }
     _databaseService.incrementCompleted(id);
     _remoteCatalogService?.reportCompletion(id);
-    if (id == dailyArt?.id) _registerDailyCompletion();
+    if (id == dailyArt?.id) {
+      _storageService.setString(
+        _dailyDoneDatePrefKey,
+        _dateKey(DateTime.now()),
+      );
+    }
+    // Any finished artwork keeps the streak alive (at most once per day); the
+    // daily itself additionally flips the banner/bonus state above. A streak
+    // that only advanced on one specific piece punished users who coloured
+    // three other things that day.
+    _registerDailyCompletion();
     notifyListeners();
   }
 

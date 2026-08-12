@@ -18,6 +18,7 @@ import 'data/services/iap_service.dart';
 import 'data/services/screenshot_service.dart';
 import 'data/services/pixel_converter_service.dart';
 import 'data/services/remote_catalog_service.dart';
+import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/analytics_service.dart';
@@ -107,6 +108,7 @@ class AppDependencies {
   final ScreenshotService screenshotService;
   final SoundService soundService;
   final RemoteCatalogService remoteCatalogService;
+  final DailyPixelService dailyPixelService;
 
   const AppDependencies({
     required this.localStorageService,
@@ -115,6 +117,7 @@ class AppDependencies {
     required this.screenshotService,
     required this.soundService,
     required this.remoteCatalogService,
+    required this.dailyPixelService,
   });
 
   void dispose() {
@@ -180,6 +183,9 @@ class _AppBootstrapState extends State<AppBootstrap>
     final localStorageService = LocalStorageService();
     await localStorageService.init();
 
+    // AdService persists its per-day interstitial cap through this.
+    AdService().attachStorage(localStorageService);
+
     // UMP consent + Mobile Ads SDK init needs neither Remote Config nor IAP
     // (ad unit IDs are read from RC at load time, after the await below), so
     // it runs concurrently with the rest of bootstrap instead of serially.
@@ -228,6 +234,7 @@ class _AppBootstrapState extends State<AppBootstrap>
       screenshotService: ScreenshotService(localStorageService),
       soundService: soundService,
       remoteCatalogService: RemoteCatalogService(localStorageService),
+      dailyPixelService: DailyPixelService(localStorageService),
     );
 
     await deps.iapService.initialize();
@@ -315,6 +322,7 @@ class _AppBootstrapState extends State<AppBootstrap>
               _dependencies!.localStorageService,
               _dependencies!.databaseService,
               _dependencies!.remoteCatalogService,
+              _dependencies!.dailyPixelService,
             );
             provider.loadCatalog(_preMadeArts);
             // Bundled art shows immediately; the admin-published Firestore
@@ -325,6 +333,9 @@ class _AppBootstrapState extends State<AppBootstrap>
                 .fetchCatalog(_preMadeArts)
                 .then((merged) {
               if (merged != null) provider.updateCatalog(merged);
+              // Pin today's daily only once the merged catalog is in, so an
+              // admin-scheduled remote artwork can actually be found.
+              provider.resolveDailyArt();
             });
             return provider;
           },

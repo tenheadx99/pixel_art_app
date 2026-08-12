@@ -8,8 +8,10 @@ import '../../data/models/user_artwork.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
+import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/gallery_provider.dart';
+import '../widgets/ad_banner.dart';
 import '../widgets/art_preview_painter.dart';
 import '../motion.dart';
 import '../widgets/confetti_overlay.dart';
@@ -176,6 +178,11 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
         title: Text(parent.name),
         centerTitle: true,
       ),
+      // Same free-user banner slot as the home screen; AdBanner reserves zero
+      // height until an ad actually loads, so there is no layout shift.
+      bottomNavigationBar: context.watch<AppSettingsProvider>().isProUser
+          ? null
+          : const SafeArea(child: AdBanner()),
       body: SafeArea(
         child: Column(
           children: [

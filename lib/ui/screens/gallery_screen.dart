@@ -5,6 +5,8 @@ import 'package:share_plus/share_plus.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/user_artwork.dart';
+import '../../providers/app_settings_provider.dart';
+import '../widgets/ad_banner.dart';
 import '../motion.dart';
 import '../widgets/entrance.dart';
 import '../widgets/pressable.dart';
@@ -51,6 +53,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
+      // Same free-user banner slot as the home screen; AdBanner reserves zero
+      // height until an ad actually loads, so there is no layout shift.
+      bottomNavigationBar: context.watch<AppSettingsProvider>().isProUser
+          ? null
+          : const SafeArea(child: AdBanner()),
       appBar: AppBar(
         title: Text(AppLocalizations.of(context)?.navGallery ?? 'My Works', style: const TextStyle(color: Colors.white)),
         leading: IconButton(
