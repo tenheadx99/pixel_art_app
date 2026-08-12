@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -54,6 +55,15 @@ class ColoringProvider extends ChangeNotifier {
   // full rescan in [_calculateProgress] on load/undo/restore.
   int _totalCellCount = 0;
   int _filledCellsCount = 0;
+  // Numbers whose every cell is filled, kept in sync by [_setCell] /
+  // [_calculateProgress] so completion checks never iterate the tally maps.
+  final Set<int> _completedNumbers = {};
+  // Row-major cell indices (row * width + col) per number, built once per
+  // artwork by [_buildCellIndex]. With the per-number cursors below,
+  // [_updateNextFillable] resumes where it left off instead of rescanning the
+  // whole grid on every tap/stroke.
+  Map<int, Uint32List> _cellsByNumber = {};
+  final Map<int, int> _nextCursor = {};
 
   VoidCallback? onCellFilledCorrectly;
   VoidCallback? onSectionCompleted;
@@ -67,18 +77,7 @@ class ColoringProvider extends ChangeNotifier {
   // Fired when a bomb explodes so the UI can trigger high-impact explosion visual effects.
   void Function(int row, int col)? onBombExploded;
 
-  Set<int> _getCompletedNumbers() {
-    final completed = <int>{};
-    for (final entry in _totalPerNumber.entries) {
-      final num = entry.key;
-      final total = entry.value;
-      final filled = _filledPerNumber[num] ?? 0;
-      if (filled == total && total > 0) {
-        completed.add(num);
-      }
-    }
-    return completed;
-  }
+  Set<int> _getCompletedNumbers() => Set<int>.of(_completedNumbers);
 
   bool _runWithCompletionCheck(bool Function() action) {
     final previouslyCompleted = _getCompletedNumbers();
@@ -447,6 +446,7 @@ class ColoringProvider extends ChangeNotifier {
     _pendingUndo?.add((row, col, prev));
     _filledGrid[row][col] = value;
     _fillVersion++;
+    _journalChange(row, col);
     // Keep progress counters in sync incrementally: a full-grid rescan per
     // fill (the old _calculateProgress-on-every-tap) was O(W×H) and the main
     // provider cost during fast swipes. Full rescans remain only on
@@ -459,6 +459,15 @@ class ColoringProvider extends ChangeNotifier {
       } else if (prev > 0 && value == 0) {
         _filledCellsCount--;
         _filledPerNumber[expected] = (_filledPerNumber[expected] ?? 1) - 1;
+        // An erase can free a cell before this number's cursor; rewind so the
+        // next-fillable query rescans it from the top (erases are rare).
+        _nextCursor[expected] = 0;
+      }
+      final total = _totalPerNumber[expected] ?? 0;
+      if (total > 0 && (_filledPerNumber[expected] ?? 0) >= total) {
+        _completedNumbers.add(expected);
+      } else {
+        _completedNumbers.remove(expected);
       }
     }
     _progress =
@@ -495,6 +504,48 @@ class ColoringProvider extends ChangeNotifier {
   int _fillVersion = 0;
   int get fillVersion => _fillVersion;
 
+  // --- Dirty-cell journal ---
+  // Records which cells changed at which fillVersion so painters can patch a
+  // cached image/texture incrementally instead of re-rasterizing the whole
+  // grid. Bounded; wholesale grid changes (load/undo/reset/restore) clear it,
+  // forcing consumers onto their full-rebuild fallback.
+  static const int _dirtyJournalCap = 4096;
+  final List<(int, int, int)> _dirtyCells = []; // (version, row, col)
+  int _journalStartVersion = 0;
+
+  void _journalChange(int row, int col) {
+    _dirtyCells.add((_fillVersion, row, col));
+    if (_dirtyCells.length > _dirtyJournalCap) {
+      final drop = _dirtyCells.length - (_dirtyJournalCap >> 1);
+      _journalStartVersion = _dirtyCells[drop - 1].$1;
+      _dirtyCells.removeRange(0, drop);
+    }
+  }
+
+  void _clearJournal() {
+    _dirtyCells.clear();
+    _journalStartVersion = _fillVersion;
+  }
+
+  /// Cells changed after [sinceVersion], or null when that range is
+  /// unavailable (journal evicted, or the grid changed wholesale) — callers
+  /// must then fall back to a full rebuild. The list may contain duplicates
+  /// and is unordered; consumers should read each cell's *current* state
+  /// rather than replaying entries.
+  List<(int, int)>? changesSince(int sinceVersion) {
+    if (sinceVersion == _fillVersion) return const [];
+    if (sinceVersion < _journalStartVersion || sinceVersion > _fillVersion) {
+      return null;
+    }
+    final result = <(int, int)>[];
+    for (var i = _dirtyCells.length - 1; i >= 0; i--) {
+      final (v, r, c) = _dirtyCells[i];
+      if (v <= sinceVersion) break;
+      result.add((r, c));
+    }
+    return result;
+  }
+
   bool cellIsFilled(int row, int col) {
     if (row < 0 || row >= _filledGrid.length) return false;
     if (col < 0 || col >= _filledGrid[0].length) return false;
@@ -527,6 +578,7 @@ class ColoringProvider extends ChangeNotifier {
     _timeLapse = [];
     _claimedMilestones = {};
     _consecutiveFills = 0;
+    _buildCellIndex();
     loadProgress();
     _calculateProgress();
     AnalyticsService().logArtworkSelected(
@@ -578,21 +630,68 @@ class ColoringProvider extends ChangeNotifier {
       return;
     }
     // O(1) exit for the common case — the selected color has no cells left —
-    // so exhausting a color doesn't pay for a futile full-grid scan per tap.
+    // so exhausting a color doesn't pay for a futile scan per tap.
     if (!_hasUnfilled(_selectedNumber)) {
       _nextFillable = null;
       return;
     }
-    for (var row = 0; row < _currentArt!.gridHeight; row++) {
-      for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] == _selectedNumber &&
-            _filledGrid[row][col] == 0) {
-          _nextFillable = (row, col);
-          return;
-        }
+    // Resume from this number's cursor: fills only ever advance it, so a
+    // coloring session pays O(cells of the number) across ALL taps combined
+    // instead of O(W×H) per tap. Erases and wholesale grid changes rewind the
+    // cursor (see _setCell / _calculateProgress).
+    final cells = _cellsByNumber[_selectedNumber];
+    if (cells == null) {
+      _nextFillable = null;
+      return;
+    }
+    final width = _currentArt!.gridWidth;
+    var i = _nextCursor[_selectedNumber] ?? 0;
+    while (i < cells.length) {
+      final idx = cells[i];
+      final row = idx ~/ width;
+      final col = idx % width;
+      if (_filledGrid[row][col] == 0) {
+        _nextCursor[_selectedNumber] = i;
+        _nextFillable = (row, col);
+        return;
+      }
+      i++;
+    }
+    _nextCursor[_selectedNumber] = i;
+    _nextFillable = null;
+  }
+
+  /// Builds the per-number row-major cell index for the current artwork.
+  /// One O(W×H) pass at load time; the tap hot path never rescans.
+  void _buildCellIndex() {
+    _cellsByNumber = {};
+    _nextCursor.clear();
+    final art = _currentArt;
+    if (art == null) return;
+    final counts = <int, int>{};
+    for (var row = 0; row < art.gridHeight; row++) {
+      final gridRow = art.grid[row];
+      for (var col = 0; col < art.gridWidth; col++) {
+        final n = gridRow[col];
+        if (n > 0) counts[n] = (counts[n] ?? 0) + 1;
       }
     }
-    _nextFillable = null;
+    final lists = <int, Uint32List>{};
+    final written = <int, int>{};
+    for (final entry in counts.entries) {
+      lists[entry.key] = Uint32List(entry.value);
+    }
+    for (var row = 0; row < art.gridHeight; row++) {
+      final gridRow = art.grid[row];
+      for (var col = 0; col < art.gridWidth; col++) {
+        final n = gridRow[col];
+        if (n <= 0) continue;
+        final pos = written[n] ?? 0;
+        lists[n]![pos] = row * art.gridWidth + col;
+        written[n] = pos + 1;
+      }
+    }
+    _cellsByNumber = lists;
   }
 
   bool tryFillCell(int row, int col) {
@@ -939,6 +1038,9 @@ class ColoringProvider extends ChangeNotifier {
     _fillVersion++;
     _filledPerNumber.clear();
     _filledCellsCount = 0;
+    _completedNumbers.clear();
+    _nextCursor.clear();
+    _clearJournal();
     clearProgress();
     notifyListeners();
   }
@@ -969,6 +1071,16 @@ class ColoringProvider extends ChangeNotifier {
     _totalCellCount = total;
     _filledCellsCount = filled;
     _progress = total == 0 ? 1.0 : filled / total;
+    // Wholesale change: resync the derived structures the hot path relies on.
+    _completedNumbers.clear();
+    for (final entry in _totalPerNumber.entries) {
+      if (entry.value > 0 &&
+          (_filledPerNumber[entry.key] ?? 0) >= entry.value) {
+        _completedNumbers.add(entry.key);
+      }
+    }
+    _nextCursor.clear();
+    _clearJournal();
   }
 
   double fillPercentForNumber(int number) {
@@ -1043,6 +1155,7 @@ class ColoringProvider extends ChangeNotifier {
     if (num > 0 && _filledGrid[row][col] == 0) {
       _filledGrid[row][col] = num;
       _fillVersion++;
+      _journalChange(row, col);
     }
     notifyListeners();
   }
@@ -1070,23 +1183,22 @@ class ColoringProvider extends ChangeNotifier {
 
     _beginUndo();
 
-    final queue = <(int, int)>[(row, col)];
-    final visited = <(int, int)>{};
+    // BFS with a head index (List.removeAt(0) is O(n) — O(n²) over a large
+    // region) and a flat visited bitmap instead of a Set of tuples. Bounds are
+    // checked at enqueue time; visit order is unchanged.
+    final width = _currentArt!.gridWidth;
+    final height = _currentArt!.gridHeight;
+    final queue = <int>[row * width + col];
+    final visited = Uint8List(width * height);
+    var head = 0;
     bool changed = false;
 
-    while (queue.isNotEmpty) {
-      final curr = queue.removeAt(0);
-      final r = curr.$1;
-      final c = curr.$2;
-
-      if (r < 0 ||
-          r >= _currentArt!.gridHeight ||
-          c < 0 ||
-          c >= _currentArt!.gridWidth) {
-        continue;
-      }
-      if (visited.contains((r, c))) continue;
-      visited.add((r, c));
+    while (head < queue.length) {
+      final idx = queue[head++];
+      if (visited[idx] != 0) continue;
+      visited[idx] = 1;
+      final r = idx ~/ width;
+      final c = idx % width;
 
       if (_currentArt!.grid[r][c] == targetNum && _filledGrid[r][c] == 0) {
         _setCell(r, c, targetNum);
@@ -1094,10 +1206,10 @@ class ColoringProvider extends ChangeNotifier {
         changed = true;
         onCellFilledCorrectly?.call();
 
-        queue.add((r + 1, c));
-        queue.add((r - 1, c));
-        queue.add((r, c + 1));
-        queue.add((r, c - 1));
+        if (r + 1 < height) queue.add(idx + width);
+        if (r - 1 >= 0) queue.add(idx - width);
+        if (c + 1 < width) queue.add(idx + 1);
+        if (c - 1 >= 0) queue.add(idx - 1);
       }
     }
 

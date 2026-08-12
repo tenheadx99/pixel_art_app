@@ -517,29 +517,48 @@ class _FillEffectsPainter extends CustomPainter {
     paint.style = PaintingStyle.fill;
   }
 
+  // Laid-out combo callouts cached per combo count — building and laying out
+  // a TextPainter every animation frame was avoidable churn. The per-frame
+  // scale/fade are applied with canvas transforms + a saveLayer alpha, which
+  // reproduces the original scaled-font + faded-color rendering (text at
+  // alpha, shadow at 0.4 × alpha).
+  static final Map<int, TextPainter> _comboTextCache = {};
+
   void _paintCombo(Canvas canvas, Offset c, double cellPx, double t, int combo) {
     final rise = t * (cellPx * 1.5 + 24);
     final scale = (0.6 + Curves.easeOutBack.transform(t.clamp(0.0, 1.0)) * 0.4)
         .clamp(0.6, 1.0);
     final alpha = (1 - t).clamp(0.0, 1.0);
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'Combo x$combo!',
-        style: TextStyle(
-          fontSize: 18 * scale,
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFFFFB300).withValues(alpha: alpha),
-          shadows: [
-            Shadow(
-              color: Colors.black.withValues(alpha: alpha * 0.4),
-              blurRadius: 4,
-            ),
-          ],
+    final tp = _comboTextCache.putIfAbsent(combo, () {
+      return TextPainter(
+        text: TextSpan(
+          text: 'Combo x$combo!',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFFFFB300),
+            shadows: [
+              Shadow(color: Color(0x66000000), blurRadius: 4),
+            ],
+          ),
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(c.dx - tp.width / 2, c.dy - rise - tp.height / 2));
+        textDirection: TextDirection.ltr,
+      )..layout();
+    });
+    final center = Offset(c.dx, c.dy - rise);
+    final bounds = Rect.fromCenter(
+      center: center,
+      width: tp.width * scale + 16,
+      height: tp.height * scale + 16,
+    );
+    canvas.saveLayer(
+      bounds,
+      Paint()..color = Colors.white.withValues(alpha: alpha),
+    );
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
   }
 
   void _paintBombExplosion(

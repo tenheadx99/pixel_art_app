@@ -20,6 +20,20 @@ class FillGrowController extends ChangeNotifier {
   static const int _durationMs = AppConstants.fillGrowMs;
   static const int _retentionMs = AppConstants.fillGrowRetentionMs;
 
+  /// Fires on the tick in which any growing cell reaches full size (factor
+  /// 1.0). The flat-flavor BASE layer listens to this — plus ordinary fill
+  /// notifies — instead of the every-frame [notifyListeners] ticks, so it
+  /// repaints only when a cell's settled appearance actually changes.
+  Listenable get settled => _settled;
+  final _SettleNotifier _settled = _SettleNotifier();
+  int? _lastTickMs;
+
+  @override
+  void dispose() {
+    _settled.dispose();
+    super.dispose();
+  }
+
   int _key(int row, int col) => row * gridWidth + col;
 
   /// Registers a freshly-filled cell to animate in from [nowMs].
@@ -63,11 +77,27 @@ class FillGrowController extends ChangeNotifier {
   /// Cells are retained past the flat grow so the shader timeline (glint,
   /// afterglow) keeps its timing source until it finishes.
   void handleTick(int nowMs) {
+    final last = _lastTickMs;
+    _lastTickMs = nowMs;
+    var anySettled = false;
+    for (final start in _startMs.values) {
+      // Settled this tick: grow just finished, but it hadn't as of last tick.
+      if (nowMs - start >= _durationMs &&
+          (last == null || last - start < _durationMs)) {
+        anySettled = true;
+        break;
+      }
+    }
     _startMs.removeWhere((_, start) => nowMs - start >= _retentionMs);
+    if (anySettled) _settled.fire();
     notifyListeners();
   }
 
   void clear() {
     _startMs.clear();
   }
+}
+
+class _SettleNotifier extends ChangeNotifier {
+  void fire() => notifyListeners();
 }

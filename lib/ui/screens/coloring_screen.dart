@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:math';
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:sensors_plus/sensors_plus.dart';
@@ -552,6 +553,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _canvasPanNotifier.dispose();
     _accelerometerSubscription?.cancel();
     _tiltNotifier.dispose();
+    _MiniMapPainter.releaseCache();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -785,6 +787,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       filledGrid: provider.filledGrid,
                       filledColors: provider.filledColors,
                       fillVersion: provider.fillVersion,
+                      changesSince: provider.changesSince,
                     ),
                   ),
                 ),
@@ -2503,35 +2506,123 @@ class _MiniMapPainter extends CustomPainter {
   /// (whole-grid) repaint entirely.
   final int fillVersion;
 
+  /// The provider's dirty-cell journal query; lets the baked map patch only
+  /// the changed texels instead of re-rasterizing the whole grid per fill.
+  final List<(int, int)>? Function(int sinceVersion)? changesSince;
+
   _MiniMapPainter({
     required this.art,
     required this.filledGrid,
     required this.filledColors,
     required this.fillVersion,
+    this.changesSince,
   });
+
+  // One texel per cell, baked once and patched incrementally — repainting all
+  // W×H rects on every fill made stroke frames O(grid). Static so the cache
+  // outlives painter instances (recreated per provider notify); keyed on art
+  // id + fillVersion.
+  static ui.Image? _cachedImage;
+  static String _cachedArtId = '';
+  static int _cachedFillVersion = -1;
+
+  /// Frees the baked map; called from the coloring screen's dispose.
+  static void releaseCache() {
+    _cachedImage?.dispose();
+    _cachedImage = null;
+    _cachedArtId = '';
+    _cachedFillVersion = -1;
+  }
+
+  Color _texelColor(int r, int c) {
+    final val = art.grid[r][c];
+    if (val <= 0) return const Color(0x00000000);
+    final isFilled =
+        r < filledGrid.length && c < filledGrid[r].length && filledGrid[r][c] > 0;
+    if (isFilled) return filledColors[val] ?? const Color(0x00000000);
+    return const Color(0xFFD6D6D6);
+  }
+
+  void _updateImageIfNeeded(int width, int height) {
+    if (_cachedImage != null &&
+        _cachedArtId == art.id &&
+        _cachedFillVersion == fillVersion) {
+      return;
+    }
+    // Texels must stay exact — BlendMode.src replaces (an erase clears back
+    // to the unfilled gray), and cell state is read fresh from the grid so
+    // journal duplicates/ordering don't matter.
+    final paint = Paint()
+      ..isAntiAlias = false
+      ..blendMode = BlendMode.src;
+
+    final prior = _cachedImage;
+    if (prior != null &&
+        _cachedArtId == art.id &&
+        prior.width == width &&
+        prior.height == height) {
+      final dirty = changesSince?.call(_cachedFillVersion);
+      if (dirty != null) {
+        final recorder = ui.PictureRecorder();
+        final c = Canvas(recorder);
+        c.drawImage(prior, Offset.zero, Paint()..isAntiAlias = false);
+        for (final (r, col) in dirty) {
+          if (r < 0 || r >= height || col < 0 || col >= width) continue;
+          paint.color = _texelColor(r, col);
+          c.drawRect(
+            Rect.fromLTWH(col.toDouble(), r.toDouble(), 1.0, 1.0),
+            paint,
+          );
+        }
+        final picture = recorder.endRecording();
+        _cachedImage = picture.toImageSync(width, height);
+        picture.dispose();
+        prior.dispose();
+        _cachedFillVersion = fillVersion;
+        return;
+      }
+    }
+
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder);
+    for (var r = 0; r < height; r++) {
+      for (var col = 0; col < width; col++) {
+        final color = _texelColor(r, col);
+        if (color.a == 0.0) continue;
+        paint.color = color;
+        c.drawRect(
+          Rect.fromLTWH(col.toDouble(), r.toDouble(), 1.0, 1.0),
+          paint,
+        );
+      }
+    }
+    final picture = recorder.endRecording();
+    prior?.dispose();
+    _cachedImage = picture.toImageSync(width, height);
+    picture.dispose();
+    _cachedArtId = art.id;
+    _cachedFillVersion = fillVersion;
+  }
 
   @override
   void paint(Canvas canvas, Size size) {
     if (art.gridWidth <= 0 || art.gridHeight <= 0) return;
-    final cw = size.width / art.gridWidth;
-    final ch = size.height / art.gridHeight;
-
-    final cellPaint = Paint()..style = PaintingStyle.fill;
-    for (var r = 0; r < art.gridHeight; r++) {
-      for (var c = 0; c < art.gridWidth; c++) {
-        final val = art.grid[r][c];
-        if (val <= 0) continue;
-
-        final isFilled = r < filledGrid.length && c < filledGrid[r].length && filledGrid[r][c] > 0;
-        if (isFilled) {
-          cellPaint.color = filledColors[val] ?? Colors.transparent;
-        } else {
-          cellPaint.color = const Color(0xFFD6D6D6);
-        }
-
-        canvas.drawRect(Rect.fromLTWH(c * cw, r * ch, cw, ch), cellPaint);
-      }
-    }
+    _updateImageIfNeeded(art.gridWidth, art.gridHeight);
+    final image = _cachedImage;
+    if (image == null) return;
+    // Bilinear scaling approximates the soft cell edges the anti-aliased
+    // per-rect drawing produced at minimap scale.
+    canvas.drawImageRect(
+      image,
+      Rect.fromLTWH(
+        0,
+        0,
+        art.gridWidth.toDouble(),
+        art.gridHeight.toDouble(),
+      ),
+      Offset.zero & size,
+      Paint()..filterQuality = FilterQuality.low,
+    );
   }
 
   @override

@@ -103,15 +103,81 @@ class _PixelGridState extends State<PixelGrid> {
     });
   }
 
+  // Merged per-layer repaint listenables, built once here instead of inside
+  // every painter construction — painters are recreated on each provider
+  // notify, and allocating a fresh Listenable.merge each time churned
+  // listener registrations.
+  Listenable? _flatBaseRepaint;
+  Listenable? _flatOverlayRepaint;
+  Listenable? _gemBaseRepaint;
+  Listenable? _gemOverlayRepaint;
+
+  void _rebuildRepaintListenables() {
+    // Each layer repaints only on its own triggers: tilt ticks must not
+    // re-run the overlay label pass, and fill-grow animation frames must
+    // not re-draw the label pass either. The gem base listens to
+    // fillGrow/sectionShimmer because they clock the shader's fill and
+    // shimmer animations (a repaint there is one shader-quad draw). The flat
+    // base deliberately does NOT listen to fillGrow's per-frame ticks — only
+    // to its `settled` signal (a cell's settled appearance changed) — so the
+    // full cell+label pass no longer re-runs at 60fps while fills animate;
+    // the flat overlay handles the animated slice.
+    _flatBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+    ]);
+    _flatOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _gemBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.tiltNotifier,
+      widget.sectionShimmer,
+    ]);
+    _gemOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+    ]);
+  }
+
   @override
   void initState() {
     super.initState();
+    _rebuildRepaintListenables();
     // Normally already warm via main(); this is the fallback path.
     if (_gemShaderProgram == null) {
       preloadGemShader().then((_) {
         if (mounted && _gemShaderProgram != null) setState(() {});
       });
     }
+  }
+
+  @override
+  void didUpdateWidget(PixelGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.gridFade != widget.gridFade ||
+        oldWidget.transform != widget.transform ||
+        oldWidget.fillGrow != widget.fillGrow ||
+        oldWidget.tiltNotifier != widget.tiltNotifier ||
+        oldWidget.sectionShimmer != widget.sectionShimmer) {
+      _rebuildRepaintListenables();
+    }
+  }
+
+  @override
+  void dispose() {
+    // The painter keeps static picture/image/text caches so they survive
+    // rebuilds; release them when the grid leaves the tree so a long session
+    // doesn't accumulate every opened artwork's caches.
+    _PixelGridPainter.releaseCaches();
+    super.dispose();
   }
 
   // Swipe-to-fill listens to raw pointer events instead of a pan gesture so
@@ -208,15 +274,21 @@ class _PixelGridState extends State<PixelGrid> {
         child: MouseRegion(
           onHover: (event) {
             final pos = _gridPos(event.position, art);
+            // Mouse-move events fire continuously; only rebuild (and force a
+            // full grid repaint) when the hovered CELL actually changes.
+            if (pos?.$1 == _hoverRow && pos?.$2 == _hoverCol) return;
             setState(() {
               _hoverRow = pos?.$1;
               _hoverCol = pos?.$2;
             });
           },
-          onExit: (_) => setState(() {
-            _hoverRow = null;
-            _hoverCol = null;
-          }),
+          onExit: (_) {
+            if (_hoverRow == null && _hoverCol == null) return;
+            setState(() {
+              _hoverRow = null;
+              _hoverCol = null;
+            });
+          },
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -246,6 +318,12 @@ class _PixelGridState extends State<PixelGrid> {
   _PixelGridPainter _buildPainter(dynamic art, _GridLayer layer) {
     return _PixelGridPainter(
       layer: layer,
+      repaint: switch (layer) {
+        _GridLayer.flatBase => _flatBaseRepaint,
+        _GridLayer.flatOverlay => _flatOverlayRepaint,
+        _GridLayer.gemBase => _gemBaseRepaint,
+        _GridLayer.gemOverlay => _gemOverlayRepaint,
+      },
       art: art,
       filledGrid: widget.provider.filledGrid,
       filledColors: widget.provider.filledColors,
@@ -266,15 +344,35 @@ class _PixelGridState extends State<PixelGrid> {
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       fillVersion: widget.provider.fillVersion,
+      changesSince: widget.provider.changesSince,
     );
   }
 
   Widget _buildCanvas(dynamic art) {
     if (FlavorConfig.current.cellStyle != CellRenderStyle.gem) {
-      return CustomPaint(
-        isComplex: true,
-        willChange: false,
-        painter: _buildPainter(art, _GridLayer.full),
+      // Flat mode paints in two isolated layers, mirroring the gem split: the
+      // base (all settled cells, previews, borders, labels) repaints only on
+      // fill/selection/zoom changes and when a grow animation settles, while
+      // the tiny overlay (growing cells, afterglow, shimmer, hover cursor)
+      // rides the 60fps fill-grow ticks. Without the split, every tick of the
+      // ~700ms post-fill animation re-drew every visible cell and label.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.flatBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.flatOverlay),
+            ),
+          ),
+        ],
       );
     }
     // Gem mode paints in two isolated layers: the art body (repaints per
@@ -319,10 +417,10 @@ class _PixelGridState extends State<PixelGrid> {
   }
 }
 
-/// Which slice of the grid a painter instance draws. Gem mode splits the
-/// canvas into an art-body layer and a labels/selection overlay so each can
-/// repaint on its own triggers; flat flavors keep the single full painter.
-enum _GridLayer { full, gemBase, gemOverlay }
+/// Which slice of the grid a painter instance draws. Both modes split the
+/// canvas into a static-ish base layer and an animated overlay so each can
+/// repaint on its own triggers.
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -355,8 +453,15 @@ class _PixelGridPainter extends CustomPainter {
   /// cheaper and more reliable than rescanning all cells for a hash each frame.
   final int fillVersion;
 
+  /// The provider's dirty-cell journal query. Lets the shader texture rebuild
+  /// patch only the cells changed since its cached fillVersion instead of
+  /// re-rasterizing all W×H texels on every stroke frame. Null (or a null
+  /// return) falls back to the full rebuild.
+  final List<(int, int)>? Function(int sinceVersion)? changesSince;
+
   _PixelGridPainter({
-    this.layer = _GridLayer.full,
+    required this.layer,
+    super.repaint,
     required this.art,
     required this.filledGrid,
     required this.filledColors,
@@ -377,30 +482,11 @@ class _PixelGridPainter extends CustomPainter {
     this.tiltNotifier,
     this.shaderProgram,
     this.fillVersion = 0,
-  }) : super(
-          // Each layer repaints only on its own triggers: tilt ticks must not
-          // re-run the overlay label pass, and fill-grow animation frames must
-          // not re-draw the label pass either. The gem base listens to
-          // fillGrow/sectionShimmer because they clock the shader's fill and
-          // shimmer animations (a repaint there is one shader-quad draw).
-          repaint: Listenable.merge(switch (layer) {
-            _GridLayer.full => [
-                gridFade,
-                transform,
-                fillGrow,
-                tiltNotifier,
-                sectionShimmer,
-              ],
-            _GridLayer.gemBase => [
-                gridFade,
-                transform,
-                tiltNotifier,
-                fillGrow,
-                sectionShimmer,
-              ],
-            _GridLayer.gemOverlay => [gridFade, transform, fillGrow],
-          }),
-        );
+    this.changesSince,
+    // `repaint` is pre-merged per layer by _PixelGridState (see
+    // _rebuildRepaintListenables) so painter reconstruction on every provider
+    // notify doesn't allocate a fresh Listenable.merge.
+  });
 
   /// Laid-out number labels, cached across frames and painter instances.
   /// Keyed by number, font size, and the quantized LOD fade step — without
@@ -456,6 +542,10 @@ class _PixelGridPainter extends CustomPainter {
     [12, 0],
   ];
 
+  // Reused across cells/frames — this runs per colorblind cell per repaint.
+  static final Paint _patternPaint = Paint()
+    ..color = Colors.black.withAlpha(30);
+
   void _drawPattern(
     Canvas canvas,
     Rect rect,
@@ -465,7 +555,7 @@ class _PixelGridPainter extends CustomPainter {
   ) {
     final idx = (number - 1) % _patterns.length;
     final pattern = _patterns[idx];
-    final patPaint = Paint()..color = Colors.black.withAlpha(30);
+    final patPaint = _patternPaint;
     final rows = pattern.length;
     for (var pr = 0; pr < rows; pr++) {
       final bits = pattern[pr];
@@ -701,7 +791,7 @@ class _PixelGridPainter extends CustomPainter {
 
     // 4-Point Specular Star Flare for extra diamond glint (Zoom >= 24.0)
     if (effectiveCell >= 24.0) {
-      final flarePaint = Paint()
+      final flarePaint = _flarePaint
         ..color = Colors.white.withAlpha(210)
         ..style = PaintingStyle.stroke
         ..strokeWidth = max(1.0, r * 0.08);
@@ -719,6 +809,10 @@ class _PixelGridPainter extends CustomPainter {
       );
     }
   }
+
+  // Reused across cells/frames — the star flare draws per filled cell at
+  // high zoom on every tilt/pan frame.
+  static final Paint _flarePaint = Paint();
 
   /// Scales an RGB color toward black by [amount] (0..1) for the bevel ring.
   /// Cached by source color — the gem path calls this for every filled cell
@@ -795,6 +889,52 @@ class _PixelGridPainter extends CustomPainter {
 
     // Texels must stay exact: no anti-aliased edges bleeding into neighbors.
     final paint = Paint()..isAntiAlias = false;
+
+    // Incremental fast path: during a stroke this runs once per frame (the
+    // provider bumps fillVersion per painted cell), and re-rasterizing all
+    // W×H texels each time was the dominant gem-path cost. Patch only the
+    // cells changed since the cached version over the previous image instead.
+    final prior = _cachedGridImage;
+    if (prior != null &&
+        _cachedImageArtId == art.id &&
+        _cachedImageW == width &&
+        _cachedImageH == height) {
+      final dirty = changesSince?.call(_cachedImageFillVersion);
+      if (dirty != null) {
+        final recorder = ui.PictureRecorder();
+        final c = Canvas(recorder);
+        c.drawImage(prior, Offset.zero, paint);
+        // BlendMode.src replaces the texel outright, so an erase restores the
+        // half-alpha preview (or transparency) instead of blending over the
+        // old fill color. Cell state is read fresh from the grid, so journal
+        // duplicates and ordering don't matter.
+        paint.blendMode = BlendMode.src;
+        for (final (r, col) in dirty) {
+          if (r < 0 || r >= height || col < 0 || col >= width) continue;
+          final expectedNumber = art.grid[r][col] as int;
+          if (filledGrid[r][col] > 0) {
+            paint.color = filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+          } else if (expectedNumber > 0) {
+            paint.color = _previewColor(expectedNumber, 0).withAlpha(128);
+          } else {
+            paint.color = const Color(0x00000000);
+          }
+          c.drawRect(
+            Rect.fromLTWH(col.toDouble(), r.toDouble(), 1.0, 1.0),
+            paint,
+          );
+        }
+        paint.blendMode = BlendMode.srcOver;
+        final picture = recorder.endRecording();
+        _cachedGridImage = picture.toImageSync(width, height);
+        picture.dispose();
+        prior.dispose();
+        _cachedImageFillVersion = fillVersion;
+        _rebuildAgeTexture(width, height);
+        return;
+      }
+    }
 
     if (_previewLayerPicture == null || _previewLayerArtId != art.id) {
       final previewRecorder = ui.PictureRecorder();
@@ -900,8 +1040,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintGemBase(canvas, size);
       case _GridLayer.gemOverlay:
         _paintGemOverlay(canvas, size);
-      case _GridLayer.full:
-        _paintFull(canvas, size);
+      case _GridLayer.flatBase:
+        _paintFlatBase(canvas, size);
+      case _GridLayer.flatOverlay:
+        _paintFlatOverlay(canvas, size);
     }
   }
 
@@ -1047,35 +1189,59 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
-  /// Flat-flavor painter (single layer, unchanged behavior).
-  void _paintFull(Canvas canvas, Size size) {
+  // Flat-path paints, reused across frames (see note in _paintFlatBase).
+  static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
+  static final Paint _borderPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5;
+  static final Paint _highlightTintPaint = Paint()
+    ..color = const Color(0x336C63FF);
+  static final Paint _selectedBorderPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 2.5;
+  static final Paint _cellPaint = Paint();
+  static final Paint _glossPaint = Paint();
+  static final Paint _glowPaint = Paint();
+  static final Paint _shimmerPaint = Paint();
+  static final Paint _cursorPaint = Paint();
+  static final Paint _edgePaint = Paint()
+    ..color = const Color(0x33000000)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.8;
+
+  /// Flat-flavor base layer: every cell's settled appearance — fills, gloss,
+  /// previews, borders, tints, number labels. Deliberately blind to the
+  /// per-frame fill-grow ticks (see _rebuildRepaintListenables); cells whose
+  /// grow is still running are drawn as their preview underlay, exactly as
+  /// the old single-pass painter did, and the overlay animates on top.
+  void _paintFlatBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity) =
-        _layout(size);
+    final (cw, ch, cellGap, _, detailStep, gridLineOpacity) = _layout(size);
 
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-      Paint()..color = const Color(0xFFF0F0F0),
+      _bgPaint,
     );
 
-    final borderPaint = Paint()
-      ..color = Color.fromARGB((0x22 * gridLineOpacity).round(), 0, 0, 0)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.5;
+    // Static paints reconfigured per frame (allocating them per repaint added
+    // avoidable garbage on every animation tick).
+    final borderPaint = _borderPaint
+      ..color = Color.fromARGB((0x22 * gridLineOpacity).round(), 0, 0, 0);
 
-    final highlightPaint = Paint()..color = const Color(0x336C63FF);
+    final highlightPaint = _highlightTintPaint;
 
-    final selectedBorderPaint = Paint()
-      ..color = isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5;
+    final selectedBorderPaint = _selectedBorderPaint
+      ..color =
+          isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
 
-    // Reused per-cell paints
-    final cellPaint = Paint();
-    final glossPaint = Paint()
+    // Reused per-cell paints; _drawGemBase toggles shader/style, so reset.
+    final cellPaint = _cellPaint
+      ..shader = null
+      ..style = PaintingStyle.fill;
+    final glossPaint = _glossPaint
       ..color = Colors.white.withAlpha((30 * gridLineOpacity).round());
-    final glowPaint = Paint()
+    final glowPaint = _glowPaint
       ..color =
           (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
               .withAlpha(36);
@@ -1091,32 +1257,12 @@ class _PixelGridPainter extends CustomPainter {
     final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
 
     if (detailStep == 0 && !colorblindMode) {
+      // The overlay draws the outer edge stroke on top.
       _paintLowDetail(canvas, cw, ch, firstRow, lastRow, firstCol, lastCol);
-      _paintEdge(canvas, size);
       return;
     }
 
     final nowMs = fillGrow == null ? 0 : DateTime.now().millisecondsSinceEpoch;
-
-    // Directional vectors for dynamic specular glint highlights
-    final matrix = transform?.value;
-    double sx = size.width / 2;
-    double sy = size.height / 2;
-    if (matrix != null) {
-      sx = matrix.storage[0] * sx + matrix.storage[12];
-      sy = matrix.storage[5] * sy + matrix.storage[13];
-    }
-    const lightX = 200.0;
-    const lightY = -150.0;
-    final dx = lightX - sx;
-    final dy = lightY - sy;
-    final dist = sqrt(dx * dx + dy * dy);
-    final double nx = dist > 0 ? dx / dist : -0.707;
-    final double ny = dist > 0 ? dy / dist : -0.707;
-
-    final tilt = tiltNotifier?.value ?? Offset.zero;
-    final shiftX = (nx - tilt.dx * 0.45).clamp(-1.25, 1.25);
-    final shiftY = (ny + tilt.dy * 0.45).clamp(-1.25, 1.25);
 
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
@@ -1134,59 +1280,32 @@ class _PixelGridPainter extends CustomPainter {
         );
 
         if (isFilled) {
-          final color = filledColors[expectedNumber] ?? Colors.grey;
           final grow = fillGrow == null
               ? 1.0
               : fillGrow!.factor(row, col, nowMs);
-          final drawRect = grow < 1.0
-              ? Rect.fromCenter(
-                  center: rect.center,
-                  width: rect.width * (0.12 + 0.88 * grow),
-                  height: rect.height * (0.12 + 0.88 * grow),
-                )
-              : rect;
           if (grow < 1.0) {
+            // Still growing: the overlay animates the scaling fill on top of
+            // this preview underlay, exactly as the single-pass painter drew
+            // it. The fillGrow `settled` signal repaints this layer the tick
+            // the grow completes.
             cellPaint.color = _previewColor(expectedNumber, detailStep);
             canvas.drawRect(rect, cellPaint);
-          }
-          if (gemStyle) {
-            if (grow < 1.0) {
-              _drawGemBase(canvas, drawRect, color, cellPaint, effectiveCell);
-            }
-            _drawGemHighlight(canvas, drawRect, cellPaint, effectiveCell, shiftX, shiftY);
-            if (colorblindMode) {
-              _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
-            }
           } else {
-            cellPaint.color = color;
-            canvas.drawRect(drawRect, cellPaint);
+            cellPaint.color = filledColors[expectedNumber] ?? Colors.grey;
+            canvas.drawRect(rect, cellPaint);
             if (colorblindMode) {
-              _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
+              _drawPattern(canvas, rect, expectedNumber, cw, ch);
             }
 
             canvas.drawRect(
               Rect.fromLTWH(
-                drawRect.left,
-                drawRect.top,
-                drawRect.width,
-                drawRect.height * 0.3,
+                rect.left,
+                rect.top,
+                rect.width,
+                rect.height * 0.3,
               ),
               glossPaint,
             );
-          }
-
-          // Afterglow: a soft warm flash that fades over 450ms after the
-          // fill, sharing the grow's clock. Stroke fills carry naturally
-          // staggered timestamps, so a swipe leaves a glowing trail.
-          final fillStartMs = fillGrow?.startMsOf(row, col);
-          if (fillStartMs != null) {
-            final age = (nowMs - fillStartMs) / 1000.0;
-            if (age >= 0 && age < 0.45) {
-              final glow = 1.0 - age / 0.45;
-              cellPaint.color = const Color(0xFFFFF3D6)
-                  .withAlpha((80 * glow * glow).round());
-              canvas.drawRect(drawRect, cellPaint);
-            }
           }
         } else if (expectedNumber == 0) {
           cellPaint.color = const Color(0xFFE8E8E8);
@@ -1223,58 +1342,164 @@ class _PixelGridPainter extends CustomPainter {
       }
     }
 
-    // Section-complete shimmer: one skewed bright band sweeping the filled
-    // cells — the CPU twin of the gem shader's effect. Runs for 600ms only,
-    // over visible cells, so the extra rects never outlast the celebration.
-    final shimmer = sectionShimmer?.value ?? 1.0;
-    if (shimmer > 0.001 && shimmer < 0.999) {
-      final band = -0.2 + 1.4 * shimmer;
-      final denom = size.width + size.height * 0.35;
-      final shimmerPaint = Paint();
-      for (var row = firstRow; row <= lastRow; row++) {
-        for (var col = firstCol; col <= lastCol; col++) {
-          if (filledGrid[row][col] <= 0) continue;
-          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
-          final d = (q - band).abs();
-          if (d >= 0.09) continue;
-          final s = 1.0 - d / 0.09;
-          shimmerPaint.color = Colors.white.withAlpha((115 * s * s).round());
+  }
+
+  /// Flat-flavor animated overlay: growing cells, afterglow, the
+  /// section-complete shimmer, the hover cursor, and the outer edge stroke.
+  /// Repaints at 60fps while fill animations run — but only ever draws the
+  /// handful of animating cells, not the whole grid.
+  void _paintFlatOverlay(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, _, detailStep, gridLineOpacity) = _layout(size);
+
+    final clip = canvas.getLocalClipBounds();
+    final firstRow = max(0, (clip.top / ch).floor());
+    final lastRow = min(gridHeight - 1, (clip.bottom / ch).ceil());
+    final firstCol = max(0, (clip.left / cw).floor());
+    final lastCol = min(gridWidth - 1, (clip.right / cw).ceil());
+
+    // Mirrors the base's zoomed-out fast path, where the single-pass painter
+    // drew no per-cell animations, shimmer, or hover cursor.
+    final lowDetail = detailStep == 0 && !colorblindMode;
+
+    if (!lowDetail && fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final cellPaint = _cellPaint
+        ..shader = null
+        ..style = PaintingStyle.fill;
+      final glossPaint = _glossPaint
+        ..color = Colors.white.withAlpha((30 * gridLineOpacity).round());
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < firstRow ||
+            row > lastRow ||
+            col < firstCol ||
+            col > lastCol) {
+          return;
+        }
+        // Erased (or reverted) mid-animation: nothing to draw over.
+        if (filledGrid[row][col] <= 0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final rect = Rect.fromLTWH(
+          col * cw + cellGap,
+          row * ch + cellGap,
+          cw - cellGap * 2,
+          ch - cellGap * 2,
+        );
+        final grow = fillGrow!.factor(row, col, nowMs);
+        final drawRect = grow < 1.0
+            ? Rect.fromCenter(
+                center: rect.center,
+                width: rect.width * (0.12 + 0.88 * grow),
+                height: rect.height * (0.12 + 0.88 * grow),
+              )
+            : rect;
+        if (grow < 1.0) {
+          cellPaint.color = filledColors[expectedNumber] ?? Colors.grey;
+          canvas.drawRect(drawRect, cellPaint);
+          if (colorblindMode) {
+            _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
+          }
+
           canvas.drawRect(
             Rect.fromLTWH(
-              col * cw + cellGap,
-              row * ch + cellGap,
-              cw - cellGap * 2,
-              ch - cellGap * 2,
+              drawRect.left,
+              drawRect.top,
+              drawRect.width,
+              drawRect.height * 0.3,
             ),
-            shimmerPaint,
+            glossPaint,
           );
         }
-      }
+
+        // Afterglow: a soft warm flash that fades over 450ms after the
+        // fill, sharing the grow's clock. Stroke fills carry naturally
+        // staggered timestamps, so a swipe leaves a glowing trail.
+        final age = (nowMs - startMs) / 1000.0;
+        if (age >= 0 && age < 0.45) {
+          final glow = 1.0 - age / 0.45;
+          cellPaint.color =
+              const Color(0xFFFFF3D6).withAlpha((80 * glow * glow).round());
+          canvas.drawRect(drawRect, cellPaint);
+        }
+      });
     }
 
-    if (hoverRow != null && hoverCol != null) {
-      final cursorPaint = Paint()
-        ..color =
-            (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
-                .withAlpha(50);
-      final half = brushSize ~/ 2;
-      for (var dr = -half; dr <= half; dr++) {
-        for (var dc = -half; dc <= half; dc++) {
-          final hr = hoverRow! + dr;
-          final hc = hoverCol! + dc;
-          if (hr < 0 || hr >= gridHeight || hc < 0 || hc >= gridWidth) continue;
-          final hRect = Rect.fromLTWH(
-            hc * cw + cellGap,
-            hr * ch + cellGap,
-            cw - cellGap * 2,
-            ch - cellGap * 2,
-          );
-          canvas.drawRect(hRect, cursorPaint);
+    if (!lowDetail) {
+      // Section-complete shimmer: one skewed bright band sweeping the filled
+      // cells — the CPU twin of the gem shader's effect. Runs for 600ms only,
+      // over visible cells, so the extra rects never outlast the celebration.
+      final shimmer = sectionShimmer?.value ?? 1.0;
+      if (shimmer > 0.001 && shimmer < 0.999) {
+        final band = -0.2 + 1.4 * shimmer;
+        final denom = size.width + size.height * 0.35;
+        final shimmerPaint = _shimmerPaint;
+        for (var row = firstRow; row <= lastRow; row++) {
+          for (var col = firstCol; col <= lastCol; col++) {
+            if (filledGrid[row][col] <= 0) continue;
+            final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+            final d = (q - band).abs();
+            if (d >= 0.09) continue;
+            final s = 1.0 - d / 0.09;
+            shimmerPaint.color = Colors.white.withAlpha((115 * s * s).round());
+            canvas.drawRect(
+              Rect.fromLTWH(
+                col * cw + cellGap,
+                row * ch + cellGap,
+                cw - cellGap * 2,
+                ch - cellGap * 2,
+              ),
+              shimmerPaint,
+            );
+          }
+        }
+      }
+
+      if (hoverRow != null && hoverCol != null) {
+        final cursorPaint = _cursorPaint
+          ..color =
+              (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
+                  .withAlpha(50);
+        final half = brushSize ~/ 2;
+        for (var dr = -half; dr <= half; dr++) {
+          for (var dc = -half; dc <= half; dc++) {
+            final hr = hoverRow! + dr;
+            final hc = hoverCol! + dc;
+            if (hr < 0 || hr >= gridHeight || hc < 0 || hc >= gridWidth) {
+              continue;
+            }
+            final hRect = Rect.fromLTWH(
+              hc * cw + cellGap,
+              hr * ch + cellGap,
+              cw - cellGap * 2,
+              ch - cellGap * 2,
+            );
+            canvas.drawRect(hRect, cursorPaint);
+          }
         }
       }
     }
 
     _paintEdge(canvas, size);
+  }
+
+  // Coordinate accumulators and Float32List staging buffers reused across
+  // frames — the zoomed-out path repaints per pinch/stroke frame and
+  // reallocating O(visible cells) lists each time was pure garbage churn.
+  // List.clear() keeps capacity; staging buffers grow monotonically and are
+  // handed to drawRawPoints as exact-length sublist views.
+  static final Map<int, List<double>> _batchPool = {};
+  static final List<double> _highlightPool = [];
+  static final Map<int, Float32List> _stagingPool = {};
+  static Float32List? _highlightStaging;
+
+  static Float32List _stageBatch(int colorValue, List<double> points) {
+    var staging = _stagingPool[colorValue];
+    if (staging == null || staging.length < points.length) {
+      staging = _stagingPool[colorValue] = Float32List(points.length);
+    }
+    staging.setRange(0, points.length, points);
+    return Float32List.sublistView(staging, 0, points.length);
   }
 
   /// Zoomed-out fast path: one drawRawPoints call per distinct color
@@ -1288,8 +1513,11 @@ class _PixelGridPainter extends CustomPainter {
     int firstCol,
     int lastCol,
   ) {
-    final batches = <int, List<double>>{};
-    final highlightPoints = <double>[];
+    for (final list in _batchPool.values) {
+      list.clear();
+    }
+    final batches = _batchPool;
+    final highlightPoints = _highlightPool..clear();
 
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
@@ -1319,32 +1547,68 @@ class _PixelGridPainter extends CustomPainter {
       ..strokeCap = StrokeCap.square
       ..strokeWidth = min(cw, ch);
     for (final entry in batches.entries) {
+      if (entry.value.isEmpty) continue;
       paint.color = Color(entry.key);
       canvas.drawRawPoints(
         ui.PointMode.points,
-        Float32List.fromList(entry.value),
+        _stageBatch(entry.key, entry.value),
         paint,
       );
     }
     if (highlightPoints.isNotEmpty) {
+      var staging = _highlightStaging;
+      if (staging == null || staging.length < highlightPoints.length) {
+        staging = _highlightStaging = Float32List(highlightPoints.length);
+      }
+      staging.setRange(0, highlightPoints.length, highlightPoints);
       paint.color = const Color(0x336C63FF);
       canvas.drawRawPoints(
         ui.PointMode.points,
-        Float32List.fromList(highlightPoints),
+        Float32List.sublistView(staging, 0, highlightPoints.length),
         paint,
       );
     }
   }
 
   void _paintEdge(Canvas canvas, Size size) {
-    final edgePaint = Paint()
-      ..color = const Color(0x33000000)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.8;
     canvas.drawRRect(
       RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-      edgePaint,
+      _edgePaint,
     );
+  }
+
+  /// Releases every static cache (pictures, images, laid-out text, color
+  /// memos, point buffers). Called when the grid widget leaves the tree so
+  /// caches don't accumulate across artworks over a long session; they are
+  /// lazily rebuilt on the next paint.
+  static void releaseCaches() {
+    _textCache.clear();
+    _previewCache.clear();
+    _darkenCache.clear();
+    _lightenCache.clear();
+    _overlayStaticPicture?.dispose();
+    _overlayStaticPicture = null;
+    _overlayArtId = '';
+    _overlayFillVersion = -1;
+    _bakedBasePicture?.dispose();
+    _bakedBasePicture = null;
+    _bakedArtId = '';
+    _bakedFillVersion = -1;
+    _previewLayerPicture?.dispose();
+    _previewLayerPicture = null;
+    _previewLayerArtId = '';
+    _cachedGridImage?.dispose();
+    _cachedGridImage = null;
+    _cachedImageArtId = '';
+    _cachedImageFillVersion = -1;
+    _cachedImageW = 0;
+    _cachedImageH = 0;
+    _cachedAgeImage?.dispose();
+    _cachedAgeImage = null;
+    _batchPool.clear();
+    _highlightPool.clear();
+    _stagingPool.clear();
+    _highlightStaging = null;
   }
 
   @override
@@ -1359,8 +1623,10 @@ class _PixelGridPainter extends CustomPainter {
       brushSize != old.brushSize ||
       colorblindMode != old.colorblindMode ||
       gemStyle != old.gemStyle ||
-      hoverRow != old.hoverRow ||
-      hoverCol != old.hoverCol ||
+      // Only the flat overlay draws the hover cursor; don't force the other
+      // layers to repaint on every hovered-cell change (desktop/web).
+      (layer == _GridLayer.flatOverlay &&
+          (hoverRow != old.hoverRow || hoverCol != old.hoverCol)) ||
       art.id != old.art.id ||
       gridFade != old.gridFade ||
       transform != old.transform ||
