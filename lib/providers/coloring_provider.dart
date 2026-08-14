@@ -271,7 +271,23 @@ class ColoringProvider extends ChangeNotifier {
   // never overwrite fresher data or resurrect cleared progress.
   int _saveSeq = 0;
 
-  Future<void> saveProgress() async {
+  // The most recent save still encoding on its worker isolate. loadArt awaits
+  // it before reading storage: the coloring screen fires an un-awaited
+  // saveProgress() from dispose, and reopening an artwork before that write
+  // lands would restore STALE progress — and then re-save it on the next
+  // exit, permanently losing the newest fills.
+  Future<void>? _pendingSave;
+
+  Future<void> saveProgress() {
+    final future = _saveProgressImpl();
+    _pendingSave = future;
+    future.whenComplete(() {
+      if (identical(_pendingSave, future)) _pendingSave = null;
+    });
+    return future;
+  }
+
+  Future<void> _saveProgressImpl() async {
     if (_currentArt == null) return;
     final saveKey = _saveKey;
     // Cheap scalar writes stay synchronous.
@@ -560,7 +576,19 @@ class ColoringProvider extends ChangeNotifier {
   /// When the current artwork was loaded; feeds artwork_completed's duration.
   DateTime? _artStartedAt;
 
-  void loadArt(PixelArt art) {
+  Future<void> loadArt(PixelArt art) async {
+    // Wait for any in-flight save to land before reading storage back (see
+    // _pendingSave). Skipped entirely when no save is pending, so the common
+    // path stays synchronous for the first frame.
+    final pending = _pendingSave;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {
+        // A failed save must not block loading; loadProgress falls back to
+        // whatever state is already persisted.
+      }
+    }
     _currentArt = art;
     _artStartedAt = DateTime.now();
     _filledGrid = List.generate(
@@ -581,6 +609,18 @@ class ColoringProvider extends ChangeNotifier {
     _buildCellIndex();
     loadProgress();
     _calculateProgress();
+    int initialNumber = art.sortedNumbers.isNotEmpty
+        ? art.sortedNumbers.first
+        : 1;
+    for (final n in art.sortedNumbers) {
+      if (_hasUnfilled(n)) {
+        initialNumber = n;
+        break;
+      }
+    }
+    _selectedNumber = initialNumber;
+    _highlightedNumber = initialNumber;
+    _updateNextFillable();
     AnalyticsService().logArtworkSelected(
       artId: art.id,
       category: art.category,
@@ -1042,6 +1082,12 @@ class ColoringProvider extends ChangeNotifier {
     _nextCursor.clear();
     _clearJournal();
     clearProgress();
+    final initialNumber = _currentArt!.sortedNumbers.isNotEmpty
+        ? _currentArt!.sortedNumbers.first
+        : 1;
+    _selectedNumber = initialNumber;
+    _highlightedNumber = initialNumber;
+    _updateNextFillable();
     notifyListeners();
   }
 

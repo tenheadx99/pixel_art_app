@@ -234,9 +234,13 @@ class _ColoringScreenState extends State<ColoringScreen>
             ),
           );
         });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       final provider = context.read<ColoringProvider>();
-      provider.loadArt(widget.art);
+      // loadArt awaits any save still encoding on its worker isolate before
+      // reading storage (quick exit-and-reopen must not restore stale
+      // progress); everything below reads the freshly loaded state.
+      await provider.loadArt(widget.art);
+      if (!mounted) return;
       _adjustCellSize();
       // Clear any carry-over from the previously opened artwork.
       _confettiController.reset();

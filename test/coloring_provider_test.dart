@@ -245,4 +245,73 @@ void main() {
       expect(wrongTapAt, (0, 2));
     });
   });
+
+  group('save/load race', () {
+    test('quick exit-and-reopen restores fills from an in-flight save',
+        () async {
+      final provider = await _providerWith({});
+      final art = _testArt();
+      await provider.loadArt(art);
+      expect(provider.tryFillCell(0, 0), isTrue);
+      expect(provider.tryFillCell(0, 1), isTrue);
+
+      // The coloring screen fires this un-awaited from dispose; the grid
+      // string is still encoding on a worker isolate when a fast re-open
+      // calls loadArt. loadArt must wait for the save to land instead of
+      // restoring stale storage (and later re-saving it, losing the fills).
+      final inFlight = provider.saveProgress();
+      await provider.loadArt(art);
+
+      expect(provider.filledGrid[0][0], 1,
+          reason: 'reopen must see the fills carried by the in-flight save');
+      expect(provider.filledGrid[0][1], 1);
+      await inFlight;
+      provider.dispose();
+    });
+  });
+
+  group('default number selection', () {
+    PixelArt multiColorArt() => PixelArt(
+          id: 'multi_color',
+          name: 'Multi Color',
+          gridWidth: 2,
+          gridHeight: 2,
+          grid: [
+            [1, 2],
+            [3, 3],
+          ],
+          colorMap: {
+            1: const Color(0xFFFF0000),
+            2: const Color(0xFF00FF00),
+            3: const Color(0xFF0000FF),
+          },
+        );
+
+    test('selects first number by default when fresh artwork is loaded', () async {
+      final provider = await _providerWith({});
+      await provider.loadArt(multiColorArt());
+
+      expect(provider.selectedNumber, 1);
+      expect(provider.highlightedNumber, 1);
+      expect(provider.nextFillable, (0, 0));
+    });
+
+    test('selects first UNFILLED number by default when resuming partially completed artwork', () async {
+      final provider = await _providerWith({});
+      final art = multiColorArt();
+      await provider.loadArt(art);
+
+      // Complete number 1 (cell 0,0)
+      provider.tryFillCell(0, 0);
+      await provider.saveProgress();
+
+      // Reload artwork
+      await provider.loadArt(art);
+
+      // Number 1 is filled, so default selection should be number 2
+      expect(provider.selectedNumber, 2);
+      expect(provider.highlightedNumber, 2);
+      expect(provider.nextFillable, (0, 1));
+    });
+  });
 }
