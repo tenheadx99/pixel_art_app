@@ -378,37 +378,49 @@ class _ColoringScreenState extends State<ColoringScreen>
 
     if (provider.isComplete && !_wasComplete) {
       _wasComplete = true;
-      _gridFadeController.forward();
       _saveArtwork(context, provider);
-      // Pay out the diamond reward (once per artwork) and surface the
-      // "level complete" HUD after the confetti gets going.
-      final gallery = context.read<GalleryProvider>();
-      final isDaily = gallery.dailyArt?.id == widget.art.id;
-      final awarded = settings.awardCompletionDiamonds(
-        widget.art.id,
-        isDaily: isDaily,
-      );
-      // Award XP for the finished piece and track lifetime cells; a level-up
-      // celebrates after the completion HUD appears.
-      final cells = provider.filledCellCount;
-      settings.addLifetimeCells(cells);
-      final levelUp = settings.addXp(
-        cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion,
-      );
-      if (levelUp.leveledUp) {
-        _lastLevelUp = levelUp;
+
+      void startCelebration() {
+        if (!mounted) return;
+        _gridFadeController.forward();
+        // Pay out the diamond reward (once per artwork) and surface the
+        // "level complete" HUD after the confetti gets going.
+        final gallery = context.read<GalleryProvider>();
+        final isDaily = gallery.dailyArt?.id == widget.art.id;
+        final awarded = settings.awardCompletionDiamonds(
+          widget.art.id,
+          isDaily: isDaily,
+        );
+        // Award XP for the finished piece and track lifetime cells; a level-up
+        // celebrates after the completion HUD appears.
+        final cells = provider.filledCellCount;
+        settings.addLifetimeCells(cells);
+        final levelUp = settings.addXp(
+          cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion,
+        );
+        if (levelUp.leveledUp) {
+          _lastLevelUp = levelUp;
+        } else {
+          _lastLevelUp = null;
+        }
+        setState(() {
+          _lastDiamondAward = awarded;
+          _rewardDoubled = false;
+          _hudDismissed = true;
+        });
+        if (_settings?.soundsEnabled ?? true) {
+          context.read<SoundService>().playComboChime(rate: 1.25);
+        }
+        _confettiController.forward(from: 0);
+      }
+
+      // First ensure artwork is shown completely on screen (fitted), then start celebration animation.
+      final isZoomed = !_transformController.value.isIdentity();
+      if (isZoomed) {
+        _animateZoomTo(Matrix4.identity(), onComplete: startCelebration);
       } else {
-        _lastLevelUp = null;
+        startCelebration();
       }
-      setState(() {
-        _lastDiamondAward = awarded;
-        _rewardDoubled = false;
-        _hudDismissed = true;
-      });
-      if (_settings?.soundsEnabled ?? true) {
-        context.read<SoundService>().playComboChime(rate: 1.25);
-      }
-      _confettiController.forward(from: 0);
     } else if (!provider.isComplete && _wasComplete) {
       _wasComplete = false;
       _gridFadeController.value = 0;
@@ -568,11 +580,21 @@ class _ColoringScreenState extends State<ColoringScreen>
     await HapticFeedback.lightImpact();
   }
 
-  void _animateZoomTo(Matrix4 target) {
+  void _animateZoomTo(Matrix4 target, {VoidCallback? onComplete}) {
     _zoomTween = Matrix4Tween(
       begin: _transformController.value.clone(),
       end: target,
     );
+    if (onComplete != null) {
+      late AnimationStatusListener listener;
+      listener = (status) {
+        if (status == AnimationStatus.completed) {
+          _zoomAnimController.removeStatusListener(listener);
+          onComplete();
+        }
+      };
+      _zoomAnimController.addStatusListener(listener);
+    }
     _zoomAnimController.forward(from: 0);
   }
 
