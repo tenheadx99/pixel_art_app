@@ -32,6 +32,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _isDarkMode = false;
   bool _colorblindMode = false;
   bool _hapticsEnabled = true;
+  String _hapticIntensity = 'medium';
   bool _soundsEnabled = true;
   bool _fillEffectsEnabled = true;
   String _soundType = 'bubble_pop';
@@ -66,6 +67,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get isDarkMode => _isDarkMode;
   bool get colorblindMode => _colorblindMode;
   bool get hapticsEnabled => _hapticsEnabled;
+  String get hapticIntensity => _hapticIntensity;
   bool get soundsEnabled => _soundsEnabled;
   bool get fillEffectsEnabled => _fillEffectsEnabled;
   String get soundType => _soundType;
@@ -118,6 +120,10 @@ class AppSettingsProvider extends ChangeNotifier {
     _hapticsEnabled = _storageService.getBool(
       'haptics_enabled',
       defaultValue: true,
+    );
+    _hapticIntensity = _storageService.getString(
+      'haptic_intensity',
+      defaultValue: 'medium',
     );
     _soundsEnabled = _storageService.getBool('sounds_enabled', defaultValue: true);
     _fillEffectsEnabled = _storageService.getBool(
@@ -193,6 +199,12 @@ class AppSettingsProvider extends ChangeNotifier {
   void toggleHaptics() {
     _hapticsEnabled = !_hapticsEnabled;
     _storageService.setBool('haptics_enabled', _hapticsEnabled);
+    notifyListeners();
+  }
+
+  void setHapticIntensity(String intensity) {
+    _hapticIntensity = intensity;
+    _storageService.setString('haptic_intensity', _hapticIntensity);
     notifyListeners();
   }
 

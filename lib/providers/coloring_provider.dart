@@ -87,6 +87,9 @@ class ColoringProvider extends ChangeNotifier {
       final completedNow = newlyCompleted.difference(previouslyCompleted);
       if (completedNow.isNotEmpty) {
         onSectionCompleted?.call();
+        if (_completedNumbers.contains(_selectedNumber)) {
+          autoAdvanceIfDone();
+        }
       }
     }
     return result;
@@ -171,37 +174,66 @@ class ColoringProvider extends ChangeNotifier {
   bool get _hapticsOn =>
       _storageService.getBool('haptics_enabled', defaultValue: true);
 
-  /// Medium-strength buzz on each cell fill. Uses an explicit amplitude where
-  /// supported so it's reliably felt regardless of OEM haptic quirks.
+  String get _hapticIntensity =>
+      _storageService.getString('haptic_intensity', defaultValue: 'medium');
+
+  double get _intensityMultiplier {
+    switch (_hapticIntensity) {
+      case 'soft':
+        return 0.6;
+      case 'heavy':
+        return 1.4;
+      case 'medium':
+      default:
+        return 1.0;
+    }
+  }
+
+  /// Buzz on cell fill scaled by haptic intensity.
   void _fillVibrate() {
     if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    final duration = (35 * mult).round().clamp(10, 100);
+    final amplitude = _hasAmplitudeControl
+        ? (160 * mult).round().clamp(1, 255)
+        : -1;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
       try {
         Vibration.vibrate(
-          duration: 35,
-          amplitude: _hasAmplitudeControl ? 160 : -1, // ~medium
-        ).catchError((_) {
-          // Fallback to standard Flutter haptics if native vibration fails
-          HapticFeedback.mediumImpact();
-        });
+          duration: duration,
+          amplitude: amplitude,
+        ).catchError((_) => _fallbackImpact(_hapticIntensity));
       } catch (_) {
-        // Fallback for synchronous exceptions
-        HapticFeedback.mediumImpact();
+        _fallbackImpact(_hapticIntensity);
       }
+    } else {
+      _fallbackImpact(_hapticIntensity);
+    }
+  }
+
+  void _fallbackImpact(String intensity) {
+    if (intensity == 'soft') {
+      HapticFeedback.lightImpact();
+    } else if (intensity == 'heavy') {
+      HapticFeedback.heavyImpact();
     } else {
       HapticFeedback.mediumImpact();
     }
   }
 
-  /// Soft "nope" buzz for a wrong-number tap — clearly lighter than the fill
-  /// buzz so right and wrong feel different.
+  /// Soft "nope" buzz for a wrong-number tap.
   void _wrongTapVibrate() {
     if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    final duration = (20 * mult).round().clamp(8, 60);
+    final amplitude = _hasAmplitudeControl
+        ? (90 * mult).round().clamp(1, 255)
+        : -1;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
       try {
         Vibration.vibrate(
-          duration: 20,
-          amplitude: _hasAmplitudeControl ? 90 : -1,
+          duration: duration,
+          amplitude: amplitude,
         ).catchError((_) => HapticFeedback.lightImpact());
       } catch (_) {
         HapticFeedback.lightImpact();
@@ -214,12 +246,16 @@ class ColoringProvider extends ChangeNotifier {
   /// Escalating celebration buzz for combo tiers (0 = first threshold).
   void comboHaptic(int tier) {
     if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    final duration = ((30 + tier * 10) * mult).round().clamp(15, 120);
+    final amplitude = _hasAmplitudeControl
+        ? ((150 + tier * 25) * mult).round().clamp(1, 255)
+        : -1;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
       try {
         Vibration.vibrate(
-          duration: 30 + tier * 10,
-          amplitude:
-              _hasAmplitudeControl ? (150 + tier * 25).clamp(1, 255) : -1,
+          duration: duration,
+          amplitude: amplitude,
         ).catchError((_) => HapticFeedback.heavyImpact());
       } catch (_) {
         HapticFeedback.heavyImpact();
@@ -227,6 +263,75 @@ class ColoringProvider extends ChangeNotifier {
     } else {
       HapticFeedback.heavyImpact();
     }
+  }
+
+  /// Heavy multi-pulse explosion vibration pattern for Bomb / Magic Wand.
+  void bombHaptic() {
+    if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
+      try {
+        Vibration.vibrate(
+          pattern: [
+            0,
+            (40 * mult).round(),
+            (20 * mult).round(),
+            (80 * mult).round(),
+          ],
+          intensities: _hasAmplitudeControl
+              ? [
+                  0,
+                  (160 * mult).round().clamp(1, 255),
+                  0,
+                  (255 * mult).round().clamp(1, 255),
+                ]
+              : [],
+        ).catchError((_) => HapticFeedback.heavyImpact());
+      } catch (_) {
+        HapticFeedback.heavyImpact();
+      }
+    } else {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  /// Rhythmic victory pulse when an artwork is finished.
+  void victoryHaptic() {
+    if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
+      try {
+        Vibration.vibrate(
+          pattern: [0, 60, 40, 100, 60, 140],
+          intensities: _hasAmplitudeControl
+              ? [
+                  0,
+                  (160 * mult).round().clamp(1, 255),
+                  0,
+                  (200 * mult).round().clamp(1, 255),
+                  0,
+                  (255 * mult).round().clamp(1, 255),
+                ]
+              : [],
+        ).catchError((_) => HapticFeedback.heavyImpact());
+      } catch (_) {
+        HapticFeedback.heavyImpact();
+      }
+    } else {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  /// Tactile feedback when performing Undo.
+  void undoHaptic() {
+    if (!_hapticsOn) return;
+    HapticFeedback.lightImpact();
+  }
+
+  /// Tactile feedback when Eyedropper / Long-press preview triggers.
+  void eyedropperHaptic() {
+    if (!_hapticsOn) return;
+    HapticFeedback.selectionClick();
   }
 
   PixelArt? get currentArt => _currentArt;
@@ -810,7 +915,7 @@ class ColoringProvider extends ChangeNotifier {
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
-      _autoAdvanceIfDone();
+      autoAdvanceIfDone();
       _debouncedSave();
       notifyListeners();
       return true;
@@ -908,7 +1013,7 @@ class ColoringProvider extends ChangeNotifier {
     }
     _checkAchievements();
     _updateNextFillable();
-    _autoAdvanceIfDone();
+    autoAdvanceIfDone();
     _debouncedSave();
 
     final newlyCompleted = _getCompletedNumbers();
@@ -954,7 +1059,7 @@ class ColoringProvider extends ChangeNotifier {
     _checkCompletion();
     _checkAchievements();
     _updateNextFillable();
-    _autoAdvanceIfDone();
+    autoAdvanceIfDone();
     _debouncedSave();
 
     final newlyCompleted = _getCompletedNumbers();
@@ -969,7 +1074,7 @@ class ColoringProvider extends ChangeNotifier {
 
   /// When the selected number has no cells left, moves the selection to the
   /// next number that still has unfilled cells.
-  void _autoAdvanceIfDone() {
+  void autoAdvanceIfDone() {
     if (_currentArt == null || _nextFillable != null || _isComplete) return;
     final numbers = _currentArt!.sortedNumbers;
     final start = numbers.indexOf(_selectedNumber);
@@ -979,6 +1084,7 @@ class ColoringProvider extends ChangeNotifier {
         _selectedNumber = candidate;
         _highlightedNumber = candidate;
         _updateNextFillable();
+        notifyListeners();
         return;
       }
     }
@@ -1044,6 +1150,7 @@ class ColoringProvider extends ChangeNotifier {
 
   void undo() {
     if (_undoStack.isEmpty) return;
+    undoHaptic();
     final entry = _undoStack.removeLast();
     int fillCount = 0;
     for (final (row, col, prev) in entry.reversed) {
@@ -1270,7 +1377,7 @@ class ColoringProvider extends ChangeNotifier {
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
-      _autoAdvanceIfDone();
+      autoAdvanceIfDone();
       _debouncedSave();
       notifyListeners();
       return true;
@@ -1353,7 +1460,7 @@ class ColoringProvider extends ChangeNotifier {
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
-      _autoAdvanceIfDone();
+      autoAdvanceIfDone();
       _debouncedSave();
       notifyListeners();
       return true;

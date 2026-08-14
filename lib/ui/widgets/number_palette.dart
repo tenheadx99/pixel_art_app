@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../providers/coloring_provider.dart';
 import '../theme/app_style.dart';
 
@@ -175,7 +176,10 @@ class _NumberPaletteState extends State<NumberPalette> {
           }
 
           return GestureDetector(
-            onTap: () => provider.selectNumber(number),
+            onTap: () {
+              HapticFeedback.selectionClick();
+              provider.selectNumber(number);
+            },
             child: Center(
               child: Padding(
                 padding: EdgeInsets.only(

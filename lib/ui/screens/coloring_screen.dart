@@ -81,6 +81,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   Matrix4Tween? _zoomTween;
   List<(int, int)> _replayActions = [];
   int _replayIndex = 0;
+  double _replaySpeed = 1.0;
   List<List<int>>? _savedGridState;
   bool _wasComplete = false;
   bool _sharingGif = false;
@@ -301,6 +302,9 @@ class _ColoringScreenState extends State<ColoringScreen>
           if (_settings?.soundsEnabled ?? true) {
             soundService.playComboChime(rate: 0.85);
           }
+          if (_settings?.hapticsEnabled ?? true) {
+            provider.bombHaptic();
+          }
         };
       _maybeShowLongPressTip();
     });
@@ -378,6 +382,9 @@ class _ColoringScreenState extends State<ColoringScreen>
 
     if (provider.isComplete && !_wasComplete) {
       _wasComplete = true;
+      if (settings.hapticsEnabled) {
+        provider.victoryHaptic();
+      }
       _saveArtwork(context, provider);
 
       void startCelebration() {
@@ -750,6 +757,9 @@ class _ColoringScreenState extends State<ColoringScreen>
                   final isComplete =
                       provider.currentArt?.id == widget.art.id &&
                           provider.isComplete;
+                  if (_replayController.isAnimating || _replayActions.isNotEmpty) {
+                    return _buildReplayControls();
+                  }
                   if (!isComplete) {
                     return Positioned(
                       bottom: 0,
@@ -758,7 +768,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       child: _buildBottomSection(context, provider, settings),
                     );
                   }
-                  if (_replayController.isAnimating || _confettiController.isAnimating) {
+                  if (_confettiController.isAnimating) {
                     return const SizedBox.shrink();
                   }
                   return _hudDismissed
@@ -1725,6 +1735,21 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
+  void _setReplaySpeed(double speed) {
+    if (_replaySpeed == speed) return;
+    final currentProgress = _replayController.value;
+    _replaySpeed = speed;
+    if (_replayActions.isNotEmpty) {
+      final baseMs = max(1000, _replayActions.length * 30);
+      final newMs = (baseMs / speed).round();
+      _replayController.duration = Duration(milliseconds: newMs);
+      if (_replayController.isAnimating) {
+        _replayController.forward(from: currentProgress);
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
   void _startTimeLapse(ColoringProvider provider) {
     if (_replayController.isAnimating) {
       _replayController.stop();
@@ -1740,12 +1765,111 @@ class _ColoringScreenState extends State<ColoringScreen>
     provider.restoreGridState(
       List.generate(art.gridHeight, (_) => List.filled(art.gridWidth, 0)),
     );
+    final baseMs = max(1000, _replayActions.length * 30);
     _replayController.duration = Duration(
-      milliseconds: max(1000, _replayActions.length * 30),
+      milliseconds: (baseMs / _replaySpeed).round(),
     );
     AnalyticsService().logReplayWatched(artId: widget.art.id);
     _replayController.forward(from: 0);
     setState(() {});
+  }
+
+  Widget _buildReplayControls() {
+    return Positioned(
+      bottom: 24,
+      left: 16,
+      right: 16,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: const Color(0xEE1E1E2A),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white24, width: 1),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 12,
+              offset: Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(
+                    _replayController.isAnimating
+                        ? Icons.pause_rounded
+                        : Icons.play_arrow_rounded,
+                    color: Colors.white,
+                    size: 26,
+                  ),
+                  onPressed: () {
+                    if (_replayController.isAnimating) {
+                      _replayController.stop();
+                    } else {
+                      _replayController.forward();
+                    }
+                    if (mounted) setState(() {});
+                  },
+                ),
+                const Text(
+                  'Replay',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                _buildSpeedChip(1.0, '1x'),
+                const SizedBox(width: 6),
+                _buildSpeedChip(2.0, '2x'),
+                const SizedBox(width: 6),
+                _buildSpeedChip(4.0, '4x'),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 22),
+                  onPressed: () {
+                    _replayController.stop();
+                    _replayController.reset();
+                    _finishReplay();
+                  },
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedChip(double speed, String label) {
+    final isSelected = _replaySpeed == speed;
+    return InkWell(
+      onTap: () => _setReplaySpeed(speed),
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected ? AppStyle.primary : Colors.white12,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            fontSize: 12,
+          ),
+        ),
+      ),
+    );
   }
 
   void _onReplayTick() {
@@ -1947,6 +2071,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     tiltNotifier: _tiltNotifier,
                     onCellTap: (row, col) => provider.tryFillCell(row, col),
                     onCellLongPress: (row, col) {
+                      provider.eyedropperHaptic();
                       _showColorPreview(context, provider, row, col);
                     },
                     onCellDragStart: () {

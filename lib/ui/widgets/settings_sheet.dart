@@ -59,6 +59,43 @@ class SettingsSheet extends StatelessWidget {
                   value: settings.hapticsEnabled,
                   onChanged: (_) => settings.toggleHaptics(),
                 ),
+                if (settings.hapticsEnabled)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Intensity:',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'soft',
+                                label: Text('Soft', style: TextStyle(fontSize: 12)),
+                              ),
+                              ButtonSegment(
+                                value: 'medium',
+                                label: Text('Medium', style: TextStyle(fontSize: 12)),
+                              ),
+                              ButtonSegment(
+                                value: 'heavy',
+                                label: Text('Heavy', style: TextStyle(fontSize: 12)),
+                              ),
+                            ],
+                            selected: {settings.hapticIntensity},
+                            onSelectionChanged: (selection) {
+                              if (selection.isNotEmpty) {
+                                settings.setHapticIntensity(selection.first);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 SwitchListTile(
                   secondary: const Icon(Icons.volume_up_outlined),
                   title: Text(l10n.soundEffects),
