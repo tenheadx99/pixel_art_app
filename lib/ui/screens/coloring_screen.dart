@@ -144,6 +144,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _adjustCellSize();
+  }
+
+  @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
@@ -243,6 +249,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       await provider.loadArt(widget.art);
       if (!mounted) return;
       _adjustCellSize();
+      _transformController.value = Matrix4.identity();
       // Clear any carry-over from the previously opened artwork.
       _confettiController.reset();
       _wasComplete = provider.isComplete;
@@ -2149,7 +2156,17 @@ class _ColoringScreenState extends State<ColoringScreen>
                   // App-scoped provider: don't render the previous artwork's
                   // state before loadArt (post-frame) swaps it.
                   if (provider.currentArt?.id != widget.art.id) {
-                    return const SizedBox.shrink();
+                    return SizedBox(
+                      width: widget.art.gridWidth * _cellSize,
+                      height: widget.art.gridHeight * _cellSize,
+                      child: const Center(
+                        child: SizedBox(
+                          width: 24,
+                          height: 24,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    );
                   }
                   return PixelGrid(
                     provider: provider,
