@@ -499,9 +499,9 @@ class AdService {
   }
 
   void dispose() {
-    _interstitialAd?.dispose();
-    _rewardedAd?.dispose();
-    _rewardedInterstitialAd?.dispose();
-    _appOpenAd?.dispose();
+    try { _interstitialAd?.dispose(); } catch (_) {}
+    try { _rewardedAd?.dispose(); } catch (_) {}
+    try { _rewardedInterstitialAd?.dispose(); } catch (_) {}
+    try { _appOpenAd?.dispose(); } catch (_) {}
   }
 }

@@ -701,6 +701,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     gridWidth: widget.art.gridWidth,
                     gridHeight: widget.art.gridHeight,
                     tiltNotifier: _tiltNotifier,
+                    particleStyle: settings.particleStyle,
                   ),
                 ),
 
@@ -1953,6 +1954,19 @@ class _ColoringScreenState extends State<ColoringScreen>
                   ),
                   const SizedBox(width: 12),
                   GestureDetector(
+                    onTap: () => _showAmbientControls(context, settings),
+                    child: Icon(
+                      settings.ambientTrack != 'none'
+                          ? Icons.music_note_rounded
+                          : Icons.music_off_rounded,
+                      size: 20,
+                      color: settings.ambientTrack != 'none'
+                          ? AppStyle.primary
+                          : (isDark ? Colors.white60 : Colors.black54),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  GestureDetector(
                     onTap: () => _zoomBy(0),
                     child: Icon(
                       Icons.fit_screen_rounded,
@@ -2020,6 +2034,85 @@ class _ColoringScreenState extends State<ColoringScreen>
             ],
           ),
         ),
+    );
+  }
+
+  void _showAmbientControls(BuildContext context, AppSettingsProvider settings) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return Consumer<AppSettingsProvider>(
+          builder: (ctx, settings, _) {
+            final soundService = ctx.read<SoundService>();
+            final tracks = [
+              {'key': 'none', 'label': 'Off 🔇'},
+              {'key': 'rain', 'label': 'Soft Rain 🌧️'},
+              {'key': 'ocean', 'label': 'Gentle Waves 🌊'},
+              {'key': 'zen', 'label': 'Zen Chimes 🧘'},
+            ];
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Text(
+                      'Ambient Soundscape',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: tracks.map((t) {
+                        final key = t['key']!;
+                        final label = t['label']!;
+                        final isSelected = settings.ambientTrack == key;
+                        return ChoiceChip(
+                          label: Text(label),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            if (selected) {
+                              settings.setAmbientTrack(key);
+                              soundService.playAmbient(key);
+                            }
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    if (settings.ambientTrack != 'none') ...[
+                      const SizedBox(height: 20),
+                      Row(
+                        children: [
+                          const Icon(Icons.volume_down, size: 20),
+                          Expanded(
+                            child: Slider(
+                              value: settings.ambientVolume,
+                              min: 0.0,
+                              max: 1.0,
+                              onChanged: (val) {
+                                settings.setAmbientVolume(val);
+                                soundService.setAmbientVolume(val);
+                              },
+                            ),
+                          ),
+                          const Icon(Icons.volume_up, size: 20),
+                        ],
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 

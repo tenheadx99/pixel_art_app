@@ -20,12 +20,15 @@ class NativeAdCard extends StatefulWidget {
   State<NativeAdCard> createState() => _NativeAdCardState();
 }
 
-class _NativeAdCardState extends State<NativeAdCard> {
+class _NativeAdCardState extends State<NativeAdCard> with AutomaticKeepAliveClientMixin {
   static int _liveCount = 0;
   static const int _maxLive = 3;
 
   NativeAd? _ad;
   bool _loaded = false;
+
+  @override
+  bool get wantKeepAlive => _loaded;
 
   // The medium template needs Theme colors, so load from
   // didChangeDependencies rather than initState.
@@ -67,12 +70,17 @@ class _NativeAdCardState extends State<NativeAdCard> {
       ),
       listener: NativeAdListener(
         onAdLoaded: (_) {
-          if (mounted) setState(() => _loaded = true);
+          if (mounted) {
+            setState(() => _loaded = true);
+            updateKeepAlive();
+          }
         },
         onAdFailedToLoad: (ad, error) {
           // No retry loop: the next scroll-in builds a fresh state and tries
           // again, which is backoff enough for a feed slot.
-          ad.dispose();
+          Future.microtask(() {
+            ad.dispose();
+          });
           _liveCount--;
           _ad = null;
         },
@@ -82,15 +90,23 @@ class _NativeAdCardState extends State<NativeAdCard> {
 
   @override
   void dispose() {
-    if (_ad != null) {
-      _ad!.dispose();
+    final ad = _ad;
+    if (ad != null) {
       _liveCount--;
+      _ad = null;
+      // Defer platform view disposal to next microtask so HWUI frame sync completes first
+      Future.microtask(() {
+        try {
+          ad.dispose();
+        } catch (_) {}
+      });
     }
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final ad = _ad;
     if (!_loaded || ad == null) return const SizedBox.shrink();
     return Padding(
@@ -99,7 +115,12 @@ class _NativeAdCardState extends State<NativeAdCard> {
         borderRadius: BorderRadius.circular(20),
         // The SDK's medium template wants >=320dp of height to lay out its
         // media view + headline + CTA without clipping.
-        child: SizedBox(height: 320, child: AdWidget(ad: ad)),
+        child: SizedBox(
+          height: 320,
+          child: RepaintBoundary(
+            child: AdWidget(ad: ad),
+          ),
+        ),
       ),
     );
   }

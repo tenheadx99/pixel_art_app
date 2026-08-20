@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../l10n/app_localizations.dart';
 import '../../config/app_constants.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../data/services/sound_service.dart';
 import '../theme/app_style.dart';
 import '../../config/flavor.dart';
 
@@ -102,6 +103,64 @@ class SettingsSheet extends StatelessWidget {
                   value: settings.soundsEnabled,
                   onChanged: (_) => settings.toggleSounds(),
                 ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.auto_awesome_outlined),
+                  title: const Text('Fill particle effects'),
+                  value: settings.fillEffectsEnabled,
+                  onChanged: (_) => settings.toggleFillEffects(),
+                ),
+                if (settings.fillEffectsEnabled)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                    child: Row(
+                      children: [
+                        const Text(
+                          'Particles:',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: SegmentedButton<String>(
+                            segments: const [
+                              ButtonSegment(
+                                value: 'sparkles',
+                                icon: Icon(Icons.auto_awesome_rounded, size: 18),
+                                tooltip: 'Sparkles',
+                              ),
+                              ButtonSegment(
+                                value: 'stars',
+                                icon: Icon(Icons.star_rounded, size: 18),
+                                tooltip: 'Stars',
+                              ),
+                              ButtonSegment(
+                                value: 'neon',
+                                icon: Icon(Icons.blur_circular_rounded, size: 18),
+                                tooltip: 'Neon',
+                              ),
+                              ButtonSegment(
+                                value: 'hearts',
+                                icon: Icon(Icons.favorite_rounded, size: 18),
+                                tooltip: 'Hearts',
+                              ),
+                            ],
+                            selected: {settings.particleStyle},
+                            onSelectionChanged: (selection) {
+                              if (selection.isNotEmpty) {
+                                settings.setParticleStyle(selection.first);
+                              }
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ListTile(
+                  leading: const Icon(Icons.multitrack_audio_rounded),
+                  title: const Text('Ambient Soundscape'),
+                  subtitle: Text(_getAmbientName(settings.ambientTrack)),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _showAmbientPicker(context, settings),
+                ),
                 const Divider(height: 8),
                 ListTile(
                   leading: const Icon(Icons.language_outlined),
@@ -150,6 +209,67 @@ class SettingsSheet extends StatelessWidget {
 
   void _openUrl(String url) {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  String _getAmbientName(String track) {
+    switch (track) {
+      case 'rain':
+        return 'Soft Rain 🌧️';
+      case 'ocean':
+        return 'Gentle Waves 🌊';
+      case 'zen':
+        return 'Zen Chimes 🧘';
+      case 'none':
+      default:
+        return 'Off';
+    }
+  }
+
+  void _showAmbientPicker(
+    BuildContext context,
+    AppSettingsProvider settings,
+  ) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) {
+        final options = [
+          {'key': 'none', 'label': 'Off'},
+          {'key': 'rain', 'label': 'Soft Rain 🌧️'},
+          {'key': 'ocean', 'label': 'Gentle Waves 🌊'},
+          {'key': 'zen', 'label': 'Zen Chimes 🧘'},
+        ];
+
+        return AlertDialog(
+          title: const Text('Ambient Soundscape'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: options.map((opt) {
+              final key = opt['key'] as String;
+              final label = opt['label'] as String;
+              final isSelected = settings.ambientTrack == key;
+              return ListTile(
+                title: Text(label),
+                leading: Icon(
+                  isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
+                  color: isSelected ? AppStyle.primary : Colors.grey,
+                ),
+                onTap: () {
+                  settings.setAmbientTrack(key);
+                  context.read<SoundService>().playAmbient(key);
+                  Navigator.pop(dialogContext);
+                },
+              );
+            }).toList(),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   String _getLanguageName(Locale? locale, AppLocalizations l10n) {

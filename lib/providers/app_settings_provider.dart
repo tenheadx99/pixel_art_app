@@ -36,6 +36,9 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _soundsEnabled = true;
   bool _fillEffectsEnabled = true;
   String _soundType = 'bubble_pop';
+  String _ambientTrack = 'none';
+  double _ambientVolume = 0.5;
+  String _particleStyle = 'sparkles';
   bool _dailyRemindersEnabled = true;
   int _hintsAvailable = 3;
   int _diamondsAvailable = 50;
@@ -71,6 +74,9 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get soundsEnabled => _soundsEnabled;
   bool get fillEffectsEnabled => _fillEffectsEnabled;
   String get soundType => _soundType;
+  String get ambientTrack => _ambientTrack;
+  double get ambientVolume => _ambientVolume;
+  String get particleStyle => _particleStyle;
   bool get dailyRemindersEnabled => _dailyRemindersEnabled;
   int get hintsAvailable => _hintsAvailable;
   int get diamondsAvailable => _diamondsAvailable;
@@ -131,6 +137,9 @@ class AppSettingsProvider extends ChangeNotifier {
       defaultValue: true,
     );
     _soundType = _storageService.getString('sound_type', defaultValue: 'bubble_pop');
+    _ambientTrack = _storageService.getString('ambient_track', defaultValue: 'none');
+    _ambientVolume = _storageService.getDouble('ambient_volume', defaultValue: 0.5);
+    _particleStyle = _storageService.getString('particle_style', defaultValue: 'sparkles');
     _dailyRemindersEnabled = _storageService.getBool(
       _dailyRemindersPrefKey,
       defaultValue: true,
@@ -223,6 +232,24 @@ class AppSettingsProvider extends ChangeNotifier {
   void setSoundType(String type) {
     _soundType = type;
     _storageService.setString('sound_type', type);
+    notifyListeners();
+  }
+
+  void setAmbientTrack(String track) {
+    _ambientTrack = track;
+    _storageService.setString('ambient_track', track);
+    notifyListeners();
+  }
+
+  void setAmbientVolume(double volume) {
+    _ambientVolume = volume.clamp(0.0, 1.0);
+    _storageService.setDouble('ambient_volume', _ambientVolume);
+    notifyListeners();
+  }
+
+  void setParticleStyle(String style) {
+    _particleStyle = style;
+    _storageService.setString('particle_style', style);
     notifyListeners();
   }
 

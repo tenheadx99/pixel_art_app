@@ -44,6 +44,7 @@ class FillEffectsOverlay extends StatefulWidget {
   final int gridWidth;
   final int gridHeight;
   final ValueNotifier<Offset>? tiltNotifier;
+  final String particleStyle;
 
   const FillEffectsOverlay({
     super.key,
@@ -53,6 +54,7 @@ class FillEffectsOverlay extends StatefulWidget {
     required this.gridWidth,
     required this.gridHeight,
     this.tiltNotifier,
+    this.particleStyle = 'sparkles',
   });
 
   @override
@@ -269,6 +271,7 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
             gridWidth: widget.gridWidth,
             gridHeight: widget.gridHeight,
             lifetime: _lifetime,
+            particleStyle: widget.particleStyle,
             tiltNotifier: widget.tiltNotifier,
             repaint: Listenable.merge([_ticker, widget.transformController, widget.tiltNotifier]),
           ),
@@ -286,6 +289,7 @@ class _FillEffectsPainter extends CustomPainter {
   final int gridWidth;
   final int gridHeight;
   final int lifetime;
+  final String particleStyle;
   final ValueNotifier<Offset>? tiltNotifier;
 
   _FillEffectsPainter({
@@ -296,6 +300,7 @@ class _FillEffectsPainter extends CustomPainter {
     required this.gridWidth,
     required this.gridHeight,
     required this.lifetime,
+    this.particleStyle = 'sparkles',
     this.tiltNotifier,
     required Listenable repaint,
   }) : super(repaint: repaint);
@@ -431,27 +436,138 @@ class _FillEffectsPainter extends CustomPainter {
   ) {
     final isGem = FlavorConfig.current.cellStyle == CellRenderStyle.gem;
     final tilt = tiltNotifier?.value ?? Offset.zero;
-    
-    // Sparkles drift under gravity/tilt. The drift increases quadratically over time.
+
     final driftX = isGem ? -tilt.dx * cellPx * 2.2 * t * t : 0.0;
     final driftY = isGem ? tilt.dy * cellPx * 2.2 * t * t : 0.0;
 
+    final alpha = (1.0 - t).clamp(0.0, 1.0);
+    final dist = cellPx * (0.4 + Curves.easeOutCubic.transform(t) * 1.6);
+    final pSize = cellPx * 0.24 * (1.0 - t * 0.8);
+    if (pSize <= 0.2) return;
+
+    for (var i = 0; i < e.sparkleCount; i++) {
+      final angle = e.seed + i * 2.399963 + (particleStyle == 'hearts' ? 0.0 : t * 1.5);
+      
+      double px = c.dx + math.cos(angle) * dist + driftX;
+      double py = c.dy + math.sin(angle) * dist + driftY;
+      if (particleStyle == 'hearts') {
+        px += math.sin(t * 8.0 + i) * cellPx * 0.3;
+        py -= t * cellPx * 1.8;
+      }
+
+      final pos = Offset(px, py);
+      final rotation = (e.seed * 5.0 + t * 5.0 * math.pi + i * 0.8);
+      
+      final Color pColor;
+      if (particleStyle == 'neon') {
+        const neonColors = [Color(0xFF00E5FF), Color(0xFFFF007F), Color(0xFF00FF66), Color(0xFFFFE500)];
+        pColor = neonColors[i % neonColors.length];
+      } else if (particleStyle == 'hearts') {
+        const heartColors = [Color(0xFFFF2A6D), Color(0xFFFF5252), Color(0xFFFF758C), Color(0xFFFFB3C1)];
+        pColor = heartColors[i % heartColors.length];
+      } else if (particleStyle == 'stars') {
+        const starColors = [Color(0xFFFFD700), Color(0xFFFFE08A), Color(0xFFFFF5CC), Colors.white];
+        pColor = starColors[i % starColors.length];
+      } else {
+        pColor = i % 2 == 0 ? e.color : const Color(0xFFFFD700);
+      }
+
+      _drawParticle(canvas, paint, pos, pSize, particleStyle, pColor, alpha, rotation);
+    }
+  }
+
+  void _drawParticle(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double r,
+    String style,
+    Color color,
+    double alpha,
+    double rotation,
+  ) {
+    final int alphaByte = (alpha * 255).round().clamp(0, 255);
+    final int glowAlphaByte = (alpha * 140).round().clamp(0, 255);
+
+    // 1. Soft Radial Glow Halo
     paint
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withValues(alpha: (1 - t).clamp(0.0, 1.0));
-    final dist = cellPx * (0.5 + t * 1.3);
-    final pSize = cellPx * 0.2 * (1 - t);
-    if (pSize <= 0.2) return;
-    for (var i = 0; i < e.sparkleCount; i++) {
-      // Golden-angle spread keeps the particles visually even.
-      final angle = e.seed + i * 2.399963;
-      final pos = c + Offset(
-        math.cos(angle) * dist + driftX,
-        math.sin(angle) * dist + driftY,
-      );
-      final rotation = isGem ? (e.seed * 5.0 + t * 4.0 * math.pi + i * 0.5) : 0.0;
-      _drawDiamond(canvas, paint, pos, pSize, rotation);
+      ..color = color.withAlpha(glowAlphaByte)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.8);
+    canvas.drawCircle(c, r * 1.1, paint);
+    paint.maskFilter = null;
+
+    // 2. Primary Outer Particle Shape
+    paint
+      ..style = PaintingStyle.fill
+      ..color = color.withAlpha(alphaByte);
+
+    switch (style) {
+      case 'stars':
+        _drawStar(canvas, paint, c, r * 1.1, rotation);
+        break;
+      case 'neon':
+        _drawNeonRing(canvas, paint, c, r, alphaByte);
+        break;
+      case 'hearts':
+        _drawHeart(canvas, paint, c, r * 1.2);
+        break;
+      case 'sparkles':
+      default:
+        _drawDiamond(canvas, paint, c, r, rotation);
+        break;
     }
+
+    // 3. Bright White Center Core
+    paint
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withAlpha((alpha * 220).round().clamp(0, 255));
+    canvas.drawCircle(c, r * 0.35, paint);
+  }
+
+  void _drawStar(Canvas canvas, Paint paint, Offset c, double r, double rotation) {
+    final path = Path();
+    const points = 5;
+    final innerR = r * 0.4;
+    for (int i = 0; i < points * 2; i++) {
+      final rad = rotation + (i * math.pi / points);
+      final radius = (i % 2 == 0) ? r : innerR;
+      final x = c.dx + math.cos(rad) * radius;
+      final y = c.dy + math.sin(rad) * radius;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawNeonRing(Canvas canvas, Paint paint, Offset c, double r, int alphaByte) {
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = r * 0.35;
+    canvas.drawCircle(c, r, paint);
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _drawHeart(Canvas canvas, Paint paint, Offset c, double r) {
+    final path = Path();
+    final width = r * 1.3;
+    final height = r * 1.3;
+    path.moveTo(c.dx, c.dy + height * 0.25);
+    path.cubicTo(
+      c.dx - width * 0.5, c.dy - height * 0.5,
+      c.dx - width, c.dy + height * 0.25,
+      c.dx, c.dy + height * 0.75,
+    );
+    path.cubicTo(
+      c.dx + width, c.dy + height * 0.25,
+      c.dx + width * 0.5, c.dy - height * 0.5,
+      c.dx, c.dy + height * 0.25,
+    );
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   void _drawDiamond(Canvas canvas, Paint paint, Offset c, double r, [double rotation = 0.0]) {

@@ -22,11 +22,13 @@ class AppUpdateService {
     bool forceImmediate = false,
   }) async {
     if (!Platform.isAndroid) return;
+    if (!context.mounted) return;
     if (_isUpdateCheckInProgress) return;
 
     _isUpdateCheckInProgress = true;
     try {
       final info = await InAppUpdate.checkForUpdate();
+      if (!context.mounted) return;
       developer.log(
         'InAppUpdate info: availability=${info.updateAvailability}, flexible=${info.flexibleUpdateAllowed}, immediate=${info.immediateUpdateAllowed}, code=${info.availableVersionCode}',
         name: 'AppUpdateService',
@@ -42,6 +44,8 @@ class AppUpdateService {
           }
         }
 
+        if (!context.mounted) return;
+
         // Try Flexible In-App Update
         try {
           final result = await InAppUpdate.startFlexibleUpdate();
@@ -49,7 +53,11 @@ class AppUpdateService {
             if (context.mounted) {
               _showUpdateDownloadedSnackBar(context);
             } else {
-              await InAppUpdate.completeFlexibleUpdate();
+              try {
+                await InAppUpdate.completeFlexibleUpdate();
+              } catch (e) {
+                developer.log('Complete flexible update failed: $e', name: 'AppUpdateService');
+              }
             }
             return;
           }

@@ -523,7 +523,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+            // Streak Flame Badge
+            GestureDetector(
+              onTap: () => _showStreakMilestoneDialog(context, gallery, settings),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withAlpha(100), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_fire_department, color: Colors.orangeAccent, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${gallery.dailyStreak}d',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -625,6 +653,93 @@ class _HomeScreenState extends State<HomeScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  void _showStreakMilestoneDialog(
+    BuildContext context,
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final streak = gallery.dailyStreak;
+        final milestones = [
+          {'day': 3, 'reward': '+2 Wands 🪄'},
+          {'day': 7, 'reward': '+100 Diamonds 💎'},
+          {'day': 14, 'reward': '+5 Bombs 💣'},
+          {'day': 30, 'reward': 'Crown & +250 💎'},
+        ];
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              const Icon(Icons.local_fire_department, color: Colors.orange, size: 28),
+              const SizedBox(width: 8),
+              Text('$streak Day Streak!'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Color daily to keep your flame burning and unlock milestone gifts!',
+                style: TextStyle(fontSize: 13, height: 1.3),
+              ),
+              const SizedBox(height: 16),
+              ...milestones.map((m) {
+                final day = m['day'] as int;
+                final reward = m['reward'] as String;
+                final isReached = streak >= day;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isReached ? Colors.orange.withAlpha(25) : Colors.grey.withAlpha(15),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isReached ? Colors.orange.withAlpha(120) : Colors.grey.withAlpha(40),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isReached ? Icons.check_circle_rounded : Icons.lock_clock_outlined,
+                          color: isReached ? Colors.orange : Colors.grey,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Day $day',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        Text(
+                          reward,
+                          style: TextStyle(
+                            color: isReached ? Colors.orange : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Awesome!'),
+            ),
+          ],
+        );
+      },
     );
   }
 
