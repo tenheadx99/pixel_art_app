@@ -35,10 +35,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
   String? _lifetimePrice;
   AppSettingsProvider? _settings;
   bool _wasEntitled = false;
+  late final DateTime _paywallOpenedAt;
 
   @override
   void initState() {
     super.initState();
+    _paywallOpenedAt = DateTime.now();
     AnalyticsService().logPaywallShown(source: widget.source);
     _selectedPlan = RemoteConfigService().plusYearlyProductId;
     _pageController = PageController(viewportFraction: 0.84, initialPage: 0);
@@ -83,6 +85,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   @override
   void dispose() {
+    // Only log dismissed if the user did NOT purchase (settings would have popped)
+    if (!(_settings?.isProUser ?? false)) {
+      AnalyticsService().logPaywallDismissed(
+        source: widget.source,
+        timeOnScreenSeconds:
+            DateTime.now().difference(_paywallOpenedAt).inSeconds,
+      );
+    }
     _pageController.dispose();
     _settings?.removeListener(_onSettingsChanged);
     super.dispose();
@@ -383,6 +393,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           child: ElevatedButton(
                             onPressed: () {
                               HapticFeedback.mediumImpact();
+                              AnalyticsService().logPaywallCtaTapped(
+                                source: widget.source,
+                                productId: _selectedPlan,
+                              );
                               context
                                   .read<IAPService>()
                                   .buySubscription(_selectedPlan);
@@ -415,6 +429,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       TextButton(
                         onPressed: () {
                           HapticFeedback.lightImpact();
+                          AnalyticsService().logPaywallCtaTapped(
+                            source: widget.source,
+                            productId: AppConstants.proProductId,
+                            plan: 'lifetime',
+                          );
                           context.read<IAPService>().buyPro();
                         },
                         child: Text(
@@ -441,9 +460,12 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           TextButton(
-                            onPressed: () => context
-                                .read<IAPService>()
-                                .restorePurchases(),
+                            onPressed: () {
+                              AnalyticsService().logRestoreTapped();
+                              context
+                                  .read<IAPService>()
+                                  .restorePurchases();
+                            },
                             child: Text(
                               AppLocalizations.of(context)?.restorePurchases ?? 'Restore',
                               style: const TextStyle(fontSize: 12),

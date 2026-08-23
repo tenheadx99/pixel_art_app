@@ -1061,6 +1061,11 @@ class ColoringProvider extends ChangeNotifier {
     _updateNextFillable();
     autoAdvanceIfDone();
     _debouncedSave();
+    AnalyticsService().logBoosterUsed(
+      type: 'hint',
+      remaining: -1, // hint count not tracked
+      artId: _currentArt?.id,
+    );
 
     final newlyCompleted = _getCompletedNumbers();
     final completedNow = newlyCompleted.difference(previouslyCompleted);
@@ -1257,9 +1262,12 @@ class ColoringProvider extends ChangeNotifier {
         AnalyticsService().logArtworkCompleted(
           artId: _currentArt!.id,
           category: _currentArt!.category,
+          title: _currentArt!.name,
           durationSeconds: _artStartedAt == null
               ? null
               : DateTime.now().difference(_artStartedAt!).inSeconds,
+          cellsFilled: _filledCellsCount,
+          colorCount: _currentArt!.colorCount,
         );
       }
       _isComplete = true;
@@ -1371,8 +1379,11 @@ class ColoringProvider extends ChangeNotifier {
       _magicWandsCount--;
       _isMagicWandMode = false;
       _totalFillCount++;
-      AnalyticsService()
-          .logBoosterUsed(type: 'magic_wand', remaining: _magicWandsCount);
+      AnalyticsService().logBoosterUsed(
+        type: 'magic_wand',
+        remaining: _magicWandsCount,
+        artId: _currentArt?.id,
+      );
       _haptic(HapticFeedback.mediumImpact);
       _checkCompletion();
       _checkAchievements();
@@ -1454,7 +1465,11 @@ class ColoringProvider extends ChangeNotifier {
       _bombsCount--;
       _isBombMode = false;
       _totalFillCount++;
-      AnalyticsService().logBoosterUsed(type: 'bomb', remaining: _bombsCount);
+      AnalyticsService().logBoosterUsed(
+        type: 'bomb',
+        remaining: _bombsCount,
+        artId: _currentArt?.id,
+      );
       _haptic(HapticFeedback.heavyImpact);
       onBombExploded?.call(row, col);
       _checkCompletion();

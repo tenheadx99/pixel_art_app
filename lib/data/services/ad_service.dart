@@ -173,6 +173,8 @@ class AdService {
     }
     _interstitialAd?.dispose();
     _interstitialAd = null;
+    AnalyticsService().logAdLoadStart(adFormat: 'interstitial', placement: 'session_exit');
+    final loadStartMs = DateTime.now().millisecondsSinceEpoch;
     InterstitialAd.load(
       adUnitId: RemoteConfigService().interstitialAdUnitId,
       request: const AdRequest(),
@@ -181,11 +183,23 @@ class AdService {
           _interstitialAd = ad;
           _interstitialLoadedAt = DateTime.now();
           _interstitialRetries = 0;
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'interstitial',
+            placement: 'session_exit',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - loadStartMs,
+          );
           onLoaded?.call();
         },
         onAdFailedToLoad: (error) {
           developer.log('Interstitial load failed: ${error.message}',
               name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'interstitial',
+            placement: 'session_exit',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _interstitialRetries,
+          );
           onFailed?.call();
           if (_interstitialRetries < _maxLoadRetries) {
             _interstitialRetries++;
@@ -243,10 +257,17 @@ class AdService {
     if (ad == null) return;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'interstitial', placement: 'session_exit');
         a.dispose();
         loadInterstitialAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'interstitial',
+          placement: 'session_exit',
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
         a.dispose();
         loadInterstitialAd();
       },
@@ -273,6 +294,8 @@ class AdService {
     if (!_rewardedInterstitialEnabled || isRewardedInterstitialReady) return;
     _rewardedInterstitialAd?.dispose();
     _rewardedInterstitialAd = null;
+    AnalyticsService().logAdLoadStart(adFormat: 'rewarded_interstitial', placement: 'next_art');
+    final riLoadStartMs = DateTime.now().millisecondsSinceEpoch;
     RewardedInterstitialAd.load(
       adUnitId: RemoteConfigService().rewardedInterstitialAdUnitId,
       request: const AdRequest(),
@@ -281,10 +304,22 @@ class AdService {
           _rewardedInterstitialAd = ad;
           _rewardedInterstitialLoadedAt = DateTime.now();
           _rewardedInterstitialRetries = 0;
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'rewarded_interstitial',
+            placement: 'next_art',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - riLoadStartMs,
+          );
         },
         onAdFailedToLoad: (error) {
           developer.log('Rewarded interstitial load failed: ${error.message}',
               name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'rewarded_interstitial',
+            placement: 'next_art',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _rewardedInterstitialRetries,
+          );
           if (_rewardedInterstitialRetries < _maxLoadRetries) {
             _rewardedInterstitialRetries++;
             Future.delayed(_retryDelay(_rewardedInterstitialRetries),
@@ -316,6 +351,7 @@ class AdService {
     if (ad == null) return;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'rewarded_interstitial', placement: placement);
         a.dispose();
         preloadRewardedInterstitial();
       },
@@ -323,6 +359,12 @@ class AdService {
         developer.log(
             'Rewarded interstitial show failed: ${error.message}',
             name: 'Ads');
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'rewarded_interstitial',
+          placement: placement,
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
         a.dispose();
         preloadRewardedInterstitial();
       },
@@ -352,6 +394,8 @@ class AdService {
     _rewardedAd = null;
     _rewardedLoading = true;
     developer.log('Rewarded load start', name: 'Ads');
+    AnalyticsService().logAdLoadStart(adFormat: 'rewarded', placement: 'user_reward');
+    final rLoadStartMs = DateTime.now().millisecondsSinceEpoch;
     RewardedAd.load(
       adUnitId: RemoteConfigService().rewardedAdUnitId,
       request: const AdRequest(),
@@ -362,10 +406,22 @@ class AdService {
           _rewardedLoading = false;
           _rewardedRetries = 0;
           developer.log('Rewarded loaded', name: 'Ads');
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'rewarded',
+            placement: 'user_reward',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - rLoadStartMs,
+          );
         },
         onAdFailedToLoad: (error) {
           _rewardedLoading = false;
           developer.log('Rewarded load failed: ${error.message}', name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'rewarded',
+            placement: 'user_reward',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _rewardedRetries,
+          );
           if (_rewardedRetries < _maxLoadRetries) {
             _rewardedRetries++;
             Future.delayed(_retryDelay(_rewardedRetries), preloadRewardedAd);
@@ -401,17 +457,25 @@ class AdService {
     }
     final ad = _rewardedAd;
     if (ad == null || !_isFresh(_rewardedLoadedAt, _fullScreenAdTtl)) {
+      AnalyticsService().logAdUnavailable(adFormat: 'rewarded', placement: placement);
       onUnavailable?.call();
       return;
     }
     _rewardedAd = null;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'rewarded', placement: placement);
         a.dispose();
         preloadRewardedAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
         developer.log('Rewarded show failed: ${error.message}', name: 'Ads');
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'rewarded',
+          placement: placement,
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
         a.dispose();
         preloadRewardedAd();
       },
@@ -437,6 +501,8 @@ class AdService {
     }
     _appOpenAd?.dispose();
     _appOpenAd = null;
+    AnalyticsService().logAdLoadStart(adFormat: 'app_open', placement: 'resume');
+    final aoLoadStartMs = DateTime.now().millisecondsSinceEpoch;
     AppOpenAd.load(
       adUnitId: RemoteConfigService().appOpenAdUnitId,
       request: const AdRequest(),
@@ -446,9 +512,21 @@ class AdService {
           _appOpenAd = ad;
           _appOpenLoadedAt = DateTime.now();
           _appOpenRetries = 0;
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'app_open',
+            placement: 'resume',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - aoLoadStartMs,
+          );
         },
         onAdFailedToLoad: (error) {
           developer.log('App-open load failed: ${error.message}', name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'app_open',
+            placement: 'resume',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _appOpenRetries,
+          );
           if (_appOpenRetries < _maxLoadRetries) {
             _appOpenRetries++;
             Future.delayed(_retryDelay(_appOpenRetries), loadAppOpenAd);
@@ -483,11 +561,18 @@ class AdService {
     _showingAppOpen = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'app_open', placement: 'resume');
         a.dispose();
         _showingAppOpen = false;
         loadAppOpenAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'app_open',
+          placement: 'resume',
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
         a.dispose();
         _showingAppOpen = false;
         loadAppOpenAd();

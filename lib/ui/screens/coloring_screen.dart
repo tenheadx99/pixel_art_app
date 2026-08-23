@@ -314,6 +314,14 @@ class _ColoringScreenState extends State<ColoringScreen>
           }
         };
       _maybeShowLongPressTip();
+      // Fire enter event after art is fully loaded so progress_pct is accurate.
+      AnalyticsService().logArtworkEntered(
+        artId: widget.art.id,
+        category: widget.art.category,
+        title: widget.art.name,
+        flavor: currentFlavor.name,
+        existingProgressPct: (provider.progress * 100).round(),
+      );
     });
   }
 
@@ -449,7 +457,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   void _checkMilestones(ColoringProvider provider, AppSettingsProvider settings) {
     if (provider.claimMilestone(30)) {
       provider.addBombs(AppConstants.milestone30Bomb);
-      AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 30);
+      AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 30, title: widget.art.name);
       // Same visual payoff class as the 65% milestone — a burst at the last
       // painted cell — so the first milestone doesn't feel like a mere toast.
       _fxKey.currentState?.spawnBurst(
@@ -461,7 +469,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     }
     if (provider.claimMilestone(65)) {
       settings.addDiamonds(AppConstants.milestone65Diamonds);
-      AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 65);
+      AnalyticsService().logMilestoneClaimed(artId: widget.art.id, percent: 65, title: widget.art.name);
       _coinBurstToChip();
       _showInfoSnack('Milestone reached · +${AppConstants.milestone65Diamonds} 💎');
     }
@@ -552,13 +560,26 @@ class _ColoringScreenState extends State<ColoringScreen>
     // would kill the next artwork's fill effects / sound / section haptics.
     // (The per-instance listener is always safe to remove.)
     if (provider != null && provider.currentArt?.id == widget.art.id) {
+      final sessionSeconds = DateTime.now().difference(_sessionStart).inSeconds;
+      final progressPct = (provider.progress * 100).round();
       // Core retention signal: how long the session ran, how far it got,
       // and whether the artwork was finished.
       AnalyticsService().logSessionEnd(
         artId: widget.art.id,
-        seconds: DateTime.now().difference(_sessionStart).inSeconds,
-        progressPct: (provider.progress * 100).round(),
+        title: widget.art.name,
+        seconds: sessionSeconds,
+        progressPct: progressPct,
         completed: provider.isComplete,
+        flavor: currentFlavor.name,
+        exitReason: provider.isComplete ? 'completed' : 'back',
+      );
+      AnalyticsService().logArtworkExited(
+        artId: widget.art.id,
+        title: widget.art.name,
+        seconds: sessionSeconds,
+        progressPct: progressPct,
+        exitReason: provider.isComplete ? 'completed' : 'back',
+        flavor: currentFlavor.name,
       );
       provider.onCellFilledCorrectly = null;
       provider.onSectionCompleted = null;
@@ -1698,7 +1719,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     final dir = await getTemporaryDirectory();
     final file = File('${dir.path}/pixely_${widget.art.id}.png');
     await file.writeAsBytes(pngBytes);
-    AnalyticsService().logArtworkShared(artId: widget.art.id, format: 'png');
+    AnalyticsService().logArtworkShared(
+      artId: widget.art.id,
+      format: 'png',
+      title: widget.art.name,
+      flavor: currentFlavor.name,
+    );
     await Share.shareXFiles([
       XFile(file.path, mimeType: 'image/png'),
     ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
@@ -1722,7 +1748,12 @@ class _ColoringScreenState extends State<ColoringScreen>
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/pixely_${widget.art.id}_timelapse.gif');
       await file.writeAsBytes(bytes);
-      AnalyticsService().logArtworkShared(artId: widget.art.id, format: 'gif');
+      AnalyticsService().logArtworkShared(
+        artId: widget.art.id,
+        format: 'gif',
+        title: widget.art.name,
+        flavor: currentFlavor.name,
+      );
       await Share.shareXFiles([
         XFile(file.path, mimeType: 'image/gif'),
       ], text: 'Watch me paint "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
@@ -2156,43 +2187,49 @@ class _ColoringScreenState extends State<ColoringScreen>
                   // App-scoped provider: don't render the previous artwork's
                   // state before loadArt (post-frame) swaps it.
                   if (provider.currentArt?.id != widget.art.id) {
-                    return SizedBox(
-                      width: widget.art.gridWidth * _cellSize,
-                      height: widget.art.gridHeight * _cellSize,
-                      child: const Center(
-                        child: SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                    return Hero(
+                      tag: 'art_canvas_${widget.art.id}',
+                      child: SizedBox(
+                        width: widget.art.gridWidth * _cellSize,
+                        height: widget.art.gridHeight * _cellSize,
+                        child: const Center(
+                          child: SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
                         ),
                       ),
                     );
                   }
-                  return PixelGrid(
-                    provider: provider,
-                    cellSize: _cellSize,
-                    brushSize: provider.brushSize,
-                    isEraseMode: provider.isEraseMode,
-                    colorblindMode: settings.colorblindMode,
-                    gridFade: _gridFadeController,
-                    transform: _transformController,
-                    fillGrow: _growController,
-                    sectionShimmer: _shimmerController,
-                    tiltNotifier: _tiltNotifier,
-                    onCellTap: (row, col) => provider.tryFillCell(row, col),
-                    onCellLongPress: (row, col) {
-                      provider.eyedropperHaptic();
-                      _showColorPreview(context, provider, row, col);
-                    },
-                    onCellDragStart: () {
-                      if (!provider.isMagicWandMode) provider.beginStroke();
-                    },
-                    onCellDrag: provider.strokeFill,
-                    onCellDragEnd: provider.endStroke,
-                    onCellDragCancel: provider.cancelStroke,
-                    onRequestCanvasPan: (enabled) {
-                      _canvasPanNotifier.value = enabled;
-                    },
+                  return Hero(
+                    tag: 'art_canvas_${widget.art.id}',
+                    child: PixelGrid(
+                      provider: provider,
+                      cellSize: _cellSize,
+                      brushSize: provider.brushSize,
+                      isEraseMode: provider.isEraseMode,
+                      colorblindMode: settings.colorblindMode,
+                      gridFade: _gridFadeController,
+                      transform: _transformController,
+                      fillGrow: _growController,
+                      sectionShimmer: _shimmerController,
+                      tiltNotifier: _tiltNotifier,
+                      onCellTap: (row, col) => provider.tryFillCell(row, col),
+                      onCellLongPress: (row, col) {
+                        provider.eyedropperHaptic();
+                        _showColorPreview(context, provider, row, col);
+                      },
+                      onCellDragStart: () {
+                        if (!provider.isMagicWandMode) provider.beginStroke();
+                      },
+                      onCellDrag: provider.strokeFill,
+                      onCellDragEnd: provider.endStroke,
+                      onCellDragCancel: provider.cancelStroke,
+                      onRequestCanvasPan: (enabled) {
+                        _canvasPanNotifier.value = enabled;
+                      },
+                    ),
                   );
                 },
               ),

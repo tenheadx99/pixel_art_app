@@ -2263,11 +2263,14 @@ class _PixelArtCard extends StatelessWidget {
                             aspectRatio: art.gridWidth / art.gridHeight,
                             // Own layer: the card's entrance animation
                             // must not re-rasterize the preview.
-                            child: RepaintBoundary(
-                              child: CustomPaint(
-                                painter: ArtPreviewPainter(
-                                  art: art,
-                                  isCompleted: isCompleted,
+                            child: Hero(
+                              tag: 'art_canvas_${art.id}',
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  painter: ArtPreviewPainter(
+                                    art: art,
+                                    isCompleted: isCompleted,
+                                  ),
                                 ),
                               ),
                             ),
