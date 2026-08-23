@@ -480,11 +480,15 @@ class ColoringProvider extends ChangeNotifier {
     final raw = _storageService.getString(_saveKey);
     if (raw.isEmpty) return;
     final rows = raw.split(';');
-    if (rows.length != _currentArt!.gridHeight) return;
+    if (rows.length != _currentArt!.gridHeight) {
+      return _discardMismatchedSave(raw);
+    }
     final loaded = <List<int>>[];
     for (var r = 0; r < rows.length; r++) {
       final cols = rows[r].split(',');
-      if (cols.length != _currentArt!.gridWidth) return;
+      if (cols.length != _currentArt!.gridWidth) {
+        return _discardMismatchedSave(raw);
+      }
       loaded.add(cols.map((v) => int.tryParse(v) ?? 0).toList());
     }
     _filledGrid = loaded;
@@ -494,6 +498,24 @@ class ColoringProvider extends ChangeNotifier {
     _restoreMilestones();
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
+  }
+
+  /// A saved grid whose dimensions no longer match the artwork can't be
+  /// restored (e.g. the artwork was re-authored with a different grid).
+  /// Discarding it silently used to leave the stale `_pct` behind, so home
+  /// kept showing progress for an artwork that opened blank. Zero the whole
+  /// key family instead, keeping the raw grid in `_bak` as manual-recovery
+  /// insurance (never read by code, overwritten on the next discard).
+  ///
+  /// Accepted edge: if this art is in `completed_ids` the gallery badge
+  /// survives — that needs an admin to change a *completed* art's dimensions,
+  /// which isn't worth cross-provider plumbing here.
+  void _discardMismatchedSave(String raw) {
+    _storageService.setString('${_saveKey}_bak', raw);
+    clearProgress();
+    _storageService.setInt('${_saveKey}_ts', 0);
+    _storageService.setInt('${_saveKey}_fills', 0);
+    _storageService.setInt('${_saveKey}_erases', 0);
   }
 
   /// Rebuilds the paint history from storage so Replay / Share GIF work on a

@@ -755,6 +755,8 @@ class _HomeScreenState extends State<HomeScreen> {
       _showLockedDialog(context, art);
       return;
     }
+    // Keep remote artworks playable even if their Firestore doc vanishes.
+    gallery.noteArtworkOpened(art);
     // Split artworks open on the part picker; each tile is then colored as
     // its own small canvas.
     if (art.isSplit && SplitArt.validSplit(art)) {

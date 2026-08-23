@@ -1028,6 +1028,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
     // pushReplacement bypasses PopScope, so cover this exit path too.
     _maybeShowNextArtAd();
+    // Keep remote artworks playable even if their Firestore doc vanishes.
+    gallery.noteArtworkOpened(next);
     if (next.isSplit && SplitArt.validSplit(next)) {
       Navigator.pushReplacement(
         context,

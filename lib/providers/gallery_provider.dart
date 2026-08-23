@@ -140,11 +140,17 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Artworks kept in the catalog only because this user has local state on
+  /// them (see RemoteCatalogService.retiredIds). Colorable, but never
+  /// promoted as the daily fallback.
+  Set<String> _retiredIds = {};
+
   /// Replaces the catalog once the remote (admin-published) merge lands.
   /// User state (completed/favorites/progress) is keyed by art id and needs
   /// no migration.
-  void updateCatalog(List<PixelArt> catalog) {
+  void updateCatalog(List<PixelArt> catalog, {Set<String> retiredIds = const {}}) {
     _catalog = catalog;
+    _retiredIds = retiredIds;
     // The selected category may have been renamed/hidden by the update.
     if (_selectedCategory != 'All' &&
         !_catalog.any((a) => a.category == _selectedCategory)) {
@@ -194,6 +200,13 @@ class GalleryProvider extends ChangeNotifier {
   static PixelArt? dailyArtFor(DateTime date, List<PixelArt> catalog) =>
       DailyPixelService.fallbackDailyFor(date, catalog);
 
+  /// Catalog minus retired artworks — what the daily fallback may pick from.
+  /// An admin-*scheduled* or already-pinned id is still honored even when
+  /// retired (explicit intent wins over the retirement heuristic).
+  List<PixelArt> get _promotableCatalog => _retiredIds.isEmpty
+      ? _catalog
+      : _catalog.where((a) => !_retiredIds.contains(a.id)).toList();
+
   /// Today's Daily Pixel. Prefers the id pinned by [resolveDailyArt]; until a
   /// pin lands (first frame, or offline with a cold schedule cache) it serves
   /// the deterministic fallback rotation.
@@ -203,7 +216,7 @@ class GalleryProvider extends ChangeNotifier {
     );
     final pinned = _catalog.firstWhereOrNull((a) => a.id == pinnedId);
     return pinned ??
-        DailyPixelService.fallbackDailyFor(DateTime.now(), _catalog);
+        DailyPixelService.fallbackDailyFor(DateTime.now(), _promotableCatalog);
   }
 
   /// Resolves and pins today's daily: admin schedule doc first, deterministic
@@ -223,7 +236,7 @@ class GalleryProvider extends ChangeNotifier {
       return;
     }
     final art = _catalog.firstWhereOrNull((a) => a.id == scheduledId) ??
-        DailyPixelService.fallbackDailyFor(DateTime.now(), _catalog);
+        DailyPixelService.fallbackDailyFor(DateTime.now(), _promotableCatalog);
     if (art == null) return;
     _storageService.setString(pinPrefKey, art.id);
     notifyListeners();
@@ -437,6 +450,13 @@ class GalleryProvider extends ChangeNotifier {
 
   /// Re-reads derived state (e.g. after returning from the coloring screen).
   void refresh() => notifyListeners();
+
+  /// Best-effort local cache of a remote artwork the user is opening, so it
+  /// stays playable if its Firestore doc later vanishes (deleted, expired,
+  /// hidden). Fire-and-forget; non-remote ids are ignored by the service.
+  void noteArtworkOpened(PixelArt art) {
+    _remoteCatalogService?.cacheTouchedArtwork(art);
+  }
 
   bool isCompleted(String id) => _completedIds.contains(id);
 

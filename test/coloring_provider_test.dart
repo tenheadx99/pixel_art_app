@@ -108,6 +108,67 @@ void main() {
     });
   });
 
+  group('mismatched save discard', () {
+    const k = 'pixelart_progress_test_art';
+    const threeByThree = '1,1,1;1,1,1;1,1,1';
+
+    test('a dimension-mismatched save is backed up and fully zeroed',
+        () async {
+      final provider = await _providerWith({
+        k: threeByThree, // 3x3 save for a 2x2 artwork
+        '${k}_pct': 60,
+        '${k}_ts': 1234,
+        '${k}_fills': 9,
+        '${k}_erases': 2,
+        '${k}_timelapse': '0,0;1,1',
+        '${k}_milestones': '30',
+      });
+      await provider.loadArt(_testArt());
+
+      final prefs = await SharedPreferences.getInstance();
+      // No phantom progress left for home/gallery to display...
+      expect(prefs.getInt('${k}_pct'), 0);
+      expect(prefs.getString(k), isEmpty);
+      expect(prefs.getInt('${k}_ts'), 0);
+      expect(prefs.getInt('${k}_fills'), 0);
+      expect(prefs.getInt('${k}_erases'), 0);
+      expect(prefs.getString('${k}_timelapse'), isEmpty);
+      expect(prefs.getString('${k}_milestones'), isEmpty);
+      // ...but the raw grid survives as manual-recovery insurance.
+      expect(prefs.getString('${k}_bak'), threeByThree);
+      expect(provider.progress, 0);
+    });
+
+    test('a column-count mismatch discards too', () async {
+      final provider = await _providerWith({
+        k: '1,1,1;1,1,1', // 2 rows x 3 cols for a 2x2 artwork
+        '${k}_pct': 40,
+      });
+      await provider.loadArt(_testArt());
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('${k}_pct'), 0);
+      expect(prefs.getString('${k}_bak'), '1,1,1;1,1,1');
+    });
+
+    test('a fresh save round-trips after the discard', () async {
+      final provider = await _providerWith({k: threeByThree, '${k}_pct': 60});
+      await provider.loadArt(_testArt());
+      provider.selectNumber(1);
+      provider.tryFillCell(0, 0);
+      await provider.saveProgress();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(k), isNotEmpty);
+      final reloaded = await _providerWith(
+        Map.fromEntries(
+          prefs.getKeys().map((key) => MapEntry(key, prefs.get(key)!)),
+        ),
+      );
+      await reloaded.loadArt(_testArt());
+      expect(reloaded.filledGrid[0][0], 1);
+    });
+  });
+
   group('ASMR sounds and section completion callbacks', () {
     test('onCellFilledCorrectly is called when a cell is colored', () async {
       final provider = await _providerWith({});

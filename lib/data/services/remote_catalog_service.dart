@@ -1,6 +1,10 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../config/version_utils.dart';
 import '../models/pixel_art.dart';
@@ -38,11 +42,20 @@ class RemoteCatalogService {
   bool _premiumArtworksEnabled = true;
   bool get premiumArtworksEnabled => _premiumArtworksEnabled;
 
+  /// Artworks kept in the catalog only because this user has local state on
+  /// them (progress/completed/favorite/diamond-unlocked): hidden bundled art
+  /// and cache-restored remote art. They stay colorable but are excluded from
+  /// promotion surfaces (daily fallback). Populated by [fetchCatalog] and
+  /// [withRestoredCachedArts].
+  Set<String> get retiredIds => _retiredIds;
+  Set<String> _retiredIds = {};
+
   /// Fetches the remote catalog and returns it merged with [bundled], or null
   /// when nothing remote is reachable (no catalog published yet, offline with
   /// a cold cache, or Firebase failed to initialize) — callers then keep the
   /// bundled catalog as-is.
   Future<List<PixelArt>?> fetchCatalog(List<PixelArt> bundled) async {
+    _retiredIds = {};
     try {
       final db = FirebaseFirestore.instance;
       final rootSnap = await db.doc('$_root/$_flavorId').get();
@@ -71,15 +84,236 @@ class RemoteCatalogService {
         // build new enough to contain this code can render them. Failing the
         // whole fetch here would silently drop the entire remote catalog.
       }
+      final artworkDocs = snaps.$1;
+      final overrides = snaps.$2;
+      // Progress hand-off must run before computing the retained set: a
+      // successfully handed-off original needs no retention (its progress now
+      // lives on the replacement, which is in the catalog).
+      final handedOff =
+          applyReplacementHandOffs(bundled, artworkDocs, overrides);
+      final keepHiddenIds = <String>{
+        for (final art in bundled)
+          if (overrides[art.id]?['hidden'] == true &&
+              !handedOff.contains(art.id) &&
+              _hasLocalState(art))
+            art.id,
+      };
+      _retiredIds = keepHiddenIds;
       return mergeCatalog(
         bundled,
-        snaps.$1,
-        snaps.$2,
+        artworkDocs,
+        overrides,
         currentAppVersion: appVersion,
+        keepHiddenIds: keepHiddenIds,
       );
     } catch (_) {
       return null;
     }
+  }
+
+  /// Whether this user has any persisted state on [art] (or, for split art,
+  /// any of its parts): saved progress, completion, favorite, or a diamond
+  /// unlock. Drives retention of artworks that would otherwise be dropped.
+  bool _hasLocalState(PixelArt art) {
+    if (_idHasLocalState(art.id)) return true;
+    if (art.isSplit && SplitArt.validSplit(art)) {
+      for (int i = 0; i < art.partCount; i++) {
+        if (_idHasLocalState(SplitArt.partId(art.id, i))) return true;
+      }
+    }
+    return false;
+  }
+
+  bool _idHasLocalState(String id) =>
+      _storage.getInt('pixelart_progress_${id}_pct') > 0 ||
+      _storage.getString('pixelart_progress_$id').isNotEmpty ||
+      _storage.getStringSet(AppConstants.completedIdsPrefKey).contains(id) ||
+      _storage.getStringSet('favorite_ids').contains(id) ||
+      _storage.getStringSet('diamond_unlocked_ids').contains(id);
+
+  static final RegExp _replacementIdPattern = RegExp(r'^rmt_(.+)_\d+$');
+
+  /// The bundled artwork [doc] replaces, or null. An explicit `replaces` field
+  /// wins; older docs fall back to the admin id convention
+  /// `rmt_<oldBundledId>_<millis>` (greedy group + anchored trailing digits,
+  /// so underscored slugs like `bird_01` parse correctly). Either way the
+  /// result must be an actual bundled id.
+  static String? replacementTargetId(
+    Map<String, dynamic> doc,
+    Set<String> bundledIds,
+  ) {
+    final explicit = doc['replaces'];
+    if (explicit is String && bundledIds.contains(explicit)) return explicit;
+    final id = doc['id'];
+    if (id is! String) return null;
+    final oldId = _replacementIdPattern.firstMatch(id)?.group(1);
+    return (oldId != null && bundledIds.contains(oldId)) ? oldId : null;
+  }
+
+  /// Copies user progress from bundled artworks onto their admin-published
+  /// replacements (`rmt_<oldId>_<millis>` + `hidden` on the original), once
+  /// per replacement. Returns the bundled ids that were handed off. Called by
+  /// [fetchCatalog]; visible so tests can drive it without Firestore.
+  @visibleForTesting
+  Set<String> applyReplacementHandOffs(
+    List<PixelArt> bundled,
+    List<Map<String, dynamic>> artworkDocs,
+    Map<String, Map<String, dynamic>> overrides,
+  ) {
+    final bundledById = {for (final a in bundled) a.id: a};
+    final bundledIds = bundledById.keys.toSet();
+    final handedOff = <String>{};
+    for (final doc in artworkDocs) {
+      final oldId = replacementTargetId(doc, bundledIds);
+      if (oldId == null) continue;
+      // The admin replace flow always hides the original; requiring that here
+      // kills slug-collision false positives from the id-parsing fallback.
+      if (overrides[oldId]?['hidden'] != true) continue;
+      final old = bundledById[oldId]!;
+      final PixelArt neu;
+      try {
+        neu = PixelArt.fromJson(doc);
+      } catch (_) {
+        continue;
+      }
+      if (neu.gridWidth != old.gridWidth ||
+          neu.gridHeight != old.gridHeight ||
+          neu.partsX != old.partsX ||
+          neu.partsY != old.partsY) {
+        // Layout changed: the save can't be transplanted. Deliberate fallback,
+        // not an error — retention keeps the original playable and the
+        // replacement simply appears as a fresh artwork.
+        continue;
+      }
+      _handOffProgress(old, neu);
+      handedOff.add(oldId);
+    }
+    return handedOff;
+  }
+
+  void _handOffProgress(PixelArt old, PixelArt neu) {
+    final doneKey = 'progress_handoff_done_${neu.id}';
+    if (_storage.getBool(doneKey)) return;
+
+    final idPairs = <(String, String)>[(old.id, neu.id)];
+    if (old.isSplit && SplitArt.validSplit(old)) {
+      for (int i = 0; i < old.partCount; i++) {
+        idPairs.add((SplitArt.partId(old.id, i), SplitArt.partId(neu.id, i)));
+      }
+    }
+    for (final (oldId, newId) in idPairs) {
+      _copyProgressFamily(oldId, newId);
+      for (final setKey in const [
+        AppConstants.completedIdsPrefKey,
+        'favorite_ids',
+        'diamond_unlocked_ids',
+      ]) {
+        // Copy, never move: the old entries keep the bundled art fully
+        // functional when the app is offline and the merge never runs. The
+        // profile "done" count including both copies is an accepted cosmetic.
+        if (_storage.getStringSet(setKey).contains(oldId)) {
+          _storage.addToStringSet(setKey, newId);
+        }
+      }
+      // Without this, completing the replacement would pay the completion
+      // diamonds a second time.
+      if (_storage.getBool('${AppConstants.diamondsAwardedPrefix}$oldId')) {
+        _storage.setBool('${AppConstants.diamondsAwardedPrefix}$newId', true);
+      }
+    }
+    _storage.setBool(doneKey, true);
+  }
+
+  void _copyProgressFamily(String oldId, String newId) {
+    final oldKey = 'pixelart_progress_$oldId';
+    final newKey = 'pixelart_progress_$newId';
+    // No-clobber: the user may already have started the replacement (e.g. on
+    // a build that predates the hand-off).
+    if (_storage.getString(newKey).isNotEmpty ||
+        _storage.getInt('${newKey}_pct') > 0) {
+      return;
+    }
+    _storage.setString(newKey, _storage.getString(oldKey));
+    _storage.setInt('${newKey}_pct', _storage.getInt('${oldKey}_pct'));
+    _storage.setInt('${newKey}_ts', _storage.getInt('${oldKey}_ts'));
+    _storage.setInt('${newKey}_fills', _storage.getInt('${oldKey}_fills'));
+    _storage.setInt('${newKey}_erases', _storage.getInt('${oldKey}_erases'));
+    _storage.setString(
+      '${newKey}_timelapse',
+      _storage.getString('${oldKey}_timelapse'),
+    );
+    _storage.setString(
+      '${newKey}_milestones',
+      _storage.getString('${oldKey}_milestones'),
+    );
+  }
+
+  String get _cacheIndexKey => 'cached_remote_art_ids_$_flavorId';
+
+  /// Persists a remote artwork's JSON locally so it stays playable if its
+  /// Firestore doc later vanishes (deleted, expired, hidden). Called when the
+  /// user opens the artwork; overwriting on every open keeps the copy fresh
+  /// after admin edits. Split parts are never cached — the parent doc is
+  /// authoritative. Best-effort: failures must never affect opening the art.
+  Future<void> cacheTouchedArtwork(PixelArt art) async {
+    if (!art.id.startsWith('rmt_') || SplitArt.isPartId(art.id)) return;
+    try {
+      await _storage.saveFile(
+        'remote_art_cache_${art.id}.json',
+        utf8.encode(jsonEncode(art.toJson())),
+      );
+      _storage.addToStringSet(_cacheIndexKey, art.id);
+    } catch (_) {}
+  }
+
+  /// Re-appends cached remote artworks that vanished from [catalog] but still
+  /// carry user state (they join [retiredIds]); cache entries whose state is
+  /// gone are deleted — the cache lives exactly as long as the state does.
+  /// Callers run this on both fetch outcomes so offline launches are covered.
+  Future<List<PixelArt>> withRestoredCachedArts(List<PixelArt> catalog) async {
+    final cachedIds = _storage.getStringSet(_cacheIndexKey);
+    if (cachedIds.isEmpty) return catalog;
+    final presentIds = {for (final a in catalog) a.id};
+    final rawJson = <String>[];
+    for (final id in cachedIds) {
+      if (presentIds.contains(id)) continue;
+      try {
+        final file = await _storage.getFile('remote_art_cache_$id.json');
+        if (file != null) rawJson.add(await file.readAsString());
+      } catch (_) {}
+    }
+    final restored = orphanedFromCache(rawJson, presentIds, _hasLocalState);
+    final restoredIds = {for (final a in restored) a.id};
+    _retiredIds.addAll(restoredIds);
+    for (final id in cachedIds) {
+      if (presentIds.contains(id) || restoredIds.contains(id)) continue;
+      try {
+        await _storage.deleteFile('remote_art_cache_$id.json');
+      } catch (_) {}
+      _storage.removeFromStringSet(_cacheIndexKey, id);
+    }
+    return restored.isEmpty ? catalog : [...catalog, ...restored];
+  }
+
+  /// Pure core of [withRestoredCachedArts]: which cached artworks should
+  /// rejoin the catalog. Malformed entries are skipped (and thus cleaned up).
+  static List<PixelArt> orphanedFromCache(
+    Iterable<String> cachedJsonStrings,
+    Set<String> presentIds,
+    bool Function(PixelArt) hasState,
+  ) {
+    final restored = <PixelArt>[];
+    for (final raw in cachedJsonStrings) {
+      final PixelArt art;
+      try {
+        art = PixelArt.fromJson(jsonDecode(raw) as Map<String, dynamic>);
+      } catch (_) {
+        continue;
+      }
+      if (presentIds.contains(art.id)) continue;
+      if (hasState(art)) restored.add(art);
+    }
+    return restored;
   }
 
   /// Anonymous per-art completion counter for the admin dashboard
@@ -127,8 +361,10 @@ class RemoteCatalogService {
   }
 
   /// Merge rule (mirrors the admin panel's `CatalogEntry`):
-  ///  - bundled art: dropped when its override says `hidden`; `isPremium` and
-  ///    `category` overridden when set; sortOrder = override or manifest index
+  ///  - bundled art: dropped when its override says `hidden` — unless its id
+  ///    is in [keepHiddenIds] (user has local state on it, see [retiredIds]);
+  ///    `isPremium` and `category` overridden when set; sortOrder = override
+  ///    or manifest index
   ///  - remote art: dropped when not `visible`, outside its availability
   ///    window, gated behind a newer `minAppVersion` (schema features this
   ///    build can't render, e.g. split artworks), or carrying unusable split
@@ -139,13 +375,14 @@ class RemoteCatalogService {
     List<Map<String, dynamic>> artworkDocs,
     Map<String, Map<String, dynamic>> overrides, {
     String? currentAppVersion,
+    Set<String> keepHiddenIds = const {},
   }) {
     final entries = <(PixelArt, int, int)>[];
 
     for (var i = 0; i < bundled.length; i++) {
       final art = bundled[i];
       final o = overrides[art.id];
-      if (o?['hidden'] == true) continue;
+      if (o?['hidden'] == true && !keepHiddenIds.contains(art.id)) continue;
       final premium = o?['isPremium'] as bool?;
       final rawCategory = o?['category'] as String?;
       final diamondCost = (o?['diamondCost'] as num?)?.toInt();

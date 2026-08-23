@@ -329,10 +329,16 @@ class _AppBootstrapState extends State<AppBootstrap>
             // catalog (new artworks + overrides) merges in when the fetch
             // lands. Unchanged catalogs are served from Firestore's local
             // cache, so this is one doc read on most launches.
-            _dependencies!.remoteCatalogService
-                .fetchCatalog(_preMadeArts)
-                .then((merged) {
-              if (merged != null) provider.updateCatalog(merged);
+            final remoteCatalog = _dependencies!.remoteCatalogService;
+            remoteCatalog.fetchCatalog(_preMadeArts).then((merged) async {
+              // Runs on both outcomes: cached remote artworks the user has
+              // progress on must survive a failed fetch (offline) too.
+              final catalog = await remoteCatalog
+                  .withRestoredCachedArts(merged ?? _preMadeArts);
+              provider.updateCatalog(
+                catalog,
+                retiredIds: remoteCatalog.retiredIds,
+              );
               // Pin today's daily only once the merged catalog is in, so an
               // admin-scheduled remote artwork can actually be found.
               provider.resolveDailyArt();

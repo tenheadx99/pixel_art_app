@@ -219,6 +219,34 @@ void main() {
       expect(ids(merged), isNot(contains('rmt_badsplit')));
     });
 
+    test('keepHiddenIds retains a hidden bundled artwork with its overrides',
+        () {
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [],
+        {
+          'b': {'hidden': true, 'isPremium': true},
+        },
+        keepHiddenIds: {'b'},
+      );
+      expect(ids(merged), ['a', 'b', 'c']);
+      // Non-hidden override fields still apply to the retained artwork.
+      expect(merged.firstWhere((x) => x.id == 'b').isPremium, isTrue);
+    });
+
+    test('keepHiddenIds does not resurrect other hidden artworks', () {
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [],
+        {
+          'a': {'hidden': true},
+          'b': {'hidden': true},
+        },
+        keepHiddenIds: {'b'},
+      );
+      expect(ids(merged), ['b', 'c']);
+    });
+
     test('minAppVersion gates docs for older app builds', () {
       final docs = [
         {...remoteDoc('rmt_gated'), 'minAppVersion': '1.0.12'},
@@ -248,6 +276,105 @@ void main() {
         currentAppVersion: '1.1.0',
       );
       expect(ids(newer), contains('rmt_gated'));
+    });
+  });
+
+  group('RemoteCatalogService.replacementTargetId', () {
+    final bundledIds = {'bird_01', 'cat_01'};
+
+    test('explicit replaces field wins over id parsing', () {
+      expect(
+        RemoteCatalogService.replacementTargetId(
+          {'id': 'rmt_totally_renamed_99', 'replaces': 'cat_01'},
+          bundledIds,
+        ),
+        'cat_01',
+      );
+    });
+
+    test('underscored slug parses from the rmt_<oldId>_<millis> convention',
+        () {
+      expect(
+        RemoteCatalogService.replacementTargetId(
+          {'id': 'rmt_bird_01_1712345678901'},
+          bundledIds,
+        ),
+        'bird_01',
+      );
+    });
+
+    test('a parsed id that is not bundled is rejected', () {
+      expect(
+        RemoteCatalogService.replacementTargetId(
+          {'id': 'rmt_dog_01_1712345678901'},
+          bundledIds,
+        ),
+        isNull,
+      );
+    });
+
+    test('a bulk-import id without trailing millis does not misresolve', () {
+      // `rmt_bird_01` parses as slug `bird` + digits `01`; `bird` is not a
+      // bundled id, so no hand-off fires.
+      expect(
+        RemoteCatalogService.replacementTargetId(
+          {'id': 'rmt_bird_01'},
+          bundledIds,
+        ),
+        isNull,
+      );
+    });
+
+    test('an unknown explicit replaces falls back to id parsing', () {
+      expect(
+        RemoteCatalogService.replacementTargetId(
+          {'id': 'rmt_cat_01_99', 'replaces': 'zebra'},
+          bundledIds,
+        ),
+        'cat_01',
+      );
+    });
+  });
+
+  group('RemoteCatalogService.orphanedFromCache', () {
+    String json(String id) =>
+        '{"id":"$id","name":"$id","gridWidth":2,"gridHeight":2,'
+        '"grid":"1,0;0,1","colorMap":{"1":4278190080}}';
+
+    test('restores a vanished artwork the user has state on', () {
+      final restored = RemoteCatalogService.orphanedFromCache(
+        [json('rmt_gone_1')],
+        {'a', 'b'},
+        (_) => true,
+      );
+      expect(ids(restored), ['rmt_gone_1']);
+    });
+
+    test('skips artworks still present in the catalog', () {
+      final restored = RemoteCatalogService.orphanedFromCache(
+        [json('rmt_here_1')],
+        {'rmt_here_1'},
+        (_) => true,
+      );
+      expect(restored, isEmpty);
+    });
+
+    test('skips artworks without local state', () {
+      final restored = RemoteCatalogService.orphanedFromCache(
+        [json('rmt_gone_1')],
+        {},
+        (_) => false,
+      );
+      expect(restored, isEmpty);
+    });
+
+    test('skips malformed cache entries', () {
+      final restored = RemoteCatalogService.orphanedFromCache(
+        ['not json', '{"id":"rmt_x"}', json('rmt_ok_1')],
+        {},
+        (_) => true,
+      );
+      expect(ids(restored), ['rmt_ok_1']);
     });
   });
 }
