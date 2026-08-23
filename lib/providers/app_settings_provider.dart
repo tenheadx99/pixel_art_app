@@ -503,9 +503,24 @@ class AppSettingsProvider extends ChangeNotifier {
           );
         }
         if (purchase.pendingCompletePurchase) {
-          await InAppPurchase.instance.completePurchase(purchase);
+          try {
+            await InAppPurchase.instance.completePurchase(purchase);
+          } catch (e) {
+            // Play throws when a token is already consumed/acknowledged (e.g.
+            // a restore re-delivering an entitlement) or when offline; the
+            // entitlement above is already granted, so never crash on this.
+            developer.log(
+              'completePurchase failed for ${purchase.productID}',
+              name: 'IAP',
+              error: e,
+            );
+          }
         }
       }
+    }, onError: (Object e) {
+      // iOS surfaces store failures as stream errors; without a handler they
+      // escape the subscription as uncaught async errors.
+      developer.log('Purchase stream error', name: 'IAP', error: e);
     });
   }
 

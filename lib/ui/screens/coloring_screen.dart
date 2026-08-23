@@ -990,7 +990,9 @@ class _ColoringScreenState extends State<ColoringScreen>
           break;
         }
       }
-      if (parent != null) {
+      // validSplit mirrors the guard every other partOf call site has —
+      // partOf's own checks are asserts, which compile out in release.
+      if (parent != null && SplitArt.validSplit(parent)) {
         for (int step = 1; step < parent.partCount; step++) {
           final i = (partIndex + step) % parent.partCount;
           if (gallery.partProgressPercent(parent, i) < 100) {
@@ -1714,22 +1716,27 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   Future<void> _sharePng(ColoringProvider provider) async {
-    final storageService = context.read<LocalStorageService>();
-    final screenshotService = ScreenshotService(storageService);
-    final pngBytes = await screenshotService.captureAsPng(_repaintKey);
-    if (pngBytes == null) return;
-    final dir = await getTemporaryDirectory();
-    final file = File('${dir.path}/pixely_${widget.art.id}.png');
-    await file.writeAsBytes(pngBytes);
-    AnalyticsService().logArtworkShared(
-      artId: widget.art.id,
-      format: 'png',
-      title: widget.art.name,
-      flavor: currentFlavor.name,
-    );
-    await Share.shareXFiles([
-      XFile(file.path, mimeType: 'image/png'),
-    ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
+    try {
+      final storageService = context.read<LocalStorageService>();
+      final screenshotService = ScreenshotService(storageService);
+      final pngBytes = await screenshotService.captureAsPng(_repaintKey);
+      if (pngBytes == null) return;
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/pixely_${widget.art.id}.png');
+      await file.writeAsBytes(pngBytes);
+      AnalyticsService().logArtworkShared(
+        artId: widget.art.id,
+        format: 'png',
+        title: widget.art.name,
+        flavor: currentFlavor.name,
+      );
+      await Share.shareXFiles([
+        XFile(file.path, mimeType: 'image/png'),
+      ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
+    } catch (_) {
+      // Full storage / no share handler must not crash the celebration HUD.
+      _showInfoSnack('Could not share right now.');
+    }
   }
 
   Future<void> _shareTimelapse(ColoringProvider provider) async {
@@ -1759,6 +1766,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       await Share.shareXFiles([
         XFile(file.path, mimeType: 'image/gif'),
       ], text: 'Watch me paint "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
+    } catch (_) {
+      // renderGif rethrows isolate failures (e.g. OOM on huge grids) and the
+      // file/share steps can throw too; fail soft instead of crashing.
+      _showInfoSnack('Could not render the time-lapse.');
     } finally {
       if (mounted) setState(() => _sharingGif = false);
     }
@@ -2490,20 +2501,28 @@ class _ColoringScreenState extends State<ColoringScreen>
     final storageService = context.read<LocalStorageService>();
     final databaseService = context.read<DatabaseService>();
     final screenshotService = ScreenshotService(storageService);
-    final pngBytes = await screenshotService.captureAsPng(_repaintKey);
-    if (pngBytes == null) return;
-    final path = await screenshotService.saveArtwork(pngBytes, widget.art.name);
-    if (path == null) return;
-    await databaseService.saveArtwork(
-      UserArtwork(
-        id: const Uuid().v4(),
-        pixelArtId: widget.art.id,
-        name: widget.art.name,
-        filePath: path,
-        dateCreated: DateTime.now(),
-        completionPercent: (provider.progress * 100).round(),
-      ).toJson(),
-    );
+    // This runs unawaited on every artwork completion; a full disk or a
+    // capture failure must degrade like the null early-returns, not become an
+    // uncaught async error.
+    try {
+      final pngBytes = await screenshotService.captureAsPng(_repaintKey);
+      if (pngBytes == null) return;
+      final path =
+          await screenshotService.saveArtwork(pngBytes, widget.art.name);
+      if (path == null) return;
+      await databaseService.saveArtwork(
+        UserArtwork(
+          id: const Uuid().v4(),
+          pixelArtId: widget.art.id,
+          name: widget.art.name,
+          filePath: path,
+          dateCreated: DateTime.now(),
+          completionPercent: (provider.progress * 100).round(),
+        ).toJson(),
+      );
+    } catch (_) {
+      return;
+    }
     if (context.mounted) {
       if (provider.isComplete) {
         context.read<GalleryProvider>().markCompleted(widget.art.id);

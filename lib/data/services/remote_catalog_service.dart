@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/foundation.dart' show compute, visibleForTesting;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../config/app_constants.dart';
@@ -89,8 +89,12 @@ class RemoteCatalogService {
       // Progress hand-off must run before computing the retained set: a
       // successfully handed-off original needs no retention (its progress now
       // lives on the replacement, which is in the catalog).
-      final handedOff =
-          applyReplacementHandOffs(bundled, artworkDocs, overrides);
+      final handedOff = applyReplacementHandOffs(
+        bundled,
+        artworkDocs,
+        overrides,
+        currentAppVersion: appVersion,
+      );
       final keepHiddenIds = <String>{
         for (final art in bundled)
           if (overrides[art.id]?['hidden'] == true &&
@@ -131,6 +135,17 @@ class RemoteCatalogService {
       _storage.getStringSet('favorite_ids').contains(id) ||
       _storage.getStringSet('diamond_unlocked_ids').contains(id);
 
+  /// [_hasLocalState] for a cached artwork we haven't parsed yet: probe the
+  /// possible split-part ids by pattern instead of the real part count (split
+  /// parents carry progress only on their part keys, never the base id).
+  bool _cachedIdHasState(String id) {
+    if (_idHasLocalState(id)) return true;
+    for (int i = 0; i < SplitArt.maxParts; i++) {
+      if (_idHasLocalState(SplitArt.partId(id, i))) return true;
+    }
+    return false;
+  }
+
   static final RegExp _replacementIdPattern = RegExp(r'^rmt_(.+)_\d+$');
 
   /// The bundled artwork [doc] replaces, or null. An explicit `replaces` field
@@ -150,6 +165,32 @@ class RemoteCatalogService {
     return (oldId != null && bundledIds.contains(oldId)) ? oldId : null;
   }
 
+  /// Whether a remote doc will actually be visible to this build after
+  /// [mergeCatalog]'s gates, judged from scalar fields only (no grid parse).
+  /// Mirrors the `visible` / `minAppVersion` / availability-window drops in
+  /// [mergeCatalog] — keep the two in sync. A replacement that fails these
+  /// gates must NOT count as handed off, or the hidden original would be
+  /// dropped while its replacement is absent too and the artwork (plus the
+  /// user's progress) would vanish from the catalog.
+  static bool _docPassesGates(
+    Map<String, dynamic> data,
+    String? currentAppVersion,
+  ) {
+    if (data['visible'] == false) return false;
+    final minVersion = data['minAppVersion'] as String?;
+    if (minVersion != null &&
+        currentAppVersion != null &&
+        isVersionOlder(currentAppVersion, minVersion)) {
+      return false;
+    }
+    final now = DateTime.now();
+    final from = DateTime.tryParse(data['availableFrom'] as String? ?? '');
+    if (from != null && now.isBefore(from)) return false;
+    final until = DateTime.tryParse(data['availableUntil'] as String? ?? '');
+    if (until != null && now.isAfter(until)) return false;
+    return true;
+  }
+
   /// Copies user progress from bundled artworks onto their admin-published
   /// replacements (`rmt_<oldId>_<millis>` + `hidden` on the original), once
   /// per replacement. Returns the bundled ids that were handed off. Called by
@@ -158,8 +199,9 @@ class RemoteCatalogService {
   Set<String> applyReplacementHandOffs(
     List<PixelArt> bundled,
     List<Map<String, dynamic>> artworkDocs,
-    Map<String, Map<String, dynamic>> overrides,
-  ) {
+    Map<String, Map<String, dynamic>> overrides, {
+    String? currentAppVersion,
+  }) {
     final bundledById = {for (final a in bundled) a.id: a};
     final bundledIds = bundledById.keys.toSet();
     final handedOff = <String>{};
@@ -169,6 +211,14 @@ class RemoteCatalogService {
       // The admin replace flow always hides the original; requiring that here
       // kills slug-collision false positives from the id-parsing fallback.
       if (overrides[oldId]?['hidden'] != true) continue;
+      if (!_docPassesGates(doc, currentAppVersion)) continue;
+      // Once the copy is done, skip the (expensive) full-grid parse below on
+      // every subsequent launch — the marker alone decides.
+      if (doc['id'] is String &&
+          _storage.getBool('progress_handoff_done_${doc['id']}')) {
+        handedOff.add(oldId);
+        continue;
+      }
       final old = bundledById[oldId]!;
       final PixelArt neu;
       try {
@@ -227,6 +277,13 @@ class RemoteCatalogService {
   void _copyProgressFamily(String oldId, String newId) {
     final oldKey = 'pixelart_progress_$oldId';
     final newKey = 'pixelart_progress_$newId';
+    // Nothing to copy (common for untouched split parts): skip the 7 writes —
+    // each one is a platform-channel message plus a prefs commit, and a split
+    // parent hands off up to 26 key families in one launch.
+    if (_storage.getString(oldKey).isEmpty &&
+        _storage.getInt('${oldKey}_pct') == 0) {
+      return;
+    }
     // No-clobber: the user may already have started the replacement (e.g. on
     // a build that predates the hand-off).
     if (_storage.getString(newKey).isNotEmpty ||
@@ -258,13 +315,17 @@ class RemoteCatalogService {
   Future<void> cacheTouchedArtwork(PixelArt art) async {
     if (!art.id.startsWith('rmt_') || SplitArt.isPartId(art.id)) return;
     try {
-      await _storage.saveFile(
-        'remote_art_cache_${art.id}.json',
-        utf8.encode(jsonEncode(art.toJson())),
-      );
+      // The grid-string build + jsonEncode is tens of ms for a large grid;
+      // this runs on the tap that starts the route transition, so keep it off
+      // the UI isolate.
+      final bytes = await compute(_encodeArtworkJson, art);
+      await _storage.saveFile('remote_art_cache_${art.id}.json', bytes);
       _storage.addToStringSet(_cacheIndexKey, art.id);
     } catch (_) {}
   }
+
+  static List<int> _encodeArtworkJson(PixelArt art) =>
+      utf8.encode(jsonEncode(art.toJson()));
 
   /// Re-appends cached remote artworks that vanished from [catalog] but still
   /// carry user state (they join [retiredIds]); cache entries whose state is
@@ -277,6 +338,9 @@ class RemoteCatalogService {
     final rawJson = <String>[];
     for (final id in cachedIds) {
       if (presentIds.contains(id)) continue;
+      // Cheap scalar pre-check: entries whose state is gone get deleted below
+      // without ever paying the file read + full-grid parse.
+      if (!_cachedIdHasState(id)) continue;
       try {
         final file = await _storage.getFile('remote_art_cache_$id.json');
         if (file != null) rawJson.add(await file.readAsString());

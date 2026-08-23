@@ -437,16 +437,34 @@ class _CameraScreenBody extends StatelessWidget {
     CameraProvider camera,
     ImageSource source,
   ) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: source,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    );
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    if (context.mounted) {
-      camera.setImage(bytes);
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (context.mounted) {
+        camera.setImage(bytes);
+      }
+    } catch (_) {
+      // pickImage returns null on cancel but THROWS when the OS permission is
+      // denied — without this the button just looks dead and the error is
+      // uncaught.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              source == ImageSource.camera
+                  ? 'Camera unavailable — check the app\'s camera permission.'
+                  : 'Photos unavailable — check the app\'s photo permission.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 

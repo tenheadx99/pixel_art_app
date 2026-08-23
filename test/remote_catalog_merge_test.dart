@@ -125,6 +125,21 @@ void main() {
       expect(ids(merged), isNot(contains('rmt_broken')));
     });
 
+    test('a doc whose grid disagrees with its declared dims is dropped', () {
+      // Painters index grid[r][c] by the declared dims; a transposed doc
+      // would RangeError every frame, so fromJson must reject it.
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [
+          {...remoteDoc('rmt_transposed'), 'gridWidth': 3},
+          remoteDoc('rmt_ok'),
+        ],
+        {},
+      );
+      expect(ids(merged), contains('rmt_ok'));
+      expect(ids(merged), isNot(contains('rmt_transposed')));
+    });
+
     test('a split doc survives the merge with its part layout', () {
       final merged = RemoteCatalogService.mergeCatalog(
         bundled,

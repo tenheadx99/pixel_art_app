@@ -147,26 +147,30 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
   /// counterpart of ColoringScreen._saveArtwork, rendered offscreen because
   /// no single canvas ever held the whole grid.
   Future<void> _saveMergedArtwork() async {
-    final storageService = context.read<LocalStorageService>();
-    final databaseService = context.read<DatabaseService>();
-    final pngBytes = await renderArtPng(widget.parent);
-    if (pngBytes == null) return;
-    final screenshotService = ScreenshotService(storageService);
-    final path = await screenshotService.saveArtwork(
-      pngBytes,
-      widget.parent.name,
-    );
-    if (path == null) return;
-    await databaseService.saveArtwork(
-      UserArtwork(
-        id: const Uuid().v4(),
-        pixelArtId: widget.parent.id,
-        name: widget.parent.name,
-        filePath: path,
-        dateCreated: DateTime.now(),
-        completionPercent: 100,
-      ).toJson(),
-    );
+    // Fire-and-forget from _maybeReveal: a render/IO failure must degrade
+    // silently (the reveal already played), not become an uncaught error.
+    try {
+      final storageService = context.read<LocalStorageService>();
+      final databaseService = context.read<DatabaseService>();
+      final pngBytes = await renderArtPng(widget.parent);
+      if (pngBytes == null) return;
+      final screenshotService = ScreenshotService(storageService);
+      final path = await screenshotService.saveArtwork(
+        pngBytes,
+        widget.parent.name,
+      );
+      if (path == null) return;
+      await databaseService.saveArtwork(
+        UserArtwork(
+          id: const Uuid().v4(),
+          pixelArtId: widget.parent.id,
+          name: widget.parent.name,
+          filePath: path,
+          dateCreated: DateTime.now(),
+          completionPercent: 100,
+        ).toJson(),
+      );
+    } catch (_) {}
   }
 
   @override

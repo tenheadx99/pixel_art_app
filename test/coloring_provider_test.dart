@@ -134,8 +134,12 @@ void main() {
       expect(prefs.getInt('${k}_erases'), 0);
       expect(prefs.getString('${k}_timelapse'), isEmpty);
       expect(prefs.getString('${k}_milestones'), isEmpty);
-      // ...but the raw grid survives as manual-recovery insurance.
-      expect(prefs.getString('${k}_bak'), threeByThree);
+      // ...but the raw grid survives as manual-recovery insurance in the
+      // single rolling backup slot.
+      expect(
+        prefs.getString('pixelart_last_discarded_save'),
+        'test_art|$threeByThree',
+      );
       expect(provider.progress, 0);
     });
 
@@ -147,7 +151,10 @@ void main() {
       await provider.loadArt(_testArt());
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getInt('${k}_pct'), 0);
-      expect(prefs.getString('${k}_bak'), '1,1,1;1,1,1');
+      expect(
+        prefs.getString('pixelart_last_discarded_save'),
+        'test_art|1,1,1;1,1,1',
+      );
     });
 
     test('a fresh save round-trips after the discard', () async {

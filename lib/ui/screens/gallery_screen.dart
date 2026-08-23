@@ -43,6 +43,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
   Future<void> _loadArtworks() async {
     final db = context.read<DatabaseService>();
     final saved = await db.getSavedArtworks();
+    // Backing out during the DB query would setState on a disposed screen.
+    if (!mounted) return;
     setState(() {
       _artworks = saved.map((m) => UserArtwork.fromJson(m)).toList();
       _isLoading = false;
@@ -196,17 +198,22 @@ class _GalleryScreenState extends State<GalleryScreen> {
       final fileName = artwork.filePath.split('/').last;
       await storage.deleteFile(fileName);
       await db.deleteArtwork(artwork.id);
+      if (!mounted) return;
       _deleting.remove(artwork.id);
       _loadArtworks();
     }
   }
 
-  void _shareArtwork(UserArtwork artwork) {
-    final file = File(artwork.filePath);
-    if (file.existsSync()) {
-      Share.shareXFiles([
-        XFile(artwork.filePath),
-      ], text: '🎨 Check out my Pixel Art! Created with Pixel Art app.');
+  Future<void> _shareArtwork(UserArtwork artwork) async {
+    try {
+      final file = File(artwork.filePath);
+      if (await file.exists()) {
+        await Share.shareXFiles([
+          XFile(artwork.filePath),
+        ], text: '🎨 Check out my Pixel Art! Created with Pixel Art app.');
+      }
+    } catch (_) {
+      // Share sheet unavailable — nothing actionable for the user.
     }
   }
 }

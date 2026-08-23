@@ -21,10 +21,19 @@ PixelArt makeArt(String id, {int size = 2, int partsX = 1, int partsY = 1}) {
 }
 
 /// A replacement doc as the admin panel publishes it.
-Map<String, dynamic> docFor(PixelArt a, {String? replaces}) => {
+Map<String, dynamic> docFor(
+  PixelArt a, {
+  String? replaces,
+  bool visible = true,
+  String? availableFrom,
+  String? minAppVersion,
+}) =>
+    {
       ...a.toJson(),
-      'visible': true,
+      'visible': visible,
       'replaces': ?replaces,
+      'availableFrom': ?availableFrom,
+      'minAppVersion': ?minAppVersion,
     };
 
 Future<(RemoteCatalogService, LocalStorageService)> serviceWith(
@@ -190,6 +199,76 @@ void main() {
       expect(storage.getInt('pixelart_progress_${newSplit}_p1_pct'), 60);
       expect(storage.getStringSet('completed_ids'),
           containsAll(['${oldSplit}_p0', '${newSplit}_p0']));
+    });
+
+    test('a replacement this build cannot see does not count as handed off',
+        () async {
+      // If the replacement is filtered out of the merged catalog (draft,
+      // future-scheduled, or version-gated), handing off would suppress
+      // retention of the hidden original while the replacement is absent too
+      // — the artwork and its progress would vanish. All three gates must
+      // block the hand-off.
+      final (svc, storage) = await serviceWith(progressFamily(oldId));
+
+      for (final doc in [
+        docFor(makeArt(newId), visible: false),
+        docFor(makeArt(newId), availableFrom: '2999-01-01T00:00:00.000'),
+        docFor(makeArt(newId), minAppVersion: '9.9.9'),
+      ]) {
+        final handedOff = svc.applyReplacementHandOffs(
+          bundled,
+          [doc],
+          hiddenOld,
+          currentAppVersion: '1.0.12',
+        );
+        expect(handedOff, isEmpty);
+        expect(storage.getString('pixelart_progress_$newId'), isEmpty);
+      }
+    });
+
+    test('the done marker alone reports handed off on later launches',
+        () async {
+      // After the copy, later launches must not need the full-grid parse —
+      // but the id still counts as handed off so the original isn't retained
+      // alongside its replacement.
+      final (svc, _) = await serviceWith({
+        'progress_handoff_done_$newId': true,
+      });
+
+      final handedOff = svc.applyReplacementHandOffs(
+        bundled,
+        [docFor(makeArt(newId))],
+        hiddenOld,
+      );
+      expect(handedOff, {oldId});
+    });
+
+    test('untouched split parts copy nothing (write-storm guard)', () async {
+      const oldSplit = 'temple_01';
+      const newSplit = 'rmt_temple_01_99';
+      // Only p0 has progress; p1 is untouched.
+      final (svc, storage) = await serviceWith(
+        progressFamily('${oldSplit}_p0'),
+      );
+
+      svc.applyReplacementHandOffs(
+        [makeArt(oldSplit, partsX: 2)],
+        [docFor(makeArt(newSplit, partsX: 2))],
+        {
+          oldSplit: <String, dynamic>{'hidden': true},
+        },
+      );
+
+      expect(storage.getString('pixelart_progress_${newSplit}_p0'), '1,0;0,1');
+      // The empty p1 family must not have been written at all.
+      expect(
+        storage.prefs.containsKey('pixelart_progress_${newSplit}_p1'),
+        isFalse,
+      );
+      expect(
+        storage.prefs.containsKey('pixelart_progress_${newSplit}_p1_pct'),
+        isFalse,
+      );
     });
 
     test('a part-layout mismatch skips the hand-off', () async {

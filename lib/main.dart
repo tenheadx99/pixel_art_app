@@ -332,16 +332,21 @@ class _AppBootstrapState extends State<AppBootstrap>
             final remoteCatalog = _dependencies!.remoteCatalogService;
             remoteCatalog.fetchCatalog(_preMadeArts).then((merged) async {
               // Runs on both outcomes: cached remote artworks the user has
-              // progress on must survive a failed fetch (offline) too.
-              final catalog = await remoteCatalog
-                  .withRestoredCachedArts(merged ?? _preMadeArts);
-              provider.updateCatalog(
-                catalog,
-                retiredIds: remoteCatalog.retiredIds,
-              );
-              // Pin today's daily only once the merged catalog is in, so an
-              // admin-scheduled remote artwork can actually be found.
-              provider.resolveDailyArt();
+              // progress on must survive a failed fetch (offline) too. The
+              // catch keeps a surprise throw in this unawaited chain from
+              // surfacing as a fatal uncaught async error — the bundled
+              // catalog is already showing, so degrading silently is correct.
+              try {
+                final catalog = await remoteCatalog
+                    .withRestoredCachedArts(merged ?? _preMadeArts);
+                provider.updateCatalog(
+                  catalog,
+                  retiredIds: remoteCatalog.retiredIds,
+                );
+                // Pin today's daily only once the merged catalog is in, so an
+                // admin-scheduled remote artwork can actually be found.
+                provider.resolveDailyArt();
+              } catch (_) {}
             });
             return provider;
           },

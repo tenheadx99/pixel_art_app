@@ -135,6 +135,20 @@ class PixelArt {
         .map((row) => row.split(',').map(int.parse).toList())
         .toList();
 
+    // Everything downstream (painters, cell index, split slicing) indexes
+    // grid[r][c] bounded by the *declared* dims — a doc whose grid string
+    // disagrees with gridWidth/gridHeight (e.g. transposed by a hand-edited
+    // Firestore doc) would RangeError on every frame. Reject it here so the
+    // callers' existing try/catch guards drop it like any malformed doc.
+    final width = (json['gridWidth'] as num).toInt();
+    final height = (json['gridHeight'] as num).toInt();
+    if (grid.length != height || grid.any((row) => row.length != width)) {
+      throw FormatException(
+        'grid is ${grid.length} rows but gridWidth/gridHeight say '
+        '${width}x$height',
+      );
+    }
+
     final colorMapRaw = json['colorMap'] as Map<String, dynamic>;
     final colorMap = colorMapRaw.map(
       (k, v) => MapEntry(int.parse(k), Color(int.parse(v.toString()))),
@@ -143,8 +157,8 @@ class PixelArt {
     return PixelArt(
       id: json['id'] as String,
       name: json['name'] as String,
-      gridWidth: (json['gridWidth'] as num).toInt(),
-      gridHeight: (json['gridHeight'] as num).toInt(),
+      gridWidth: width,
+      gridHeight: height,
       grid: grid,
       colorMap: colorMap,
       category: json['category'] as String? ?? 'General',

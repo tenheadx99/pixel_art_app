@@ -504,14 +504,18 @@ class ColoringProvider extends ChangeNotifier {
   /// restored (e.g. the artwork was re-authored with a different grid).
   /// Discarding it silently used to leave the stale `_pct` behind, so home
   /// kept showing progress for an artwork that opened blank. Zero the whole
-  /// key family instead, keeping the raw grid in `_bak` as manual-recovery
-  /// insurance (never read by code, overwritten on the next discard).
+  /// key family instead, keeping the raw grid in one rolling
+  /// `pixelart_last_discarded_save` slot as manual-recovery insurance (never
+  /// read by code; a single bounded key so it can't grow the prefs file).
   ///
   /// Accepted edge: if this art is in `completed_ids` the gallery badge
   /// survives — that needs an admin to change a *completed* art's dimensions,
   /// which isn't worth cross-provider plumbing here.
   void _discardMismatchedSave(String raw) {
-    _storageService.setString('${_saveKey}_bak', raw);
+    _storageService.setString(
+      'pixelart_last_discarded_save',
+      '${_currentArt?.id}|$raw',
+    );
     clearProgress();
     _storageService.setInt('${_saveKey}_ts', 0);
     _storageService.setInt('${_saveKey}_fills', 0);
@@ -1334,6 +1338,13 @@ class ColoringProvider extends ChangeNotifier {
 
   void timeLapseStep(int row, int col) {
     if (_currentArt == null) return;
+    // Replay coordinates come from a persisted string; never trust them.
+    if (row < 0 ||
+        row >= _currentArt!.gridHeight ||
+        col < 0 ||
+        col >= _currentArt!.gridWidth) {
+      return;
+    }
     final num = _currentArt!.grid[row][col];
     if (num > 0 && _filledGrid[row][col] == 0) {
       _filledGrid[row][col] = num;
