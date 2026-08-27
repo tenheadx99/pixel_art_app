@@ -74,6 +74,26 @@ class PixelConverterService {
     }
   }
 
+  Future<PixelArt?> parseDynamicJsonIsolate(String jsonString) async {
+    try {
+      final json = await compute(_parseJsonIsolate, jsonString);
+      if (json != null) {
+        return PixelArt.fromJson(json);
+      }
+    } catch (e, st) {
+      developer.log('Failed background isolate parsing of dynamic artwork', error: e, stackTrace: st);
+    }
+    return null;
+  }
+
+  /// Encodes dynamic PixelArt to formatted .pixely JSON string for user sharing.
+  String exportToPixelyFormat(PixelArt art) {
+    final jsonMap = art.toJson();
+    jsonMap['exportVersion'] = 1;
+    jsonMap['exportedAt'] = DateTime.now().toIso8601String();
+    return const JsonEncoder.withIndent('  ').convert(jsonMap);
+  }
+
   Future<PixelArt?> _loadAsset(String path) async {
     try {
       final content = await rootBundle.loadString(path);
@@ -84,6 +104,14 @@ class PixelConverterService {
           name: 'PixelConverter', error: e, stackTrace: st);
       return null;
     }
+  }
+}
+
+Map<String, dynamic>? _parseJsonIsolate(String input) {
+  try {
+    return jsonDecode(input) as Map<String, dynamic>;
+  } catch (_) {
+    return null;
   }
 }
 

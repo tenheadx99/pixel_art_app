@@ -115,7 +115,7 @@ class GalleryProvider extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
-    _catalog = preMade;
+    _catalog = List.from(preMade);
     _completedIds = _storageService.getStringSet(
       AppConstants.completedIdsPrefKey,
     );
@@ -124,6 +124,23 @@ class GalleryProvider extends ChangeNotifier {
     _loadStreak();
 
     _isLoading = false;
+    notifyListeners();
+  }
+
+  /// Appends or updates dynamic artworks fetched from remote catalog / local cache.
+  void addDynamicArtworks(List<PixelArt> dynamicArts) {
+    final existingIds = _catalog.map((a) => a.id).toSet();
+    for (final art in dynamicArts) {
+      if (!existingIds.contains(art.id)) {
+        _catalog.add(art);
+        existingIds.add(art.id);
+      } else {
+        final index = _catalog.indexWhere((a) => a.id == art.id);
+        if (index >= 0) {
+          _catalog[index] = art;
+        }
+      }
+    }
     notifyListeners();
   }
 

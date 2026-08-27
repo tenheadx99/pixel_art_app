@@ -27,7 +27,22 @@ class DatabaseService {
       path,
       version: AppConstants.dbVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS dynamic_catalog_meta (
+          id TEXT PRIMARY KEY,
+          version INTEGER DEFAULT 1,
+          download_url TEXT,
+          checksum TEXT,
+          synced_at TEXT
+        )
+      ''');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
