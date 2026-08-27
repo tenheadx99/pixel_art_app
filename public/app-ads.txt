@@ -6,3 +6,6 @@ google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0
 
 # Pixely Art
 google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0
+
+# Balbodh
+google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0
