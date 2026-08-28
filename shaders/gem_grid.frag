@@ -134,8 +134,10 @@ void main() {
     shift = clamp(shift, vec2(-1.20), vec2(1.20));
     vec2 lightDir = normalize(-shift);
 
-    vec3 lightShade = min(cellColor.rgb + vec3(0.42), vec3(1.0));
-    vec3 darkShade = cellColor.rgb * 0.50;
+    // Brightened crystal color palette (luminous color lift, no muddy dark shadows)
+    vec3 brightColor = min(cellColor.rgb * 1.20 + vec3(0.08), vec3(1.0));
+    vec3 lightShade = min(brightColor + vec3(0.45), vec3(1.0));
+    vec3 darkShade = brightColor * 0.72;
 
     // --- 1. Octagonal Table Cut & 8 Facet Sector Geometry ---
     // Octagonal distance from center for real diamond drill shape
@@ -152,72 +154,77 @@ void main() {
 
     // Per-facet lighting dot product (creates sharp light/shade steps between facets)
     float lightDot = dot(facetNormal, lightDir);
-    float facetIntensity = mix(0.70, 1.28, lightDot * 0.5 + 0.5);
+    float facetIntensity = mix(0.82, 1.35, lightDot * 0.5 + 0.5);
 
     vec3 baseColor;
     if (isTable) {
-        // Flat Table Facet (Top center octagonal cut)
-        float tableLight = clamp(dot(vec2(0.0, 0.0), lightDir) * 0.2 + 1.15, 1.0, 1.30);
-        baseColor = min(cellColor.rgb * tableLight, vec3(1.0));
+        // Flat Table Facet (Top center octagonal cut) with White Crystal Glass Sheen
+        vec3 tableBase = min(brightColor * 1.22 + vec3(0.12), vec3(1.0));
+        float crystalGlassSheen = smoothstep(0.165, 0.0, octDist);
+        baseColor = mix(tableBase, vec3(1.0), 0.35 * crystalGlassSheen);
     } else {
-        // Crown Facet Body with stepped lighting contrast
-        baseColor = clamp(cellColor.rgb * facetIntensity, darkShade, lightShade);
+        // Crown Facet Body with stepped luminous crystal lighting contrast
+        baseColor = clamp(brightColor * facetIntensity, darkShade, lightShade);
+        // Add subtle crystal refraction glow on light-facing crown facets
+        if (lightDot > 0.1) {
+            baseColor = mix(baseColor, vec3(1.0), lightDot * 0.22);
+        }
     }
 
-    // --- 2. Crisp Facet Seams & Octagonal Table Border ---
+    // --- 2. White Crystal Facet Seams & Octagonal Table Border ---
     if (uEffectiveCell >= 14.0) {
-        // Octagonal Table Border Line
+        // Octagonal Table Border Line (White Crystal Edge)
         float tableBorderDist = abs(octDist - 0.165);
-        if (tableBorderDist < 0.015) {
-            float bGlint = clamp(lightDot * 0.5 + 0.5, 0.3, 1.0);
-            baseColor = mix(baseColor, vec3(1.0), 0.35 * bGlint);
+        if (tableBorderDist < 0.016) {
+            float bGlint = clamp(lightDot * 0.5 + 0.5, 0.4, 1.0);
+            baseColor = mix(baseColor, vec3(1.0), 0.55 * bGlint);
         }
 
-        // Radial Facet Seams (Lines between 8 crown facets)
+        // Radial Facet Seams (Bright white crystal refraction lines)
         float facetEdge = abs(fract((angle + 3.14159265) / 0.785398) - 0.5);
-        if (facetEdge < 0.035 && octDist >= 0.165 && max(absDir.x, absDir.y) < 0.44) {
-            // Bright seam on light-facing side, shadow seam on dark side
-            if (lightDot > 0.0) {
-                baseColor = mix(baseColor, vec3(1.0), 0.28);
+        if (facetEdge < 0.038 && octDist >= 0.165 && max(absDir.x, absDir.y) < 0.44) {
+            if (lightDot > -0.2) {
+                baseColor = mix(baseColor, vec3(1.0), 0.42);
             } else {
-                baseColor = mix(baseColor, darkShade * 0.4, 0.35);
+                baseColor = mix(baseColor, darkShade * 0.6, 0.30);
             }
         }
     }
 
-    // --- 3. 3D Cushion Outer Bevel & Edge Shadows ---
+    // --- 3. 3D Cushion Outer Bevel & Crystal Rim Highlight ---
     float maxEdge = max(absDir.x, absDir.y);
     if (maxEdge > 0.38) {
         float bevelT = smoothstep(0.38, 0.48, maxEdge);
-        // Top-left facing edges get crisp rim highlight; bottom-right get deep shadow
         float edgeDirDot = dot(normalize(dir), lightDir);
-        if (edgeDirDot > 0.2) {
-            baseColor = mix(baseColor, lightShade, bevelT * 0.45);
+        if (edgeDirDot > 0.1) {
+            baseColor = mix(baseColor, vec3(1.0), bevelT * 0.55);
         } else {
-            baseColor = mix(baseColor, darkShade * 0.35, bevelT * 0.65);
+            baseColor = mix(baseColor, darkShade * 0.55, bevelT * 0.50);
         }
     }
 
-    // --- 4. Refractive Specular Sparkle & Pinpoint Star Glints ---
-    vec2 specPos = center + shift * 0.16;
+    // --- 4. High-Shine Crystal Specular Sparkle & 4-Point Star Glints ---
+    vec2 specPos = center + shift * 0.15;
     float specDist = length(uv - specPos);
 
-    // Sharp Primary Specular Glint on Top Facet Edge
-    if (specDist < 0.18) {
-        float halo = smoothstep(0.18, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), halo * 0.50);
-    }
-    if (specDist < 0.07) {
-        float core = smoothstep(0.07, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), core * 0.90);
+    // Soft Wide Crystal Halo
+    if (specDist < 0.22) {
+        float halo = smoothstep(0.22, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), halo * 0.60);
     }
 
-    // 4-Point Micro Star Flare Glint (Zoom >= 20.0)
-    if (uEffectiveCell >= 20.0 && specDist < 0.22) {
+    // Pure White Crystal Pinpoint Specular Glint
+    if (specDist < 0.08) {
+        float core = smoothstep(0.08, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), core * 0.95);
+    }
+
+    // 4-Point Crisp White Star Flare Glint (Zoom >= 18.0)
+    if (uEffectiveCell >= 18.0 && specDist < 0.24) {
         vec2 specDir = abs(uv - specPos);
-        if ((specDir.x < 0.015 && specDir.y < 0.16) || (specDir.y < 0.015 && specDir.x < 0.16)) {
-            float crossIntensity = smoothstep(0.16, 0.0, max(specDir.x, specDir.y));
-            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.85);
+        if ((specDir.x < 0.016 && specDir.y < 0.18) || (specDir.y < 0.016 && specDir.x < 0.18)) {
+            float crossIntensity = smoothstep(0.18, 0.0, max(specDir.x, specDir.y));
+            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.92);
         }
     }
 

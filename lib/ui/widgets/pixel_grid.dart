@@ -609,17 +609,18 @@ class _PixelGridPainter extends CustomPainter {
       cellPaint,
     );
 
-    // 3. 3D Spherical Radial Gradient Body
+    // 3. 3D Spherical Radial Gradient Body with Bright Crystal Lift
     final focalOffset = Offset(c.dx + r * shiftX * 0.3, c.dy + r * shiftY * 0.3);
-    final lightShade = _lighten(base, 0.38);
-    final darkShade = _darken(base, 0.45);
+    final brightBase = _lighten(base, 0.15);
+    final lightShade = _lighten(base, 0.48);
+    final darkShade = _darken(base, 0.28);
 
     cellPaint
       ..style = PaintingStyle.fill
       ..shader = ui.Gradient.radial(
         focalOffset,
         r * 1.15,
-        [lightShade, base, darkShade],
+        [lightShade, brightBase, darkShade],
         [0.0, 0.55, 1.0],
       );
     canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
@@ -629,7 +630,7 @@ class _PixelGridPainter extends CustomPainter {
     cellPaint
       ..style = PaintingStyle.stroke
       ..strokeWidth = max(0.8, r * _gemRingWidth)
-      ..color = darkShade.withAlpha(160);
+      ..color = Colors.white.withAlpha(90);
     canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
     cellPaint.style = PaintingStyle.fill;
 
@@ -665,20 +666,20 @@ class _PixelGridPainter extends CustomPainter {
         final p1 = Offset(tableCenter.dx + tableRadius * cosA, tableCenter.dy + tableRadius * sinA);
         final p2 = Offset(c.dx + (r * 0.90) * cosA, c.dy + (r * 0.90) * sinA);
 
-        facetPaint.color = (i < 4) ? Colors.white.withAlpha(60) : darkShade.withAlpha(100);
+        facetPaint.color = (i < 4) ? Colors.white.withAlpha(110) : darkShade.withAlpha(80);
         canvas.drawLine(p1, p2, facetPaint);
       }
 
-      // Flat Octagonal Table Facet Cut
+      // Flat Octagonal Table Facet Cut with White Crystal Glass Sheen
       cellPaint
         ..style = PaintingStyle.fill
-        ..color = lightShade.withAlpha(70);
+        ..color = Colors.white.withAlpha(110);
       canvas.drawPath(octPath, cellPaint);
 
       cellPaint
         ..style = PaintingStyle.stroke
         ..strokeWidth = max(0.9, r * 0.06)
-        ..color = Colors.white.withAlpha(90);
+        ..color = Colors.white.withAlpha(160);
       canvas.drawPath(octPath, cellPaint);
       cellPaint.style = PaintingStyle.fill;
     }
