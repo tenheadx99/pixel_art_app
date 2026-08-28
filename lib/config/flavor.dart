@@ -162,7 +162,8 @@ class FlavorConfig {
 
   static FlavorConfig of(AppFlavor flavor) => _configs[flavor]!;
 
-  /// Convenience accessor for the active flavor's config.
+    /// Convenience accessor for the active flavor's config.
+/// Convenience accessor for the active flavor's config.
   static FlavorConfig get current => of(currentFlavor);
 
   /// Returns the RemoteConfig key for a given flavor and base key.

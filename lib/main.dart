@@ -11,6 +11,7 @@ import 'config/app_config.dart';
 import 'config/flavor.dart';
 import 'firebase_options.dart';
 import 'data/services/remote_config_service.dart';
+import 'data/services/economy_config_service.dart';
 import 'data/services/local_storage_service.dart';
 import 'data/services/database_service.dart';
 import 'data/services/ad_service.dart';
@@ -201,6 +202,7 @@ class _AppBootstrapState extends State<AppBootstrap>
       await AnalyticsService().init(flavorName: currentFlavor.name);
       final remoteConfig = RemoteConfigService();
       await remoteConfig.initialize();
+      await EconomyConfigService().initialize();
 
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;

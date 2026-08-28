@@ -7,6 +7,8 @@ import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/notification_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
+import 'package:pixel_art_app/data/models/economy_config.dart';
+import 'package:pixel_art_app/data/services/economy_config_service.dart';
 
 /// Result of an [AppSettingsProvider.addXp] call, so the UI can celebrate a
 /// level-up with the reward popup.
@@ -350,13 +352,44 @@ class AppSettingsProvider extends ChangeNotifier {
           if (purchase.status == PurchaseStatus.purchased) {
             AnalyticsService().logPurchase(productId: purchase.productID);
           }
-          if (purchase.productID == AppConstants.proProductId) {
+
+          // Check dynamic Diamond Packs first
+          final activePacks = EconomyConfigService().currentConfig.diamondPacks;
+          DiamondPackConfig? matchedPack;
+          for (final p in activePacks) {
+            if (p.productId == purchase.productID) {
+              matchedPack = p;
+              break;
+            }
+          }
+
+          final paywallConfig = EconomyConfigService().currentConfig.paywall;
+
+          if (matchedPack != null) {
+            if (purchase.status == PurchaseStatus.purchased) {
+              addDiamonds(matchedPack.totalDiamonds);
+              if (matchedPack.bonusWands > 0) {
+                addWands(matchedPack.bonusWands);
+              }
+              if (matchedPack.bonusBombs > 0) {
+                final currentBombs = _storageService.getInt('bombs_count', defaultValue: 5);
+                _storageService.setInt('bombs_count', currentBombs + matchedPack.bonusBombs);
+                notifyListeners();
+              }
+              developer.log(
+                'Granted ${matchedPack.totalDiamonds} diamonds, ${matchedPack.bonusBombs} bombs, ${matchedPack.bonusWands} wands for ${purchase.productID}',
+                name: 'IAP',
+              );
+            }
+          } else if (purchase.productID == AppConstants.proProductId ||
+              purchase.productID == paywallConfig.lifetimeProductId) {
             setProUser(true);
             AnalyticsService().setPlayerProperties(isPro: true);
-          } else if (purchase.productID ==
-              AppConstants.plusMonthlyProductId) {
+          } else if (purchase.productID == AppConstants.plusMonthlyProductId ||
+              purchase.productID == paywallConfig.monthlyProductId) {
             extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
-          } else if (purchase.productID == AppConstants.plusYearlyProductId) {
+          } else if (purchase.productID == AppConstants.plusYearlyProductId ||
+              purchase.productID == paywallConfig.yearlyProductId) {
             extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
@@ -375,7 +408,15 @@ class AppSettingsProvider extends ChangeNotifier {
           );
         }
         if (purchase.pendingCompletePurchase) {
-          await InAppPurchase.instance.completePurchase(purchase);
+          try {
+            await InAppPurchase.instance.completePurchase(purchase);
+          } catch (e) {
+            developer.log(
+              'Error completing purchase for ${purchase.productID}',
+              name: 'IAP',
+              error: e,
+            );
+          }
         }
       }
     });

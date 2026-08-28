@@ -12,6 +12,7 @@ import '../../data/models/pixel_art.dart';
 import '../../data/services/notification_service.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/settings_sheet.dart';
+import '../widgets/diamond_shop_sheet.dart';
 import '../widgets/transitions.dart';
 import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
@@ -477,30 +478,47 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(width: 12),
             // Diamond balance.
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(40),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '${settings.diamondsAvailable}',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
+            GestureDetector(
+              onTap: () => DiamondShopSheet.show(context),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.25),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${settings.diamondsAvailable}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Icon(
-                    Icons.diamond_rounded,
-                    color: Color(0xFFFFE08A),
-                    size: 15,
-                  ),
-                ],
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.diamond_rounded,
+                      color: Color(0xFFFFE08A),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: const BoxDecoration(
+                        color: Colors.amber,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.add,
+                        size: 10,
+                        color: Colors.black,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ],

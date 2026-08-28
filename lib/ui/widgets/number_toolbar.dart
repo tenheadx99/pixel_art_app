@@ -6,6 +6,8 @@ import '../../providers/app_settings_provider.dart';
 import '../../data/services/ad_service.dart';
 import '../../config/app_config.dart';
 import '../theme/app_style.dart';
+import 'package:pixel_art_app/data/services/economy_config_service.dart';
+import 'diamond_shop_sheet.dart';
 
 class NumberToolbar extends StatelessWidget {
   final ColoringProvider provider;
@@ -80,6 +82,59 @@ class NumberToolbar extends StatelessWidget {
     );
   }
 
+  void _showOutOfBombsDialog(BuildContext context) {
+    final cost = EconomyConfigService().currentConfig.diamondCostBomb;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.local_fire_department_rounded, color: Colors.deepOrangeAccent),
+            SizedBox(width: 8),
+            Text('Out of Bombs!'),
+          ],
+        ),
+        content: Text('Get 1 Paint Bomb for $cost Diamonds or watch an ad to refill.'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              DiamondShopSheet.show(context);
+            },
+            child: const Text('Shop 💎'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _watchAdRefill(context, 'Bomb', () => provider.addBombs(1));
+            },
+            child: const Text('Watch Ad 🎬'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              if (provider.buyBombWithDiamonds(settings)) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Bought 1 Bomb for $cost 💎! Bomb mode active.')),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Not enough Diamonds! You need $cost 💎. Get a Diamond Pack.'),
+                    backgroundColor: Colors.redAccent,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+                DiamondShopSheet.show(context);
+              }
+            },
+            child: Text('Buy ($cost 💎)'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final brushActive = !provider.isEraseMode && !provider.isMagicWandMode && !provider.isBombMode;
@@ -109,10 +164,8 @@ class NumberToolbar extends StatelessWidget {
               if (brushesCount == 0) {
                 _watchAdRefill(context, 'Brush', () => provider.addBrushes(1));
               } else {
-                // Cycle brush size: 1 -> 2 -> 3 -> 1
                 final nextSize = provider.brushSize == 3 ? 1 : provider.brushSize + 1;
                 provider.setBrushSize(nextSize);
-                // Make sure we are in brush painting mode
                 if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode) {
                   if (provider.isEraseMode) provider.toggleEraseMode();
                   if (provider.isMagicWandMode) provider.toggleMagicWandMode();
@@ -131,11 +184,11 @@ class NumberToolbar extends StatelessWidget {
                 painter: const BombIconPainter(),
               ),
             ),
-            badgeValue: bombsCount == 0 ? 'ad' : '$bombsCount',
+            badgeValue: bombsCount == 0 ? '💎' : '$bombsCount',
             isActive: bombActive,
             onTap: () {
               if (bombsCount == 0) {
-                _watchAdRefill(context, 'Bomb', () => provider.addBombs(1));
+                _showOutOfBombsDialog(context);
               } else {
                 provider.toggleBombMode();
               }
@@ -175,6 +228,20 @@ class NumberToolbar extends StatelessWidget {
               } else {
                 onHint?.call();
               }
+            },
+          ),
+
+          // 5. Diamond Shop Button
+          _ToolCircleButton(
+            icon: Icon(
+              Icons.diamond_rounded,
+              color: Colors.cyanAccent.shade400,
+              size: 24,
+            ),
+            badgeValue: 'Shop',
+            isActive: false,
+            onTap: () {
+              DiamondShopSheet.show(context);
             },
           ),
         ],

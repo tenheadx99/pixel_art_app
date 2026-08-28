@@ -68,36 +68,69 @@ class IAPService {
     }
   }
 
-  Future<void> buyPro() => _buy(AppConstants.proProductId, consumable: false);
+  /// Queries ProductDetails for a set of product IDs.
+  Future<List<ProductDetails>> getProductDetails(Set<String> productIds) async {
+    if (!_enabled || productIds.isEmpty) return [];
+    try {
+      final response = await InAppPurchase.instance.queryProductDetails(productIds);
+      return response.productDetails;
+    } catch (e) {
+      developer.log('queryProductDetails failed for $productIds', name: 'IAP', error: e);
+      return [];
+    }
+  }
+
+  Future<bool> buyProduct(ProductDetails productDetails, {bool consumable = true}) async {
+    if (!_enabled) return false;
+    try {
+      AnalyticsService().logPurchaseStart(productId: productDetails.id);
+      final param = PurchaseParam(productDetails: productDetails);
+      if (consumable) {
+        return await InAppPurchase.instance.buyConsumable(purchaseParam: param);
+      } else {
+        return await InAppPurchase.instance.buyNonConsumable(purchaseParam: param);
+      }
+    } catch (e) {
+      developer.log('buyProduct failed for ${productDetails.id}', name: 'IAP', error: e);
+      return false;
+    }
+  }
+
+  Future<bool> buyPro() => _buy(AppConstants.proProductId, consumable: false);
 
   /// Starts the Play/App Store billing flow for a Plus subscription. On both
   /// stores subscriptions go through the non-consumable path; renewals and
   /// cancellations then surface via [purchaseStream] restore events.
-  Future<void> buySubscription(String productId) =>
+  Future<bool> buySubscription(String productId) =>
       _buy(productId, consumable: false);
 
-  Future<void> buyConsumable(String productId) =>
+  Future<bool> buyConsumable(String productId) =>
       _buy(productId, consumable: true);
 
-  Future<void> _buy(String productId, {required bool consumable}) async {
-    if (!_enabled) return;
+  Future<bool> buyDiamondPack(String productId) =>
+      buyConsumable(productId);
+
+  Future<bool> _buy(String productId, {required bool consumable}) async {
+    if (!_enabled) return false;
     try {
       AnalyticsService().logPurchaseStart(productId: productId);
       final purchase = InAppPurchase.instance;
       final response = await purchase.queryProductDetails({productId});
-      if (response.productDetails.isEmpty) return;
+      if (response.productDetails.isEmpty) return false;
       final param = PurchaseParam(
         productDetails: response.productDetails.first,
       );
       if (consumable) {
-        await purchase.buyConsumable(purchaseParam: param);
+        return await purchase.buyConsumable(purchaseParam: param);
       } else {
-        await purchase.buyNonConsumable(purchaseParam: param);
+        return await purchase.buyNonConsumable(purchaseParam: param);
       }
     } catch (e) {
       developer.log('Purchase flow failed for $productId', name: 'IAP', error: e);
+      return false;
     }
   }
 
   void dispose() {}
 }
+

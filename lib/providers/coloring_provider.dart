@@ -9,6 +9,8 @@ import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
+import 'package:pixel_art_app/data/services/economy_config_service.dart';
+import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
 class ColoringProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
@@ -126,6 +128,20 @@ class ColoringProvider extends ChangeNotifier {
     _bombsCount += count;
     _storageService.setInt('bombs_count', _bombsCount);
     notifyListeners();
+  }
+
+  bool buyBombWithDiamonds(AppSettingsProvider appSettings) {
+    final cost = EconomyConfigService().currentConfig.diamondCostBomb;
+    if (appSettings.useDiamonds(cost)) {
+      addBombs(1);
+      _isBombMode = true;
+      _isMagicWandMode = false;
+      _isEraseMode = false;
+      _haptic(HapticFeedback.selectionClick);
+      notifyListeners();
+      return true;
+    }
+    return false;
   }
 
   void addBrushes(int count) {

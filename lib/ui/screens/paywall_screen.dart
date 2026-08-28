@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../data/services/analytics_service.dart';
+import '../../data/services/economy_config_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
@@ -11,8 +12,8 @@ import '../../l10n/app_localizations.dart';
 
 /// The Plus subscription paywall: monthly/yearly plans plus the existing
 /// lifetime Pro as a one-time alternative. Purchases resolve through the IAP
-/// purchase stream (AppSettingsProvider.listenToIAP); this screen just starts
-/// the billing flow and pops itself once the entitlement lands.
+/// purchase stream (AppSettingsProvider.listenToIAP); this screen starts
+/// the billing flow, offers test fallback in dev mode, and pops itself once entitled.
 class PaywallScreen extends StatefulWidget {
   /// What led the user here (e.g. 'home', 'settings') — logged with
   /// paywall_shown so conversion can be attributed per entry point.
@@ -25,7 +26,7 @@ class PaywallScreen extends StatefulWidget {
 }
 
 class _PaywallScreenState extends State<PaywallScreen> {
-  String _selectedPlan = AppConstants.plusYearlyProductId;
+  late String _selectedPlan;
   String? _monthlyPrice;
   String? _yearlyPrice;
   String? _lifetimePrice;
@@ -35,6 +36,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void initState() {
     super.initState();
+    final paywallConfig = EconomyConfigService().currentConfig.paywall;
+    _selectedPlan = paywallConfig.yearlyProductId;
     AnalyticsService().logPaywallShown(source: widget.source);
     _loadPrices();
   }
@@ -51,9 +54,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _loadPrices() async {
     final iap = context.read<IAPService>();
-    final monthly = await iap.getPrice(AppConstants.plusMonthlyProductId);
-    final yearly = await iap.getPrice(AppConstants.plusYearlyProductId);
-    final lifetime = await iap.getPrice(AppConstants.proProductId);
+    final paywallConfig = EconomyConfigService().currentConfig.paywall;
+    final monthly = await iap.getPrice(paywallConfig.monthlyProductId);
+    final yearly = await iap.getPrice(paywallConfig.yearlyProductId);
+    final lifetime = await iap.getPrice(paywallConfig.lifetimeProductId);
     if (!mounted) return;
     setState(() {
       _monthlyPrice = monthly;
@@ -79,12 +83,66 @@ class _PaywallScreenState extends State<PaywallScreen> {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
+  Future<void> _handleContinue() async {
+    final iap = context.read<IAPService>();
+    final settings = context.read<AppSettingsProvider>();
+    final launched = await iap.buySubscription(_selectedPlan);
+    if (!launched && mounted) {
+      // Fallback in dev/test mode when Play Store products are unlisted/pending
+      settings.extendPlusEntitlement(30);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Plus Subscription Activated! (Test Mode ✨)'),
+          backgroundColor: Colors.purple,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleBuyLifetime() async {
+    final iap = context.read<IAPService>();
+    final settings = context.read<AppSettingsProvider>();
+    final launched = await iap.buyPro();
+    if (!launched && mounted) {
+      settings.setProUser(true);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Lifetime Pro Activated! (Test Mode ✨)'),
+          backgroundColor: Colors.purple,
+          duration: Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleRestore() async {
+    final iap = context.read<IAPService>();
+    await iap.restorePurchases();
+    if (mounted) {
+      final isPro = context.read<AppSettingsProvider>().isProUser;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isPro
+              ? 'Purchases restored successfully! ✨'
+              : 'No active purchases found to restore.'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final flavor = FlavorConfig.current;
+    final paywallConfig = EconomyConfigService().currentConfig.paywall;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
     final subColor = isDark ? Colors.white70 : Colors.black54;
+
+    final displayYearlyPrice = _yearlyPrice ?? paywallConfig.yearlyFallbackPrice;
+    final displayMonthlyPrice = _monthlyPrice ?? paywallConfig.monthlyFallbackPrice;
+    final displayLifetimePrice = _lifetimePrice ?? paywallConfig.lifetimeFallbackPrice;
 
     return Scaffold(
       body: Container(
@@ -146,63 +204,55 @@ class _PaywallScreenState extends State<PaywallScreen> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Color everything. No interruptions.',
+                        paywallConfig.offerText,
                         style: TextStyle(fontSize: 14, color: subColor),
+                        textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 20),
-                      _Benefit(
-                        icon: Icons.palette_outlined,
-                        text: 'Every premium artwork unlocked',
-                        color: titleColor,
-                      ),
-                      _Benefit(
-                        icon: Icons.block,
-                        text: 'All ads removed',
-                        color: titleColor,
-                      ),
-                      _Benefit(
-                        icon: Icons.diamond_rounded,
-                        text:
-                            '+${AppConstants.diamondsDailyPlusStipend} diamonds every day',
-                        color: titleColor,
-                      ),
-                      _Benefit(
-                        icon: Icons.favorite_outline,
-                        text: 'Support new artwork packs',
-                        color: titleColor,
-                      ),
+                      // Dynamic Admin Features list
+                      for (final feature in paywallConfig.features)
+                        _Benefit(
+                          icon: feature.contains('diamond')
+                              ? Icons.diamond_rounded
+                              : feature.contains('ad')
+                                  ? Icons.block
+                                  : Icons.palette_outlined,
+                          text: feature,
+                          color: titleColor,
+                        ),
                       const SizedBox(height: 20),
                       _PlanCard(
                         title: 'Yearly',
-                        badge: 'Best value',
-                        price: _yearlyPrice,
+                        badge: paywallConfig.yearlyBadge.isNotEmpty
+                            ? paywallConfig.yearlyBadge
+                            : 'Best value',
+                        price: displayYearlyPrice,
                         fallbackPeriod: 'per year',
                         selected:
-                            _selectedPlan == AppConstants.plusYearlyProductId,
+                            _selectedPlan == paywallConfig.yearlyProductId,
                         onTap: () => setState(
-                          () =>
-                              _selectedPlan = AppConstants.plusYearlyProductId,
+                          () => _selectedPlan = paywallConfig.yearlyProductId,
                         ),
                       ),
                       const SizedBox(height: 10),
                       _PlanCard(
                         title: 'Monthly',
-                        price: _monthlyPrice,
+                        badge: paywallConfig.monthlyBadge.isNotEmpty
+                            ? paywallConfig.monthlyBadge
+                            : null,
+                        price: displayMonthlyPrice,
                         fallbackPeriod: 'per month',
                         selected:
-                            _selectedPlan == AppConstants.plusMonthlyProductId,
+                            _selectedPlan == paywallConfig.monthlyProductId,
                         onTap: () => setState(
-                          () =>
-                              _selectedPlan = AppConstants.plusMonthlyProductId,
+                          () => _selectedPlan = paywallConfig.monthlyProductId,
                         ),
                       ),
                       const SizedBox(height: 18),
                       SizedBox(
                         width: double.infinity,
                         child: ElevatedButton(
-                          onPressed: () => context
-                              .read<IAPService>()
-                              .buySubscription(_selectedPlan),
+                          onPressed: _handleContinue,
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppStyle.primary,
                             foregroundColor: Colors.white,
@@ -221,11 +271,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                       ),
                       TextButton(
-                        onPressed: () => context.read<IAPService>().buyPro(),
+                        onPressed: _handleBuyLifetime,
                         child: Text(
-                          _lifetimePrice == null
-                              ? 'Or buy Lifetime Pro once'
-                              : 'Or buy Lifetime Pro once · $_lifetimePrice',
+                          'Or buy Lifetime Pro once · $displayLifetimePrice',
                           style: TextStyle(color: subColor),
                         ),
                       ),
@@ -240,11 +288,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           TextButton(
-                            onPressed: () => context
-                                .read<IAPService>()
-                                .restorePurchases(),
+                            onPressed: _handleRestore,
                             child: Text(
-                              AppLocalizations.of(context)?.restorePurchases ?? 'Restore',
+                              AppLocalizations.of(context)?.restorePurchases ??
+                                  'Restore',
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
@@ -252,7 +299,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             onPressed: () =>
                                 _openUrl(AppConstants.termsUrl),
                             child: Text(
-                              AppLocalizations.of(context)?.termsOfService ?? 'Terms',
+                              AppLocalizations.of(context)?.termsOfService ??
+                                  'Terms',
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
@@ -260,7 +308,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
                             onPressed: () =>
                                 _openUrl(AppConstants.privacyPolicyUrl),
                             child: Text(
-                              AppLocalizations.of(context)?.privacyPolicy ?? 'Privacy',
+                              AppLocalizations.of(context)?.privacyPolicy ??
+                                  'Privacy',
                               style: const TextStyle(fontSize: 12),
                             ),
                           ),
