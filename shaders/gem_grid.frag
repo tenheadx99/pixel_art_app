@@ -92,7 +92,7 @@ void main() {
         return;
     }
 
-    // Filled Gem -> Full 3D Cushion Gem Tile
+    // Filled Gem -> Full 3D Faceted Cushion Diamond Drill
     vec2 center = vec2(0.5);
 
     // Low LOD (< 10.0): Flat Square Tile (no animation while zoomed out —
@@ -127,55 +127,98 @@ void main() {
 
     vec2 dir = uv - center;
     float dist = length(dir);
+    vec2 absDir = abs(dir);
 
-    // 3D Dome Shading with Light Source + Accelerometer Tilt
+    // Light Direction vector with Accelerometer Tilt
     vec2 shift = vec2(-0.707 - uTilt.x * 0.40, -0.707 + uTilt.y * 0.40);
     shift = clamp(shift, vec2(-1.20), vec2(1.20));
+    vec2 lightDir = normalize(-shift);
 
-    // Light source center offset
-    vec2 lightCenter = center + shift * 0.14;
-    float lightDist = length(uv - lightCenter);
-    float t = clamp(lightDist / 0.65, 0.0, 1.0);
+    vec3 lightShade = min(cellColor.rgb + vec3(0.42), vec3(1.0));
+    vec3 darkShade = cellColor.rgb * 0.50;
 
-    vec3 lightShade = min(cellColor.rgb + vec3(0.38), vec3(1.0));
-    vec3 darkShade = cellColor.rgb * 0.58;
-    vec3 baseColor = mix(lightShade, darkShade, t);
+    // --- 1. Octagonal Table Cut & 8 Facet Sector Geometry ---
+    // Octagonal distance from center for real diamond drill shape
+    float octDist = max(max(absDir.x, absDir.y), (absDir.x + absDir.y) * 0.7071);
+    bool isTable = octDist < 0.165;
 
-    // Bevel Outer Edges for crisp 3D tile definition
-    vec2 edgeDist = abs(uv - center);
-    float maxEdge = max(edgeDist.x, edgeDist.y);
-    if (maxEdge > 0.42) {
-        float bevel = smoothstep(0.42, 0.48, maxEdge);
-        baseColor = mix(baseColor, darkShade * 0.50, bevel * 0.70);
+    // Angle of current fragment (-PI to PI)
+    float angle = atan(dir.y, dir.x);
+    
+    // 8 Facet Sectors (0..7) around 360 degrees
+    float sectorIndex = floor((angle + 3.14159265 + 0.392699) / 0.785398);
+    float sectorAngle = (sectorIndex + 0.5) * 0.785398 - 3.14159265;
+    vec2 facetNormal = vec2(cos(sectorAngle), sin(sectorAngle));
+
+    // Per-facet lighting dot product (creates sharp light/shade steps between facets)
+    float lightDot = dot(facetNormal, lightDir);
+    float facetIntensity = mix(0.70, 1.28, lightDot * 0.5 + 0.5);
+
+    vec3 baseColor;
+    if (isTable) {
+        // Flat Table Facet (Top center octagonal cut)
+        float tableLight = clamp(dot(vec2(0.0, 0.0), lightDir) * 0.2 + 1.15, 1.0, 1.30);
+        baseColor = min(cellColor.rgb * tableLight, vec3(1.0));
+    } else {
+        // Crown Facet Body with stepped lighting contrast
+        baseColor = clamp(cellColor.rgb * facetIntensity, darkShade, lightShade);
     }
 
-    // Tier 3 High Detail: 8 Crown Facet Lines & Table Facet (uEffectiveCell >= 18.0)
-    if (uEffectiveCell >= 18.0) {
-        float angle = atan(dir.y, dir.x);
-        float facetLine = abs(sin(angle * 4.0));
-        if (facetLine < 0.08 && dist > 0.12 && maxEdge < 0.44) {
-            baseColor = mix(baseColor, vec3(1.0), 0.22);
+    // --- 2. Crisp Facet Seams & Octagonal Table Border ---
+    if (uEffectiveCell >= 14.0) {
+        // Octagonal Table Border Line
+        float tableBorderDist = abs(octDist - 0.165);
+        if (tableBorderDist < 0.015) {
+            float bGlint = clamp(lightDot * 0.5 + 0.5, 0.3, 1.0);
+            baseColor = mix(baseColor, vec3(1.0), 0.35 * bGlint);
         }
-        // Table Facet (Flat top cut in center)
-        if (dist < 0.16) {
-            baseColor = mix(baseColor, lightShade, 0.25);
+
+        // Radial Facet Seams (Lines between 8 crown facets)
+        float facetEdge = abs(fract((angle + 3.14159265) / 0.785398) - 0.5);
+        if (facetEdge < 0.035 && octDist >= 0.165 && max(absDir.x, absDir.y) < 0.44) {
+            // Bright seam on light-facing side, shadow seam on dark side
+            if (lightDot > 0.0) {
+                baseColor = mix(baseColor, vec3(1.0), 0.28);
+            } else {
+                baseColor = mix(baseColor, darkShade * 0.4, 0.35);
+            }
         }
     }
 
-    // Dynamic Specular Highlight & Glint Halo
-    vec2 specPos = center + shift * 0.18;
+    // --- 3. 3D Cushion Outer Bevel & Edge Shadows ---
+    float maxEdge = max(absDir.x, absDir.y);
+    if (maxEdge > 0.38) {
+        float bevelT = smoothstep(0.38, 0.48, maxEdge);
+        // Top-left facing edges get crisp rim highlight; bottom-right get deep shadow
+        float edgeDirDot = dot(normalize(dir), lightDir);
+        if (edgeDirDot > 0.2) {
+            baseColor = mix(baseColor, lightShade, bevelT * 0.45);
+        } else {
+            baseColor = mix(baseColor, darkShade * 0.35, bevelT * 0.65);
+        }
+    }
+
+    // --- 4. Refractive Specular Sparkle & Pinpoint Star Glints ---
+    vec2 specPos = center + shift * 0.16;
     float specDist = length(uv - specPos);
 
-    // Soft Specular Halo
-    if (specDist < 0.20) {
-        float halo = smoothstep(0.20, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), halo * 0.45);
+    // Sharp Primary Specular Glint on Top Facet Edge
+    if (specDist < 0.18) {
+        float halo = smoothstep(0.18, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), halo * 0.50);
+    }
+    if (specDist < 0.07) {
+        float core = smoothstep(0.07, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), core * 0.90);
     }
 
-    // Sharp Core Specular Highlight
-    if (specDist < 0.08) {
-        float core = smoothstep(0.08, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), core * 0.85);
+    // 4-Point Micro Star Flare Glint (Zoom >= 20.0)
+    if (uEffectiveCell >= 20.0 && specDist < 0.22) {
+        vec2 specDir = abs(uv - specPos);
+        if ((specDir.x < 0.015 && specDir.y < 0.16) || (specDir.y < 0.015 && specDir.x < 0.16)) {
+            float crossIntensity = smoothstep(0.16, 0.0, max(specDir.x, specDir.y));
+            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.85);
+        }
     }
 
     // Afterglow + glint sweep: a warm landing flash that fades over 450ms,

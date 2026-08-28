@@ -633,39 +633,53 @@ class _PixelGridPainter extends CustomPainter {
     canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
     cellPaint.style = PaintingStyle.fill;
 
-    // 4. Tier 3 High Detail: 8-Facet Crown Cut Lines & Table Facet (Zoom >= 20.0)
-    if (effectiveCell >= 20.0) {
+    // 4. Tier 3 High Detail: Octagonal Table Cut & 8 Facet Crown Seams (Zoom >= 16.0)
+    if (effectiveCell >= 16.0) {
       final facetPaint = Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = max(0.8, r * 0.06);
+        ..strokeWidth = max(0.8, r * 0.07);
 
       final tableRadius = r * 0.44;
-      final tableCenter = Offset(c.dx + r * shiftX * 0.12, c.dy + r * shiftY * 0.12);
+      final tableCenter = Offset(c.dx + shiftX * r * 0.08, c.dy + shiftY * r * 0.08);
 
-      // 8 radial crown facet lines extending from table to outer rim
+      // Octagonal Table Path
+      final octPath = Path();
       for (var i = 0; i < 8; i++) {
-        final angle = i * pi / 4;
-        final cosA = cos(angle);
-        final sinA = sin(angle);
+        final a = i * pi / 4 + pi / 8;
+        final px = tableCenter.dx + tableRadius * cos(a);
+        final py = tableCenter.dy + tableRadius * sin(a);
+        if (i == 0) {
+          octPath.moveTo(px, py);
+        } else {
+          octPath.lineTo(px, py);
+        }
+      }
+      octPath.close();
+
+      // 8 radial crown facet lines from octagonal corners to rim
+      for (var i = 0; i < 8; i++) {
+        final a = i * pi / 4 + pi / 8;
+        final cosA = cos(a);
+        final sinA = sin(a);
 
         final p1 = Offset(tableCenter.dx + tableRadius * cosA, tableCenter.dy + tableRadius * sinA);
-        final p2 = Offset(c.dx + (r * 0.88) * cosA, c.dy + (r * 0.88) * sinA);
+        final p2 = Offset(c.dx + (r * 0.90) * cosA, c.dy + (r * 0.90) * sinA);
 
-        facetPaint.color = Colors.white.withAlpha(38);
+        facetPaint.color = (i < 4) ? Colors.white.withAlpha(60) : darkShade.withAlpha(100);
         canvas.drawLine(p1, p2, facetPaint);
       }
 
-      // Flat Table Facet (Center top cut of diamond)
+      // Flat Octagonal Table Facet Cut
       cellPaint
         ..style = PaintingStyle.fill
-        ..color = lightShade.withAlpha(50);
-      canvas.drawCircle(tableCenter, tableRadius, cellPaint);
+        ..color = lightShade.withAlpha(70);
+      canvas.drawPath(octPath, cellPaint);
 
       cellPaint
         ..style = PaintingStyle.stroke
-        ..strokeWidth = max(0.8, r * 0.05)
-        ..color = Colors.white.withAlpha(65);
-      canvas.drawCircle(tableCenter, tableRadius, cellPaint);
+        ..strokeWidth = max(0.9, r * 0.06)
+        ..color = Colors.white.withAlpha(90);
+      canvas.drawPath(octPath, cellPaint);
       cellPaint.style = PaintingStyle.fill;
     }
 
