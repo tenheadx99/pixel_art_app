@@ -14,6 +14,15 @@ class DiamondShopSheet extends StatefulWidget {
   const DiamondShopSheet({super.key});
 
   static Future<void> show(BuildContext context) {
+    if (!EconomyConfigService().currentConfig.isShopEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Diamond Shop is currently disabled by administrator.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return Future.value();
+    }
     return showModalBottomSheet(
       context: context,
       isScrollControlled: true,

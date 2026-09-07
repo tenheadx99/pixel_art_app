@@ -179,6 +179,9 @@ class EconomyConfig {
   final int diamondCostBomb;
   final int diamondCostBrush;
 
+  // Shop availability toggle
+  final bool isShopEnabled;
+
   // Dynamic IAP Diamond Packs.
   final List<DiamondPackConfig> diamondPacks;
 
@@ -197,6 +200,7 @@ class EconomyConfig {
     required this.diamondCostWand,
     required this.diamondCostBomb,
     required this.diamondCostBrush,
+    this.isShopEnabled = true,
     this.diamondPacks = defaultDiamondPacks,
     this.paywall = const PaywallConfig(),
   });
@@ -252,6 +256,7 @@ class EconomyConfig {
     diamondCostWand: 40,
     diamondCostBomb: 40,
     diamondCostBrush: 40,
+    isShopEnabled: true,
     diamondPacks: defaultDiamondPacks,
     paywall: PaywallConfig(),
   );
@@ -282,6 +287,10 @@ class EconomyConfig {
       paywall = PaywallConfig.fromMap(map['paywall'] as Map<String, dynamic>);
     }
 
+    final bool isShopEnabled = map['isShopEnabled'] as bool? ??
+        map['shopEnabled'] as bool? ??
+        d.isShopEnabled;
+
     return EconomyConfig(
       startingDiamonds: f('startingDiamonds', d.startingDiamonds),
       diamondsPerCompletion:
@@ -297,6 +306,7 @@ class EconomyConfig {
       diamondCostWand: f('diamondCostWand', d.diamondCostWand),
       diamondCostBomb: f('diamondCostBomb', d.diamondCostBomb),
       diamondCostBrush: f('diamondCostBrush', d.diamondCostBrush),
+      isShopEnabled: isShopEnabled,
       diamondPacks: packs,
       paywall: paywall,
     );

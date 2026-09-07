@@ -25,6 +25,7 @@ import '../../data/services/review_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../data/services/timelapse_service.dart';
 import '../../data/services/sound_service.dart';
+import '../../data/services/economy_config_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/widgets/ad_banner.dart';
 import '../../ui/widgets/pixel_grid.dart';
@@ -1077,6 +1078,10 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   /// Opens the in-canvas shop: spend earned diamonds on hints and tools.
   void _showShop(ColoringProvider provider, AppSettingsProvider settings) {
+    if (!EconomyConfigService().currentConfig.isShopEnabled) {
+      _showInfoSnack('Diamond Shop is currently disabled by administrator.');
+      return;
+    }
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
