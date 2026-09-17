@@ -383,4 +383,90 @@ platform :android do
     upload_to_play_store(upload_params)
     UI.success("Successfully deployed flavor #{flavor} to production on Google Play!")
   end
+
+  desc "Upload AAB to Google Play Internal App Sharing"
+  lane :upload_internal_sharing do |options|
+    flavor = options[:flavor] || "original"
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at #{aab_path}. Please build it first.")
+    end
+
+    play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
+    unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
+      UI.user_error!("Play credentials not found. Set PLAY_JSON_KEY env var or add play-store-key.json.")
+    end
+
+    package_name = case flavor
+                   when "devotional" then "com.tenhead.divinepixels"
+                   when "anime"      then "com.tenhead.animepixels"
+                   when "pixelcalm"  then "com.tenhead.pixelcalm"
+                   when "diamond"    then "com.tenhead.gemart"
+                   else                   "com.tenhead.pixelyart"
+                   end
+
+    sharing_params = {
+      package_name: package_name,
+      aab: aab_path
+    }
+
+    if play_key.strip.start_with?("{")
+      sharing_params[:json_key_data] = play_key
+    else
+      sharing_params[:json_key] = play_key
+    end
+
+    url = upload_to_play_store_internal_app_sharing(sharing_params)
+    UI.success("Uploaded to Internal App Sharing successfully!")
+    UI.important("Download link: #{url}")
+    url
+  end
+
+  desc "Upload AAB to Google Play Internal Testing track"
+  lane :upload_internal_track do |options|
+    flavor = options[:flavor] || "original"
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+
+    unless File.exist?(aab_path)
+      UI.user_error!("AAB not found at #{aab_path}. Please build it first.")
+    end
+
+    play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
+    unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
+      UI.user_error!("Play credentials not found. Set PLAY_JSON_KEY env var or add play-store-key.json.")
+    end
+
+    package_name = case flavor
+                   when "devotional" then "com.tenhead.divinepixels"
+                   when "anime"      then "com.tenhead.animepixels"
+                   when "pixelcalm"  then "com.tenhead.pixelcalm"
+                   when "diamond"    then "com.tenhead.gemart"
+                   else                   "com.tenhead.pixelyart"
+                   end
+
+    upload_params = {
+      package_name: package_name,
+      track: "internal",
+      release_status: "completed",
+      aab: aab_path,
+      skip_upload_apk: true,
+      skip_upload_metadata: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true
+    }
+
+    if play_key.strip.start_with?("{")
+      upload_params[:json_key_data] = play_key
+    else
+      upload_params[:json_key] = play_key
+    end
+
+    UI.message("Uploading #{flavor} AAB to Google Play Internal Testing track...")
+    upload_to_play_store(upload_params)
+    UI.success("Uploaded to Internal Testing track successfully!")
+  end
 end
+
+

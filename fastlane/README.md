@@ -111,6 +111,22 @@ Upload only store metadata and screenshots to Play Store (skip AAB build)
 
 Deploy a specific flavor (devotional, anime, pixelcalm, diamond) to Google Play
 
+### android upload_internal_sharing
+
+```sh
+[bundle exec] fastlane android upload_internal_sharing
+```
+
+Upload AAB to Google Play Internal App Sharing
+
+### android upload_internal_track
+
+```sh
+[bundle exec] fastlane android upload_internal_track
+```
+
+Upload AAB to Google Play Internal Testing track
+
 ----
 
 This README.md is auto-generated and will be re-generated every time [_fastlane_](https://fastlane.tools) is run.
