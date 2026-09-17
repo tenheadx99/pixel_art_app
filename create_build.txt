@@ -1,0 +1,8 @@
+flutter pub get && \
+flutter build appbundle --release --flavor diamond -t lib/main_diamond.dart --dart-define=FLAVOR=diamond && \
+flutter build apk --release --flavor diamond -t lib/main_diamond.dart --dart-define=FLAVOR=diamond
+
+
+
+flutter pub get && \
+flutter build apk --release --flavor diamond -t lib/main_diamond.dart --dart-define=FLAVOR=diamond

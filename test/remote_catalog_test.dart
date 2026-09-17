@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
-import 'package:pixel_art_app/data/services/remote_catalog_service.dart';
 import 'package:pixel_art_app/data/services/progress_migration_strategy.dart';
 import 'package:pixel_art_app/data/services/pixel_converter_service.dart';
 import 'package:pixel_art_app/providers/gallery_provider.dart';

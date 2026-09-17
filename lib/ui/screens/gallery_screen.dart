@@ -5,6 +5,11 @@ import 'package:share_plus/share_plus.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/user_artwork.dart';
+import '../../providers/app_settings_provider.dart';
+import '../widgets/ad_banner.dart';
+import '../motion.dart';
+import '../widgets/entrance.dart';
+import '../widgets/pressable.dart';
 
 import '../../l10n/app_localizations.dart';
 
@@ -19,15 +24,27 @@ class _GalleryScreenState extends State<GalleryScreen> {
   List<UserArtwork> _artworks = [];
   bool _isLoading = true;
 
+  /// Ids currently shrinking out after a confirmed delete.
+  final Set<String> _deleting = {};
+
+  /// Entrance stagger runs once per screen visit, not again after deletes.
+  bool _entranceDone = false;
+
   @override
   void initState() {
     super.initState();
     _loadArtworks();
+    // After the initial stagger has played, new builds render statically.
+    Future.delayed(const Duration(milliseconds: 800), () {
+      _entranceDone = true;
+    });
   }
 
   Future<void> _loadArtworks() async {
     final db = context.read<DatabaseService>();
     final saved = await db.getSavedArtworks();
+    // Backing out during the DB query would setState on a disposed screen.
+    if (!mounted) return;
     setState(() {
       _artworks = saved.map((m) => UserArtwork.fromJson(m)).toList();
       _isLoading = false;
@@ -38,6 +55,11 @@ class _GalleryScreenState extends State<GalleryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       extendBodyBehindAppBar: true,
+      // Same free-user banner slot as the home screen; AdBanner reserves zero
+      // height until an ad actually loads, so there is no layout shift.
+      bottomNavigationBar: context.watch<AppSettingsProvider>().isProUser
+          ? null
+          : const SafeArea(child: AdBanner()),
       appBar: AppBar(
         title: Text(AppLocalizations.of(context)?.navGallery ?? 'My Works', style: const TextStyle(color: Colors.white)),
         leading: IconButton(
@@ -75,11 +97,16 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     itemCount: _artworks.length,
                     itemBuilder: (context, index) {
                       final artwork = _artworks[index];
-                      return _ArtworkCard(
-                        artwork: artwork,
-                        onDelete: () => _deleteArtwork(artwork),
-                        onShare: () => _shareArtwork(artwork),
+                      final card = _DeletableCard(
+                        deleting: _deleting.contains(artwork.id),
+                        child: _ArtworkCard(
+                          artwork: artwork,
+                          onDelete: () => _deleteArtwork(artwork),
+                          onShare: () => _shareArtwork(artwork),
+                        ),
                       );
+                      if (_entranceDone) return card;
+                      return StaggeredEntrance(slot: index, child: card);
                     },
                   ),
                 ),
@@ -159,21 +186,34 @@ class _GalleryScreenState extends State<GalleryScreen> {
     );
 
     if (confirmed == true && mounted) {
+      // Shrink the tile out before the grid reflows.
+      setState(() {
+        _entranceDone = true;
+        _deleting.add(artwork.id);
+      });
+      await Future.delayed(Motion.fast);
+      if (!mounted) return;
       final storage = context.read<LocalStorageService>();
       final db = context.read<DatabaseService>();
       final fileName = artwork.filePath.split('/').last;
       await storage.deleteFile(fileName);
       await db.deleteArtwork(artwork.id);
+      if (!mounted) return;
+      _deleting.remove(artwork.id);
       _loadArtworks();
     }
   }
 
-  void _shareArtwork(UserArtwork artwork) {
-    final file = File(artwork.filePath);
-    if (file.existsSync()) {
-      Share.shareXFiles([
-        XFile(artwork.filePath),
-      ], text: '🎨 Check out my Pixel Art! Created with Pixel Art app.');
+  Future<void> _shareArtwork(UserArtwork artwork) async {
+    try {
+      final file = File(artwork.filePath);
+      if (await file.exists()) {
+        await Share.shareXFiles([
+          XFile(artwork.filePath),
+        ], text: '🎨 Check out my Pixel Art! Created with Pixel Art app.');
+      }
+    } catch (_) {
+      // Share sheet unavailable — nothing actionable for the user.
     }
   }
 }
@@ -205,6 +245,16 @@ class _ArtworkCard extends StatelessWidget {
             child: Image.file(
               File(artwork.filePath),
               fit: BoxFit.contain,
+              // Fade the decoded image in instead of popping.
+              frameBuilder: (context, child, frame, syncLoaded) {
+                if (syncLoaded) return child;
+                return AnimatedOpacity(
+                  opacity: frame == null ? 0 : 1,
+                  duration: Motion.base,
+                  curve: Motion.standard,
+                  child: child,
+                );
+              },
               errorBuilder: (_, _, _) => Container(
                 color: Colors.white.withAlpha(10),
                 child: const Icon(
@@ -294,8 +344,9 @@ class _SmallIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
+      scale: 0.85,
       child: Container(
         padding: const EdgeInsets.all(6),
         decoration: BoxDecoration(
@@ -303,6 +354,28 @@ class _SmallIconButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 16, color: color ?? Colors.white70),
+      ),
+    );
+  }
+}
+
+/// Shrinks and fades its child out when [deleting] flips true.
+class _DeletableCard extends StatelessWidget {
+  final bool deleting;
+  final Widget child;
+
+  const _DeletableCard({required this.deleting, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedScale(
+      scale: deleting ? 0.7 : 1.0,
+      duration: Motion.fast,
+      curve: Curves.easeInCubic,
+      child: AnimatedOpacity(
+        opacity: deleting ? 0 : 1,
+        duration: Motion.fast,
+        child: child,
       ),
     );
   }

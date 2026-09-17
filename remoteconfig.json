@@ -379,6 +379,76 @@
       },
       "description": "App open cooldown seconds for diamond",
       "valueType": "NUMBER"
+    },
+    "bible_show_ads": {
+      "defaultValue": {
+        "value": "true"
+      },
+      "description": "Global switch to show/hide ads for bible",
+      "valueType": "BOOLEAN"
+    },
+    "bible_banner_ad_unit_id": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Banner ad ID for bible",
+      "valueType": "STRING"
+    },
+    "bible_interstitial_ad_unit_id": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Interstitial ad ID for bible",
+      "valueType": "STRING"
+    },
+    "bible_rewarded_ad_unit_id": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Rewarded ad ID for bible",
+      "valueType": "STRING"
+    },
+    "bible_app_open_ad_unit_id": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "App open ad ID for bible",
+      "valueType": "STRING"
+    },
+    "bible_min_version": {
+      "defaultValue": {
+        "value": "1.0.0"
+      },
+      "description": "Minimum required version for bible",
+      "valueType": "STRING"
+    },
+    "bible_force_update_url": {
+      "defaultValue": {
+        "value": ""
+      },
+      "description": "Force update URL for bible",
+      "valueType": "STRING"
+    },
+    "bible_interstitial_cooldown_s": {
+      "defaultValue": {
+        "value": "90"
+      },
+      "description": "Interstitial cooldown seconds for bible",
+      "valueType": "NUMBER"
+    },
+    "bible_interstitial_min_session_s": {
+      "defaultValue": {
+        "value": "120"
+      },
+      "description": "Interstitial minimum session seconds for bible",
+      "valueType": "NUMBER"
+    },
+    "bible_app_open_cooldown_s": {
+      "defaultValue": {
+        "value": "14400"
+      },
+      "description": "App open cooldown seconds for bible",
+      "valueType": "NUMBER"
     }
   }
 }

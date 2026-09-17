@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/flavor.dart';
+import '../widgets/transitions.dart';
 
 class AppStyle {
   // Default (original flavor) brand colors. The active Material 3 seed is
@@ -90,11 +91,21 @@ class AppStyle {
     return colors[(number - 1) % colors.length];
   }
 
+  /// One fade-through spec for every default route and back-navigation,
+  /// matching [fadeThroughRoute] so pushes and pops read identically.
+  static const PageTransitionsTheme _pageTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: FadeThroughPageTransitionsBuilder(),
+      TargetPlatform.iOS: FadeThroughPageTransitionsBuilder(),
+    },
+  );
+
   static ThemeData lightTheme() {
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       colorSchemeSeed: brandSeed,
+      pageTransitionsTheme: _pageTransitions,
       scaffoldBackgroundColor: const Color(0xFFF3F4F6), // Premium Platinum
       appBarTheme: const AppBarTheme(
         centerTitle: true,
@@ -129,6 +140,7 @@ class AppStyle {
       useMaterial3: true,
       brightness: Brightness.dark,
       colorSchemeSeed: brandSeed,
+      pageTransitionsTheme: _pageTransitions,
       scaffoldBackgroundColor: darkBg, // Warm deep slate (calm)
       appBarTheme: const AppBarTheme(
         centerTitle: true,

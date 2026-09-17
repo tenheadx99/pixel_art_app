@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:io' show Platform;
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show compute, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -30,12 +32,12 @@ class ColoringProvider extends ChangeNotifier {
   int? _highlightedNumber;
   Timer? _saveTimer;
   bool _isMagicWandMode = false;
-  int _magicWandsCount = 5;
+  int _magicWandsCount = 3;
   bool _isBombMode = false;
-  int _bombsCount = 5;
+  int _bombsCount = 3;
   bool _isEraseMode = false;
   int _brushSize = 1;
-  int _brushesCount = 5;
+  int _brushesCount = 3;
   (int, int)? _nextFillable;
   int _totalFillCount = 0;
   int _totalEraseCount = 0;
@@ -55,6 +57,15 @@ class ColoringProvider extends ChangeNotifier {
   // full rescan in [_calculateProgress] on load/undo/restore.
   int _totalCellCount = 0;
   int _filledCellsCount = 0;
+  // Numbers whose every cell is filled, kept in sync by [_setCell] /
+  // [_calculateProgress] so completion checks never iterate the tally maps.
+  final Set<int> _completedNumbers = {};
+  // Row-major cell indices (row * width + col) per number, built once per
+  // artwork by [_buildCellIndex]. With the per-number cursors below,
+  // [_updateNextFillable] resumes where it left off instead of rescanning the
+  // whole grid on every tap/stroke.
+  Map<int, Uint32List> _cellsByNumber = {};
+  final Map<int, int> _nextCursor = {};
 
   VoidCallback? onCellFilledCorrectly;
   VoidCallback? onSectionCompleted;
@@ -65,19 +76,10 @@ class ColoringProvider extends ChangeNotifier {
   // Fired when a plain tap lands on a cell whose number isn't the selected
   // one, so the UI can give a gentle "not this one" nudge instead of silence.
   void Function(int row, int col)? onWrongTap;
+  // Fired when a bomb explodes so the UI can trigger high-impact explosion visual effects.
+  void Function(int row, int col)? onBombExploded;
 
-  Set<int> _getCompletedNumbers() {
-    final completed = <int>{};
-    for (final entry in _totalPerNumber.entries) {
-      final num = entry.key;
-      final total = entry.value;
-      final filled = _filledPerNumber[num] ?? 0;
-      if (filled == total && total > 0) {
-        completed.add(num);
-      }
-    }
-    return completed;
-  }
+  Set<int> _getCompletedNumbers() => Set<int>.of(_completedNumbers);
 
   bool _runWithCompletionCheck(bool Function() action) {
     final previouslyCompleted = _getCompletedNumbers();
@@ -87,6 +89,9 @@ class ColoringProvider extends ChangeNotifier {
       final completedNow = newlyCompleted.difference(previouslyCompleted);
       if (completedNow.isNotEmpty) {
         onSectionCompleted?.call();
+        if (_completedNumbers.contains(_selectedNumber)) {
+          autoAdvanceIfDone();
+        }
       }
     }
     return result;
@@ -185,37 +190,66 @@ class ColoringProvider extends ChangeNotifier {
   bool get _hapticsOn =>
       _storageService.getBool('haptics_enabled', defaultValue: true);
 
-  /// Medium-strength buzz on each cell fill. Uses an explicit amplitude where
-  /// supported so it's reliably felt regardless of OEM haptic quirks.
+  String get _hapticIntensity =>
+      _storageService.getString('haptic_intensity', defaultValue: 'medium');
+
+  double get _intensityMultiplier {
+    switch (_hapticIntensity) {
+      case 'soft':
+        return 0.6;
+      case 'heavy':
+        return 1.4;
+      case 'medium':
+      default:
+        return 1.0;
+    }
+  }
+
+  /// Buzz on cell fill scaled by haptic intensity.
   void _fillVibrate() {
     if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    final duration = (35 * mult).round().clamp(10, 100);
+    final amplitude = _hasAmplitudeControl
+        ? (160 * mult).round().clamp(1, 255)
+        : -1;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
       try {
         Vibration.vibrate(
-          duration: 35,
-          amplitude: _hasAmplitudeControl ? 160 : -1, // ~medium
-        ).catchError((_) {
-          // Fallback to standard Flutter haptics if native vibration fails
-          HapticFeedback.mediumImpact();
-        });
+          duration: duration,
+          amplitude: amplitude,
+        ).catchError((_) => _fallbackImpact(_hapticIntensity));
       } catch (_) {
-        // Fallback for synchronous exceptions
-        HapticFeedback.mediumImpact();
+        _fallbackImpact(_hapticIntensity);
       }
+    } else {
+      _fallbackImpact(_hapticIntensity);
+    }
+  }
+
+  void _fallbackImpact(String intensity) {
+    if (intensity == 'soft') {
+      HapticFeedback.lightImpact();
+    } else if (intensity == 'heavy') {
+      HapticFeedback.heavyImpact();
     } else {
       HapticFeedback.mediumImpact();
     }
   }
 
-  /// Soft "nope" buzz for a wrong-number tap — clearly lighter than the fill
-  /// buzz so right and wrong feel different.
+  /// Soft "nope" buzz for a wrong-number tap.
   void _wrongTapVibrate() {
     if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    final duration = (20 * mult).round().clamp(8, 60);
+    final amplitude = _hasAmplitudeControl
+        ? (90 * mult).round().clamp(1, 255)
+        : -1;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
       try {
         Vibration.vibrate(
-          duration: 20,
-          amplitude: _hasAmplitudeControl ? 90 : -1,
+          duration: duration,
+          amplitude: amplitude,
         ).catchError((_) => HapticFeedback.lightImpact());
       } catch (_) {
         HapticFeedback.lightImpact();
@@ -228,12 +262,16 @@ class ColoringProvider extends ChangeNotifier {
   /// Escalating celebration buzz for combo tiers (0 = first threshold).
   void comboHaptic(int tier) {
     if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    final duration = ((30 + tier * 10) * mult).round().clamp(15, 120);
+    final amplitude = _hasAmplitudeControl
+        ? ((150 + tier * 25) * mult).round().clamp(1, 255)
+        : -1;
     if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
       try {
         Vibration.vibrate(
-          duration: 30 + tier * 10,
-          amplitude:
-              _hasAmplitudeControl ? (150 + tier * 25).clamp(1, 255) : -1,
+          duration: duration,
+          amplitude: amplitude,
         ).catchError((_) => HapticFeedback.heavyImpact());
       } catch (_) {
         HapticFeedback.heavyImpact();
@@ -241,6 +279,75 @@ class ColoringProvider extends ChangeNotifier {
     } else {
       HapticFeedback.heavyImpact();
     }
+  }
+
+  /// Heavy multi-pulse explosion vibration pattern for Bomb / Magic Wand.
+  void bombHaptic() {
+    if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
+      try {
+        Vibration.vibrate(
+          pattern: [
+            0,
+            (40 * mult).round(),
+            (20 * mult).round(),
+            (80 * mult).round(),
+          ],
+          intensities: _hasAmplitudeControl
+              ? [
+                  0,
+                  (160 * mult).round().clamp(1, 255),
+                  0,
+                  (255 * mult).round().clamp(1, 255),
+                ]
+              : [],
+        ).catchError((_) => HapticFeedback.heavyImpact());
+      } catch (_) {
+        HapticFeedback.heavyImpact();
+      }
+    } else {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  /// Rhythmic victory pulse when an artwork is finished.
+  void victoryHaptic() {
+    if (!_hapticsOn) return;
+    final mult = _intensityMultiplier;
+    if (!kIsWeb && Platform.isAndroid && _hasVibrator) {
+      try {
+        Vibration.vibrate(
+          pattern: [0, 60, 40, 100, 60, 140],
+          intensities: _hasAmplitudeControl
+              ? [
+                  0,
+                  (160 * mult).round().clamp(1, 255),
+                  0,
+                  (200 * mult).round().clamp(1, 255),
+                  0,
+                  (255 * mult).round().clamp(1, 255),
+                ]
+              : [],
+        ).catchError((_) => HapticFeedback.heavyImpact());
+      } catch (_) {
+        HapticFeedback.heavyImpact();
+      }
+    } else {
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  /// Tactile feedback when performing Undo.
+  void undoHaptic() {
+    if (!_hapticsOn) return;
+    HapticFeedback.lightImpact();
+  }
+
+  /// Tactile feedback when Eyedropper / Long-press preview triggers.
+  void eyedropperHaptic() {
+    if (!_hapticsOn) return;
+    HapticFeedback.selectionClick();
   }
 
   PixelArt? get currentArt => _currentArt;
@@ -285,7 +392,23 @@ class ColoringProvider extends ChangeNotifier {
   // never overwrite fresher data or resurrect cleared progress.
   int _saveSeq = 0;
 
-  Future<void> saveProgress() async {
+  // The most recent save still encoding on its worker isolate. loadArt awaits
+  // it before reading storage: the coloring screen fires an un-awaited
+  // saveProgress() from dispose, and reopening an artwork before that write
+  // lands would restore STALE progress — and then re-save it on the next
+  // exit, permanently losing the newest fills.
+  Future<void>? _pendingSave;
+
+  Future<void> saveProgress() {
+    final future = _saveProgressImpl();
+    _pendingSave = future;
+    future.whenComplete(() {
+      if (identical(_pendingSave, future)) _pendingSave = null;
+    });
+    return future;
+  }
+
+  Future<void> _saveProgressImpl() async {
     if (_currentArt == null) return;
     final saveKey = _saveKey;
     // Cheap scalar writes stay synchronous.
@@ -298,6 +421,10 @@ class ColoringProvider extends ChangeNotifier {
     // Lightweight percent so list screens can show progress without parsing
     // the full grid string.
     _storageService.setInt('${saveKey}_pct', (_progress * 100).round());
+    _storageService.setInt(
+      '${saveKey}_ts',
+      DateTime.now().millisecondsSinceEpoch,
+    );
     _storageService.setString(_achieveKey, _achievements.join(','));
     _storageService.setInt(AppConstants.magicWandsPrefKey, _magicWandsCount);
     _storageService.setInt('bombs_count', _bombsCount);
@@ -361,19 +488,23 @@ class ColoringProvider extends ChangeNotifier {
     // -1 means "never saved": only then grant the starting wands. A stored 0
     // must stay 0, otherwise spent wands come back on every reload.
     final wands = _storageService.getInt(AppConstants.magicWandsPrefKey, defaultValue: -1);
-    _magicWandsCount = wands >= 0 ? wands : 5;
+    _magicWandsCount = wands >= 0 ? wands : 3;
     final bombs = _storageService.getInt('bombs_count', defaultValue: -1);
-    _bombsCount = bombs >= 0 ? bombs : 5;
+    _bombsCount = bombs >= 0 ? bombs : 3;
     final brushes = _storageService.getInt('brushes_count', defaultValue: -1);
-    _brushesCount = brushes >= 0 ? brushes : 5;
+    _brushesCount = brushes >= 0 ? brushes : 3;
     final raw = _storageService.getString(_saveKey);
     if (raw.isEmpty) return;
     final rows = raw.split(';');
-    if (rows.length != _currentArt!.gridHeight) return;
+    if (rows.length != _currentArt!.gridHeight) {
+      return _discardMismatchedSave(raw);
+    }
     final loaded = <List<int>>[];
     for (var r = 0; r < rows.length; r++) {
       final cols = rows[r].split(',');
-      if (cols.length != _currentArt!.gridWidth) return;
+      if (cols.length != _currentArt!.gridWidth) {
+        return _discardMismatchedSave(raw);
+      }
       loaded.add(cols.map((v) => int.tryParse(v) ?? 0).toList());
     }
     _filledGrid = loaded;
@@ -383,6 +514,28 @@ class ColoringProvider extends ChangeNotifier {
     _restoreMilestones();
     _calculateProgress();
     _isComplete = _progress >= AppConfig.completionThreshold;
+  }
+
+  /// A saved grid whose dimensions no longer match the artwork can't be
+  /// restored (e.g. the artwork was re-authored with a different grid).
+  /// Discarding it silently used to leave the stale `_pct` behind, so home
+  /// kept showing progress for an artwork that opened blank. Zero the whole
+  /// key family instead, keeping the raw grid in one rolling
+  /// `pixelart_last_discarded_save` slot as manual-recovery insurance (never
+  /// read by code; a single bounded key so it can't grow the prefs file).
+  ///
+  /// Accepted edge: if this art is in `completed_ids` the gallery badge
+  /// survives — that needs an admin to change a *completed* art's dimensions,
+  /// which isn't worth cross-provider plumbing here.
+  void _discardMismatchedSave(String raw) {
+    _storageService.setString(
+      'pixelart_last_discarded_save',
+      '${_currentArt?.id}|$raw',
+    );
+    clearProgress();
+    _storageService.setInt('${_saveKey}_ts', 0);
+    _storageService.setInt('${_saveKey}_fills', 0);
+    _storageService.setInt('${_saveKey}_erases', 0);
   }
 
   /// Rebuilds the paint history from storage so Replay / Share GIF work on a
@@ -456,6 +609,7 @@ class ColoringProvider extends ChangeNotifier {
     _pendingUndo?.add((row, col, prev));
     _filledGrid[row][col] = value;
     _fillVersion++;
+    _journalChange(row, col);
     // Keep progress counters in sync incrementally: a full-grid rescan per
     // fill (the old _calculateProgress-on-every-tap) was O(W×H) and the main
     // provider cost during fast swipes. Full rescans remain only on
@@ -468,6 +622,15 @@ class ColoringProvider extends ChangeNotifier {
       } else if (prev > 0 && value == 0) {
         _filledCellsCount--;
         _filledPerNumber[expected] = (_filledPerNumber[expected] ?? 1) - 1;
+        // An erase can free a cell before this number's cursor; rewind so the
+        // next-fillable query rescans it from the top (erases are rare).
+        _nextCursor[expected] = 0;
+      }
+      final total = _totalPerNumber[expected] ?? 0;
+      if (total > 0 && (_filledPerNumber[expected] ?? 0) >= total) {
+        _completedNumbers.add(expected);
+      } else {
+        _completedNumbers.remove(expected);
       }
     }
     _progress =
@@ -504,6 +667,48 @@ class ColoringProvider extends ChangeNotifier {
   int _fillVersion = 0;
   int get fillVersion => _fillVersion;
 
+  // --- Dirty-cell journal ---
+  // Records which cells changed at which fillVersion so painters can patch a
+  // cached image/texture incrementally instead of re-rasterizing the whole
+  // grid. Bounded; wholesale grid changes (load/undo/reset/restore) clear it,
+  // forcing consumers onto their full-rebuild fallback.
+  static const int _dirtyJournalCap = 4096;
+  final List<(int, int, int)> _dirtyCells = []; // (version, row, col)
+  int _journalStartVersion = 0;
+
+  void _journalChange(int row, int col) {
+    _dirtyCells.add((_fillVersion, row, col));
+    if (_dirtyCells.length > _dirtyJournalCap) {
+      final drop = _dirtyCells.length - (_dirtyJournalCap >> 1);
+      _journalStartVersion = _dirtyCells[drop - 1].$1;
+      _dirtyCells.removeRange(0, drop);
+    }
+  }
+
+  void _clearJournal() {
+    _dirtyCells.clear();
+    _journalStartVersion = _fillVersion;
+  }
+
+  /// Cells changed after [sinceVersion], or null when that range is
+  /// unavailable (journal evicted, or the grid changed wholesale) — callers
+  /// must then fall back to a full rebuild. The list may contain duplicates
+  /// and is unordered; consumers should read each cell's *current* state
+  /// rather than replaying entries.
+  List<(int, int)>? changesSince(int sinceVersion) {
+    if (sinceVersion == _fillVersion) return const [];
+    if (sinceVersion < _journalStartVersion || sinceVersion > _fillVersion) {
+      return null;
+    }
+    final result = <(int, int)>[];
+    for (var i = _dirtyCells.length - 1; i >= 0; i--) {
+      final (v, r, c) = _dirtyCells[i];
+      if (v <= sinceVersion) break;
+      result.add((r, c));
+    }
+    return result;
+  }
+
   bool cellIsFilled(int row, int col) {
     if (row < 0 || row >= _filledGrid.length) return false;
     if (col < 0 || col >= _filledGrid[0].length) return false;
@@ -518,7 +723,19 @@ class ColoringProvider extends ChangeNotifier {
   /// When the current artwork was loaded; feeds artwork_completed's duration.
   DateTime? _artStartedAt;
 
-  void loadArt(PixelArt art) {
+  Future<void> loadArt(PixelArt art) async {
+    // Wait for any in-flight save to land before reading storage back (see
+    // _pendingSave). Skipped entirely when no save is pending, so the common
+    // path stays synchronous for the first frame.
+    final pending = _pendingSave;
+    if (pending != null) {
+      try {
+        await pending;
+      } catch (_) {
+        // A failed save must not block loading; loadProgress falls back to
+        // whatever state is already persisted.
+      }
+    }
     _currentArt = art;
     _artStartedAt = DateTime.now();
     _filledGrid = List.generate(
@@ -536,8 +753,21 @@ class ColoringProvider extends ChangeNotifier {
     _timeLapse = [];
     _claimedMilestones = {};
     _consecutiveFills = 0;
+    _buildCellIndex();
     loadProgress();
     _calculateProgress();
+    int initialNumber = art.sortedNumbers.isNotEmpty
+        ? art.sortedNumbers.first
+        : 1;
+    for (final n in art.sortedNumbers) {
+      if (_hasUnfilled(n)) {
+        initialNumber = n;
+        break;
+      }
+    }
+    _selectedNumber = initialNumber;
+    _highlightedNumber = initialNumber;
+    _updateNextFillable();
     AnalyticsService().logArtworkSelected(
       artId: art.id,
       category: art.category,
@@ -587,21 +817,68 @@ class ColoringProvider extends ChangeNotifier {
       return;
     }
     // O(1) exit for the common case — the selected color has no cells left —
-    // so exhausting a color doesn't pay for a futile full-grid scan per tap.
+    // so exhausting a color doesn't pay for a futile scan per tap.
     if (!_hasUnfilled(_selectedNumber)) {
       _nextFillable = null;
       return;
     }
-    for (var row = 0; row < _currentArt!.gridHeight; row++) {
-      for (var col = 0; col < _currentArt!.gridWidth; col++) {
-        if (_currentArt!.grid[row][col] == _selectedNumber &&
-            _filledGrid[row][col] == 0) {
-          _nextFillable = (row, col);
-          return;
-        }
+    // Resume from this number's cursor: fills only ever advance it, so a
+    // coloring session pays O(cells of the number) across ALL taps combined
+    // instead of O(W×H) per tap. Erases and wholesale grid changes rewind the
+    // cursor (see _setCell / _calculateProgress).
+    final cells = _cellsByNumber[_selectedNumber];
+    if (cells == null) {
+      _nextFillable = null;
+      return;
+    }
+    final width = _currentArt!.gridWidth;
+    var i = _nextCursor[_selectedNumber] ?? 0;
+    while (i < cells.length) {
+      final idx = cells[i];
+      final row = idx ~/ width;
+      final col = idx % width;
+      if (_filledGrid[row][col] == 0) {
+        _nextCursor[_selectedNumber] = i;
+        _nextFillable = (row, col);
+        return;
+      }
+      i++;
+    }
+    _nextCursor[_selectedNumber] = i;
+    _nextFillable = null;
+  }
+
+  /// Builds the per-number row-major cell index for the current artwork.
+  /// One O(W×H) pass at load time; the tap hot path never rescans.
+  void _buildCellIndex() {
+    _cellsByNumber = {};
+    _nextCursor.clear();
+    final art = _currentArt;
+    if (art == null) return;
+    final counts = <int, int>{};
+    for (var row = 0; row < art.gridHeight; row++) {
+      final gridRow = art.grid[row];
+      for (var col = 0; col < art.gridWidth; col++) {
+        final n = gridRow[col];
+        if (n > 0) counts[n] = (counts[n] ?? 0) + 1;
       }
     }
-    _nextFillable = null;
+    final lists = <int, Uint32List>{};
+    final written = <int, int>{};
+    for (final entry in counts.entries) {
+      lists[entry.key] = Uint32List(entry.value);
+    }
+    for (var row = 0; row < art.gridHeight; row++) {
+      final gridRow = art.grid[row];
+      for (var col = 0; col < art.gridWidth; col++) {
+        final n = gridRow[col];
+        if (n <= 0) continue;
+        final pos = written[n] ?? 0;
+        lists[n]![pos] = row * art.gridWidth + col;
+        written[n] = pos + 1;
+      }
+    }
+    _cellsByNumber = lists;
   }
 
   bool tryFillCell(int row, int col) {
@@ -680,7 +957,7 @@ class ColoringProvider extends ChangeNotifier {
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
-      _autoAdvanceIfDone();
+      autoAdvanceIfDone();
       _debouncedSave();
       notifyListeners();
       return true;
@@ -778,7 +1055,7 @@ class ColoringProvider extends ChangeNotifier {
     }
     _checkAchievements();
     _updateNextFillable();
-    _autoAdvanceIfDone();
+    autoAdvanceIfDone();
     _debouncedSave();
 
     final newlyCompleted = _getCompletedNumbers();
@@ -824,8 +1101,13 @@ class ColoringProvider extends ChangeNotifier {
     _checkCompletion();
     _checkAchievements();
     _updateNextFillable();
-    _autoAdvanceIfDone();
+    autoAdvanceIfDone();
     _debouncedSave();
+    AnalyticsService().logBoosterUsed(
+      type: 'hint',
+      remaining: -1, // hint count not tracked
+      artId: _currentArt?.id,
+    );
 
     final newlyCompleted = _getCompletedNumbers();
     final completedNow = newlyCompleted.difference(previouslyCompleted);
@@ -839,7 +1121,7 @@ class ColoringProvider extends ChangeNotifier {
 
   /// When the selected number has no cells left, moves the selection to the
   /// next number that still has unfilled cells.
-  void _autoAdvanceIfDone() {
+  void autoAdvanceIfDone() {
     if (_currentArt == null || _nextFillable != null || _isComplete) return;
     final numbers = _currentArt!.sortedNumbers;
     final start = numbers.indexOf(_selectedNumber);
@@ -849,6 +1131,7 @@ class ColoringProvider extends ChangeNotifier {
         _selectedNumber = candidate;
         _highlightedNumber = candidate;
         _updateNextFillable();
+        notifyListeners();
         return;
       }
     }
@@ -914,6 +1197,7 @@ class ColoringProvider extends ChangeNotifier {
 
   void undo() {
     if (_undoStack.isEmpty) return;
+    undoHaptic();
     final entry = _undoStack.removeLast();
     int fillCount = 0;
     for (final (row, col, prev) in entry.reversed) {
@@ -948,7 +1232,16 @@ class ColoringProvider extends ChangeNotifier {
     _fillVersion++;
     _filledPerNumber.clear();
     _filledCellsCount = 0;
+    _completedNumbers.clear();
+    _nextCursor.clear();
+    _clearJournal();
     clearProgress();
+    final initialNumber = _currentArt!.sortedNumbers.isNotEmpty
+        ? _currentArt!.sortedNumbers.first
+        : 1;
+    _selectedNumber = initialNumber;
+    _highlightedNumber = initialNumber;
+    _updateNextFillable();
     notifyListeners();
   }
 
@@ -978,6 +1271,16 @@ class ColoringProvider extends ChangeNotifier {
     _totalCellCount = total;
     _filledCellsCount = filled;
     _progress = total == 0 ? 1.0 : filled / total;
+    // Wholesale change: resync the derived structures the hot path relies on.
+    _completedNumbers.clear();
+    for (final entry in _totalPerNumber.entries) {
+      if (entry.value > 0 &&
+          (_filledPerNumber[entry.key] ?? 0) >= entry.value) {
+        _completedNumbers.add(entry.key);
+      }
+    }
+    _nextCursor.clear();
+    _clearJournal();
   }
 
   double fillPercentForNumber(int number) {
@@ -1001,9 +1304,12 @@ class ColoringProvider extends ChangeNotifier {
         AnalyticsService().logArtworkCompleted(
           artId: _currentArt!.id,
           category: _currentArt!.category,
+          title: _currentArt!.name,
           durationSeconds: _artStartedAt == null
               ? null
               : DateTime.now().difference(_artStartedAt!).inSeconds,
+          cellsFilled: _filledCellsCount,
+          colorCount: _currentArt!.colorCount,
         );
       }
       _isComplete = true;
@@ -1048,10 +1354,18 @@ class ColoringProvider extends ChangeNotifier {
 
   void timeLapseStep(int row, int col) {
     if (_currentArt == null) return;
+    // Replay coordinates come from a persisted string; never trust them.
+    if (row < 0 ||
+        row >= _currentArt!.gridHeight ||
+        col < 0 ||
+        col >= _currentArt!.gridWidth) {
+      return;
+    }
     final num = _currentArt!.grid[row][col];
     if (num > 0 && _filledGrid[row][col] == 0) {
       _filledGrid[row][col] = num;
       _fillVersion++;
+      _journalChange(row, col);
     }
     notifyListeners();
   }
@@ -1079,23 +1393,22 @@ class ColoringProvider extends ChangeNotifier {
 
     _beginUndo();
 
-    final queue = <(int, int)>[(row, col)];
-    final visited = <(int, int)>{};
+    // BFS with a head index (List.removeAt(0) is O(n) — O(n²) over a large
+    // region) and a flat visited bitmap instead of a Set of tuples. Bounds are
+    // checked at enqueue time; visit order is unchanged.
+    final width = _currentArt!.gridWidth;
+    final height = _currentArt!.gridHeight;
+    final queue = <int>[row * width + col];
+    final visited = Uint8List(width * height);
+    var head = 0;
     bool changed = false;
 
-    while (queue.isNotEmpty) {
-      final curr = queue.removeAt(0);
-      final r = curr.$1;
-      final c = curr.$2;
-
-      if (r < 0 ||
-          r >= _currentArt!.gridHeight ||
-          c < 0 ||
-          c >= _currentArt!.gridWidth) {
-        continue;
-      }
-      if (visited.contains((r, c))) continue;
-      visited.add((r, c));
+    while (head < queue.length) {
+      final idx = queue[head++];
+      if (visited[idx] != 0) continue;
+      visited[idx] = 1;
+      final r = idx ~/ width;
+      final c = idx % width;
 
       if (_currentArt!.grid[r][c] == targetNum && _filledGrid[r][c] == 0) {
         _setCell(r, c, targetNum);
@@ -1103,10 +1416,10 @@ class ColoringProvider extends ChangeNotifier {
         changed = true;
         onCellFilledCorrectly?.call();
 
-        queue.add((r + 1, c));
-        queue.add((r - 1, c));
-        queue.add((r, c + 1));
-        queue.add((r, c - 1));
+        if (r + 1 < height) queue.add(idx + width);
+        if (r - 1 >= 0) queue.add(idx - width);
+        if (c + 1 < width) queue.add(idx + 1);
+        if (c - 1 >= 0) queue.add(idx - 1);
       }
     }
 
@@ -1115,13 +1428,16 @@ class ColoringProvider extends ChangeNotifier {
       _magicWandsCount--;
       _isMagicWandMode = false;
       _totalFillCount++;
-      AnalyticsService()
-          .logBoosterUsed(type: 'magic_wand', remaining: _magicWandsCount);
+      AnalyticsService().logBoosterUsed(
+        type: 'magic_wand',
+        remaining: _magicWandsCount,
+        artId: _currentArt?.id,
+      );
       _haptic(HapticFeedback.mediumImpact);
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
-      _autoAdvanceIfDone();
+      autoAdvanceIfDone();
       _debouncedSave();
       notifyListeners();
       return true;
@@ -1141,8 +1457,11 @@ class ColoringProvider extends ChangeNotifier {
     _beginUndo();
 
     bool changed = false;
-    for (var dr = -1; dr <= 1; dr++) {
-      for (var dc = -1; dc <= 1; dc++) {
+
+    // Primary explosion: 7x7 area (radius 3) around the tapped position
+    const radius = 3;
+    for (var dr = -radius; dr <= radius; dr++) {
+      for (var dc = -radius; dc <= radius; dc++) {
         final r = row + dr;
         final c = col + dc;
         if (r < 0 || r >= _currentArt!.gridHeight) continue;
@@ -1157,17 +1476,55 @@ class ColoringProvider extends ChangeNotifier {
       }
     }
 
+    // Fallback: If the immediate 7x7 area was already completely filled,
+    // search outwards to explode the nearest unfilled cells so a bomb is NEVER wasted.
+    if (!changed) {
+      final maxDist = math.max(_currentArt!.gridHeight, _currentArt!.gridWidth);
+      int filledInFallback = 0;
+      const targetMaxFills = 25;
+
+      for (var dist = radius + 1; dist <= maxDist; dist++) {
+        for (var dr = -dist; dr <= dist; dr++) {
+          for (var dc = -dist; dc <= dist; dc++) {
+            if (dr.abs() != dist && dc.abs() != dist) continue;
+            final r = row + dr;
+            final c = col + dc;
+            if (r < 0 || r >= _currentArt!.gridHeight) continue;
+            if (c < 0 || c >= _currentArt!.gridWidth) continue;
+            final expectedNumber = _currentArt!.grid[r][c];
+            if (expectedNumber == 0) continue;
+            if (_filledGrid[r][c] > 0) continue;
+
+            _setCell(r, c, expectedNumber);
+            _recordTimeLapse(r, c);
+            changed = true;
+            filledInFallback++;
+            onCellFilledCorrectly?.call();
+
+            if (filledInFallback >= targetMaxFills) break;
+          }
+          if (filledInFallback >= targetMaxFills) break;
+        }
+        if (changed && filledInFallback >= targetMaxFills) break;
+      }
+    }
+
     if (changed) {
       _commitUndo();
       _bombsCount--;
       _isBombMode = false;
       _totalFillCount++;
-      AnalyticsService().logBoosterUsed(type: 'bomb', remaining: _bombsCount);
-      _haptic(HapticFeedback.mediumImpact);
+      AnalyticsService().logBoosterUsed(
+        type: 'bomb',
+        remaining: _bombsCount,
+        artId: _currentArt?.id,
+      );
+      _haptic(HapticFeedback.heavyImpact);
+      onBombExploded?.call(row, col);
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
-      _autoAdvanceIfDone();
+      autoAdvanceIfDone();
       _debouncedSave();
       notifyListeners();
       return true;

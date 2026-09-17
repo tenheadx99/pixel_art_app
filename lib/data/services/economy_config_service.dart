@@ -13,6 +13,7 @@ class EconomyConfigService {
 
   EconomyConfig _currentConfig = EconomyConfig.defaults;
   EconomyConfig get currentConfig => _currentConfig;
+  bool get isShopEnabled => _currentConfig.isShopEnabled;
 
   final List<VoidCallback> _listeners = [];
 

@@ -4,7 +4,7 @@ import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 
 /// The kinds of joyful flourish spawned when a cell is colored.
-enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong }
+enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong, bombExplosion, bombEmber }
 
 class _FillEffect {
   final _EffectKind kind;
@@ -15,6 +15,8 @@ class _FillEffect {
   final int sparkleCount;
   final double seed;
   final int combo;
+  final double velocityX;
+  final double velocityY;
 
   _FillEffect({
     required this.kind,
@@ -25,6 +27,8 @@ class _FillEffect {
     this.sparkleCount = 0,
     this.seed = 0,
     this.combo = 0,
+    this.velocityX = 0.0,
+    this.velocityY = 0.0,
   });
 }
 
@@ -40,6 +44,7 @@ class FillEffectsOverlay extends StatefulWidget {
   final int gridWidth;
   final int gridHeight;
   final ValueNotifier<Offset>? tiltNotifier;
+  final String particleStyle;
 
   const FillEffectsOverlay({
     super.key,
@@ -49,6 +54,7 @@ class FillEffectsOverlay extends StatefulWidget {
     required this.gridWidth,
     required this.gridHeight,
     this.tiltNotifier,
+    this.particleStyle = 'sparkles',
   });
 
   @override
@@ -212,6 +218,41 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     ));
   }
 
+  /// Spawns a high-impact bomb explosion animation with shockwave rings,
+  /// fiery flash cores, and exploding particle embers across the 7x7 area.
+  void spawnBombExplosion(int row, int col, Color color) {
+    final now = _nowMs;
+
+    // 1. Shockwave & Central Flash
+    _add(_FillEffect(
+      kind: _EffectKind.bombExplosion,
+      row: row,
+      col: col,
+      color: color,
+      startMs: now,
+    ));
+
+    // 2. High-density exploding embers (16 flying particles)
+    for (var i = 0; i < 16; i++) {
+      final angle = _rnd.nextDouble() * math.pi * 2;
+      final speed = 2.5 + _rnd.nextDouble() * 3.5;
+      final emberColor = i % 3 == 0
+          ? const Color(0xFFFFD700)
+          : (i % 3 == 1 ? const Color(0xFFFF4500) : const Color(0xFFFF8C00));
+
+      _add(_FillEffect(
+        kind: _EffectKind.bombEmber,
+        row: row,
+        col: col,
+        color: emberColor,
+        startMs: now,
+        seed: _rnd.nextDouble() * math.pi * 2,
+        velocityX: math.cos(angle) * speed,
+        velocityY: math.sin(angle) * speed,
+      ));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // RepaintBoundary is critical: this layer repaints every frame while
@@ -230,6 +271,7 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
             gridWidth: widget.gridWidth,
             gridHeight: widget.gridHeight,
             lifetime: _lifetime,
+            particleStyle: widget.particleStyle,
             tiltNotifier: widget.tiltNotifier,
             repaint: Listenable.merge([_ticker, widget.transformController, widget.tiltNotifier]),
           ),
@@ -247,6 +289,7 @@ class _FillEffectsPainter extends CustomPainter {
   final int gridWidth;
   final int gridHeight;
   final int lifetime;
+  final String particleStyle;
   final ValueNotifier<Offset>? tiltNotifier;
 
   _FillEffectsPainter({
@@ -257,6 +300,7 @@ class _FillEffectsPainter extends CustomPainter {
     required this.gridWidth,
     required this.gridHeight,
     required this.lifetime,
+    this.particleStyle = 'sparkles',
     this.tiltNotifier,
     required Listenable repaint,
   }) : super(repaint: repaint);
@@ -306,6 +350,12 @@ class _FillEffectsPainter extends CustomPainter {
           break;
         case _EffectKind.wrong:
           _paintWrong(canvas, paint, center, cellPx, t, e.color);
+          break;
+        case _EffectKind.bombExplosion:
+          _paintBombExplosion(canvas, paint, center, cellPx, t, e.color);
+          break;
+        case _EffectKind.bombEmber:
+          _paintBombEmber(canvas, paint, center, cellPx, t, e);
           break;
       }
     }
@@ -386,27 +436,138 @@ class _FillEffectsPainter extends CustomPainter {
   ) {
     final isGem = FlavorConfig.current.cellStyle == CellRenderStyle.gem;
     final tilt = tiltNotifier?.value ?? Offset.zero;
-    
-    // Sparkles drift under gravity/tilt. The drift increases quadratically over time.
+
     final driftX = isGem ? -tilt.dx * cellPx * 2.2 * t * t : 0.0;
     final driftY = isGem ? tilt.dy * cellPx * 2.2 * t * t : 0.0;
 
+    final alpha = (1.0 - t).clamp(0.0, 1.0);
+    final dist = cellPx * (0.4 + Curves.easeOutCubic.transform(t) * 1.6);
+    final pSize = cellPx * 0.24 * (1.0 - t * 0.8);
+    if (pSize <= 0.2) return;
+
+    for (var i = 0; i < e.sparkleCount; i++) {
+      final angle = e.seed + i * 2.399963 + (particleStyle == 'hearts' ? 0.0 : t * 1.5);
+      
+      double px = c.dx + math.cos(angle) * dist + driftX;
+      double py = c.dy + math.sin(angle) * dist + driftY;
+      if (particleStyle == 'hearts') {
+        px += math.sin(t * 8.0 + i) * cellPx * 0.3;
+        py -= t * cellPx * 1.8;
+      }
+
+      final pos = Offset(px, py);
+      final rotation = (e.seed * 5.0 + t * 5.0 * math.pi + i * 0.8);
+      
+      final Color pColor;
+      if (particleStyle == 'neon') {
+        const neonColors = [Color(0xFF00E5FF), Color(0xFFFF007F), Color(0xFF00FF66), Color(0xFFFFE500)];
+        pColor = neonColors[i % neonColors.length];
+      } else if (particleStyle == 'hearts') {
+        const heartColors = [Color(0xFFFF2A6D), Color(0xFFFF5252), Color(0xFFFF758C), Color(0xFFFFB3C1)];
+        pColor = heartColors[i % heartColors.length];
+      } else if (particleStyle == 'stars') {
+        const starColors = [Color(0xFFFFD700), Color(0xFFFFE08A), Color(0xFFFFF5CC), Colors.white];
+        pColor = starColors[i % starColors.length];
+      } else {
+        pColor = i % 2 == 0 ? e.color : const Color(0xFFFFD700);
+      }
+
+      _drawParticle(canvas, paint, pos, pSize, particleStyle, pColor, alpha, rotation);
+    }
+  }
+
+  void _drawParticle(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double r,
+    String style,
+    Color color,
+    double alpha,
+    double rotation,
+  ) {
+    final int alphaByte = (alpha * 255).round().clamp(0, 255);
+    final int glowAlphaByte = (alpha * 140).round().clamp(0, 255);
+
+    // 1. Soft Radial Glow Halo
     paint
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withValues(alpha: (1 - t).clamp(0.0, 1.0));
-    final dist = cellPx * (0.5 + t * 1.3);
-    final pSize = cellPx * 0.2 * (1 - t);
-    if (pSize <= 0.2) return;
-    for (var i = 0; i < e.sparkleCount; i++) {
-      // Golden-angle spread keeps the particles visually even.
-      final angle = e.seed + i * 2.399963;
-      final pos = c + Offset(
-        math.cos(angle) * dist + driftX,
-        math.sin(angle) * dist + driftY,
-      );
-      final rotation = isGem ? (e.seed * 5.0 + t * 4.0 * math.pi + i * 0.5) : 0.0;
-      _drawDiamond(canvas, paint, pos, pSize, rotation);
+      ..color = color.withAlpha(glowAlphaByte)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.8);
+    canvas.drawCircle(c, r * 1.1, paint);
+    paint.maskFilter = null;
+
+    // 2. Primary Outer Particle Shape
+    paint
+      ..style = PaintingStyle.fill
+      ..color = color.withAlpha(alphaByte);
+
+    switch (style) {
+      case 'stars':
+        _drawStar(canvas, paint, c, r * 1.1, rotation);
+        break;
+      case 'neon':
+        _drawNeonRing(canvas, paint, c, r, alphaByte);
+        break;
+      case 'hearts':
+        _drawHeart(canvas, paint, c, r * 1.2);
+        break;
+      case 'sparkles':
+      default:
+        _drawDiamond(canvas, paint, c, r, rotation);
+        break;
     }
+
+    // 3. Bright White Center Core
+    paint
+      ..style = PaintingStyle.fill
+      ..color = Colors.white.withAlpha((alpha * 220).round().clamp(0, 255));
+    canvas.drawCircle(c, r * 0.35, paint);
+  }
+
+  void _drawStar(Canvas canvas, Paint paint, Offset c, double r, double rotation) {
+    final path = Path();
+    const points = 5;
+    final innerR = r * 0.4;
+    for (int i = 0; i < points * 2; i++) {
+      final rad = rotation + (i * math.pi / points);
+      final radius = (i % 2 == 0) ? r : innerR;
+      final x = c.dx + math.cos(rad) * radius;
+      final y = c.dy + math.sin(rad) * radius;
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _drawNeonRing(Canvas canvas, Paint paint, Offset c, double r, int alphaByte) {
+    paint.style = PaintingStyle.stroke;
+    paint.strokeWidth = r * 0.35;
+    canvas.drawCircle(c, r, paint);
+    paint.style = PaintingStyle.fill;
+  }
+
+  void _drawHeart(Canvas canvas, Paint paint, Offset c, double r) {
+    final path = Path();
+    final width = r * 1.3;
+    final height = r * 1.3;
+    path.moveTo(c.dx, c.dy + height * 0.25);
+    path.cubicTo(
+      c.dx - width * 0.5, c.dy - height * 0.5,
+      c.dx - width, c.dy + height * 0.25,
+      c.dx, c.dy + height * 0.75,
+    );
+    path.cubicTo(
+      c.dx + width, c.dy + height * 0.25,
+      c.dx + width * 0.5, c.dy - height * 0.5,
+      c.dx, c.dy + height * 0.25,
+    );
+    path.close();
+    canvas.drawPath(path, paint);
   }
 
   void _drawDiamond(Canvas canvas, Paint paint, Offset c, double r, [double rotation = 0.0]) {
@@ -472,29 +633,121 @@ class _FillEffectsPainter extends CustomPainter {
     paint.style = PaintingStyle.fill;
   }
 
+  // Laid-out combo callouts cached per combo count — building and laying out
+  // a TextPainter every animation frame was avoidable churn. The per-frame
+  // scale/fade are applied with canvas transforms + a saveLayer alpha, which
+  // reproduces the original scaled-font + faded-color rendering (text at
+  // alpha, shadow at 0.4 × alpha).
+  static final Map<int, TextPainter> _comboTextCache = {};
+
   void _paintCombo(Canvas canvas, Offset c, double cellPx, double t, int combo) {
     final rise = t * (cellPx * 1.5 + 24);
     final scale = (0.6 + Curves.easeOutBack.transform(t.clamp(0.0, 1.0)) * 0.4)
         .clamp(0.6, 1.0);
     final alpha = (1 - t).clamp(0.0, 1.0);
-    final tp = TextPainter(
-      text: TextSpan(
-        text: 'Combo x$combo!',
-        style: TextStyle(
-          fontSize: 18 * scale,
-          fontWeight: FontWeight.w800,
-          color: const Color(0xFFFFB300).withValues(alpha: alpha),
-          shadows: [
-            Shadow(
-              color: Colors.black.withValues(alpha: alpha * 0.4),
-              blurRadius: 4,
-            ),
-          ],
+    final tp = _comboTextCache.putIfAbsent(combo, () {
+      return TextPainter(
+        text: TextSpan(
+          text: 'Combo x$combo!',
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFFFFB300),
+            shadows: [
+              Shadow(color: Color(0x66000000), blurRadius: 4),
+            ],
+          ),
         ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(c.dx - tp.width / 2, c.dy - rise - tp.height / 2));
+        textDirection: TextDirection.ltr,
+      )..layout();
+    });
+    final center = Offset(c.dx, c.dy - rise);
+    final bounds = Rect.fromCenter(
+      center: center,
+      width: tp.width * scale + 16,
+      height: tp.height * scale + 16,
+    );
+    canvas.saveLayer(
+      bounds,
+      Paint()..color = Colors.white.withValues(alpha: alpha),
+    );
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
+  }
+
+  void _paintBombExplosion(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double cellPx,
+    double t,
+    Color color,
+  ) {
+    // 7x7 radius in pixels is cellPx * 3.8
+    final maxRadius = cellPx * 3.8;
+
+    // A. Expanding Fiery Core Flash
+    final flashProgress = (t / 0.5).clamp(0.0, 1.0);
+    final flashScale = Curves.easeOutCubic.transform(flashProgress);
+    final flashRadius = maxRadius * 0.75 * flashScale;
+    final flashAlpha = (1.0 - t).clamp(0.0, 1.0);
+
+    paint
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFFFF5252).withValues(alpha: flashAlpha * 0.45)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, cellPx * 0.5);
+    canvas.drawCircle(c, flashRadius, paint);
+
+    paint
+      ..color = const Color(0xFFFFD700).withValues(alpha: flashAlpha * 0.7)
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, cellPx * 0.2);
+    canvas.drawCircle(c, flashRadius * 0.5, paint);
+    paint.maskFilter = null;
+
+    // B. Primary Expanding Outer Shockwave Ring
+    final shockRadius = maxRadius * Curves.decelerate.transform(t);
+    final shockAlpha = (1.0 - t).clamp(0.0, 1.0);
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (cellPx * 0.35 * (1.0 - t)).clamp(1.5, 8.0)
+      ..color = const Color(0xFFFF4500).withValues(alpha: shockAlpha * 0.85);
+    canvas.drawCircle(c, shockRadius, paint);
+
+    // C. Inner Secondary Golden Ring
+    final innerRadius = maxRadius * 0.65 * Curves.easeOutQuad.transform(t);
+    paint
+      ..strokeWidth = (cellPx * 0.2 * (1.0 - t)).clamp(1.0, 4.0)
+      ..color = const Color(0xFFFFD700).withValues(alpha: shockAlpha * 0.9);
+    canvas.drawCircle(c, innerRadius, paint);
+  }
+
+  void _paintBombEmber(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double cellPx,
+    double t,
+    _FillEffect e,
+  ) {
+    // Ember position travels outward along velocity vector
+    final dist = cellPx * (0.8 + t * 3.5);
+    final offset = Offset(
+      c.dx + e.velocityX * dist * 0.4,
+      c.dy + e.velocityY * dist * 0.4,
+    );
+
+    final alpha = (1.0 - t).clamp(0.0, 1.0);
+    final size = cellPx * 0.35 * (1.0 - t * 0.7);
+    if (size <= 0.3) return;
+
+    paint
+      ..style = PaintingStyle.fill
+      ..color = e.color.withValues(alpha: alpha);
+
+    final rotation = e.seed + t * math.pi * 4;
+    _drawDiamond(canvas, paint, offset, size, rotation);
   }
 
   @override

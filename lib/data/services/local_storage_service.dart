@@ -29,6 +29,11 @@ class LocalStorageService {
 
   void setString(String key, String value) => prefs.setString(key, value);
 
+  double getDouble(String key, {double defaultValue = 0.0}) =>
+      prefs.getDouble(key) ?? defaultValue;
+
+  void setDouble(String key, double value) => prefs.setDouble(key, value);
+
   void setStringList(String key, List<String> value) =>
       prefs.setStringList(key, value);
 

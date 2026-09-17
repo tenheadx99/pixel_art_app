@@ -10,6 +10,9 @@ class SoundService {
   bool _initialized = false;
   DateTime _lastSoundTime = DateTime.fromMillisecondsSinceEpoch(0);
 
+  AudioPlayer? _ambientPlayer;
+  String _currentAmbientTrack = 'none';
+
   Future<void> init() async {
     if (_initialized) return;
     try {
@@ -23,6 +26,41 @@ class SoundService {
     } catch (e, stackTrace) {
       developer.log('SoundService initialization failed', name: 'SoundService', error: e, stackTrace: stackTrace);
     }
+  }
+
+  String get currentAmbientTrack => _currentAmbientTrack;
+
+  Future<void> playAmbient(String trackKey) async {
+    if (!_initialized) await init();
+    if (_currentAmbientTrack == trackKey && _ambientPlayer != null) return;
+    _currentAmbientTrack = trackKey;
+    try {
+      if (_ambientPlayer == null) {
+        _ambientPlayer = AudioPlayer();
+        await _ambientPlayer!.setReleaseMode(ReleaseMode.loop);
+      }
+      if (trackKey == 'none' || trackKey.isEmpty) {
+        await _ambientPlayer!.stop();
+        return;
+      }
+      final path = 'audio/$trackKey.wav';
+      await _ambientPlayer!.play(AssetSource(path));
+    } catch (e) {
+      developer.log('Error playing ambient track $trackKey', name: 'SoundService', error: e);
+    }
+  }
+
+  Future<void> stopAmbient() async {
+    _currentAmbientTrack = 'none';
+    try {
+      await _ambientPlayer?.stop();
+    } catch (_) {}
+  }
+
+  Future<void> setAmbientVolume(double volume) async {
+    try {
+      await _ambientPlayer?.setVolume(volume.clamp(0.0, 1.0));
+    } catch (_) {}
   }
 
   void playBubblePop() {
@@ -76,9 +114,15 @@ class SoundService {
 
   void dispose() {
     for (final player in _players) {
-      player.dispose();
+      try {
+        player.dispose();
+      } catch (_) {}
     }
     _players.clear();
+    try {
+      _ambientPlayer?.dispose();
+    } catch (_) {}
+    _ambientPlayer = null;
     _initialized = false;
   }
 }

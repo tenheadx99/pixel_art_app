@@ -1,22 +1,31 @@
-import 'dart:math';
-import 'dart:typed_data';
-import 'dart:ui' show PointMode;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/coloring_provider.dart';
-import '../../config/app_constants.dart';
+import '../../config/app_config.dart';
 import '../../data/models/pixel_art.dart';
+import '../../data/models/split_art.dart';
 import '../../data/services/notification_service.dart';
+import '../../data/services/remote_config_service.dart';
+import '../../data/services/update_service.dart';
 import '../widgets/ad_banner.dart';
+import '../widgets/native_ad_card.dart';
+import '../widgets/art_preview_painter.dart';
+import '../widgets/coin_fly.dart';
+import '../widgets/pressable.dart';
+import '../widgets/rolling_count.dart';
+import '../widgets/reward_popup.dart';
 import '../widgets/settings_sheet.dart';
 import '../widgets/diamond_shop_sheet.dart';
+import '../../data/services/economy_config_service.dart';
 import '../widgets/transitions.dart';
 import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
+import '../../ui/screens/part_selection_screen.dart';
 import '../../ui/screens/camera_screen.dart';
 import '../../ui/screens/gallery_screen.dart';
 import '../../ui/screens/paywall_screen.dart';
@@ -33,6 +42,18 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
 
+  // Coin bursts fly to the header's diamond chip, which pulses on arrival.
+  final GlobalKey _diamondChipKey = GlobalKey();
+  bool _diamondChipPulse = false;
+
+  void _pulseDiamondChip() {
+    if (!mounted) return;
+    setState(() => _diamondChipPulse = true);
+    Future.delayed(const Duration(milliseconds: 180), () {
+      if (mounted) setState(() => _diamondChipPulse = false);
+    });
+  }
+
   @override
   void initState() {
     super.initState();
@@ -46,20 +67,34 @@ class _HomeScreenState extends State<HomeScreen> {
         (_) => _handleDailyArtRequest(),
       );
     }
-    // Plus subscribers get their daily diamond stipend on first launch of
-    // the day.
+    // Surface the 50 diamond welcome bonus for new users on first time launch.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final award =
-          context.read<AppSettingsProvider>().maybeClaimDailyPlusStipend();
-      if (award > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Daily Plus bonus · +$award 💎'),
-            behavior: SnackBarBehavior.floating,
-          ),
+      final settings = context.read<AppSettingsProvider>();
+      final welcomeAward = settings.checkAndClaimWelcomeBonus();
+      if (welcomeAward > 0) {
+        showRewardPopup(
+          context,
+          icon: Icons.diamond_rounded,
+          title: 'Welcome Bonus!',
+          subtitle: 'Enjoy 50 free diamonds to start your pixel art journey!',
+          diamonds: welcomeAward,
+          buttonLabel: 'Claim Bonus',
+          badgeColors: const [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
         );
+      } else {
+        final award = settings.maybeClaimDailyPlusStipend();
+        if (award > 0) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Daily Plus bonus · +$award 💎'),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
+      // Check for Google Play Flexible in-app updates
+      AppUpdateService().checkForUpdate(context: context);
     });
   }
 
@@ -84,89 +119,142 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Consumer2<GalleryProvider, AppSettingsProvider>(
       builder: (context, gallery, settings, _) {
+        gallery.checkAndGrantPlusMonthlyFreeze(settings.isPlusActive);
         // Filter + sort once per rebuild; the getter recomputes on each call
         // and the grid delegate would otherwise hit it per item.
         final catalog = gallery.filteredCatalog;
-        return Scaffold(
-          body: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
-              _buildHeader(context, gallery, settings),
-              if (gallery.dailyArt != null)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _DailyPixelBanner(
-                      gallery: gallery,
-                      onPlay: () => _openColoring(context, gallery.dailyArt!),
-                    ),
-                  ),
-                ),
-              if (gallery.inProgressArts.isNotEmpty)
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
-                  sliver: SliverToBoxAdapter(
-                    child: _ContinueRow(
-                      gallery: gallery,
-                      onOpen: (art) => _openColoring(context, art),
-                    ),
-                  ),
-                ),
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                sliver: SliverToBoxAdapter(
-                  child: _CategoryFilter(gallery: gallery),
-                ),
-              ),
-              if (!gallery.isLoading && catalog.isNotEmpty)
-                SliverToBoxAdapter(
-                  child: _ResultsCount(gallery: gallery, count: catalog.length),
-                ),
-              gallery.isLoading
-                  ? const _SkeletonGrid()
-                  : catalog.isEmpty
-                  ? SliverFillRemaining(
-                      hasScrollBody: false,
-                      child: _EmptyState(gallery: gallery),
-                    )
-                  : SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                      sliver: SliverGrid(
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2,
-                              crossAxisSpacing: 18,
-                              mainAxisSpacing: 18,
-                              childAspectRatio: 0.78,
-                            ),
-                        delegate: SliverChildBuilderDelegate((context, index) {
-                          final art = catalog[index];
-                          return _PixelArtCard(
-                            art: art,
-                            index: index,
-                            isCompleted: gallery.isCompleted(art.id),
-                            isFavorite: gallery.isFavorite(art.id),
-                            isUnlocked: gallery.isUnlocked(
-                              art,
-                              settings.isProUser,
-                            ),
-                            progressPercent: gallery.progressPercent(art.id),
-                            onTap: () => _openColoring(context, art),
-                            onFavorite: () => gallery.toggleFavorite(art.id),
-                          );
-                        }, childCount: catalog.length),
+        return PopScope(
+          canPop: false,
+          onPopInvokedWithResult: (didPop, _) async {
+            if (didPop) return;
+            final shouldExit = await _showExitConfirmationDialog(context);
+            if (shouldExit && context.mounted) {
+              SystemNavigator.pop();
+            }
+          },
+          child: Scaffold(
+            body: CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                _buildHeader(context, gallery, settings),
+                if (gallery.dailyArt != null)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _DailyPixelBanner(
+                        gallery: gallery,
+                        onPlay: () => _openColoring(context, gallery.dailyArt!),
+                        showBonusClaim: _canEarnDiamondsViaAd &&
+                            !settings.dailyStreakBonusClaimedToday,
+                        bonusAmount: RemoteConfigService().dailyStreakAdBonus,
+                        onClaimBonus: _claimDailyStreakBonus,
                       ),
                     ),
-            ],
+                  ),
+                if (gallery.inProgressArts.isNotEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
+                    sliver: SliverToBoxAdapter(
+                      child: _ContinueRow(
+                        gallery: gallery,
+                        onOpen: (art) => _openColoring(context, art),
+                      ),
+                    ),
+                  ),
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+                  sliver: SliverToBoxAdapter(
+                    child: _CategoryFilter(gallery: gallery),
+                  ),
+                ),
+                if (!gallery.isLoading && catalog.isNotEmpty)
+                  SliverToBoxAdapter(
+                    child: _ResultsCount(gallery: gallery, count: catalog.length),
+                  ),
+                if (gallery.isLoading)
+                  const _SkeletonGrid()
+                else if (catalog.isEmpty)
+                  SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: _EmptyState(gallery: gallery),
+                  )
+                else
+                  ..._buildCatalogSlivers(gallery, settings, catalog),
+              ],
+            ),
+            // Camera/Gallery stay reachable via the header icons; the bottom
+            // slot is dedicated to the banner ad (free users only).
+            bottomNavigationBar: settings.isProUser
+                ? null
+                : const SafeArea(child: AdBanner()),
           ),
-          // Camera/Gallery stay reachable via the header icons; the bottom
-          // slot is dedicated to the banner ad (free users only).
-          bottomNavigationBar: settings.isProUser
-              ? null
-              : const SafeArea(child: AdBanner()),
         );
       },
     );
+  }
+
+  /// The catalog grid, split into segments with a full-row native ad between
+  /// them: after the first 6 artworks (3 grid rows — never above the fold,
+  /// never adjacent to the continue row) and then every 12. Free users only;
+  /// NativeAdCard itself stays at zero height when native ads are
+  /// unconfigured or killed via Remote Config, and the 18dp inter-segment
+  /// padding then reads as the normal row gap.
+  List<Widget> _buildCatalogSlivers(
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+    List<PixelArt> catalog,
+  ) {
+    SliverPadding gridSegment(int start, int end, {required bool last}) {
+      return SliverPadding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          start == 0 ? 16 : 0,
+          16,
+          last ? 100 : 18,
+        ),
+        sliver: SliverGrid(
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            crossAxisSpacing: 18,
+            mainAxisSpacing: 18,
+            childAspectRatio: 0.78,
+          ),
+          delegate: SliverChildBuilderDelegate((context, i) {
+            final index = start + i;
+            final art = catalog[index];
+            return _PixelArtCard(
+              art: art,
+              index: index,
+              isCompleted: gallery.isCompleted(art.id),
+              isFavorite: gallery.isFavorite(art.id),
+              isUnlocked: gallery.isUnlocked(art, settings.isProUser),
+              progressPercent: gallery.artProgressPercent(art),
+              onTap: () => _openColoring(context, art),
+              onFavorite: () => gallery.toggleFavorite(art.id),
+            );
+          }, childCount: end - start),
+        ),
+      );
+    }
+
+    if (settings.isProUser) {
+      return [gridSegment(0, catalog.length, last: true)];
+    }
+    final slivers = <Widget>[];
+    var start = 0;
+    var segment = 6;
+    while (start < catalog.length) {
+      final end = start + segment < catalog.length
+          ? start + segment
+          : catalog.length;
+      slivers.add(gridSegment(start, end, last: end == catalog.length));
+      if (end < catalog.length) {
+        slivers.add(const SliverToBoxAdapter(child: NativeAdCard()));
+      }
+      start = end;
+      segment = 12;
+    }
+    return slivers;
   }
 
   Widget _buildHeader(
@@ -437,7 +525,35 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 8),
+            // Streak Flame Badge
+            GestureDetector(
+              onTap: () => _showStreakMilestoneDialog(context, gallery, settings),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(40),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withAlpha(100), width: 1),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_fire_department, color: Colors.orangeAccent, size: 16),
+                    const SizedBox(width: 4),
+                    Text(
+                      '${gallery.dailyStreak}d',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,64 +582,177 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
-                    child: LinearProgressIndicator(
-                      value: settings.xpProgressInLevel,
-                      minHeight: 6,
-                      backgroundColor: Colors.white.withAlpha(45),
-                      valueColor: const AlwaysStoppedAnimation(Colors.white),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: settings.xpProgressInLevel),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, v, _) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 6,
+                        backgroundColor: Colors.white.withAlpha(45),
+                        valueColor:
+                            const AlwaysStoppedAnimation(Colors.white),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 12),
-            // Diamond balance.
-            GestureDetector(
-              onTap: () => DiamondShopSheet.show(context),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+            // Diamond balance. Tapping opens the Diamond Shop Sheet (or offers a rewarded ad if free claims remain).
+            Builder(builder: (context) {
+              final isShopEnabled = EconomyConfigService().isShopEnabled;
+              final canEarn = _canEarnDiamondsViaAd &&
+                  settings.freeDiamondClaimsRemaining > 0;
+              return GestureDetector(
+                onTap: () {
+                  if (isShopEnabled) {
+                    DiamondShopSheet.show(context);
+                  } else if (canEarn) {
+                    _watchAdForDiamonds('home_free_diamonds');
+                  }
+                },
+                child: AnimatedScale(
+                  scale: _diamondChipPulse ? 1.15 : 1.0,
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOutBack,
+                  child: Container(
+                    key: _diamondChipKey,
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(40),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.4)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        RollingCount(
+                          settings.diamondsAvailable,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        const Icon(
+                          Icons.diamond_rounded,
+                          color: Color(0xFFFFE08A),
+                          size: 15,
+                        ),
+                        if (isShopEnabled || canEarn) ...[
+                          const SizedBox(width: 4),
+                          Container(
+                            padding: const EdgeInsets.all(2),
+                            decoration: const BoxDecoration(
+                              color: Colors.amber,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.add,
+                              size: 10,
+                              color: Colors.black,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
                 ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '${settings.diamondsAvailable}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.diamond_rounded,
-                      color: Color(0xFFFFE08A),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: const BoxDecoration(
-                        color: Colors.amber,
-                        shape: BoxShape.circle,
-                      ),
-                      child: const Icon(
-                        Icons.add,
-                        size: 10,
-                        color: Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+              );
+            }),
           ],
         ),
       ),
+    );
+  }
+
+  void _showStreakMilestoneDialog(
+    BuildContext context,
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+  ) {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        final streak = gallery.dailyStreak;
+        final milestones = [
+          {'day': 3, 'reward': '+2 Wands 🪄'},
+          {'day': 7, 'reward': '+100 Diamonds 💎'},
+          {'day': 14, 'reward': '+5 Bombs 💣'},
+          {'day': 30, 'reward': 'Crown & +250 💎'},
+        ];
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          title: Row(
+            children: [
+              const Icon(Icons.local_fire_department, color: Colors.orange, size: 28),
+              const SizedBox(width: 8),
+              Text('$streak Day Streak!'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                'Color daily to keep your flame burning and unlock milestone gifts!',
+                style: TextStyle(fontSize: 13, height: 1.3),
+              ),
+              const SizedBox(height: 16),
+              ...milestones.map((m) {
+                final day = m['day'] as int;
+                final reward = m['reward'] as String;
+                final isReached = streak >= day;
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: isReached ? Colors.orange.withAlpha(25) : Colors.grey.withAlpha(15),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: isReached ? Colors.orange.withAlpha(120) : Colors.grey.withAlpha(40),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isReached ? Icons.check_circle_rounded : Icons.lock_clock_outlined,
+                          color: isReached ? Colors.orange : Colors.grey,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Day $day',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        Text(
+                          reward,
+                          style: TextStyle(
+                            color: isReached ? Colors.orange : Colors.grey,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Awesome!'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -537,6 +766,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final settings = context.read<AppSettingsProvider>();
     if (!gallery.isUnlocked(art, settings.isProUser)) {
       _showLockedDialog(context, art);
+      return;
+    }
+    // Keep remote artworks playable even if their Firestore doc vanishes.
+    gallery.noteArtworkOpened(art);
+    // Split artworks open on the part picker; each tile is then colored as
+    // its own small canvas.
+    if (art.isSplit && SplitArt.validSplit(art)) {
+      Navigator.push(
+        context,
+        fadeThroughRoute(
+          PartSelectionScreen(parent: art),
+          name: 'part_selection',
+        ),
+      ).then((_) {
+        if (context.mounted) context.read<GalleryProvider>().refresh();
+      });
       return;
     }
     Navigator.push(
@@ -574,16 +819,14 @@ class _HomeScreenState extends State<HomeScreen> {
   void _tryPremiumWithAd(PixelArt art) {
     final adService = context.read<AdService>();
     final messenger = ScaffoldMessenger.of(context);
-    adService.loadRewardedAd(
-      onLoaded: () => adService.showRewardedAd(
-        placement: 'premium_try',
-        onRewarded: () {
-          if (!mounted) return;
-          context.read<GalleryProvider>().unlockForSession(art.id);
-          _openColoring(context, art);
-        },
-      ),
-      onFailed: () => messenger.showSnackBar(
+    adService.showRewardedAd(
+      placement: 'premium_try',
+      onRewarded: () {
+        if (!mounted) return;
+        context.read<GalleryProvider>().unlockForSession(art.id);
+        _openColoring(context, art);
+      },
+      onUnavailable: () => messenger.showSnackBar(
         const SnackBar(
           content: Text('No ad available right now — try again later.'),
           behavior: SnackBarBehavior.floating,
@@ -592,8 +835,233 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Whether the diamond-earning rewarded affordances (home pill, streak
+  /// bonus) should render: ads on for this flavor + Remote Config kill switch.
+  bool get _canEarnDiamondsViaAd =>
+      !AppConfig.disableAds &&
+      AppConfig.showAds &&
+      RemoteConfigService().freeDiamondsEnabled;
+
+  /// Watch a rewarded ad for a capped daily diamond payout. Shares its daily
+  /// claim pool with the coloring screen's shop tile.
+  void _watchAdForDiamonds(String placement) {
+    final settings = context.read<AppSettingsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    void grant() {
+      final amount = settings.claimFreeDiamonds();
+      if (amount <= 0 || !mounted) return;
+      showCoinBurst(
+        context,
+        target: centerOfKey(_diamondChipKey),
+        onArrive: _pulseDiamondChip,
+      );
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('+$amount diamonds!'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+
+    context.read<AdService>().showRewardedAd(
+      placement: placement,
+      onRewarded: grant,
+      onUnavailable: () => messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No ad available right now — try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+    );
+  }
+
+  /// Once-a-day rewarded bonus for keeping the daily streak going, claimed
+  /// from the daily banner after today's artwork is finished.
+  void _claimDailyStreakBonus() {
+    final settings = context.read<AppSettingsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    void grant() {
+      final amount = settings.claimDailyStreakBonus();
+      if (amount <= 0 || !mounted) return;
+      showRewardPopup(
+        context,
+        icon: Icons.local_fire_department,
+        title: 'Streak Bonus!',
+        subtitle: '${context.read<GalleryProvider>().dailyStreak} day streak',
+        diamonds: amount,
+      );
+    }
+
+    context.read<AdService>().showRewardedAd(
+      placement: 'daily_streak_bonus',
+      onRewarded: grant,
+      onUnavailable: () => messenger.showSnackBar(
+        const SnackBar(
+          content: Text('No ad available right now — try again later.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _showExitConfirmationDialog(BuildContext context) async {
+    final result = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+        final subColor = isDark ? Colors.white70 : Colors.black54;
+
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? [const Color(0xFF2A2440), const Color(0xFF1B1830)]
+                    : [Colors.white, const Color(0xFFF3F0FF)],
+              ),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(
+                color: AppStyle.primary.withAlpha(70),
+                width: 1.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(70),
+                  blurRadius: 30,
+                  offset: const Offset(0, 12),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 72,
+                  height: 72,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                      colors: [Color(0xFFFF6B6B), Color(0xFFEE5253)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFEE5253).withAlpha(130),
+                        blurRadius: 22,
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.exit_to_app_rounded,
+                    color: Colors.white,
+                    size: 38,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                Text(
+                  'Exit ${FlavorConfig.current.appName}?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: titleColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Are you sure you want to exit the app?',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: subColor,
+                    height: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 13),
+                          side: BorderSide(
+                            color: isDark ? Colors.white24 : Colors.black12,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                        onPressed: () => Navigator.of(ctx).pop(false),
+                        child: Text(
+                          'Cancel',
+                          style: TextStyle(
+                            color: isDark ? Colors.white70 : Colors.black87,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                            colors: [Color(0xFFFF6B6B), Color(0xFFEE5253)],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFEE5253).withAlpha(90),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 13),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          onPressed: () => Navigator.of(ctx).pop(true),
+                          child: const Text(
+                            'Exit',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+    return result ?? false;
+  }
+
   void _showLockedDialog(BuildContext context, PixelArt art) {
-    const unlockCost = AppConstants.diamondCostUnlockArt;
+    final unlockCost = art.unlockDiamondCost;
     showDialog(
       context: context,
       builder: (ctx) {
@@ -697,6 +1165,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         onPressed: canAfford
                             ? () {
                                 if (settings.useDiamonds(unlockCost)) {
+                                  HapticFeedback.mediumImpact();
                                   context
                                       .read<GalleryProvider>()
                                       .unlockWithDiamonds(art.id);
@@ -728,34 +1197,36 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                     const SizedBox(height: 10),
-                    // Plus paywall — subscriptions + lifetime Pro in one place.
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(ctx);
-                          Navigator.push(
-                            context,
-                            fadeThroughRoute(
-                              const PaywallScreen(source: 'home'),
-                              name: 'paywall',
+                    if (RemoteConfigService().premiumArtworksEnabled) ...[
+                      // Plus paywall — subscriptions + lifetime Pro in one place.
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              fadeThroughRoute(
+                                const PaywallScreen(source: 'home'),
+                                name: 'paywall',
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppStyle.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
                             ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppStyle.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Text(
+                            'Unlock everything with ${FlavorConfig.current.appName} Plus ✨',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                         ),
-                        child: Text(
-                          'Unlock everything with ${FlavorConfig.current.appName} Plus ✨',
-                          style: const TextStyle(fontWeight: FontWeight.w700),
-                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: 4),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -816,8 +1287,8 @@ class _ContinueRow extends StatelessWidget {
             itemCount: arts.length,
             itemBuilder: (context, index) {
               final art = arts[index];
-              final pct = gallery.progressPercent(art.id);
-              return GestureDetector(
+              final pct = gallery.artProgressPercent(art);
+              return PressableScale(
                 onTap: () => onOpen(art),
                 child: Container(
                   width: 200,
@@ -833,11 +1304,18 @@ class _ContinueRow extends StatelessWidget {
                       SizedBox(
                         width: 56,
                         height: 56,
-                        child: RepaintBoundary(
-                          child: CustomPaint(
-                            painter: _PixelArtPreviewPainter(
-                              art: art,
-                              isCompleted: true,
+                        // Center + AspectRatio so portrait/landscape art
+                        // letterboxes instead of stretching to the square box.
+                        child: Center(
+                          child: AspectRatio(
+                            aspectRatio: art.gridWidth / art.gridHeight,
+                            child: RepaintBoundary(
+                              child: CustomPaint(
+                                painter: ArtPreviewPainter(
+                                  art: art,
+                                  isCompleted: true,
+                                ),
+                              ),
                             ),
                           ),
                         ),
@@ -860,11 +1338,18 @@ class _ContinueRow extends StatelessWidget {
                             const SizedBox(height: 6),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(4),
-                              child: LinearProgressIndicator(
-                                value: pct / 100,
-                                minHeight: 5,
-                                backgroundColor: AppStyle.primary.withAlpha(25),
-                                color: AppStyle.primary,
+                              child: TweenAnimationBuilder<double>(
+                                tween: Tween(end: pct / 100),
+                                duration: const Duration(milliseconds: 500),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, v, _) =>
+                                    LinearProgressIndicator(
+                                  value: v,
+                                  minHeight: 5,
+                                  backgroundColor:
+                                      AppStyle.primary.withAlpha(25),
+                                  color: AppStyle.primary,
+                                ),
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -894,20 +1379,142 @@ class _DailyPixelBanner extends StatelessWidget {
   final GalleryProvider gallery;
   final VoidCallback onPlay;
 
-  const _DailyPixelBanner({required this.gallery, required this.onPlay});
+  /// When true and today's daily is done, the trailing chip becomes a
+  /// watch-ad streak-bonus claim instead of the static "Done" state.
+  final bool showBonusClaim;
+  final int bonusAmount;
+  final VoidCallback? onClaimBonus;
+
+  const _DailyPixelBanner({
+    required this.gallery,
+    required this.onPlay,
+    this.showBonusClaim = false,
+    this.bonusAmount = 0,
+    this.onClaimBonus,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (gallery.canRepairStreak) {
+      return PressableScale(
+        onTap: () => _showStreakRepairSheet(
+          context,
+          gallery,
+          context.read<AppSettingsProvider>(),
+        ),
+        scale: 0.98,
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFFE53935), Color(0xFFC2185B)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFFE53935).withAlpha(40),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 56,
+                height: 56,
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(40),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.heart_broken_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'STREAK LOST • REPAIR WITHIN 48H',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Restore ${gallery.streakBrokenValue}-Day Streak!',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    const Text(
+                      'Tap to restore with 300 💎 or 1 Ad',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.build_rounded,
+                      color: Color(0xFFE53935),
+                      size: 16,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'Repair',
+                      style: TextStyle(
+                        color: Color(0xFFE53935),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final art = gallery.dailyArt!;
     final done = gallery.dailyCompletedToday;
+    final claimable = done && showBonusClaim && onClaimBonus != null;
     final now = DateTime.now();
     final hoursToNext = DateTime(
       now.year,
       now.month,
       now.day + 1,
     ).difference(now).inHours;
-    return GestureDetector(
+    final settings = context.read<AppSettingsProvider>();
+
+    return PressableScale(
       onTap: onPlay,
+      scale: 0.98,
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
@@ -935,9 +1542,14 @@ class _DailyPixelBanner extends StatelessWidget {
                 color: Colors.white.withAlpha(220),
                 borderRadius: BorderRadius.circular(14),
               ),
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  painter: _PixelArtPreviewPainter(art: art, isCompleted: true),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: art.gridWidth / art.gridHeight,
+                  child: RepaintBoundary(
+                    child: CustomPaint(
+                      painter: ArtPreviewPainter(art: art, isCompleted: true),
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -969,11 +1581,9 @@ class _DailyPixelBanner extends StatelessWidget {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      const Icon(
-                        Icons.local_fire_department,
-                        color: Colors.amber,
-                        size: 16,
-                      ),
+                      // Breathes while today's daily is uncolored — a quiet
+                      // "the streak needs you" nudge; still when done.
+                      _BreathingFlame(active: !done),
                       const SizedBox(width: 4),
                       Text(
                         done
@@ -985,39 +1595,453 @@ class _DailyPixelBanner extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                         ),
                       ),
+                      const SizedBox(width: 6),
+                      // Freeze count indicator / buy affordance
+                      GestureDetector(
+                        onTap: () => _showBuyFreezeDialog(
+                          context,
+                          gallery,
+                          settings,
+                        ),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withAlpha(40),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🧊', style: TextStyle(fontSize: 11)),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${gallery.streakFreezes}/2',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 10.5,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ],
               ),
             ),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    done ? Icons.check_circle : Icons.play_arrow_rounded,
-                    color: const Color(0xFFFF5E62),
-                    size: 18,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    done ? 'Done' : 'Play',
-                    style: const TextStyle(
-                      color: Color(0xFFFF5E62),
-                      fontWeight: FontWeight.w700,
-                      fontSize: 13,
+            PressableScale(
+              // Intercepts the banner's onPlay tap when the bonus is claimable.
+              onTap: claimable ? onClaimBonus : null,
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                // Play → Done → claim transitions pop instead of snapping.
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  switchInCurve: Curves.easeOutBack,
+                  switchOutCurve: Curves.easeInCubic,
+                  transitionBuilder: (child, anim) =>
+                      ScaleTransition(scale: anim, child: child),
+                  child: Row(
+                    key: ValueKey(
+                      claimable ? 'claim' : (done ? 'done' : 'play'),
                     ),
+                    mainAxisSize: MainAxisSize.min,
+                    children: claimable
+                        ? [
+                            const Icon(
+                              Icons.card_giftcard_rounded,
+                              color: Color(0xFFFF5E62),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '+$bonusAmount',
+                              style: const TextStyle(
+                                color: Color(0xFFFF5E62),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(width: 2),
+                            const Icon(
+                              Icons.diamond_rounded,
+                              color: Color(0xFFFF5E62),
+                              size: 14,
+                            ),
+                          ]
+                        : [
+                            Icon(
+                              done
+                                  ? Icons.check_circle
+                                  : Icons.play_arrow_rounded,
+                              color: const Color(0xFFFF5E62),
+                              size: 18,
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              done ? 'Done' : 'Play',
+                              style: const TextStyle(
+                                color: Color(0xFFFF5E62),
+                                fontWeight: FontWeight.w700,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
                   ),
-                ],
+                ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+void _showStreakRepairSheet(
+  BuildContext context,
+  GalleryProvider gallery,
+  AppSettingsProvider settings,
+) {
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: Colors.transparent,
+    builder: (ctx) {
+      final isDark = Theme.of(ctx).brightness == Brightness.dark;
+      return Container(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1830) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  colors: [Color(0xFFFF9D2E), Color(0xFFFF5E62)],
+                ),
+              ),
+              child: const Icon(
+                Icons.local_fire_department,
+                color: Colors.white,
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Restore Your ${gallery.streakBrokenValue}-Day Streak!',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: isDark ? Colors.white : const Color(0xFF2A2440),
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Don\'t lose your progress! Restore within 48 hours to keep your streak alive.',
+              style: TextStyle(
+                fontSize: 13,
+                color: isDark ? Colors.white70 : Colors.black54,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 24),
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      final adService = context.read<AdService>();
+                      gallery.repairStreakWithAd(adService, () {
+                        if (context.mounted) {
+                          showRewardPopup(
+                            context,
+                            icon: Icons.local_fire_department,
+                            title: 'Streak Restored! 🔥',
+                            subtitle: '${gallery.dailyStreak} Day Streak Intact',
+                            badgeColors: const [
+                              Color(0xFFFF9D2E),
+                              Color(0xFFFF5E62),
+                            ],
+                          );
+                        }
+                      });
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF5E62),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.ondemand_video_rounded, size: 18),
+                        SizedBox(width: 6),
+                        Text(
+                          '1 Free Ad',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      if (settings.diamondsAvailable < 300) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text(
+                              'Not enough diamonds (300 💎 needed)',
+                            ),
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
+                      }
+                      Navigator.pop(ctx);
+                      final success =
+                          gallery.repairStreakWithDiamonds(settings);
+                      if (success && context.mounted) {
+                        showRewardPopup(
+                          context,
+                          icon: Icons.local_fire_department,
+                          title: 'Streak Restored! 🔥',
+                          subtitle: '${gallery.dailyStreak} Day Streak Intact',
+                          badgeColors: const [
+                            Color(0xFFFF9D2E),
+                            Color(0xFFFF5E62),
+                          ],
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFF9D2E),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                    ),
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '300',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(width: 4),
+                        Icon(Icons.diamond_rounded, size: 16),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+void _showBuyFreezeDialog(
+  BuildContext context,
+  GalleryProvider gallery,
+  AppSettingsProvider settings,
+) {
+  final isDark = Theme.of(context).brightness == Brightness.dark;
+  final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+  final subColor = isDark ? Colors.white70 : Colors.black54;
+
+  showDialog(
+    context: context,
+    builder: (ctx) => Dialog(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1830) : Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: AppStyle.primary.withAlpha(70), width: 1.5),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: const Color(0xFF4FC3F7).withAlpha(40),
+              ),
+              child: const Icon(
+                Icons.ac_unit_rounded,
+                color: Color(0xFF0288D1),
+                size: 36,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Streak Freeze',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: titleColor,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Equip a freeze to automatically save your streak if you miss a day! (Max 2 held · Currently: ${gallery.streakFreezes}/2)',
+              style: TextStyle(fontSize: 13, color: subColor),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 20),
+            if (gallery.streakFreezes >= 2)
+              Text(
+                'Maximum freezes held! (2/2)',
+                style: TextStyle(
+                  color: Colors.green.shade600,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Cancel'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (settings.diamondsAvailable < 150) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                'Not enough diamonds (150 💎 needed)',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        final success = gallery.buyStreakFreeze(settings);
+                        Navigator.pop(ctx);
+                        if (success && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Streak Freeze equipped! 🧊'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0288D1),
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            '150',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(Icons.diamond_rounded, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// The streak flame, breathing on a slow cosine while [active] (same rhythm
+/// as the canvas's next-cell pulse) and static otherwise.
+class _BreathingFlame extends StatefulWidget {
+  final bool active;
+
+  const _BreathingFlame({required this.active});
+
+  @override
+  State<_BreathingFlame> createState() => _BreathingFlameState();
+}
+
+class _BreathingFlameState extends State<_BreathingFlame>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    );
+    if (widget.active) _ctrl.repeat(reverse: true);
+  }
+
+  @override
+  void didUpdateWidget(_BreathingFlame oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.active && !_ctrl.isAnimating) {
+      _ctrl.repeat(reverse: true);
+    } else if (!widget.active && _ctrl.isAnimating) {
+      _ctrl.stop();
+      _ctrl.value = 0;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: Tween<double>(begin: 1.0, end: 1.2).animate(
+        CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
+      ),
+      child: const Icon(
+        Icons.local_fire_department,
+        color: Colors.amber,
+        size: 16,
       ),
     );
   }
@@ -1088,7 +2112,7 @@ class _CategoryFilter extends StatelessWidget {
             final on = gallery.favoritesOnly;
             return Padding(
               padding: const EdgeInsets.only(right: 10),
-              child: GestureDetector(
+              child: PressableScale(
                 onTap: () => gallery.toggleFavoritesOnly(),
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
@@ -1127,7 +2151,7 @@ class _CategoryFilter extends StatelessWidget {
           final isSelected = gallery.selectedCategory == cat;
           return Padding(
             padding: const EdgeInsets.only(right: 10),
-            child: GestureDetector(
+            child: PressableScale(
               onTap: () => gallery.setCategory(cat),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 350),
@@ -1212,7 +2236,7 @@ class _PixelArtCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = AppColors.gradientForIndex(index);
 
-    return GestureDetector(
+    return PressableScale(
       // Locked items must still be tappable so _openColoring can present the
       // unlock dialog; gating onTap here is what made premium taps no-op.
       onTap: onTap,
@@ -1254,11 +2278,14 @@ class _PixelArtCard extends StatelessWidget {
                             aspectRatio: art.gridWidth / art.gridHeight,
                             // Own layer: the card's entrance animation
                             // must not re-rasterize the preview.
-                            child: RepaintBoundary(
-                              child: CustomPaint(
-                                painter: _PixelArtPreviewPainter(
-                                  art: art,
-                                  isCompleted: isCompleted,
+                            child: Hero(
+                              tag: 'art_canvas_${art.id}',
+                              child: RepaintBoundary(
+                                child: CustomPaint(
+                                  painter: ArtPreviewPainter(
+                                    art: art,
+                                    isCompleted: isCompleted,
+                                  ),
                                 ),
                               ),
                             ),
@@ -1444,8 +2471,9 @@ class _PixelArtCard extends StatelessWidget {
               Positioned(
                 top: 8,
                 right: 8,
-                child: GestureDetector(
+                child: PressableScale(
                   onTap: onFavorite,
+                  scale: 0.85,
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     padding: const EdgeInsets.all(6),
@@ -1455,10 +2483,17 @@ class _PixelArtCard extends StatelessWidget {
                           : Colors.black.withAlpha(30),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(
-                      isFavorite ? Icons.favorite : Icons.favorite_border,
-                      color: isFavorite ? Colors.red : Colors.white,
-                      size: 16,
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      switchInCurve: Curves.easeOutBack,
+                      transitionBuilder: (child, anim) =>
+                          ScaleTransition(scale: anim, child: child),
+                      child: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        key: ValueKey(isFavorite),
+                        color: isFavorite ? Colors.red : Colors.white,
+                        size: 16,
+                      ),
                     ),
                   ),
                 ),
@@ -1558,7 +2593,7 @@ class _ShimmerCardState extends State<_ShimmerCard>
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),
-  )..repeat(reverse: true);
+  )..repeat();
 
   @override
   void dispose() {
@@ -1574,13 +2609,23 @@ class _ShimmerCardState extends State<_ShimmerCard>
     return AnimatedBuilder(
       animation: _c,
       builder: (context, _) {
+        // A highlight band sweeping diagonally across the card — an actual
+        // shimmer rather than an opacity blink.
         final t = ((_c.value + widget.delayFraction) % 1.0);
-        final opacity = (0.45 + 0.45 * (0.5 - (t - 0.5).abs()) * 2)
-            .clamp(0.0, 1.0);
         return Container(
           decoration: BoxDecoration(
-            color: base.withValues(alpha: opacity),
+            color: base,
             borderRadius: BorderRadius.circular(20),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [base, Color.lerp(base, Colors.white, 0.35)!, base],
+              stops: [
+                (t * 1.6 - 0.5).clamp(0.0, 1.0),
+                (t * 1.6 - 0.3).clamp(0.0, 1.0),
+                (t * 1.6 - 0.1).clamp(0.0, 1.0),
+              ],
+            ),
           ),
         );
       },
@@ -1644,46 +2689,3 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-class _PixelArtPreviewPainter extends CustomPainter {
-  final PixelArt art;
-  final bool isCompleted;
-
-  _PixelArtPreviewPainter({required this.art, required this.isCompleted});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final cw = size.width / art.gridWidth;
-    final ch = size.height / art.gridHeight;
-
-    // One drawRawPoints call per color instead of a drawRect per cell —
-    // a 128x128 preview is otherwise ~16k draw ops per card.
-    final batches = <int, List<double>>{};
-    for (var r = 0; r < art.gridHeight; r++) {
-      for (var c = 0; c < art.gridWidth; c++) {
-        final val = art.grid[r][c];
-        if (val <= 0) continue;
-        final color = art.colorForNumber(val) ?? Colors.transparent;
-        final key = (isCompleted ? color : color.withAlpha(90)).toARGB32();
-        batches.putIfAbsent(key, () => <double>[])
-          ..add(c * cw + cw / 2)
-          ..add(r * ch + ch / 2);
-      }
-    }
-
-    final paint = Paint()
-      ..strokeCap = StrokeCap.square
-      ..strokeWidth = max(cw, ch);
-    for (final entry in batches.entries) {
-      paint.color = Color(entry.key);
-      canvas.drawRawPoints(
-        PointMode.points,
-        Float32List.fromList(entry.value),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PixelArtPreviewPainter oldDelegate) =>
-      oldDelegate.art != art || oldDelegate.isCompleted != isCompleted;
-}

@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/notification_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
+import 'package:pixel_art_app/data/services/remote_config_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/data/models/economy_config.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
@@ -28,15 +29,20 @@ class AppSettingsProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   StreamSubscription<List<PurchaseDetails>>? _purchaseSub;
   bool _isProUser = false;
+  bool _isRemoveAds = false;
   int _plusExpiryMs = 0;
   bool _isDarkMode = false;
   bool _colorblindMode = false;
   bool _hapticsEnabled = true;
+  String _hapticIntensity = 'medium';
   bool _soundsEnabled = true;
   bool _fillEffectsEnabled = true;
   String _soundType = 'bubble_pop';
+  String _ambientTrack = 'none';
+  double _ambientVolume = 0.5;
+  String _particleStyle = 'sparkles';
   bool _dailyRemindersEnabled = true;
-  int _hintsAvailable = 0;
+  int _hintsAvailable = 3;
   int _diamondsAvailable = 50;
   int _totalXp = 0;
   int _playerLevel = 1;
@@ -50,9 +56,11 @@ class AppSettingsProvider extends ChangeNotifier {
 
   AppSettingsProvider(this._storageService);
 
-  /// Pro entitlement: lifetime Pro purchase OR an active Plus subscription.
-  /// Everything that removes ads / unlocks premium art keys off this.
-  bool get isProUser => _isProUser || isPlusActive;
+  /// Pro entitlement: lifetime Pro purchase OR active Plus subscription OR Remove Ads.
+  bool get isProUser => _isProUser || isPlusActive || _isRemoveAds;
+
+  /// Whether standalone Remove Ads was purchased.
+  bool get isRemoveAds => _isRemoveAds;
 
   /// Lifetime Pro only (without an active subscription) — for UI that needs
   /// to distinguish the two (e.g. hiding subscription plans from lifetime
@@ -64,9 +72,13 @@ class AppSettingsProvider extends ChangeNotifier {
   bool get isDarkMode => _isDarkMode;
   bool get colorblindMode => _colorblindMode;
   bool get hapticsEnabled => _hapticsEnabled;
+  String get hapticIntensity => _hapticIntensity;
   bool get soundsEnabled => _soundsEnabled;
   bool get fillEffectsEnabled => _fillEffectsEnabled;
   String get soundType => _soundType;
+  String get ambientTrack => _ambientTrack;
+  double get ambientVolume => _ambientVolume;
+  String get particleStyle => _particleStyle;
   bool get dailyRemindersEnabled => _dailyRemindersEnabled;
   int get hintsAvailable => _hintsAvailable;
   int get diamondsAvailable => _diamondsAvailable;
@@ -107,6 +119,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
   Future<void> loadSettings() async {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
+    _isRemoveAds = _storageService.getBool(AppConstants.removeAdsPrefKey);
     _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
     // Light theme by default for every flavor; dark mode is opt-in via
     // settings (a saved preference always wins over this default).
@@ -116,17 +129,27 @@ class AppSettingsProvider extends ChangeNotifier {
       'haptics_enabled',
       defaultValue: true,
     );
+    _hapticIntensity = _storageService.getString(
+      'haptic_intensity',
+      defaultValue: 'medium',
+    );
     _soundsEnabled = _storageService.getBool('sounds_enabled', defaultValue: true);
     _fillEffectsEnabled = _storageService.getBool(
       'fill_effects_enabled',
       defaultValue: true,
     );
     _soundType = _storageService.getString('sound_type', defaultValue: 'bubble_pop');
+    _ambientTrack = _storageService.getString('ambient_track', defaultValue: 'none');
+    _ambientVolume = _storageService.getDouble('ambient_volume', defaultValue: 0.5);
+    _particleStyle = _storageService.getString('particle_style', defaultValue: 'sparkles');
     _dailyRemindersEnabled = _storageService.getBool(
       _dailyRemindersPrefKey,
       defaultValue: true,
     );
-    _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey);
+    _hintsAvailable = _storageService.getInt(
+      AppConstants.hintsPrefKey,
+      defaultValue: 3,
+    );
     _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 50);
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
@@ -190,6 +213,12 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setHapticIntensity(String intensity) {
+    _hapticIntensity = intensity;
+    _storageService.setString('haptic_intensity', _hapticIntensity);
+    notifyListeners();
+  }
+
   void toggleSounds() {
     _soundsEnabled = !_soundsEnabled;
     _storageService.setBool('sounds_enabled', _soundsEnabled);
@@ -205,6 +234,24 @@ class AppSettingsProvider extends ChangeNotifier {
   void setSoundType(String type) {
     _soundType = type;
     _storageService.setString('sound_type', type);
+    notifyListeners();
+  }
+
+  void setAmbientTrack(String track) {
+    _ambientTrack = track;
+    _storageService.setString('ambient_track', track);
+    notifyListeners();
+  }
+
+  void setAmbientVolume(double volume) {
+    _ambientVolume = volume.clamp(0.0, 1.0);
+    _storageService.setDouble('ambient_volume', _ambientVolume);
+    notifyListeners();
+  }
+
+  void setParticleStyle(String style) {
+    _particleStyle = style;
+    _storageService.setString('particle_style', style);
     notifyListeners();
   }
 
@@ -249,6 +296,12 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setRemoveAds(bool value) {
+    _isRemoveAds = value;
+    _storageService.setBool(AppConstants.removeAdsPrefKey, value);
+    notifyListeners();
+  }
+
   /// Extends the Plus entitlement to [days] from now. Called on every
   /// purchase/restore event for a Plus product, so an active subscription
   /// re-stamps itself each session and a cancelled one quietly runs out.
@@ -261,6 +314,22 @@ class AppSettingsProvider extends ChangeNotifier {
     _plusExpiryMs = until;
     _storageService.setInt(AppConstants.plusExpiryPrefKey, until);
     notifyListeners();
+  }
+
+  /// Checks if the new user welcome bonus (50 diamonds) should be claimed on first launch.
+  /// Returns 50 on first launch only, 0 for returning users or subsequent launches.
+  int checkAndClaimWelcomeBonus() {
+    if (_storageService.getBool(AppConstants.welcomeBonusPrefKey)) {
+      return 0;
+    }
+    _storageService.setBool(AppConstants.welcomeBonusPrefKey, true);
+    // Ensure diamonds balance reflects the welcome bonus
+    if (_diamondsAvailable < AppConstants.diamondsWelcomeBonus) {
+      _diamondsAvailable = AppConstants.diamondsWelcomeBonus;
+      _storageService.setInt('diamonds_available', _diamondsAvailable);
+      notifyListeners();
+    }
+    return AppConstants.diamondsWelcomeBonus;
   }
 
   /// Grants the daily Plus diamond stipend once per calendar day. Returns the
@@ -277,6 +346,53 @@ class AppSettingsProvider extends ChangeNotifier {
     _storageService.setString(AppConstants.plusStipendDayPrefKey, today);
     addDiamonds(AppConstants.diamondsDailyPlusStipend);
     return AppConstants.diamondsDailyPlusStipend;
+  }
+
+  String get _todayStamp {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  /// Free-diamond rewarded claims left today. The shop tile and home pill
+  /// draw from this one pool so the Remote Config cap bounds the total faucet.
+  int get freeDiamondClaimsRemaining {
+    final cap = RemoteConfigService().rewardedDiamondsDailyCap;
+    if (_storageService.getString(AppConstants.freeDiamondsDayPrefKey) !=
+        _todayStamp) {
+      return cap;
+    }
+    final used = _storageService.getInt(AppConstants.freeDiamondsCountPrefKey);
+    return math.max(0, cap - used);
+  }
+
+  /// Consumes one capped free-diamond claim and pays out. Returns the amount
+  /// granted (0 when today's pool is exhausted) so the UI can celebrate.
+  int claimFreeDiamonds() {
+    if (freeDiamondClaimsRemaining <= 0) return 0;
+    final today = _todayStamp;
+    final used =
+        _storageService.getString(AppConstants.freeDiamondsDayPrefKey) == today
+            ? _storageService.getInt(AppConstants.freeDiamondsCountPrefKey)
+            : 0;
+    _storageService.setString(AppConstants.freeDiamondsDayPrefKey, today);
+    _storageService.setInt(AppConstants.freeDiamondsCountPrefKey, used + 1);
+    final amount = RemoteConfigService().rewardedDiamondsAmount;
+    addDiamonds(amount);
+    return amount;
+  }
+
+  bool get dailyStreakBonusClaimedToday =>
+      _storageService.getString(AppConstants.streakBonusDayPrefKey) ==
+      _todayStamp;
+
+  /// Once-per-day streak bonus behind a rewarded ad on the daily banner.
+  /// Returns the amount granted (0 if already claimed today).
+  int claimDailyStreakBonus() {
+    if (dailyStreakBonusClaimedToday) return 0;
+    _storageService.setString(AppConstants.streakBonusDayPrefKey, _todayStamp);
+    final amount = RemoteConfigService().dailyStreakAdBonus;
+    addDiamonds(amount);
+    return amount;
   }
 
   void toggleDarkMode() {
@@ -329,7 +445,7 @@ class AppSettingsProvider extends ChangeNotifier {
   void addWands(int count) {
     final current = _storageService.getInt(
       AppConstants.magicWandsPrefKey,
-      defaultValue: 5,
+      defaultValue: 3,
     );
     _storageService.setInt(AppConstants.magicWandsPrefKey, current + count);
     notifyListeners();
@@ -352,7 +468,6 @@ class AppSettingsProvider extends ChangeNotifier {
           if (purchase.status == PurchaseStatus.purchased) {
             AnalyticsService().logPurchase(productId: purchase.productID);
           }
-
           // Check dynamic Diamond Packs first
           final activePacks = EconomyConfigService().currentConfig.diamondPacks;
           DiamondPackConfig? matchedPack;
@@ -364,6 +479,8 @@ class AppSettingsProvider extends ChangeNotifier {
           }
 
           final paywallConfig = EconomyConfigService().currentConfig.paywall;
+          final pId = purchase.productID;
+          final rc = RemoteConfigService();
 
           if (matchedPack != null) {
             if (purchase.status == PurchaseStatus.purchased) {
@@ -381,15 +498,26 @@ class AppSettingsProvider extends ChangeNotifier {
                 name: 'IAP',
               );
             }
-          } else if (purchase.productID == AppConstants.proProductId ||
-              purchase.productID == paywallConfig.lifetimeProductId) {
+          } else if (pId == AppConstants.proProductId ||
+              pId == paywallConfig.lifetimeProductId) {
             setProUser(true);
             AnalyticsService().setPlayerProperties(isPro: true);
-          } else if (purchase.productID == AppConstants.plusMonthlyProductId ||
-              purchase.productID == paywallConfig.monthlyProductId) {
+          } else if (pId == rc.removeAdsProductId ||
+              pId == AppConstants.removeAdsProductId) {
+            setRemoveAds(true);
+          } else if (pId == rc.plus1DayProductId ||
+              pId == AppConstants.plus1DayProductId) {
+            extendPlusEntitlement(AppConstants.plus1DayEntitlementDays);
+          } else if (pId == rc.plusWeeklyProductId ||
+              pId == AppConstants.plusWeeklyProductId) {
+            extendPlusEntitlement(AppConstants.plusWeeklyEntitlementDays);
+          } else if (pId == rc.plusMonthlyProductId ||
+              pId == AppConstants.plusMonthlyProductId ||
+              pId == paywallConfig.monthlyProductId) {
             extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
-          } else if (purchase.productID == AppConstants.plusYearlyProductId ||
-              purchase.productID == paywallConfig.yearlyProductId) {
+          } else if (pId == rc.plusYearlyProductId ||
+              pId == AppConstants.plusYearlyProductId ||
+              pId == paywallConfig.yearlyProductId) {
             extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
@@ -411,14 +539,21 @@ class AppSettingsProvider extends ChangeNotifier {
           try {
             await InAppPurchase.instance.completePurchase(purchase);
           } catch (e) {
+            // Play throws when a token is already consumed/acknowledged (e.g.
+            // a restore re-delivering an entitlement) or when offline; the
+            // entitlement above is already granted, so never crash on this.
             developer.log(
-              'Error completing purchase for ${purchase.productID}',
+              'completePurchase failed for ${purchase.productID}',
               name: 'IAP',
               error: e,
             );
           }
         }
       }
+    }, onError: (Object e) {
+      // iOS surfaces store failures as stream errors; without a handler they
+      // escape the subscription as uncaught async errors.
+      developer.log('Purchase stream error', name: 'IAP', error: e);
     });
   }
 

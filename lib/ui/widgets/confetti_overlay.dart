@@ -4,7 +4,11 @@ import 'package:flutter/material.dart';
 class ConfettiOverlay extends StatelessWidget {
   final Animation<double> animation;
 
-  const ConfettiOverlay({super.key, required this.animation});
+  /// Varies the particle layout per celebration (e.g. hash of the artwork id)
+  /// so consecutive completions don't replay an identical burst.
+  final int seed;
+
+  const ConfettiOverlay({super.key, required this.animation, this.seed = 42});
 
   @override
   Widget build(BuildContext context) {
@@ -14,7 +18,7 @@ class ConfettiOverlay extends StatelessWidget {
         if (!animation.isAnimating) return const SizedBox.shrink();
         return CustomPaint(
           size: Size.infinite,
-          painter: _ConfettiPainter(animation.value),
+          painter: _ConfettiPainter(animation.value, seed),
         );
       },
     );
@@ -23,13 +27,14 @@ class ConfettiOverlay extends StatelessWidget {
 
 class _ConfettiPainter extends CustomPainter {
   final double progress;
+  final int seed;
 
-  _ConfettiPainter(this.progress);
+  _ConfettiPainter(this.progress, this.seed);
 
   @override
   void paint(Canvas canvas, Size size) {
     if (progress <= 0 || progress >= 1) return;
-    final rng = Random(42);
+    final rng = Random(seed);
     final particles = 60;
     final paint = Paint();
     for (var i = 0; i < particles; i++) {
@@ -80,5 +85,5 @@ class _ConfettiPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_ConfettiPainter oldDelegate) =>
-      oldDelegate.progress != progress;
+      oldDelegate.progress != progress || oldDelegate.seed != seed;
 }

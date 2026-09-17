@@ -7,6 +7,7 @@ import '../../config/app_constants.dart';
 import '../../data/services/analytics_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
+import '../../ui/widgets/transitions.dart';
 import '../../l10n/app_localizations.dart';
 
 class CameraScreen extends StatelessWidget {
@@ -436,16 +437,34 @@ class _CameraScreenBody extends StatelessWidget {
     CameraProvider camera,
     ImageSource source,
   ) async {
-    final picker = ImagePicker();
-    final picked = await picker.pickImage(
-      source: source,
-      maxWidth: 1024,
-      maxHeight: 1024,
-    );
-    if (picked == null) return;
-    final bytes = await picked.readAsBytes();
-    if (context.mounted) {
-      camera.setImage(bytes);
+    try {
+      final picker = ImagePicker();
+      final picked = await picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        maxHeight: 1024,
+      );
+      if (picked == null) return;
+      final bytes = await picked.readAsBytes();
+      if (context.mounted) {
+        camera.setImage(bytes);
+      }
+    } catch (_) {
+      // pickImage returns null on cancel but THROWS when the OS permission is
+      // denied — without this the button just looks dead and the error is
+      // uncaught.
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              source == ImageSource.camera
+                  ? 'Camera unavailable — check the app\'s camera permission.'
+                  : 'Photos unavailable — check the app\'s photo permission.',
+            ),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     }
   }
 
@@ -469,12 +488,12 @@ class _CameraScreenBody extends StatelessWidget {
   void _startColoring(BuildContext context, art) {
     Navigator.pushReplacement(
       context,
-      MaterialPageRoute(
-        settings: const RouteSettings(name: 'coloring'),
-        builder: (_) => ChangeNotifierProvider.value(
+      fadeThroughRoute(
+        ChangeNotifierProvider.value(
           value: context.read<ColoringProvider>(),
           child: ColoringScreen(art: art),
         ),
+        name: 'coloring',
       ),
     );
   }

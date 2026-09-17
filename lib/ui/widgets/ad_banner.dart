@@ -48,13 +48,21 @@ class _AdBannerState extends State<AdBanner> {
     final banner = BannerAd(
       adUnitId: RemoteConfigService().bannerAdUnitId,
       size: size,
-      request: const AdRequest(),
+      // Collapsible-bottom variant lifts banner eCPM where supported; plain
+      // banner request when the RC flag is off.
+      request: RemoteConfigService().bannerCollapsibleEnabled
+          ? const AdRequest(extras: {'collapsible': 'bottom'})
+          : const AdRequest(),
       listener: BannerAdListener(
         onAdLoaded: (_) {
           if (mounted) setState(() => _loaded = true);
         },
         onAdFailedToLoad: (ad, error) {
-          ad.dispose();
+          Future.microtask(() {
+            try {
+              ad.dispose();
+            } catch (_) {}
+          });
           _ad = null;
           if (_retries < 2) {
             _retries++;
@@ -71,7 +79,15 @@ class _AdBannerState extends State<AdBanner> {
 
   @override
   void dispose() {
-    _ad?.dispose();
+    final ad = _ad;
+    if (ad != null) {
+      _ad = null;
+      Future.microtask(() {
+        try {
+          ad.dispose();
+        } catch (_) {}
+      });
+    }
     super.dispose();
   }
 
@@ -83,7 +99,9 @@ class _AdBannerState extends State<AdBanner> {
     return SizedBox(
       width: size.width.toDouble(),
       height: size.height.toDouble(),
-      child: AdWidget(ad: ad),
+      child: RepaintBoundary(
+        child: AdWidget(ad: ad),
+      ),
     );
   }
 }

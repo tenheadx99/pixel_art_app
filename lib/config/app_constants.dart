@@ -58,10 +58,15 @@ class AppConstants {
   static const String wandPackProductId = 'pixel_art_wands_10';
 
   // --- Plus subscription (remove ads + all premium art + daily diamonds) ---
-  // Subscription products must be created in Play Console for every flavor's
-  // app with these exact IDs.
+  // Subscription / Pass products created in Play Console
+  static const String plus1DayProductId = 'pixel_art_plus_1day';
+  static const String plusWeeklyProductId = 'pixel_art_plus_weekly';
   static const String plusMonthlyProductId = 'pixel_art_plus_monthly';
   static const String plusYearlyProductId = 'pixel_art_plus_yearly';
+
+  // Standalone Remove Ads Product (One-time non-consumable purchase)
+  static const String removeAdsProductId = 'pixel_art_remove_ads';
+  static const String removeAdsPrefKey = 'is_remove_ads';
 
   // Entitlement is a local expiry stamp refreshed by purchase/restore events
   // each session (no server). The window exceeds the billing period by a few
@@ -69,6 +74,8 @@ class AppConstants {
   // an active subscriber; a cancelled sub stops being restored and the stamp
   // runs out on its own.
   static const String plusExpiryPrefKey = 'plus_expiry_ms';
+  static const int plus1DayEntitlementDays = 2;
+  static const int plusWeeklyEntitlementDays = 9;
   static const int plusMonthlyEntitlementDays = 34;
   static const int plusYearlyEntitlementDays = 369;
 
@@ -91,10 +98,19 @@ class AppConstants {
   // pays out once (re-completing after an erase won't double-reward).
   static const int diamondsPerCompletion = 50;
   static const int diamondsDailyBonus = 25;
+  static const int diamondsWelcomeBonus = 50;
   static const String diamondsAwardedPrefix = 'diamonds_awarded_';
+  static const String welcomeBonusPrefKey = 'welcome_bonus_claimed';
 
   // Permanently unlock a single premium artwork with diamonds.
-  static const int diamondCostUnlockArt = 200;
+  static const int diamondCostUnlockArt = 100;
+
+  // Free-diamond rewarded placements. The shop tile and home pill share one
+  // daily claim pool; the streak bonus claims once per day on its own stamp.
+  // Amounts and caps live in Remote Config.
+  static const String freeDiamondsDayPrefKey = 'free_diamonds_claim_day';
+  static const String freeDiamondsCountPrefKey = 'free_diamonds_claim_count';
+  static const String streakBonusDayPrefKey = 'daily_streak_bonus_day';
 
   // Shop prices (in diamonds).
   static const int diamondCostHint = 30;

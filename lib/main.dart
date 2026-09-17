@@ -18,12 +18,15 @@ import 'data/services/ad_service.dart';
 import 'data/services/iap_service.dart';
 import 'data/services/screenshot_service.dart';
 import 'data/services/pixel_converter_service.dart';
+import 'data/services/remote_catalog_service.dart';
+import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/analytics_service.dart';
 import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
 import 'ui/widgets/pixel_grid.dart';
+import 'ui/widgets/transitions.dart';
 import 'providers/coloring_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
@@ -31,29 +34,11 @@ import 'ui/screens/home_screen.dart';
 import 'ui/screens/force_update_screen.dart';
 import 'ui/theme/app_style.dart';
 
-bool isVersionOlder(String current, String required) {
-  final currentClean = current.split('+')[0];
-  final requiredClean = required.split('+')[0];
+import 'config/version_utils.dart';
 
-  final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-  final requiredParts = requiredClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-
-  while (currentParts.length < 3) {
-    currentParts.add(0);
-  }
-  while (requiredParts.length < 3) {
-    requiredParts.add(0);
-  }
-
-  for (int i = 0; i < 3; i++) {
-    if (currentParts[i] < requiredParts[i]) {
-      return true;
-    } else if (currentParts[i] > requiredParts[i]) {
-      return false;
-    }
-  }
-  return false;
-}
+// Re-exported: isVersionOlder predates config/version_utils.dart and existing
+// callers/tests import it from here.
+export 'config/version_utils.dart' show isVersionOlder;
 
 /// True once Firebase has been initialized in [bootstrapApp] so the per-app
 /// bootstrap can skip re-initializing it (a second init throws duplicate-app).
@@ -123,6 +108,8 @@ class AppDependencies {
   final IAPService iapService;
   final ScreenshotService screenshotService;
   final SoundService soundService;
+  final RemoteCatalogService remoteCatalogService;
+  final DailyPixelService dailyPixelService;
 
   const AppDependencies({
     required this.localStorageService,
@@ -130,6 +117,8 @@ class AppDependencies {
     required this.iapService,
     required this.screenshotService,
     required this.soundService,
+    required this.remoteCatalogService,
+    required this.dailyPixelService,
   });
 
   void dispose() {
@@ -195,12 +184,28 @@ class _AppBootstrapState extends State<AppBootstrap>
     final localStorageService = LocalStorageService();
     await localStorageService.init();
 
+    // AdService persists its per-day interstitial cap through this.
+    AdService().attachStorage(localStorageService);
+
+    // UMP consent + Mobile Ads SDK init needs neither Remote Config nor IAP
+    // (ad unit IDs are read from RC at load time, after the await below), so
+    // it runs concurrently with the rest of bootstrap instead of serially.
+    final adInitFuture = AdService().initialize();
+
     // Remote Config + force-update check. Firebase itself is initialized earlier
     // in bootstrapApp(); these are non-critical, so failures fall back to
     // defaults without blocking the app.
     try {
       await AnalyticsService().init(flavorName: currentFlavor.name);
       final remoteConfig = RemoteConfigService();
+      remoteConfig.onForceUpdateTriggered = (url) {
+        if (mounted) {
+          setState(() {
+            _forceUpdateRequired = true;
+            _updateUrl = url;
+          });
+        }
+      };
       await remoteConfig.initialize();
       await EconomyConfigService().initialize();
 
@@ -230,6 +235,8 @@ class _AppBootstrapState extends State<AppBootstrap>
       iapService: IAPService(),
       screenshotService: ScreenshotService(localStorageService),
       soundService: soundService,
+      remoteCatalogService: RemoteCatalogService(localStorageService),
+      dailyPixelService: DailyPixelService(localStorageService),
     );
 
     await deps.iapService.initialize();
@@ -240,10 +247,13 @@ class _AppBootstrapState extends State<AppBootstrap>
     final hadFirstSession = localStorageService.getBool('had_first_session');
     localStorageService.setBool('had_first_session', true);
 
-    await AdService().initialize();
+    await adInitFuture;
     AdService()
       ..isFirstSession = !hadFirstSession
-      ..loadAppOpenAd();
+      ..loadAppOpenAd()
+      // Warm the rewarded cache so the first watch-ad tap shows instantly.
+      // Not gated by isFirstSession: rewarded ads are user-initiated.
+      ..preloadRewardedAd();
 
     if (!mounted) return;
     setState(() {
@@ -313,8 +323,33 @@ class _AppBootstrapState extends State<AppBootstrap>
             final provider = GalleryProvider(
               _dependencies!.localStorageService,
               _dependencies!.databaseService,
+              _dependencies!.remoteCatalogService,
+              _dependencies!.dailyPixelService,
             );
             provider.loadCatalog(_preMadeArts);
+            // Bundled art shows immediately; the admin-published Firestore
+            // catalog (new artworks + overrides) merges in when the fetch
+            // lands. Unchanged catalogs are served from Firestore's local
+            // cache, so this is one doc read on most launches.
+            final remoteCatalog = _dependencies!.remoteCatalogService;
+            remoteCatalog.fetchCatalog(_preMadeArts).then((merged) async {
+              // Runs on both outcomes: cached remote artworks the user has
+              // progress on must survive a failed fetch (offline) too. The
+              // catch keeps a surprise throw in this unawaited chain from
+              // surfacing as a fatal uncaught async error — the bundled
+              // catalog is already showing, so degrading silently is correct.
+              try {
+                final catalog = await remoteCatalog
+                    .withRestoredCachedArts(merged ?? _preMadeArts);
+                provider.updateCatalog(
+                  catalog,
+                  retiredIds: remoteCatalog.retiredIds,
+                );
+                // Pin today's daily only once the merged catalog is in, so an
+                // admin-scheduled remote artwork can actually be found.
+                provider.resolveDailyArt();
+              } catch (_) {}
+            });
             return provider;
           },
         ),
@@ -425,13 +460,7 @@ class _IntroFlow extends StatelessWidget {
       loadingMessage: 'Loading your next canvas...',
       onFinished: () {
         Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            settings: const RouteSettings(name: 'home'),
-            pageBuilder: (_, _, _) => const HomeScreen(),
-            transitionDuration: const Duration(milliseconds: 600),
-            transitionsBuilder: (_, animation, _, child) =>
-                FadeTransition(opacity: animation, child: child),
-          ),
+          fadeThroughRoute(const HomeScreen(), name: 'home'),
         );
       },
     );

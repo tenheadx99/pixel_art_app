@@ -29,10 +29,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('magic wand persistence', () {
-    test('fresh install grants 5 wands', () async {
+    test('fresh install grants 3 wands', () async {
       final provider = await _providerWith({});
       provider.loadArt(_testArt());
-      expect(provider.magicWandsCount, 5);
+      expect(provider.magicWandsCount, 3);
     });
 
     test('a stored count of 0 stays 0 instead of refilling', () async {
@@ -108,6 +108,74 @@ void main() {
     });
   });
 
+  group('mismatched save discard', () {
+    const k = 'pixelart_progress_test_art';
+    const threeByThree = '1,1,1;1,1,1;1,1,1';
+
+    test('a dimension-mismatched save is backed up and fully zeroed',
+        () async {
+      final provider = await _providerWith({
+        k: threeByThree, // 3x3 save for a 2x2 artwork
+        '${k}_pct': 60,
+        '${k}_ts': 1234,
+        '${k}_fills': 9,
+        '${k}_erases': 2,
+        '${k}_timelapse': '0,0;1,1',
+        '${k}_milestones': '30',
+      });
+      await provider.loadArt(_testArt());
+
+      final prefs = await SharedPreferences.getInstance();
+      // No phantom progress left for home/gallery to display...
+      expect(prefs.getInt('${k}_pct'), 0);
+      expect(prefs.getString(k), isEmpty);
+      expect(prefs.getInt('${k}_ts'), 0);
+      expect(prefs.getInt('${k}_fills'), 0);
+      expect(prefs.getInt('${k}_erases'), 0);
+      expect(prefs.getString('${k}_timelapse'), isEmpty);
+      expect(prefs.getString('${k}_milestones'), isEmpty);
+      // ...but the raw grid survives as manual-recovery insurance in the
+      // single rolling backup slot.
+      expect(
+        prefs.getString('pixelart_last_discarded_save'),
+        'test_art|$threeByThree',
+      );
+      expect(provider.progress, 0);
+    });
+
+    test('a column-count mismatch discards too', () async {
+      final provider = await _providerWith({
+        k: '1,1,1;1,1,1', // 2 rows x 3 cols for a 2x2 artwork
+        '${k}_pct': 40,
+      });
+      await provider.loadArt(_testArt());
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getInt('${k}_pct'), 0);
+      expect(
+        prefs.getString('pixelart_last_discarded_save'),
+        'test_art|1,1,1;1,1,1',
+      );
+    });
+
+    test('a fresh save round-trips after the discard', () async {
+      final provider = await _providerWith({k: threeByThree, '${k}_pct': 60});
+      await provider.loadArt(_testArt());
+      provider.selectNumber(1);
+      provider.tryFillCell(0, 0);
+      await provider.saveProgress();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString(k), isNotEmpty);
+      final reloaded = await _providerWith(
+        Map.fromEntries(
+          prefs.getKeys().map((key) => MapEntry(key, prefs.get(key)!)),
+        ),
+      );
+      await reloaded.loadArt(_testArt());
+      expect(reloaded.filledGrid[0][0], 1);
+    });
+  });
+
   group('ASMR sounds and section completion callbacks', () {
     test('onCellFilledCorrectly is called when a cell is colored', () async {
       final provider = await _providerWith({});
@@ -161,7 +229,7 @@ void main() {
     test('magic wand fills connected region of same number and decrements wand count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
-      expect(provider.magicWandsCount, 5);
+      expect(provider.magicWandsCount, 3);
 
       provider.toggleMagicWandMode();
       expect(provider.isMagicWandMode, isTrue);
@@ -170,7 +238,7 @@ void main() {
       final success = provider.tryFillCell(0, 0);
       expect(success, isTrue);
       expect(provider.isMagicWandMode, isFalse);
-      expect(provider.magicWandsCount, 4);
+      expect(provider.magicWandsCount, 2);
 
       // (0,0), (0,1), (1,0) are connected and should be filled
       expect(provider.filledGrid[0][0], 1);
@@ -185,7 +253,7 @@ void main() {
     test('bomb fills all non-zero cells in a 3x3 region and decrements bomb count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
-      expect(provider.bombsCount, 5);
+      expect(provider.bombsCount, 3);
 
       provider.toggleBombMode();
       expect(provider.isBombMode, isTrue);
@@ -194,7 +262,7 @@ void main() {
       final success = provider.tryFillCell(1, 1);
       expect(success, isTrue);
       expect(provider.isBombMode, isFalse);
-      expect(provider.bombsCount, 4);
+      expect(provider.bombsCount, 2);
 
       // All non-zero cells in the grid should be filled
       expect(provider.filledGrid[0][0], 1);
@@ -243,6 +311,75 @@ void main() {
       expect(provider.selectedNumber, 1);
       expect(provider.filledGrid[0][2], 0);
       expect(wrongTapAt, (0, 2));
+    });
+  });
+
+  group('save/load race', () {
+    test('quick exit-and-reopen restores fills from an in-flight save',
+        () async {
+      final provider = await _providerWith({});
+      final art = _testArt();
+      await provider.loadArt(art);
+      expect(provider.tryFillCell(0, 0), isTrue);
+      expect(provider.tryFillCell(0, 1), isTrue);
+
+      // The coloring screen fires this un-awaited from dispose; the grid
+      // string is still encoding on a worker isolate when a fast re-open
+      // calls loadArt. loadArt must wait for the save to land instead of
+      // restoring stale storage (and later re-saving it, losing the fills).
+      final inFlight = provider.saveProgress();
+      await provider.loadArt(art);
+
+      expect(provider.filledGrid[0][0], 1,
+          reason: 'reopen must see the fills carried by the in-flight save');
+      expect(provider.filledGrid[0][1], 1);
+      await inFlight;
+      provider.dispose();
+    });
+  });
+
+  group('default number selection', () {
+    PixelArt multiColorArt() => PixelArt(
+          id: 'multi_color',
+          name: 'Multi Color',
+          gridWidth: 2,
+          gridHeight: 2,
+          grid: [
+            [1, 2],
+            [3, 3],
+          ],
+          colorMap: {
+            1: const Color(0xFFFF0000),
+            2: const Color(0xFF00FF00),
+            3: const Color(0xFF0000FF),
+          },
+        );
+
+    test('selects first number by default when fresh artwork is loaded', () async {
+      final provider = await _providerWith({});
+      await provider.loadArt(multiColorArt());
+
+      expect(provider.selectedNumber, 1);
+      expect(provider.highlightedNumber, 1);
+      expect(provider.nextFillable, (0, 0));
+    });
+
+    test('selects first UNFILLED number by default when resuming partially completed artwork', () async {
+      final provider = await _providerWith({});
+      final art = multiColorArt();
+      await provider.loadArt(art);
+
+      // Complete number 1 (cell 0,0)
+      provider.tryFillCell(0, 0);
+      await provider.saveProgress();
+
+      // Reload artwork
+      await provider.loadArt(art);
+
+      // Number 1 is filled, so default selection should be number 2
+      expect(provider.selectedNumber, 2);
+      expect(provider.highlightedNumber, 2);
+      expect(provider.nextFillable, (0, 1));
     });
   });
 }

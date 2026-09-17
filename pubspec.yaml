@@ -1,8 +1,7 @@
 name: pixel_art_app
 description: "Pixel Art - Color by Number"
 publish_to: 'none'
-version: 1.0.11+18
-
+version: 1.0.12+19
 environment:
   sdk: ^3.11.5
 
@@ -23,13 +22,14 @@ dependencies:
   in_app_purchase: ^3.1.7
   share_plus: ^7.1.0
   in_app_review: ^2.0.9
+  in_app_update: ^4.2.3
   url_launcher: ^6.2.0
   image_picker: ^1.0.4
   uuid: ^4.1.0
   collection: ^1.18.0
   firebase_core: ^2.27.0
-  cloud_firestore: ^4.15.8
   firebase_analytics: ^10.8.0
+  cloud_firestore: ^4.17.0
   firebase_remote_config: ^4.3.8
   package_info_plus: ^9.0.1
   audioplayers: ^6.7.1
@@ -61,6 +61,7 @@ flutter:
     - assets/pixel_art_anime/
     - assets/pixel_art_pixelcalm/
     - assets/pixel_art_diamond/
+    - assets/pixel_art_bible/
     - assets/icons/
     - assets/audio/
   shaders:

@@ -4,6 +4,7 @@ import 'dart:ui' show VoidCallback;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:pixel_art_app/config/app_config.dart';
+import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 
@@ -16,12 +17,64 @@ class AdService {
 
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
+  RewardedInterstitialAd? _rewardedInterstitialAd;
   AppOpenAd? _appOpenAd;
   bool _showingAppOpen = false;
+
+  /// Backs the per-day interstitial cap; attached during bootstrap. Without
+  /// it (tests) the per-day cap is simply skipped.
+  LocalStorageService? _storage;
+  void attachStorage(LocalStorageService storage) => _storage = storage;
 
   DateTime? _lastInterstitialAt;
   DateTime? _lastRewardedAt;
   DateTime? _lastAppOpenAt;
+
+  // Failed loads retry at most this many times (20s, then 40s — same schedule
+  // as AdBanner) and then stop until the next show/preload attempt re-arms
+  // them, so a no-fill streak can't snowball into request spam.
+  static const int _maxLoadRetries = 2;
+  Duration _retryDelay(int attempt) => Duration(seconds: 20 * attempt);
+
+  // Cached ads expire server-side (1h for interstitial/rewarded, 4h for
+  // app-open). Showing an expired ad silently no-ops — a request with no
+  // impression — so treat anything older than this as absent.
+  static const Duration _fullScreenAdTtl = Duration(minutes: 50);
+  static const Duration _appOpenAdTtl = Duration(hours: 3, minutes: 30);
+
+  int _rewardedRetries = 0, _interstitialRetries = 0, _appOpenRetries = 0;
+  int _rewardedInterstitialRetries = 0;
+  DateTime? _rewardedLoadedAt, _interstitialLoadedAt, _appOpenLoadedAt;
+  DateTime? _rewardedInterstitialLoadedAt;
+  bool _rewardedLoading = false;
+
+  /// Full-screen interruptions shown this app session (interstitial +
+  /// rewarded interstitial — one shared pacing pool).
+  int _interstitialsThisSession = 0;
+
+  static const String _interstitialDayPrefKey = 'interstitial_day';
+  static const String _interstitialDayCountPrefKey = 'interstitial_day_count';
+
+  String get _todayStamp {
+    final now = DateTime.now();
+    return '${now.year}-${now.month}-${now.day}';
+  }
+
+  int get _interstitialsToday {
+    final storage = _storage;
+    if (storage == null) return 0;
+    if (storage.getString(_interstitialDayPrefKey) != _todayStamp) return 0;
+    return storage.getInt(_interstitialDayCountPrefKey);
+  }
+
+  void _countInterstitialShown() {
+    _interstitialsThisSession++;
+    final storage = _storage;
+    if (storage == null) return;
+    final count = _interstitialsToday + 1;
+    storage.setString(_interstitialDayPrefKey, _todayStamp);
+    storage.setInt(_interstitialDayCountPrefKey, count);
+  }
 
   /// Set during bootstrap; no full-screen ads in a user's very first session.
   bool isFirstSession = false;
@@ -31,6 +84,9 @@ class AdService {
   /// Interstitial + app-open only; banner/rewarded follow [_adsEnabled].
   bool get _fullScreenAdsEnabled =>
       _adsEnabled && !AppConfig.disableFullScreenAds;
+
+  bool _isFresh(DateTime? loadedAt, Duration ttl) =>
+      loadedAt != null && DateTime.now().difference(loadedAt) < ttl;
 
   Future<void> initialize() async {
     if (_initialized) return;
@@ -110,29 +166,68 @@ class AdService {
       onFailed?.call();
       return;
     }
+    if (_interstitialAd != null &&
+        _isFresh(_interstitialLoadedAt, _fullScreenAdTtl)) {
+      onLoaded?.call();
+      return;
+    }
     _interstitialAd?.dispose();
+    _interstitialAd = null;
+    AnalyticsService().logAdLoadStart(adFormat: 'interstitial', placement: 'session_exit');
+    final loadStartMs = DateTime.now().millisecondsSinceEpoch;
     InterstitialAd.load(
       adUnitId: RemoteConfigService().interstitialAdUnitId,
       request: const AdRequest(),
       adLoadCallback: InterstitialAdLoadCallback(
         onAdLoaded: (ad) {
           _interstitialAd = ad;
+          _interstitialLoadedAt = DateTime.now();
+          _interstitialRetries = 0;
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'interstitial',
+            placement: 'session_exit',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - loadStartMs,
+          );
           onLoaded?.call();
         },
-        onAdFailedToLoad: (error) => onFailed?.call(),
+        onAdFailedToLoad: (error) {
+          developer.log('Interstitial load failed: ${error.message}',
+              name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'interstitial',
+            placement: 'session_exit',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _interstitialRetries,
+          );
+          onFailed?.call();
+          if (_interstitialRetries < _maxLoadRetries) {
+            _interstitialRetries++;
+            Future.delayed(
+                _retryDelay(_interstitialRetries), loadInterstitialAd);
+          }
+        },
       ),
     );
   }
 
-  /// Caps that keep the exit interstitial from feeling punishing: never in
-  /// the first session, only after real coloring time, with a cooldown and
-  /// never right on the heels of a rewarded ad. All tunable via RemoteConfig.
-  bool canShowSessionInterstitial(Duration sessionLength) {
-    if (!_fullScreenAdsEnabled || isFirstSession || _interstitialAd == null) {
+  /// Pacing shared by the exit interstitial and the "next artwork" rewarded
+  /// interstitial (one interruption pool): never in the first session, only
+  /// after real coloring time OR real progress, cooldown between shows,
+  /// session/daily ceilings, never right on the heels of a rewarded ad. All
+  /// tunable via RemoteConfig.
+  bool _passesInterstitialPacing(Duration sessionLength, int progressPct) {
+    if (!_fullScreenAdsEnabled || isFirstSession) return false;
+    final rc = RemoteConfigService();
+    // Short session AND little progress: a drive-by, leave them alone. A user
+    // who coloured a quarter of a piece in 110s earned their exit ad slot.
+    if (sessionLength.inSeconds < rc.interstitialMinSessionSeconds &&
+        progressPct < rc.interstitialMinProgressPct) {
       return false;
     }
-    final rc = RemoteConfigService();
-    if (sessionLength.inSeconds < rc.interstitialMinSessionSeconds) {
+    // Ceilings: the cooldown alone lets a long session serve 20+.
+    if (_interstitialsThisSession >= rc.interstitialMaxPerSession) return false;
+    if (_storage != null && _interstitialsToday >= rc.interstitialMaxPerDay) {
       return false;
     }
     final now = DateTime.now();
@@ -142,10 +237,18 @@ class AdService {
       return false;
     }
     if (_lastRewardedAt != null &&
-        now.difference(_lastRewardedAt!).inSeconds < 60) {
+        now.difference(_lastRewardedAt!).inSeconds <
+            rc.interstitialPostRewardedSeconds) {
       return false;
     }
     return true;
+  }
+
+  bool canShowSessionInterstitial(Duration sessionLength,
+      {int progressPct = 0}) {
+    return _interstitialAd != null &&
+        _isFresh(_interstitialLoadedAt, _fullScreenAdTtl) &&
+        _passesInterstitialPacing(sessionLength, progressPct);
   }
 
   void showInterstitialAd() {
@@ -153,52 +256,233 @@ class AdService {
     _interstitialAd = null;
     if (ad == null) return;
     ad.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (a) => a.dispose(),
-      onAdFailedToShowFullScreenContent: (a, error) => a.dispose(),
+      onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'interstitial', placement: 'session_exit');
+        a.dispose();
+        loadInterstitialAd();
+      },
+      onAdFailedToShowFullScreenContent: (a, error) {
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'interstitial',
+          placement: 'session_exit',
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
+        a.dispose();
+        loadInterstitialAd();
+      },
     );
     _lastInterstitialAt = DateTime.now();
+    _countInterstitialShown();
     AnalyticsService().logAdImpression(adFormat: 'interstitial', placement: 'session_exit');
     ad.show();
   }
 
-  // --- Rewarded ---
+  // --- Rewarded interstitial ("next artwork": same interruption slot as the
+  // exit interstitial, but opt-out and it pays the user) ---
 
-  void loadRewardedAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
-    if (!_adsEnabled) {
-      onFailed?.call();
-      return;
-    }
+  /// Disabled until a rewarded-interstitial unit id is configured in RC.
+  bool get _rewardedInterstitialEnabled =>
+      _fullScreenAdsEnabled &&
+      RemoteConfigService().rewardedInterstitialAdUnitId.isNotEmpty;
+
+  bool get isRewardedInterstitialReady =>
+      _rewardedInterstitialAd != null &&
+      _isFresh(_rewardedInterstitialLoadedAt, _fullScreenAdTtl);
+
+  void preloadRewardedInterstitial() {
+    if (!_rewardedInterstitialEnabled || isRewardedInterstitialReady) return;
+    _rewardedInterstitialAd?.dispose();
+    _rewardedInterstitialAd = null;
+    AnalyticsService().logAdLoadStart(adFormat: 'rewarded_interstitial', placement: 'next_art');
+    final riLoadStartMs = DateTime.now().millisecondsSinceEpoch;
+    RewardedInterstitialAd.load(
+      adUnitId: RemoteConfigService().rewardedInterstitialAdUnitId,
+      request: const AdRequest(),
+      rewardedInterstitialAdLoadCallback: RewardedInterstitialAdLoadCallback(
+        onAdLoaded: (ad) {
+          _rewardedInterstitialAd = ad;
+          _rewardedInterstitialLoadedAt = DateTime.now();
+          _rewardedInterstitialRetries = 0;
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'rewarded_interstitial',
+            placement: 'next_art',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - riLoadStartMs,
+          );
+        },
+        onAdFailedToLoad: (error) {
+          developer.log('Rewarded interstitial load failed: ${error.message}',
+              name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'rewarded_interstitial',
+            placement: 'next_art',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _rewardedInterstitialRetries,
+          );
+          if (_rewardedInterstitialRetries < _maxLoadRetries) {
+            _rewardedInterstitialRetries++;
+            Future.delayed(_retryDelay(_rewardedInterstitialRetries),
+                preloadRewardedInterstitial);
+          }
+        },
+      ),
+    );
+  }
+
+  /// Same pacing pool as [canShowSessionInterstitial], gated on a loaded
+  /// rewarded interstitial instead of a plain one.
+  bool canShowRewardedInterstitial(Duration sessionLength,
+      {int progressPct = 0}) {
+    return isRewardedInterstitialReady &&
+        _passesInterstitialPacing(sessionLength, progressPct);
+  }
+
+  /// Shows the cached rewarded interstitial. Counts toward the interstitial
+  /// session/day caps and cooldown — it occupies the same interruption slot.
+  /// [onRewarded] fires only on the SDK's earned-reward callback (the user
+  /// can opt out during the intro countdown).
+  void showRewardedInterstitialAd({
+    required VoidCallback onRewarded,
+    String placement = 'next_art',
+  }) {
+    final ad = _rewardedInterstitialAd;
+    _rewardedInterstitialAd = null;
+    if (ad == null) return;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'rewarded_interstitial', placement: placement);
+        a.dispose();
+        preloadRewardedInterstitial();
+      },
+      onAdFailedToShowFullScreenContent: (a, error) {
+        developer.log(
+            'Rewarded interstitial show failed: ${error.message}',
+            name: 'Ads');
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'rewarded_interstitial',
+          placement: placement,
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
+        a.dispose();
+        preloadRewardedInterstitial();
+      },
+    );
+    _lastInterstitialAt = DateTime.now();
+    _countInterstitialShown();
+    AnalyticsService()
+        .logAdImpression(adFormat: 'rewarded_interstitial', placement: placement);
+    ad.show(
+      onUserEarnedReward: (ad, reward) {
+        AnalyticsService().logAdRewardEarned(placement: placement);
+        onRewarded();
+      },
+    );
+  }
+
+  // --- Rewarded (cache-ahead: preloaded at startup, refilled after show) ---
+
+  bool get isRewardedAdReady =>
+      _rewardedAd != null && _isFresh(_rewardedLoadedAt, _fullScreenAdTtl);
+
+  /// Fire-and-forget cache fill. Safe to call anytime; no-ops if a fresh ad
+  /// is already cached or a load is in flight.
+  void preloadRewardedAd() {
+    if (!_adsEnabled || _rewardedLoading || isRewardedAdReady) return;
     _rewardedAd?.dispose();
+    _rewardedAd = null;
+    _rewardedLoading = true;
+    developer.log('Rewarded load start', name: 'Ads');
+    AnalyticsService().logAdLoadStart(adFormat: 'rewarded', placement: 'user_reward');
+    final rLoadStartMs = DateTime.now().millisecondsSinceEpoch;
     RewardedAd.load(
       adUnitId: RemoteConfigService().rewardedAdUnitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
           _rewardedAd = ad;
-          onLoaded?.call();
+          _rewardedLoadedAt = DateTime.now();
+          _rewardedLoading = false;
+          _rewardedRetries = 0;
+          developer.log('Rewarded loaded', name: 'Ads');
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'rewarded',
+            placement: 'user_reward',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - rLoadStartMs,
+          );
         },
-        onAdFailedToLoad: (error) => onFailed?.call(),
+        onAdFailedToLoad: (error) {
+          _rewardedLoading = false;
+          developer.log('Rewarded load failed: ${error.message}', name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'rewarded',
+            placement: 'user_reward',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _rewardedRetries,
+          );
+          if (_rewardedRetries < _maxLoadRetries) {
+            _rewardedRetries++;
+            Future.delayed(_retryDelay(_rewardedRetries), preloadRewardedAd);
+          }
+        },
       ),
     );
   }
 
-  void showRewardedAd({
-    required void Function() onRewarded,
+  /// Shows the cached rewarded ad instantly. If a load is in flight (cold
+  /// cache), waits up to ~5s for it — preserving the old tap-then-brief-wait
+  /// UX as a worst case. When no ad can be shown, [onUnavailable] fires and a
+  /// preload is re-armed for next time; the reward is NEVER granted without
+  /// the SDK's earned-reward callback.
+  Future<void> showRewardedAd({
+    required VoidCallback onRewarded,
+    VoidCallback? onUnavailable,
     String placement = 'user_reward',
-  }) {
-    _rewardedAd?.fullScreenContentCallback = FullScreenContentCallback(
-      onAdDismissedFullScreenContent: (ad) {
-        ad.dispose();
-        _rewardedAd = null;
+  }) async {
+    if (!_adsEnabled) {
+      onUnavailable?.call();
+      return;
+    }
+    if (!isRewardedAdReady) {
+      _rewardedAd?.dispose();
+      _rewardedAd = null;
+      _rewardedRetries = 0; // user intent re-arms a stopped retry cycle
+      preloadRewardedAd();
+      final waitUntil = DateTime.now().add(const Duration(seconds: 5));
+      while (_rewardedLoading && DateTime.now().isBefore(waitUntil)) {
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+    }
+    final ad = _rewardedAd;
+    if (ad == null || !_isFresh(_rewardedLoadedAt, _fullScreenAdTtl)) {
+      AnalyticsService().logAdUnavailable(adFormat: 'rewarded', placement: placement);
+      onUnavailable?.call();
+      return;
+    }
+    _rewardedAd = null;
+    ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'rewarded', placement: placement);
+        a.dispose();
+        preloadRewardedAd();
       },
-      onAdFailedToShowFullScreenContent: (ad, error) {
-        ad.dispose();
-        _rewardedAd = null;
+      onAdFailedToShowFullScreenContent: (a, error) {
+        developer.log('Rewarded show failed: ${error.message}', name: 'Ads');
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'rewarded',
+          placement: placement,
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
+        a.dispose();
+        preloadRewardedAd();
       },
     );
     _lastRewardedAt = DateTime.now();
     AnalyticsService().logAdImpression(adFormat: 'rewarded', placement: placement);
-    _rewardedAd?.show(
+    ad.show(
       onUserEarnedReward: (ad, reward) {
         // Earned = watched through; distinct from the impression above so
         // completion rate per placement is measurable.
@@ -206,20 +490,48 @@ class AdService {
         onRewarded();
       },
     );
-    _rewardedAd = null;
   }
 
   // --- App open (on resume, heavily capped) ---
 
   void loadAppOpenAd() {
-    if (!_fullScreenAdsEnabled || _appOpenAd != null) return;
+    if (!_fullScreenAdsEnabled) return;
+    if (_appOpenAd != null && _isFresh(_appOpenLoadedAt, _appOpenAdTtl)) {
+      return;
+    }
+    _appOpenAd?.dispose();
+    _appOpenAd = null;
+    AnalyticsService().logAdLoadStart(adFormat: 'app_open', placement: 'resume');
+    final aoLoadStartMs = DateTime.now().millisecondsSinceEpoch;
     AppOpenAd.load(
       adUnitId: RemoteConfigService().appOpenAdUnitId,
       request: const AdRequest(),
       orientation: AppOpenAd.orientationPortrait,
       adLoadCallback: AppOpenAdLoadCallback(
-        onAdLoaded: (ad) => _appOpenAd = ad,
-        onAdFailedToLoad: (error) {},
+        onAdLoaded: (ad) {
+          _appOpenAd = ad;
+          _appOpenLoadedAt = DateTime.now();
+          _appOpenRetries = 0;
+          AnalyticsService().logAdLoadSuccess(
+            adFormat: 'app_open',
+            placement: 'resume',
+            loadTimeMs: DateTime.now().millisecondsSinceEpoch - aoLoadStartMs,
+          );
+        },
+        onAdFailedToLoad: (error) {
+          developer.log('App-open load failed: ${error.message}', name: 'Ads');
+          AnalyticsService().logAdLoadFailed(
+            adFormat: 'app_open',
+            placement: 'resume',
+            errorCode: '${error.code}',
+            errorMessage: error.message,
+            retryAttempt: _appOpenRetries,
+          );
+          if (_appOpenRetries < _maxLoadRetries) {
+            _appOpenRetries++;
+            Future.delayed(_retryDelay(_appOpenRetries), loadAppOpenAd);
+          }
+        },
       ),
     );
   }
@@ -239,17 +551,31 @@ class AdService {
       loadAppOpenAd(); // be ready for the next resume
       return;
     }
+    if (!_isFresh(_appOpenLoadedAt, _appOpenAdTtl)) {
+      ad.dispose();
+      _appOpenAd = null;
+      loadAppOpenAd();
+      return;
+    }
     _appOpenAd = null;
     _showingAppOpen = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
       onAdDismissedFullScreenContent: (a) {
+        AnalyticsService().logAdDismissed(adFormat: 'app_open', placement: 'resume');
         a.dispose();
         _showingAppOpen = false;
         loadAppOpenAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
+        AnalyticsService().logAdShowFailed(
+          adFormat: 'app_open',
+          placement: 'resume',
+          errorCode: '${error.code}',
+          errorMessage: error.message,
+        );
         a.dispose();
         _showingAppOpen = false;
+        loadAppOpenAd();
       },
     );
     _lastAppOpenAt = now;
@@ -258,8 +584,9 @@ class AdService {
   }
 
   void dispose() {
-    _interstitialAd?.dispose();
-    _rewardedAd?.dispose();
-    _appOpenAd?.dispose();
+    try { _interstitialAd?.dispose(); } catch (_) {}
+    try { _rewardedAd?.dispose(); } catch (_) {}
+    try { _rewardedInterstitialAd?.dispose(); } catch (_) {}
+    try { _appOpenAd?.dispose(); } catch (_) {}
   }
 }

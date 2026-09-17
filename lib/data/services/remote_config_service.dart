@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/config/flavor.dart';
@@ -12,13 +13,23 @@ class RemoteConfigService {
 
   final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
 
+  void Function(String updateUrl)? onForceUpdateTriggered;
+
   Future<void> initialize() async {
     try {
-      // Set Remote Config settings (low fetch interval for debugging/development)
+      // Set Remote Config settings (0s in debug for instant testing, 5m in production)
       await _remoteConfig.setConfigSettings(RemoteConfigSettings(
         fetchTimeout: const Duration(seconds: 10),
-        minimumFetchInterval: const Duration(hours: 1),
+        minimumFetchInterval: kDebugMode ? Duration.zero : const Duration(minutes: 5),
       ));
+
+      // Listen for real-time Remote Config updates published from Firebase Console
+      _remoteConfig.onConfigUpdated.listen((event) async {
+        await _remoteConfig.activate();
+        AppConfig.showAds = showAds;
+        developer.log('Remote Config updated in real-time!', name: 'RemoteConfig');
+        _checkForceUpdateRealtime();
+      });
 
       // Set defaults for Remote Config
       await _remoteConfig.setDefaults(<String, dynamic>{
@@ -32,7 +43,48 @@ class RemoteConfigService {
         // Ad pacing — tune from the console without a release.
         'pixelyart_interstitial_cooldown_s': 90,
         'pixelyart_interstitial_min_session_s': 120,
+        'pixelyart_interstitial_max_per_session': 4,
+        'pixelyart_interstitial_max_per_day': 12,
+        'pixelyart_interstitial_post_rewarded_s': 60,
+        'pixelyart_interstitial_min_progress_pct': 25,
         'pixelyart_app_open_cooldown_s': 14400,
+        // Collapsible bottom banner (typical 15-30% eCPM lift); bool so it
+        // can be killed or A/B-tested from the console.
+        'pixelyart_banner_collapsible': true,
+        // Rewarded interstitial at the "next artwork" transition. Disabled
+        // until an ad unit id is set here (create a *rewarded interstitial*
+        // unit in AdMob first — the plain rewarded unit will not serve).
+        'pixelyart_rewarded_interstitial_ad_unit_id': '',
+        'pixelyart_next_art_reward_diamonds': 20,
+        // Native ads in the home grid. Disabled until a *native advanced*
+        // ad unit id is set here.
+        'pixelyart_native_ad_unit_id': '',
+        'pixelyart_home_native_ads_enabled': true,
+        // Free-diamond rewarded placements (shop tile, home pill, streak
+        // bonus) — amounts and caps tunable per flavor from the console.
+        'pixelyart_free_diamonds_enabled': true,
+        'pixelyart_rewarded_diamonds_amount': 25,
+        'pixelyart_rewarded_diamonds_daily_cap': 5,
+        'pixelyart_premium_artworks_enabled': true,
+        'pixelyart_diamond_cost_unlock_art': 100,
+        'pixelyart_plus_1day_product_id': 'pixel_art_plus_1day',
+        'pixelyart_plus_weekly_product_id': 'pixel_art_plus_weekly',
+        'pixelyart_plus_monthly_product_id': 'pixel_art_plus_monthly',
+        'pixelyart_plus_yearly_product_id': 'pixel_art_plus_yearly',
+        'pixelyart_remove_ads_product_id': 'pixel_art_remove_ads',
+
+        'pixelyart_plus_1day_price': '\$0.99 / day',
+        'pixelyart_plus_weekly_price': '\$2.99 / wk',
+        'pixelyart_plus_monthly_price': '\$7.99 / mo',
+        'pixelyart_plus_yearly_price': '\$29.99 / yr',
+        'pixelyart_remove_ads_price': '\$4.99',
+        'pixelyart_lifetime_pro_price': '\$19.99',
+
+        'pixelyart_plus_1day_offer': '24-Hour Pass',
+        'pixelyart_plus_weekly_offer': '7 Days Free Trial',
+        'pixelyart_plus_monthly_offer': 'Most Popular',
+        'pixelyart_plus_yearly_offer': 'Save 65% Best Value',
+        'pixelyart_remove_ads_offer': 'One-Time Purchase',
         // Flavor-specific show_ads defaults. All flavors monetize with ads;
         // PixelCalm is limited to banner + rewarded via
         // FlavorConfig.fullScreenAdsEnabled (no interstitial/app-open there).
@@ -42,6 +94,7 @@ class RemoteConfigService {
         'anime_show_ads': true,
         'pixelcalm_show_ads': true,
         'diamond_show_ads': true,
+        'bible_show_ads': true,
       });
 
       // Fetch and activate config parameters
@@ -129,7 +182,185 @@ class RemoteConfigService {
   int get interstitialMinSessionSeconds =>
       _getInt('interstitial_min_session_s', 120);
 
+  /// Hard ceiling on interstitials in one app session. The cooldown alone
+  /// lets a long session serve 20+; this caps the total.
+  int get interstitialMaxPerSession =>
+      _getInt('interstitial_max_per_session', 4);
+
+  /// Hard ceiling on interstitials per calendar day, across sessions.
+  int get interstitialMaxPerDay => _getInt('interstitial_max_per_day', 12);
+
+  /// Suppression window after a rewarded ad — an interstitial right on the
+  /// heels of a rewarded feels like a double-charge.
+  int get interstitialPostRewardedSeconds =>
+      _getInt('interstitial_post_rewarded_s', 60);
+
+  /// A session that reached this much artwork progress may see an exit
+  /// interstitial even below the min-session length (a user who coloured a
+  /// quarter of a piece in 110s is not a drive-by).
+  int get interstitialMinProgressPct =>
+      _getInt('interstitial_min_progress_pct', 25);
+
   /// Minimum gap between two app-open ads.
   int get appOpenCooldownSeconds =>
       _getInt('app_open_cooldown_s', 14400);
+
+  /// Whether banners request the collapsible-bottom variant.
+  bool get bannerCollapsibleEnabled => _getBool('banner_collapsible');
+
+  /// Rewarded-interstitial unit for the "next artwork" moment. Empty (the
+  /// default) disables the placement and falls back to the exit interstitial.
+  String get rewardedInterstitialAdUnitId =>
+      _getString('rewarded_interstitial_ad_unit_id');
+
+  /// Diamonds granted for watching the "next artwork" rewarded interstitial.
+  int get nextArtRewardDiamonds => _getInt('next_art_reward_diamonds', 20);
+
+  /// Native-advanced unit for the home grid. Empty (the default) disables
+  /// native ads entirely.
+  String get nativeAdUnitId => _getString('native_ad_unit_id');
+
+  /// Kill switch for home-grid native ads (unit id must also be set).
+  bool get homeNativeAdsEnabled => _getBool('home_native_ads_enabled');
+
+  // --- Free-diamond rewarded placements ---
+
+  /// Kill switch for the diamond-earning rewarded placements. A bool because
+  /// [_getInt] treats 0 as "unset" and can't express "off".
+  bool get freeDiamondsEnabled => _getBool('free_diamonds_enabled');
+
+  /// Diamonds granted per capped free-diamond claim (shop tile + home pill).
+  int get rewardedDiamondsAmount => _getInt('rewarded_diamonds_amount', 25);
+
+  /// Shared daily cap across the shop tile and home pill.
+  int get rewardedDiamondsDailyCap =>
+      _getInt('rewarded_diamonds_daily_cap', 5);
+
+  /// Diamonds for the once-a-day streak bonus claim on the daily banner.
+  int get dailyStreakAdBonus => _getInt('daily_streak_ad_bonus', 30);
+
+  // --- Dynamic Premium Artworks & Subscription Product IDs ---
+
+  /// Global toggle to enable/disable premium artwork enforcement dynamically from Admin/Remote Config.
+  bool get premiumArtworksEnabled => _getBool('premium_artworks_enabled');
+
+  String get plus1DayProductId {
+    final id = _getString('plus_1day_product_id');
+    return id.isNotEmpty ? id : AppConstants.plus1DayProductId;
+  }
+
+  String get plusWeeklyProductId {
+    final id = _getString('plus_weekly_product_id');
+    return id.isNotEmpty ? id : AppConstants.plusWeeklyProductId;
+  }
+
+  String get plusMonthlyProductId {
+    final id = _getString('plus_monthly_product_id');
+    return id.isNotEmpty ? id : AppConstants.plusMonthlyProductId;
+  }
+
+  String get plusYearlyProductId {
+    final id = _getString('plus_yearly_product_id');
+    return id.isNotEmpty ? id : AppConstants.plusYearlyProductId;
+  }
+
+  String get removeAdsProductId {
+    final id = _getString('remove_ads_product_id');
+    return id.isNotEmpty ? id : AppConstants.removeAdsProductId;
+  }
+
+  // --- Dynamic Fallback Prices & Offer Badges ---
+
+  String get plus1DayFallbackPrice {
+    final p = _getString('plus_1day_price');
+    return p.isNotEmpty ? p : '\$0.99 / day';
+  }
+
+  String get plusWeeklyFallbackPrice {
+    final p = _getString('plus_weekly_price');
+    return p.isNotEmpty ? p : '\$2.99 / wk';
+  }
+
+  String get plusMonthlyFallbackPrice {
+    final p = _getString('plus_monthly_price');
+    return p.isNotEmpty ? p : '\$7.99 / mo';
+  }
+
+  String get plusYearlyFallbackPrice {
+    final p = _getString('plus_yearly_price');
+    return p.isNotEmpty ? p : '\$29.99 / yr';
+  }
+
+  String get removeAdsFallbackPrice {
+    final p = _getString('remove_ads_price');
+    return p.isNotEmpty ? p : '\$4.99';
+  }
+
+  String get lifetimeProFallbackPrice {
+    final p = _getString('lifetime_pro_price');
+    return p.isNotEmpty ? p : '\$19.99';
+  }
+
+  String get plus1DayOfferText {
+    final o = _getString('plus_1day_offer');
+    return o.isNotEmpty ? o : '24-Hour Pass';
+  }
+
+  String get plusWeeklyOfferText {
+    final o = _getString('plus_weekly_offer');
+    return o.isNotEmpty ? o : '7 Days Free Trial';
+  }
+
+  String get plusMonthlyOfferText {
+    final o = _getString('plus_monthly_offer');
+    return o.isNotEmpty ? o : 'Most Popular';
+  }
+
+  String get plusYearlyOfferText {
+    final o = _getString('plus_yearly_offer');
+    return o.isNotEmpty ? o : 'Save 65% Best Value';
+  }
+
+  String get removeAdsOfferText {
+    final o = _getString('remove_ads_offer');
+    return o.isNotEmpty ? o : 'One-Time Purchase';
+  }
+
+  /// Cost in diamonds to permanently unlock a single premium artwork.
+  int get diamondCostUnlockArt =>
+      _getInt('diamond_cost_unlock_art', AppConstants.diamondCostUnlockArt);
+
+  Future<void> _checkForceUpdateRealtime() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final currentVersion = packageInfo.version;
+      final minVersion = minRequiredVersion;
+      if (_isVersionOlder(currentVersion, minVersion)) {
+        onForceUpdateTriggered?.call(forceUpdateUrl);
+      }
+    } catch (e) {
+      developer.log('Realtime force update check error', error: e);
+    }
+  }
+
+  static bool _isVersionOlder(String current, String required) {
+    final currentClean = current.split('+')[0];
+    final requiredClean = required.split('+')[0];
+
+    final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final requiredParts = requiredClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+
+    while (currentParts.length < 3) {
+      currentParts.add(0);
+    }
+    while (requiredParts.length < 3) {
+      requiredParts.add(0);
+    }
+
+    for (int i = 0; i < 3; i++) {
+      if (currentParts[i] < requiredParts[i]) return true;
+      if (currentParts[i] > requiredParts[i]) return false;
+    }
+    return false;
+  }
 }

@@ -6,8 +6,9 @@ import '../../providers/app_settings_provider.dart';
 import '../../data/services/ad_service.dart';
 import '../../config/app_config.dart';
 import '../theme/app_style.dart';
-import 'package:pixel_art_app/data/services/economy_config_service.dart';
+import '../../data/services/economy_config_service.dart';
 import 'diamond_shop_sheet.dart';
+import 'pressable.dart';
 
 class NumberToolbar extends StatelessWidget {
   final ColoringProvider provider;
@@ -47,37 +48,23 @@ class NumberToolbar extends StatelessWidget {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Loading Ad to refill $toolName...'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-    adService.loadRewardedAd(
-      onLoaded: () {
-        adService.showRewardedAd(
-          placement: 'refill_${toolName.toLowerCase().replaceAll(' ', '_')}',
-          onRewarded: () {
-            onRefilled();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('+1 $toolName refilled!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          },
-        );
-      },
-      onFailed: () {
-        // Fallback in case loading fails on some devices during testing
+    adService.showRewardedAd(
+      placement: 'refill_${toolName.toLowerCase().replaceAll(' ', '_')}',
+      onRewarded: () {
+        onRefilled();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Failed to load ad. Refilling anyway for test...'),
-            backgroundColor: Colors.orange,
-            duration: Duration(seconds: 1),
+          SnackBar(
+            content: Text('+1 $toolName refilled!'),
+            backgroundColor: Colors.green,
           ),
         );
-        onRefilled();
+      },
+      onUnavailable: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No ad available right now — try again later.'),
+          ),
+        );
       },
     );
   }
@@ -175,7 +162,7 @@ class NumberToolbar extends StatelessWidget {
             },
           ),
 
-          // 2. Bomb Tool (Fills 3x3 correct pixels)
+          // 2. Bomb Tool (Fills 7x7 correct pixels)
           _ToolCircleButton(
             icon: SizedBox(
               width: 24,
@@ -268,8 +255,9 @@ class _ToolCircleButton extends StatelessWidget {
     final isAd = badgeValue == 'ad';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return GestureDetector(
+    return PressableScale(
       onTap: onTap,
+      scale: 0.9,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
