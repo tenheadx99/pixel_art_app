@@ -219,7 +219,7 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
   }
 
   /// Spawns a high-impact bomb explosion animation with shockwave rings,
-  /// fiery flash cores, and exploding particle embers across the 7x7 area.
+  /// fiery flash cores, and exploding particle embers across the circular blast area.
   void spawnBombExplosion(int row, int col, Color color) {
     final now = _nowMs;
 
@@ -232,10 +232,10 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
       startMs: now,
     ));
 
-    // 2. High-density exploding embers (16 flying particles)
-    for (var i = 0; i < 16; i++) {
+    // 2. High-density exploding embers (24 flying particles for bigger blast)
+    for (var i = 0; i < 24; i++) {
       final angle = _rnd.nextDouble() * math.pi * 2;
-      final speed = 2.5 + _rnd.nextDouble() * 3.5;
+      final speed = 2.8 + _rnd.nextDouble() * 4.2;
       final emberColor = i % 3 == 0
           ? const Color(0xFFFFD700)
           : (i % 3 == 1 ? const Color(0xFFFF4500) : const Color(0xFFFF8C00));
@@ -685,8 +685,8 @@ class _FillEffectsPainter extends CustomPainter {
     double t,
     Color color,
   ) {
-    // 7x7 radius in pixels is cellPx * 3.8
-    final maxRadius = cellPx * 3.8;
+    // Radius in pixels is cellPx * 5.5 (diameter ~11 cells matching the circular blast)
+    final maxRadius = cellPx * 5.5;
 
     // A. Expanding Fiery Core Flash
     final flashProgress = (t / 0.5).clamp(0.0, 1.0);
@@ -732,7 +732,7 @@ class _FillEffectsPainter extends CustomPainter {
     _FillEffect e,
   ) {
     // Ember position travels outward along velocity vector
-    final dist = cellPx * (0.8 + t * 3.5);
+    final dist = cellPx * (1.0 + t * 4.8);
     final offset = Offset(
       c.dx + e.velocityX * dist * 0.4,
       c.dy + e.velocityY * dist * 0.4,

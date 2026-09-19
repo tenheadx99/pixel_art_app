@@ -276,6 +276,51 @@ void main() {
       expect(provider.filledGrid[2][2], 1);
     });
 
+    test('bomb fills circular pattern with larger diameter and leaves corners unfilled', () async {
+      // 15x15 art where all cells are color 1
+      final grid15 = List.generate(15, (_) => List.generate(15, (_) => 1));
+      final art15 = PixelArt(
+        id: 'art_15',
+        name: 'Art 15',
+        gridWidth: 15,
+        gridHeight: 15,
+        grid: grid15,
+        colorMap: {1: const Color(0xFFFF0000)},
+      );
+      final provider = await _providerWith({});
+      provider.loadArt(art15);
+
+      // Tap bomb at center (7, 7)
+      provider.toggleBombMode();
+      provider.tryFillCell(7, 7);
+
+      // Center (7, 7) is filled
+      expect(provider.filledGrid[7][7], 1);
+      // Cardinal extremities at distance 5 are filled (diameter 11):
+      expect(provider.filledGrid[2][7], 1);
+      expect(provider.filledGrid[12][7], 1);
+      expect(provider.filledGrid[7][2], 1);
+      expect(provider.filledGrid[7][12], 1);
+
+      // Bounding box corners at dr=5,dc=5 or dr=4,dc=4 are NOT filled in circular fill:
+      expect(provider.filledGrid[2][2], 0);
+      expect(provider.filledGrid[2][12], 0);
+      expect(provider.filledGrid[12][2], 0);
+      expect(provider.filledGrid[12][12], 0);
+      expect(provider.filledGrid[3][3], 0);
+      expect(provider.filledGrid[3][11], 0);
+
+      // Total filled cells: should be 89 cells (much bigger than previous 49)
+      int totalFilled = 0;
+      for (var r = 0; r < 15; r++) {
+        for (var c = 0; c < 15; c++) {
+          if (provider.filledGrid[r][c] == 1) totalFilled++;
+        }
+      }
+      expect(totalFilled, 89);
+      expect(totalFilled > 49, isTrue);
+    });
+
     test('erase mode sets filled cell back to 0', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());

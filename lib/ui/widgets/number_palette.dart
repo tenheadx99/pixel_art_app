@@ -7,8 +7,13 @@ import '../theme/app_style.dart';
 
 class NumberPalette extends StatefulWidget {
   final ColoringProvider provider;
+  final void Function(int number)? onNumberReTapped;
 
-  const NumberPalette({super.key, required this.provider});
+  const NumberPalette({
+    super.key,
+    required this.provider,
+    this.onNumberReTapped,
+  });
 
   @override
   State<NumberPalette> createState() => _NumberPaletteState();
@@ -178,7 +183,11 @@ class _NumberPaletteState extends State<NumberPalette> {
           return GestureDetector(
             onTap: () {
               HapticFeedback.selectionClick();
-              provider.selectNumber(number);
+              if (provider.selectedNumber == number) {
+                widget.onNumberReTapped?.call(number);
+              } else {
+                provider.selectNumber(number);
+              }
             },
             child: Center(
               child: Padding(

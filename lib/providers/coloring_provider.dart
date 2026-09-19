@@ -1458,10 +1458,12 @@ class ColoringProvider extends ChangeNotifier {
 
     bool changed = false;
 
-    // Primary explosion: 7x7 area (radius 3) around the tapped position
-    const radius = 3;
+    // Primary explosion: circular area (radius ~5.2, diameter 11) around the tapped position
+    const radius = 5;
+    const maxDistSq = 28; // Smooth circular shape with symmetric 3-wide poles
     for (var dr = -radius; dr <= radius; dr++) {
       for (var dc = -radius; dc <= radius; dc++) {
+        if (dr * dr + dc * dc > maxDistSq) continue;
         final r = row + dr;
         final c = col + dc;
         if (r < 0 || r >= _currentArt!.gridHeight) continue;
@@ -1476,17 +1478,20 @@ class ColoringProvider extends ChangeNotifier {
       }
     }
 
-    // Fallback: If the immediate 7x7 area was already completely filled,
-    // search outwards to explode the nearest unfilled cells so a bomb is NEVER wasted.
+    // Fallback: If the immediate circular area was already completely filled,
+    // search outwards in rings to explode the nearest unfilled cells so a bomb is NEVER wasted.
     if (!changed) {
       final maxDist = math.max(_currentArt!.gridHeight, _currentArt!.gridWidth);
       int filledInFallback = 0;
-      const targetMaxFills = 25;
+      const targetMaxFills = 40;
 
       for (var dist = radius + 1; dist <= maxDist; dist++) {
+        final distSqMin = (dist - 1) * (dist - 1);
+        final distSqMax = dist * dist + 3;
         for (var dr = -dist; dr <= dist; dr++) {
           for (var dc = -dist; dc <= dist; dc++) {
-            if (dr.abs() != dist && dc.abs() != dist) continue;
+            final dSq = dr * dr + dc * dc;
+            if (dSq <= distSqMin || dSq > distSqMax) continue;
             final r = row + dr;
             final c = col + dc;
             if (r < 0 || r >= _currentArt!.gridHeight) continue;

@@ -2544,7 +2544,10 @@ class _ColoringScreenState extends State<ColoringScreen>
                 onHint: () => _useHint(provider, settings),
               ),
               const SizedBox(height: 12),
-              NumberPalette(provider: provider),
+              NumberPalette(
+                provider: provider,
+                onNumberReTapped: (number) => _locateNextCellForNumber(number),
+              ),
               // The coloring screen is where users spend their time — the banner
               // lives here for free users.
               if (!settings.isProUser)
@@ -2556,6 +2559,19 @@ class _ColoringScreenState extends State<ColoringScreen>
           ),
         ),
     );
+  }
+
+  /// Locates and smooth-zooms to the next unfilled cell of [number] without spending a hint.
+  void _locateNextCellForNumber(int number) {
+    final provider = _coloringProvider;
+    if (provider == null) return;
+    final target = provider.nextFillable;
+    if (target != null) {
+      _zoomToCell(target.$1, target.$2);
+      _showInfoSnack('Focusing on #$number 📍');
+    } else {
+      _showInfoSnack('#$number is already completed! ✨');
+    }
   }
 
   /// Spends a hint to fill one correct cell and zooms the viewport to it.

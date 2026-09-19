@@ -117,46 +117,74 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: Colors.white.withAlpha(20),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6C5CE7).withAlpha(100),
+                    blurRadius: 20,
+                    offset: const Offset(0, 6),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.palette_rounded,
+                size: 44,
+                color: Colors.white,
+              ),
             ),
-            child: const Icon(
-              Icons.photo_library_outlined,
-              size: 56,
-              color: Colors.white38,
+            const SizedBox(height: 24),
+            const Text(
+              'Your Canvas is Empty',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'No saved artwork yet',
-            style: TextStyle(
-              color: Colors.white70,
-              fontSize: 18,
-              fontWeight: FontWeight.w500,
+            const SizedBox(height: 8),
+            Text(
+              'Color artworks from the catalog to build your personal gallery collection!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withAlpha(180),
+                fontSize: 13.5,
+                height: 1.4,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Complete a pixel art and save it!',
-            style: TextStyle(color: Colors.white.withAlpha(100), fontSize: 14),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.brush_rounded, size: 18),
-            label: const Text('Start coloring'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: const Color(0xFF6C5CE7),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.brush_rounded, size: 18),
+              label: const Text(
+                'Start Your First Artwork 🎨',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                foregroundColor: const Color(0xFF6C5CE7),
+                elevation: 4,
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 13),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

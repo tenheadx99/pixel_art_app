@@ -1505,11 +1505,13 @@ class _DailyPixelBanner extends StatelessWidget {
     final done = gallery.dailyCompletedToday;
     final claimable = done && showBonusClaim && onClaimBonus != null;
     final now = DateTime.now();
-    final hoursToNext = DateTime(
+    final remaining = DateTime(
       now.year,
       now.month,
       now.day + 1,
-    ).difference(now).inHours;
+    ).difference(now);
+    final hoursToNext = remaining.inHours;
+    final minsToNext = remaining.inMinutes % 60;
     final settings = context.read<AppSettingsProvider>();
 
     return PressableScale(
@@ -1587,8 +1589,8 @@ class _DailyPixelBanner extends StatelessWidget {
                       const SizedBox(width: 4),
                       Text(
                         done
-                            ? '${gallery.dailyStreak} day streak · new in ${hoursToNext}h'
-                            : '${gallery.dailyStreak} day streak',
+                            ? '${gallery.dailyStreak} day streak · new in ${hoursToNext}h ${minsToNext}m'
+                            : '${gallery.dailyStreak} day streak · ⏳ ${hoursToNext}h left',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 12,
@@ -2098,6 +2100,22 @@ class _CategoryFilter extends StatelessWidget {
 
   const _CategoryFilter({required this.gallery});
 
+  static String _categoryEmoji(String cat) {
+    final lower = cat.toLowerCase();
+    if (lower == 'all') return '✨';
+    if (lower.contains('animal') || lower.contains('cat') || lower.contains('dog')) return '🐾';
+    if (lower.contains('food') || lower.contains('fruit') || lower.contains('sweet')) return '🍕';
+    if (lower.contains('mandala') || lower.contains('pattern')) return '🏵️';
+    if (lower.contains('nature') || lower.contains('flower') || lower.contains('garden')) return '🌿';
+    if (lower.contains('bird')) return '🦜';
+    if (lower.contains('fantasy') || lower.contains('magic')) return '🔮';
+    if (lower.contains('vehicle') || lower.contains('car')) return '🚗';
+    if (lower.contains('people') || lower.contains('face') || lower.contains('character')) return '👤';
+    if (lower.contains('simple') || lower.contains('easy')) return '⭐';
+    if (lower.contains('ocean') || lower.contains('sea')) return '🐠';
+    return '🎨';
+  }
+
   @override
   Widget build(BuildContext context) {
     final categories = gallery.categories;
@@ -2157,7 +2175,7 @@ class _CategoryFilter extends StatelessWidget {
                 duration: const Duration(milliseconds: 350),
                 curve: Curves.easeInOut,
                 padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
+                  horizontal: 16,
                   vertical: 10,
                 ),
                 decoration: BoxDecoration(
@@ -2188,13 +2206,20 @@ class _CategoryFilter extends StatelessWidget {
                         ]
                       : null,
                 ),
-                child: Text(
-                  cat,
-                  style: TextStyle(
-                    color: isSelected ? Colors.white : null,
-                    fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                    fontSize: 14,
-                  ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(_categoryEmoji(cat), style: const TextStyle(fontSize: 13)),
+                    const SizedBox(width: 5),
+                    Text(
+                      cat,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : null,
+                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -2425,20 +2450,40 @@ class _PixelArtCard extends StatelessWidget {
                   left: 8,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
+                      horizontal: 7,
+                      vertical: 3.5,
                     ),
                     decoration: BoxDecoration(
-                      color: AppStyle.primary,
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Text(
-                      '$progressPercent%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
                       ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF6C5CE7).withAlpha(90),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.brush_rounded,
+                          size: 10,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 3),
+                        Text(
+                          '$progressPercent%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

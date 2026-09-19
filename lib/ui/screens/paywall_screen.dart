@@ -262,6 +262,40 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 13.5, color: subColor),
                       ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFB300).withAlpha(isDark ? 35 : 25),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: const Color(0xFFFFB300).withAlpha(100),
+                            width: 1,
+                          ),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.star_rounded,
+                              size: 16,
+                              color: Color(0xFFFFB300),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              '4.8 Rating  •  Over 100,000+ Happy Artists',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color: Color(0xFFFFB300),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 16),
 
                       // Global perks summary
