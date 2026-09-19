@@ -149,9 +149,13 @@ class AppConstants {
   // How long a cell takes to "grow in" from the preview to full color (taps
   // only; strokes snap so fast swipes stay smooth). Cap bounds the registry.
   static const int fillGrowMs = 220;
-  static const int fillGrowMaxCells = 64;
+  static const int fillGrowMaxCells = 1024;
   // How long a fill's timestamp stays available after the flat-grid grow ends:
   // the gem shader's settle/glint/afterglow timeline (~0.55s) plus swipe
   // stagger headroom reads ages from this registry.
-  static const int fillGrowRetentionMs = 700;
+  static const int fillGrowRetentionMs = 800;
+
+  // Stagger intervals between successive wave rings (ms per ring)
+  static const int bombWaveRingDelayMs = 26;
+  static const int wandWaveRingDelayMs = 20;
 }

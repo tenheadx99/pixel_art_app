@@ -253,6 +253,33 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     }
   }
 
+  /// Spawns magical sparkle bursts along the topological flood wave front.
+  void spawnFloodWave(
+    List<List<(int r, int c)>> rings,
+    Color color, {
+    int delayMs = AppConstants.wandWaveRingDelayMs,
+  }) {
+    final now = _nowMs;
+    for (var ringIdx = 0; ringIdx < rings.length; ringIdx++) {
+      final ringTime = now + ringIdx * delayMs;
+      final ring = rings[ringIdx];
+      // Pick up to 3 representative cells per ring to keep particle overlay light & fast
+      final stride = (ring.length / 3).ceil().clamp(1, 100);
+      for (var i = 0; i < ring.length; i += stride) {
+        final (r, c) = ring[i];
+        _add(_FillEffect(
+          kind: _EffectKind.sparkle,
+          row: r,
+          col: c,
+          color: color,
+          startMs: ringTime,
+          sparkleCount: 4,
+          seed: _rnd.nextDouble() * math.pi * 2,
+        ));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     // RepaintBoundary is critical: this layer repaints every frame while
@@ -326,6 +353,7 @@ class _FillEffectsPainter extends CustomPainter {
     // Iterate over a snapshot length to tolerate concurrent pruning.
     for (var i = 0; i < effects.length; i++) {
       final e = effects[i];
+      if (now < e.startMs) continue;
       final t = ((now - e.startMs) / lifetime).clamp(0.0, 1.0);
       if (t >= 1.0) continue;
       final center = MatrixUtils.transformPoint(

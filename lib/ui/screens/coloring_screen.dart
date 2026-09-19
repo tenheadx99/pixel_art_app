@@ -230,6 +230,17 @@ class _ColoringScreenState extends State<ColoringScreen>
         _growController.handleTick(DateTime.now().millisecondsSinceEpoch);
         if (_growController.isEmpty) _growTicker.stop();
       });
+    _growController.onRingRevealed = (ringIndex, cells, totalRings) {
+      if (!mounted) return;
+      if (_settings?.soundsEnabled ?? true) {
+        final ratio = totalRings > 1 ? (ringIndex / (totalRings - 1)) : 0.0;
+        final chimeRate = 0.92 + ratio * 0.45;
+        context.read<SoundService>().playComboChime(rate: chimeRate);
+      }
+      if (_settings?.hapticsEnabled ?? true) {
+        HapticFeedback.selectionClick();
+      }
+    };
     _gridFadeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
@@ -309,16 +320,12 @@ class _ColoringScreenState extends State<ColoringScreen>
           }
         }
         ..onBombExploded = (row, col) {
-          if (_settings?.fillEffectsEnabled ?? true) {
-            final color = provider.cellFillColor(row, col) ?? const Color(0xFFFF5252);
-            _fxKey.currentState?.spawnBombExplosion(row, col, color);
-          }
-          if (_settings?.soundsEnabled ?? true) {
-            soundService.playComboChime(rate: 0.85);
-          }
           if (_settings?.hapticsEnabled ?? true) {
             provider.bombHaptic();
           }
+        }
+        ..onWaveFill = (centerRow, centerCol, rings, type) {
+          _onWaveFill(centerRow, centerCol, rings, type);
         };
       _maybeShowLongPressTip();
       // Fire enter event after art is fully loaded so progress_pct is accurate.
@@ -381,6 +388,34 @@ class _ColoringScreenState extends State<ColoringScreen>
         if (_settings?.hapticsEnabled ?? true) {
           provider.comboHaptic(tier);
         }
+      }
+    }
+  }
+
+  /// Triggers a dynamic wave animation across the grid when Bomb or Fill is used.
+  void _onWaveFill(
+    int centerRow,
+    int centerCol,
+    List<List<(int r, int c)>> rings,
+    WaveFillType type,
+  ) {
+    if (rings.isEmpty) return;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    final isBomb = type == WaveFillType.bomb;
+    final delay = isBomb
+        ? AppConstants.bombWaveRingDelayMs
+        : AppConstants.wandWaveRingDelayMs;
+
+    _growController.addWave(rings, nowMs, ringDelayMs: delay);
+    if (!_growTicker.isAnimating) _growTicker.repeat();
+
+    if (_settings?.fillEffectsEnabled ?? true) {
+      final color = _coloringProvider?.cellFillColor(centerRow, centerCol) ??
+          (isBomb ? const Color(0xFFFF5252) : AppStyle.primary);
+      if (isBomb) {
+        _fxKey.currentState?.spawnBombExplosion(centerRow, centerCol, color);
+      } else {
+        _fxKey.currentState?.spawnFloodWave(rings, color, delayMs: delay);
       }
     }
   }
@@ -593,6 +628,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       provider.onCellFilledAt = null;
       provider.onWrongTap = null;
       provider.onBombExploded = null;
+      provider.onWaveFill = null;
     }
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).

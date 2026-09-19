@@ -250,6 +250,36 @@ void main() {
       expect(provider.filledGrid[2][2], 0);
     });
 
+    test('magic wand triggers onWaveFill with topological BFS depth rings', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(largerTestArt());
+
+      List<List<(int, int)>>? capturedRings;
+      WaveFillType? capturedType;
+      int? capturedCenterR;
+      int? capturedCenterC;
+
+      provider.onWaveFill = (r, c, rings, type) {
+        capturedCenterR = r;
+        capturedCenterC = c;
+        capturedRings = rings;
+        capturedType = type;
+      };
+
+      provider.toggleMagicWandMode();
+      provider.tryFillCell(0, 0);
+
+      expect(capturedType, WaveFillType.magicWand);
+      expect(capturedCenterR, 0);
+      expect(capturedCenterC, 0);
+      expect(capturedRings, isNotNull);
+      expect(capturedRings!.length, greaterThanOrEqualTo(2));
+      // Ring 0 is the starting cell
+      expect(capturedRings![0], [(0, 0)]);
+      // Ring 1 contains distance-1 connected cells
+      expect(capturedRings![1], containsAll([(0, 1), (1, 0)]));
+    });
+
     test('bomb fills all non-zero cells in a 3x3 region and decrements bomb count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
@@ -319,6 +349,49 @@ void main() {
       }
       expect(totalFilled, 89);
       expect(totalFilled > 49, isTrue);
+    });
+
+    test('bomb triggers onWaveFill with concentric distance rings', () async {
+      final grid15 = List.generate(15, (_) => List.generate(15, (_) => 1));
+      final art15 = PixelArt(
+        id: 'art_15',
+        name: 'Art 15',
+        gridWidth: 15,
+        gridHeight: 15,
+        grid: grid15,
+        colorMap: {1: const Color(0xFFFF0000)},
+      );
+      final provider = await _providerWith({});
+      provider.loadArt(art15);
+
+      List<List<(int, int)>>? capturedRings;
+      WaveFillType? capturedType;
+      int? capturedCenterR;
+      int? capturedCenterC;
+
+      provider.onWaveFill = (r, c, rings, type) {
+        capturedCenterR = r;
+        capturedCenterC = c;
+        capturedRings = rings;
+        capturedType = type;
+      };
+
+      provider.toggleBombMode();
+      provider.tryFillCell(7, 7);
+
+      expect(capturedType, WaveFillType.bomb);
+      expect(capturedCenterR, 7);
+      expect(capturedCenterC, 7);
+      expect(capturedRings, isNotNull);
+      expect(capturedRings!.length, greaterThanOrEqualTo(5));
+      // Ring 0 contains the epicenter (7, 7)
+      expect(capturedRings![0], [(7, 7)]);
+      // All cells in ring 1 must be at Euclidean distance in [1, 2)
+      for (final (r, c) in capturedRings![1]) {
+        final distSq = (r - 7) * (r - 7) + (c - 7) * (c - 7);
+        expect(distSq, greaterThanOrEqualTo(1));
+        expect(distSq, lessThan(4));
+      }
     });
 
     test('erase mode sets filled cell back to 0', () async {

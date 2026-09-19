@@ -14,6 +14,8 @@ import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
+enum WaveFillType { bomb, magicWand }
+
 class ColoringProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
 
@@ -78,6 +80,9 @@ class ColoringProvider extends ChangeNotifier {
   void Function(int row, int col)? onWrongTap;
   // Fired when a bomb explodes so the UI can trigger high-impact explosion visual effects.
   void Function(int row, int col)? onBombExploded;
+  // Fired when a wave fill (Bomb or Magic Wand) triggers, delivering ordered
+  // concentric/BFS rings so the UI can play staggered wave animations.
+  void Function(int centerRow, int centerCol, List<List<(int r, int c)>> rings, WaveFillType type)? onWaveFill;
 
   Set<int> _getCompletedNumbers() => Set<int>.of(_completedNumbers);
 
@@ -1400,11 +1405,14 @@ class ColoringProvider extends ChangeNotifier {
     final height = _currentArt!.gridHeight;
     final queue = <int>[row * width + col];
     final visited = Uint8List(width * height);
+    final depths = <int, int>{row * width + col: 0};
+    final Map<int, List<(int, int)>> depthMap = {};
     var head = 0;
     bool changed = false;
 
     while (head < queue.length) {
       final idx = queue[head++];
+      final currentDepth = depths[idx] ?? 0;
       if (visited[idx] != 0) continue;
       visited[idx] = 1;
       final r = idx ~/ width;
@@ -1414,16 +1422,35 @@ class ColoringProvider extends ChangeNotifier {
         _setCell(r, c, targetNum);
         _recordTimeLapse(r, c);
         changed = true;
+        depthMap.putIfAbsent(currentDepth, () => []).add((r, c));
         onCellFilledCorrectly?.call();
 
-        if (r + 1 < height) queue.add(idx + width);
-        if (r - 1 >= 0) queue.add(idx - width);
-        if (c + 1 < width) queue.add(idx + 1);
-        if (c - 1 >= 0) queue.add(idx - 1);
+        void checkAndEnqueue(int nextIdx) {
+          if (visited[nextIdx] == 0) {
+            depths.putIfAbsent(nextIdx, () => currentDepth + 1);
+            queue.add(nextIdx);
+          }
+        }
+
+        if (r + 1 < height) checkAndEnqueue(idx + width);
+        if (r - 1 >= 0) checkAndEnqueue(idx - width);
+        if (c + 1 < width) checkAndEnqueue(idx + 1);
+        if (c - 1 >= 0) checkAndEnqueue(idx - 1);
       }
     }
 
     if (changed) {
+      final sortedDepths = depthMap.keys.toList()..sort();
+      final maxDepth = sortedDepths.isEmpty ? 0 : sortedDepths.last;
+      final groupSize = maxDepth > 12 ? (maxDepth / 10).ceil() : 1;
+      final Map<int, List<(int, int)>> grouped = {};
+      for (final d in sortedDepths) {
+        final groupIdx = d ~/ groupSize;
+        grouped.putIfAbsent(groupIdx, () => []).addAll(depthMap[d]!);
+      }
+      final sortedGroupKeys = grouped.keys.toList()..sort();
+      final waveRings = sortedGroupKeys.map((k) => grouped[k]!).toList();
+
       _commitUndo();
       _magicWandsCount--;
       _isMagicWandMode = false;
@@ -1434,6 +1461,7 @@ class ColoringProvider extends ChangeNotifier {
         artId: _currentArt?.id,
       );
       _haptic(HapticFeedback.mediumImpact);
+      onWaveFill?.call(row, col, waveRings, WaveFillType.magicWand);
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -1457,13 +1485,15 @@ class ColoringProvider extends ChangeNotifier {
     _beginUndo();
 
     bool changed = false;
+    final Map<int, List<(int, int)>> ringMap = {};
 
     // Primary explosion: circular area (radius ~5.2, diameter 11) around the tapped position
     const radius = 5;
     const maxDistSq = 28; // Smooth circular shape with symmetric 3-wide poles
     for (var dr = -radius; dr <= radius; dr++) {
       for (var dc = -radius; dc <= radius; dc++) {
-        if (dr * dr + dc * dc > maxDistSq) continue;
+        final dSq = dr * dr + dc * dc;
+        if (dSq > maxDistSq) continue;
         final r = row + dr;
         final c = col + dc;
         if (r < 0 || r >= _currentArt!.gridHeight) continue;
@@ -1474,6 +1504,9 @@ class ColoringProvider extends ChangeNotifier {
         _setCell(r, c, expectedNumber);
         _recordTimeLapse(r, c);
         changed = true;
+        final dist = math.sqrt(dSq);
+        final ringIndex = dist.floor();
+        ringMap.putIfAbsent(ringIndex, () => []).add((r, c));
         onCellFilledCorrectly?.call();
       }
     }
@@ -1504,6 +1537,7 @@ class ColoringProvider extends ChangeNotifier {
             _recordTimeLapse(r, c);
             changed = true;
             filledInFallback++;
+            ringMap.putIfAbsent(dist, () => []).add((r, c));
             onCellFilledCorrectly?.call();
 
             if (filledInFallback >= targetMaxFills) break;
@@ -1515,6 +1549,9 @@ class ColoringProvider extends ChangeNotifier {
     }
 
     if (changed) {
+      final sortedKeys = ringMap.keys.toList()..sort();
+      final waveRings = sortedKeys.map((k) => ringMap[k]!).toList();
+
       _commitUndo();
       _bombsCount--;
       _isBombMode = false;
@@ -1525,6 +1562,7 @@ class ColoringProvider extends ChangeNotifier {
         artId: _currentArt?.id,
       );
       _haptic(HapticFeedback.heavyImpact);
+      onWaveFill?.call(row, col, waveRings, WaveFillType.bomb);
       onBombExploded?.call(row, col);
       _checkCompletion();
       _checkAchievements();

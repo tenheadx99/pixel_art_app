@@ -112,6 +112,10 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _gemBaseRepaint;
   Listenable? _gemOverlayRepaint;
 
+  void _onWaveRevealed() {
+    _PixelGridPainter.markWaveDirty();
+  }
+
   void _rebuildRepaintListenables() {
     // Each layer repaints only on its own triggers: tilt ticks must not
     // re-run the overlay label pass, and fill-grow animation frames must
@@ -126,6 +130,7 @@ class _PixelGridState extends State<PixelGrid> {
       widget.gridFade,
       widget.transform,
       widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _flatOverlayRepaint = Listenable.merge([
       widget.gridFade,
@@ -137,6 +142,7 @@ class _PixelGridState extends State<PixelGrid> {
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
+      widget.fillGrow?.newlyRevealed,
       widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
@@ -144,12 +150,14 @@ class _PixelGridState extends State<PixelGrid> {
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
+      widget.fillGrow?.newlyRevealed,
     ]);
   }
 
   @override
   void initState() {
     super.initState();
+    widget.fillGrow?.newlyRevealed.addListener(_onWaveRevealed);
     _rebuildRepaintListenables();
     // Normally already warm via main(); this is the fallback path.
     if (_gemShaderProgram == null) {
@@ -162,6 +170,10 @@ class _PixelGridState extends State<PixelGrid> {
   @override
   void didUpdateWidget(PixelGrid oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.fillGrow != widget.fillGrow) {
+      oldWidget.fillGrow?.newlyRevealed.removeListener(_onWaveRevealed);
+      widget.fillGrow?.newlyRevealed.addListener(_onWaveRevealed);
+    }
     if (oldWidget.gridFade != widget.gridFade ||
         oldWidget.transform != widget.transform ||
         oldWidget.fillGrow != widget.fillGrow ||
@@ -173,6 +185,7 @@ class _PixelGridState extends State<PixelGrid> {
 
   @override
   void dispose() {
+    widget.fillGrow?.newlyRevealed.removeListener(_onWaveRevealed);
     // The painter keeps static picture/image/text caches so they survive
     // rebuilds; release them when the grid leaves the tree so a long session
     // doesn't accumulate every opened artwork's caches.
@@ -611,10 +624,13 @@ class _PixelGridPainter extends CustomPainter {
     final highlightPaint = Paint()..color = const Color(0x336C63FF);
     final darkPreviewPaint = Paint()..color = const Color(0xFF808080);
 
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     for (var row = 0; row < gridHeight; row++) {
       for (var col = 0; col < gridWidth; col++) {
         final expectedNumber = art.grid[row][col] as int;
-        if (expectedNumber == 0 || filledGrid[row][col] > 0) continue;
+        final isRevealed =
+            fillGrow == null || fillGrow!.isRevealed(row, col, nowMs);
+        if (expectedNumber == 0 || (filledGrid[row][col] > 0 && isRevealed)) continue;
         final isSelected = expectedNumber == selectedNumber;
         final isHighlighted =
             highlightedNumber != null && expectedNumber == highlightedNumber;
@@ -924,10 +940,13 @@ class _PixelGridPainter extends CustomPainter {
         // old fill color. Cell state is read fresh from the grid, so journal
         // duplicates and ordering don't matter.
         paint.blendMode = BlendMode.src;
+        final nowMs = DateTime.now().millisecondsSinceEpoch;
         for (final (r, col) in dirty) {
           if (r < 0 || r >= height || col < 0 || col >= width) continue;
           final expectedNumber = art.grid[r][col] as int;
-          if (filledGrid[r][col] > 0) {
+          final isRevealed =
+              fillGrow == null || fillGrow!.isRevealed(r, col, nowMs);
+          if (filledGrid[r][col] > 0 && isRevealed) {
             paint.color = filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
           } else if (expectedNumber > 0) {
@@ -972,10 +991,13 @@ class _PixelGridPainter extends CustomPainter {
     final recorder = ui.PictureRecorder();
     final c = Canvas(recorder);
     c.drawPicture(_previewLayerPicture!);
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
     for (var r = 0; r < height; r++) {
       final row = filledGrid[r];
       for (var col = 0; col < width; col++) {
-        if (row[col] > 0) {
+        final isRevealed =
+            fillGrow == null || fillGrow!.isRevealed(r, col, nowMs);
+        if (row[col] > 0 && isRevealed) {
           // Match the CPU fallback: colour a filled cell by its expected
           // number so both render paths look identical.
           final expectedNumber = art.grid[r][col] as int;
@@ -1019,7 +1041,7 @@ class _PixelGridPainter extends CustomPainter {
 
     fillGrow?.forEachActive((row, col, startMs) {
       final ageMs = nowMs - startMs;
-      if (ageMs >= _fillAnimWindowMs) return;
+      if (ageMs < 0 || ageMs >= _fillAnimWindowMs) return;
       final enc = (ageMs * 255 ~/ _fillAnimWindowMs).clamp(0, 255);
       paint.color = Color.fromARGB(255, enc, 0, 0);
       c.drawRect(
@@ -1123,9 +1145,11 @@ class _PixelGridPainter extends CustomPainter {
       );
 
       final recPaint = Paint();
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
       for (var r = 0; r < gridHeight; r++) {
         for (var c = 0; c < gridWidth; c++) {
-          final isFilled = filledGrid[r][c] > 0;
+          final isFilled = filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
           final expectedNumber = art.grid[r][c] as int;
           final rect = Rect.fromLTWH(
             c * cw + cellGap,
@@ -1333,18 +1357,21 @@ class _PixelGridPainter extends CustomPainter {
           }
         }
 
-        if (isHighlighted && !isFilled && expectedNumber > 0) {
+        final isVisuallyFilled = isFilled &&
+            (fillGrow == null || fillGrow!.isRevealed(row, col, nowMs));
+
+        if (isHighlighted && !isVisuallyFilled && expectedNumber > 0) {
           canvas.drawRect(rect, highlightPaint);
         }
 
         canvas.drawRect(rect, borderPaint);
 
-        if (isSelected && !isFilled && expectedNumber > 0) {
+        if (isSelected && !isVisuallyFilled && expectedNumber > 0) {
           canvas.drawRect(rect.deflate(1), selectedBorderPaint);
           canvas.drawRect(rect.deflate(1), glowPaint);
         }
 
-        if (showNumbers && !isFilled && expectedNumber > 0 && detailStep > 0) {
+        if (showNumbers && !isVisuallyFilled && expectedNumber > 0 && detailStep > 0) {
           final tp = _numberPainter(expectedNumber, fontSize, detailStep);
           tp.paint(
             canvas,
@@ -1392,6 +1419,9 @@ class _PixelGridPainter extends CustomPainter {
             col > lastCol) {
           return;
         }
+        // Scheduled in a future wave ring: do not draw overlay yet.
+        if (nowMs < startMs) return;
+
         // Erased (or reverted) mid-animation: nothing to draw over.
         if (filledGrid[row][col] <= 0) return;
         final expectedNumber = art.grid[row][col] as int;
@@ -1624,6 +1654,14 @@ class _PixelGridPainter extends CustomPainter {
     _highlightPool.clear();
     _stagingPool.clear();
     _highlightStaging = null;
+  }
+
+  /// Invalidates textures and static overlays during wave animations so the
+  /// next frame re-bakes with newly revealed wave rings.
+  static void markWaveDirty() {
+    _cachedImageFillVersion = -1;
+    _overlayFillVersion = -1;
+    _bakedFillVersion = -1;
   }
 
   @override
