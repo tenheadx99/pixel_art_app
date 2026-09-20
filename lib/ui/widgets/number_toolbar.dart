@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/app_settings_provider.dart';
@@ -354,6 +355,351 @@ class BombIconPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}List<int> _buildBoosterPresets(int maxAffordable) {
+  if (maxAffordable <= 1) return [];
+  final presets = <int>[1];
+  if (maxAffordable <= 4) {
+    for (var i = 2; i <= maxAffordable; i++) {
+      presets.add(i);
+    }
+  } else if (maxAffordable <= 7) {
+    presets.addAll([2, 3, 5]);
+    if (!presets.contains(maxAffordable)) presets.add(maxAffordable);
+  } else {
+    presets.addAll([3, 5, 10]);
+    if (!presets.contains(maxAffordable)) presets.add(maxAffordable);
+  }
+  return (presets.where((p) => p <= maxAffordable).toSet().toList()..sort());
+}
+
+class _StepIconButton extends StatelessWidget {
+  final IconData icon;
+  final bool enabled;
+  final VoidCallback onTap;
+  final Color accentColor;
+  final bool isDark;
+
+  const _StepIconButton({
+    required this.icon,
+    required this.enabled,
+    required this.onTap,
+    required this.accentColor,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: enabled
+          ? () {
+              HapticFeedback.selectionClick();
+              onTap();
+            }
+          : null,
+      behavior: HitTestBehavior.opaque,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: enabled
+              ? accentColor.withValues(alpha: isDark ? 0.22 : 0.12)
+              : (isDark
+                  ? Colors.white.withValues(alpha: 0.04)
+                  : Colors.black.withValues(alpha: 0.04)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          icon,
+          size: 16,
+          color: enabled
+              ? (isDark ? Colors.white : accentColor)
+              : (isDark ? Colors.white24 : Colors.black26),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiamondQuantityRefillCard extends StatefulWidget {
+  final String itemSingular;
+  final String itemPlural;
+  final int unitCost;
+  final int currentDiamonds;
+  final Color accentColor;
+  final bool isDark;
+  final void Function(int count) onBuy;
+
+  const _DiamondQuantityRefillCard({
+    required this.itemSingular,
+    required this.itemPlural,
+    required this.unitCost,
+    required this.currentDiamonds,
+    required this.accentColor,
+    required this.isDark,
+    required this.onBuy,
+  });
+
+  @override
+  State<_DiamondQuantityRefillCard> createState() => _DiamondQuantityRefillCardState();
+}
+
+class _DiamondQuantityRefillCardState extends State<_DiamondQuantityRefillCard> {
+  int _count = 1;
+
+  String _formatNumber(int n) {
+    return n.toString().replaceAllMapped(
+      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+      (m) => '${m[1]},',
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxAffordable = (widget.currentDiamonds / widget.unitCost).floor();
+    if (maxAffordable < 1) return const SizedBox.shrink();
+
+    final clampedCount = _count.clamp(1, maxAffordable);
+    final totalCost = clampedCount * widget.unitCost;
+    final presets = _buildBoosterPresets(maxAffordable);
+    final formattedBalance = _formatNumber(widget.currentDiamonds);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: widget.isDark ? const Color(0xFF0E2232) : const Color(0xFFF2F9FD),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: widget.accentColor.withValues(alpha: widget.isDark ? 0.38 : 0.45),
+          width: 1.3,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: widget.accentColor.withValues(alpha: widget.isDark ? 0.16 : 0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Header Row: Diamond Icon + Info + Stepper
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: widget.accentColor.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Center(
+                  child: Text('💎', style: TextStyle(fontSize: 17)),
+                ),
+              ),
+              const SizedBox(width: 9),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Instant Refill',
+                      style: TextStyle(
+                        color: widget.isDark ? Colors.white : const Color(0xFF171A21),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.1,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      'Balance: $formattedBalance 💎',
+                      style: TextStyle(
+                        color: widget.isDark
+                            ? Colors.cyanAccent.withValues(alpha: 0.85)
+                            : const Color(0xFF00838F),
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // Stepper: [-]  count  [+]
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 3),
+                decoration: BoxDecoration(
+                  color: widget.isDark
+                      ? Colors.white.withValues(alpha: 0.06)
+                      : Colors.white,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: widget.isDark
+                        ? Colors.white.withValues(alpha: 0.10)
+                        : Colors.black.withValues(alpha: 0.08),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _StepIconButton(
+                      icon: Icons.remove_rounded,
+                      enabled: clampedCount > 1,
+                      onTap: () {
+                        setState(() {
+                          _count = (clampedCount - 1).clamp(1, maxAffordable);
+                        });
+                      },
+                      accentColor: widget.accentColor,
+                      isDark: widget.isDark,
+                    ),
+                    Container(
+                      constraints: const BoxConstraints(minWidth: 26),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        '$clampedCount',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          color: widget.isDark ? Colors.white : const Color(0xFF171A21),
+                        ),
+                      ),
+                    ),
+                    _StepIconButton(
+                      icon: Icons.add_rounded,
+                      enabled: clampedCount < maxAffordable,
+                      onTap: () {
+                        setState(() {
+                          _count = (clampedCount + 1).clamp(1, maxAffordable);
+                        });
+                      },
+                      accentColor: widget.accentColor,
+                      isDark: widget.isDark,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          // Preset Chips
+          if (presets.length > 1) ...[
+            const SizedBox(height: 9),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: presets.map((p) {
+                  final isSelected = p == clampedCount;
+                  final isMax = p == maxAffordable;
+                  final label = isMax && p > 1 ? '${p}x (Max)' : '${p}x';
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 6),
+                    child: GestureDetector(
+                      onTap: () {
+                        HapticFeedback.selectionClick();
+                        setState(() => _count = p);
+                      },
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 140),
+                        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? widget.accentColor
+                              : (widget.isDark
+                                  ? Colors.white.withValues(alpha: 0.07)
+                                  : Colors.white),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
+                            color: isSelected
+                                ? widget.accentColor
+                                : (widget.isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : Colors.black.withValues(alpha: 0.08)),
+                            width: 1,
+                          ),
+                        ),
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                            color: isSelected
+                                ? Colors.white
+                                : (widget.isDark ? Colors.white70 : Colors.black87),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 10),
+
+          // Action Button
+          PressableScale(
+            onTap: () => widget.onBuy(clampedCount),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    widget.accentColor,
+                    Color.lerp(widget.accentColor, Colors.indigoAccent, 0.35)!,
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: widget.accentColor.withValues(alpha: 0.35),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Get $clampedCount ${clampedCount == 1 ? widget.itemSingular : widget.itemPlural}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.20),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '$totalCost 💎',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _OutOfBombsDialog extends StatelessWidget {
@@ -367,13 +713,6 @@ class _OutOfBombsDialog extends StatelessWidget {
     required this.onWatchAd,
   });
 
-  String _formatNumber(int n) {
-    return n.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -381,7 +720,6 @@ class _OutOfBombsDialog extends StatelessWidget {
     final cost = EconomyConfigService().currentConfig.diamondCostBomb;
     final currentDiamonds = settings.diamondsAvailable;
     final hasEnoughDiamonds = currentDiamonds >= cost;
-    final formattedDiamonds = _formatNumber(currentDiamonds);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -432,264 +770,149 @@ class _OutOfBombsDialog extends StatelessWidget {
                 ),
               ),
 
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    // Top Row: subtle close button on top-right
-                    Align(
-                      alignment: Alignment.topRight,
-                      child: GestureDetector(
-                        onTap: () => Navigator.of(context).pop(),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: isDark
-                                ? Colors.white.withValues(alpha: 0.08)
-                                : Colors.black.withValues(alpha: 0.05),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Icon(
-                            Icons.close_rounded,
-                            size: 18,
-                            color: isDark ? Colors.white70 : Colors.black54,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    // Hero Bomb with Radiant Sunburst & Sparks
-                    const SizedBox(
-                      width: 96,
-                      height: 96,
-                      child: CustomPaint(
-                        painter: _HeroBombPainter(),
-                      ),
-                    ),
-
-                    // Super Booster Tag
-                    Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 6),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFF5722).withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: const Color(0xFFFF5722).withValues(alpha: 0.28),
-                          width: 1,
-                        ),
-                      ),
-                      child: const Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            Icons.local_fire_department_rounded,
-                            size: 13,
-                            color: Color(0xFFFF5722),
-                          ),
-                          SizedBox(width: 4),
-                          Text(
-                            'SUPER BOOSTER',
-                            style: TextStyle(
-                              color: Color(0xFFFF5722),
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w800,
-                              letterSpacing: 0.9,
+              SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Top Row: subtle close button on top-right
+                      Align(
+                        alignment: Alignment.topRight,
+                        child: GestureDetector(
+                          onTap: () => Navigator.of(context).pop(),
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? Colors.white.withValues(alpha: 0.08)
+                                  : Colors.black.withValues(alpha: 0.05),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.close_rounded,
+                              size: 18,
+                              color: isDark ? Colors.white70 : Colors.black54,
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-
-                    // Title
-                    Text(
-                      'Out of Bombs!',
-                      style: TextStyle(
-                        fontSize: 23,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.4,
-                        color: isDark ? Colors.white : const Color(0xFF171A21),
-                      ),
-                    ),
-
-                    // Feature Callout Card
-                    Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 18),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF222736) : const Color(0xFFFFF6F0),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF333B50) : const Color(0xFFFFE0D0),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('💥', style: TextStyle(fontSize: 14)),
-                          const SizedBox(width: 7),
-                          Flexible(
-                            child: Text(
-                              'Blasts 11 cells in a circle instantly',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? const Color(0xFFFFAB91)
-                                    : const Color(0xFFD84315),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
 
-                    // Option 1: FREE REFILL CARD (Watch Video)
-                    PressableScale(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        onWatchAd(context, 'Bomb', () {
-                          provider.addBombs(1);
-                          provider.toggleBombMode();
-                        });
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      // Hero Bomb with Radiant Sunburst & Sparks
+                      const SizedBox(
+                        width: 96,
+                        height: 96,
+                        child: CustomPaint(
+                          painter: _HeroBombPainter(),
+                        ),
+                      ),
+
+                      // Super Booster Tag
+                      Container(
+                        margin: const EdgeInsets.only(top: 8, bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
                         decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFFFF5722),
-                              Color(0xFFFF9100),
-                            ],
+                          color: const Color(0xFFFF5722).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: const Color(0xFFFF5722).withValues(alpha: 0.28),
+                            width: 1,
                           ),
-                          borderRadius: BorderRadius.circular(18),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFFFF5722).withValues(alpha: 0.38),
-                              blurRadius: 14,
-                              offset: const Offset(0, 5),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.local_fire_department_rounded,
+                              size: 13,
+                              color: Color(0xFFFF5722),
+                            ),
+                            SizedBox(width: 4),
+                            Text(
+                              'SUPER BOOSTER',
+                              style: TextStyle(
+                                color: Color(0xFFFF5722),
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.9,
+                              ),
                             ),
                           ],
                         ),
+                      ),
+
+                      // Title
+                      Text(
+                        'Out of Bombs!',
+                        style: TextStyle(
+                          fontSize: 23,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.4,
+                          color: isDark ? Colors.white : const Color(0xFF171A21),
+                        ),
+                      ),
+
+                      // Feature Callout Card
+                      Container(
+                        margin: const EdgeInsets.only(top: 8, bottom: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF222736) : const Color(0xFFFFF6F0),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF333B50) : const Color(0xFFFFE0D0),
+                          ),
+                        ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.white,
-                                size: 26,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Watch Video',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                  SizedBox(height: 1.5),
-                                  Text(
-                                    'Earn +1 Paint Bomb',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 4.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.08),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                              child: const Text(
-                                'FREE 🎁',
+                            const Text('💥', style: TextStyle(fontSize: 14)),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                'Blasts 11 cells in a circle instantly',
                                 style: TextStyle(
-                                  color: Color(0xFFFF5722),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.4,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? const Color(0xFFFFAB91)
+                                      : const Color(0xFFD84315),
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
 
-                    // Option 2: INSTANT DIAMOND REFILL CARD (When user has enough diamonds)
-                    if (hasEnoughDiamonds) ...[
-                      const SizedBox(height: 10),
+                      // Option 1: FREE REFILL CARD (Watch Video)
                       PressableScale(
                         onTap: () {
                           Navigator.of(context).pop();
-                          if (provider.buyBombWithDiamonds(settings)) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Used $cost 💎 for 1 Bomb! Bomb mode active.',
-                                ),
-                                backgroundColor: const Color(0xFF00897B),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
+                          onWatchAd(context, 'Bomb', () {
+                            provider.addBombs(1);
+                            provider.toggleBombMode();
+                          });
                         },
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
-                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: isDark
-                                ? const Color(0xFF0D2533)
-                                : const Color(0xFFF0F9FB),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF00B0FF).withValues(alpha: 0.4)
-                                  : const Color(0xFF80DEEA),
-                              width: 1.4,
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFFF5722),
+                                Color(0xFFFF9100),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(18),
                             boxShadow: [
                               BoxShadow(
-                                color: const Color(0xFF00B0FF).withValues(
-                                  alpha: isDark ? 0.16 : 0.06,
-                                ),
-                                blurRadius: 8,
-                                offset: const Offset(0, 2),
+                                color: const Color(0xFFFF5722).withValues(alpha: 0.38),
+                                blurRadius: 14,
+                                offset: const Offset(0, 5),
                               ),
                             ],
                           ),
@@ -699,39 +922,37 @@ class _OutOfBombsDialog extends StatelessWidget {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00B0FF).withValues(alpha: 0.14),
+                                  color: Colors.white.withValues(alpha: 0.22),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Center(
-                                  child: Text('💎', style: TextStyle(fontSize: 19)),
+                                child: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 26,
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(
+                              const Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'Instant Refill',
+                                      'Watch Video',
                                       style: TextStyle(
-                                        color: isDark
-                                            ? Colors.white
-                                            : const Color(0xFF004D40),
+                                        color: Colors.white,
                                         fontSize: 15,
                                         fontWeight: FontWeight.w900,
                                         letterSpacing: 0.2,
                                       ),
                                     ),
-                                    const SizedBox(height: 1.5),
+                                    SizedBox(height: 1.5),
                                     Text(
-                                      'You have $formattedDiamonds 💎',
+                                      'Earn +1 Paint Bomb',
                                       style: TextStyle(
-                                        color: isDark
-                                            ? Colors.cyanAccent.withValues(alpha: 0.8)
-                                            : const Color(0xFF00838F),
+                                        color: Colors.white70,
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ],
@@ -739,26 +960,26 @@ class _OutOfBombsDialog extends StatelessWidget {
                               ),
                               Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 10,
-                                  vertical: 5,
+                                  horizontal: 9,
+                                  vertical: 4.5,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00B0FF),
+                                  color: Colors.white,
                                   borderRadius: BorderRadius.circular(10),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: const Color(0xFF00B0FF).withValues(alpha: 0.35),
-                                      blurRadius: 6,
-                                      offset: const Offset(0, 2),
+                                      color: Colors.black.withValues(alpha: 0.08),
+                                      blurRadius: 4,
                                     ),
                                   ],
                                 ),
-                                child: Text(
-                                  '$cost 💎',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 12,
+                                child: const Text(
+                                  'FREE 🎁',
+                                  style: TextStyle(
+                                    color: Color(0xFFFF5722),
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.4,
                                   ),
                                 ),
                               ),
@@ -766,41 +987,68 @@ class _OutOfBombsDialog extends StatelessWidget {
                           ),
                         ),
                       ),
-                    ],
 
-                    const SizedBox(height: 12),
-                    // Diamond Shop & Booster Packs Link
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        DiamondShopSheet.show(context);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.storefront_rounded,
-                              size: 15,
-                              color: isDark ? Colors.white60 : Colors.black45,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Diamond Shop & Booster Packs 💎',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white70 : const Color(0xFF455A64),
-                                decoration: TextDecoration.underline,
-                                decorationColor: isDark ? Colors.white30 : Colors.black26,
+                      // Option 2: INSTANT DIAMOND REFILL CARD WITH MULTI-QUANTITY CONVERTER
+                      if (hasEnoughDiamonds) ...[
+                        const SizedBox(height: 10),
+                        _DiamondQuantityRefillCard(
+                          itemSingular: 'Bomb',
+                          itemPlural: 'Bombs',
+                          unitCost: cost,
+                          currentDiamonds: currentDiamonds,
+                          accentColor: const Color(0xFF00B0FF),
+                          isDark: isDark,
+                          onBuy: (count) {
+                            Navigator.of(context).pop();
+                            if (provider.buyBombWithDiamonds(settings, count: count)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Used ${cost * count} 💎 for $count Bomb${count > 1 ? 's' : ''}! Bomb mode active.',
+                                  ),
+                                  backgroundColor: const Color(0xFF00897B),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+
+                      const SizedBox(height: 12),
+                      // Diamond Shop & Booster Packs Link
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          DiamondShopSheet.show(context);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.storefront_rounded,
+                                size: 15,
+                                color: isDark ? Colors.white60 : Colors.black45,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Text(
+                                'Diamond Shop & Booster Packs 💎',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : const Color(0xFF455A64),
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: isDark ? Colors.white30 : Colors.black26,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -972,13 +1220,6 @@ class _OutOfWandsDialog extends StatelessWidget {
     required this.onWatchAd,
   });
 
-  String _formatNumber(int n) {
-    return n.toString().replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (m) => '${m[1]},',
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -986,7 +1227,6 @@ class _OutOfWandsDialog extends StatelessWidget {
     final cost = EconomyConfigService().currentConfig.diamondCostWand;
     final currentDiamonds = settings.diamondsAvailable;
     final hasEnoughDiamonds = currentDiamonds >= cost;
-    final formattedDiamonds = _formatNumber(currentDiamonds);
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -1057,207 +1297,107 @@ class _OutOfWandsDialog extends StatelessWidget {
                   ),
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: const LinearGradient(
-                          colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color: const Color(0xFF2196F3).withValues(alpha: 0.4),
-                            blurRadius: 16,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: const Center(
-                        child: Icon(
-                          Icons.format_color_fill_rounded,
-                          color: Colors.white,
-                          size: 42,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Out of Paint Buckets!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.4,
-                        color: isDark ? Colors.white : const Color(0xFF171A21),
-                      ),
-                    ),
-                    Container(
-                      margin: const EdgeInsets.only(top: 8, bottom: 18),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isDark ? const Color(0xFF1E2838) : const Color(0xFFEBF5FF),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: isDark ? const Color(0xFF2C3E55) : const Color(0xFFCCE5FF),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Text('🎨', style: TextStyle(fontSize: 14)),
-                          const SizedBox(width: 7),
-                          Flexible(
-                            child: Text(
-                              'Fills all cells of a number across the artwork',
-                              style: TextStyle(
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.w700,
-                                color: isDark
-                                    ? const Color(0xFF90CAF9)
-                                    : const Color(0xFF1565C0),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    PressableScale(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        onWatchAd(context, 'Paint Bucket', () {
-                          provider.addMagicWands(2);
-                          provider.toggleMagicWandMode();
-                        });
-                      },
-                      child: Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
                         decoration: BoxDecoration(
+                          shape: BoxShape.circle,
                           gradient: const LinearGradient(
+                            colors: [Color(0xFF42A5F5), Color(0xFF1E88E5)],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
-                            colors: [
-                              Color(0xFF2196F3),
-                              Color(0xFF00BCD4),
-                            ],
                           ),
-                          borderRadius: BorderRadius.circular(18),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2196F3).withValues(alpha: 0.38),
-                              blurRadius: 14,
-                              offset: const Offset(0, 5),
+                              color: const Color(0xFF2196F3).withValues(alpha: 0.4),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
                             ),
                           ],
                         ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.format_color_fill_rounded,
+                            color: Colors.white,
+                            size: 42,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Out of Paint Buckets!',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                          color: isDark ? Colors.white : const Color(0xFF171A21),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 8, bottom: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF1E2638) : const Color(0xFFEBF3FC),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF2B3A58) : const Color(0xFFCCE2F9),
+                          ),
+                        ),
                         child: Row(
+                          mainAxisSize: MainAxisSize.min,
                           children: [
-                            Container(
-                              width: 40,
-                              height: 40,
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.22),
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                color: Colors.white,
-                                size: 26,
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Watch Video',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                  SizedBox(height: 1.5),
-                                  Text(
-                                    'Earn +2 Paint Buckets',
-                                    style: TextStyle(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 9,
-                                vertical: 4.5,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.08),
-                                    blurRadius: 4,
-                                  ),
-                                ],
-                              ),
-                              child: const Text(
-                                'FREE 🎁',
+                            const Text('🎨', style: TextStyle(fontSize: 14)),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                'Fills all cells of a number across the artwork',
                                 style: TextStyle(
-                                  color: Color(0xFF1976D2),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.4,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? const Color(0xFF90CAF9)
+                                      : const Color(0xFF1565C0),
                                 ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                    ),
-                    if (hasEnoughDiamonds) ...[
-                      const SizedBox(height: 10),
                       PressableScale(
                         onTap: () {
                           Navigator.of(context).pop();
-                          if (provider.buyWandWithDiamonds(settings)) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Used $cost 💎 for 1 Paint Bucket! Fill mode active.',
-                                ),
-                                backgroundColor: const Color(0xFF2196F3),
-                                behavior: SnackBarBehavior.floating,
-                              ),
-                            );
-                          }
+                          onWatchAd(context, 'Paint Bucket', () {
+                            provider.addMagicWands(2);
+                            provider.toggleMagicWandMode();
+                          });
                         },
                         child: Container(
                           width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           decoration: BoxDecoration(
-                            color: isDark ? const Color(0xFF262C3D) : const Color(0xFFF0F4FA),
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(
-                              color: isDark
-                                  ? const Color(0xFF38435C)
-                                  : const Color(0xFFD4E0F0),
-                              width: 1.2,
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFF2196F3),
+                                Color(0xFF00BCD4),
+                              ],
                             ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2196F3).withValues(alpha: 0.38),
+                                blurRadius: 14,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
                           ),
                           child: Row(
                             children: [
@@ -1265,33 +1405,36 @@ class _OutOfWandsDialog extends StatelessWidget {
                                 width: 40,
                                 height: 40,
                                 decoration: BoxDecoration(
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
+                                  color: Colors.white.withValues(alpha: 0.22),
                                   shape: BoxShape.circle,
                                 ),
-                                child: const Center(
-                                  child: Text('💎', style: TextStyle(fontSize: 20)),
+                                child: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 26,
                                 ),
                               ),
                               const SizedBox(width: 12),
-                              Expanded(
+                              const Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     Text(
-                                      'Buy with Diamonds',
+                                      'Watch Video',
                                       style: TextStyle(
-                                        color: isDark ? Colors.white : const Color(0xFF171A21),
-                                        fontSize: 14.5,
-                                        fontWeight: FontWeight.w800,
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.2,
                                       ),
                                     ),
-                                    const SizedBox(height: 1.5),
+                                    SizedBox(height: 1.5),
                                     Text(
-                                      '$cost Diamonds · You have $formattedDiamonds',
+                                      'Earn +2 Paint Buckets',
                                       style: TextStyle(
-                                        color: isDark ? Colors.white60 : Colors.black54,
-                                        fontSize: 11.5,
+                                        color: Colors.white70,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -1299,17 +1442,27 @@ class _OutOfWandsDialog extends StatelessWidget {
                                 ),
                               ),
                               Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF00E5FF).withValues(alpha: 0.16),
-                                  borderRadius: BorderRadius.circular(10),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 4.5,
                                 ),
-                                child: Text(
-                                  '$cost 💎',
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.08),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: const Text(
+                                  'FREE 🎁',
                                   style: TextStyle(
-                                    color: isDark ? const Color(0xFF80D8FF) : const Color(0xFF0091EA),
-                                    fontSize: 12.5,
+                                    color: Color(0xFF1976D2),
+                                    fontSize: 11,
                                     fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.4,
                                   ),
                                 ),
                               ),
@@ -1317,39 +1470,64 @@ class _OutOfWandsDialog extends StatelessWidget {
                           ),
                         ),
                       ),
-                    ],
-                    const SizedBox(height: 12),
-                    GestureDetector(
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        DiamondShopSheet.show(context);
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.storefront_rounded,
-                              size: 15,
-                              color: isDark ? Colors.white60 : Colors.black45,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              'Diamond Shop & Booster Packs 💎',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: isDark ? Colors.white70 : const Color(0xFF455A64),
-                                decoration: TextDecoration.underline,
-                                decorationColor: isDark ? Colors.white30 : Colors.black26,
+                      if (hasEnoughDiamonds) ...[
+                        const SizedBox(height: 10),
+                        _DiamondQuantityRefillCard(
+                          itemSingular: 'Paint Bucket',
+                          itemPlural: 'Paint Buckets',
+                          unitCost: cost,
+                          currentDiamonds: currentDiamonds,
+                          accentColor: const Color(0xFF2196F3),
+                          isDark: isDark,
+                          onBuy: (count) {
+                            Navigator.of(context).pop();
+                            if (provider.buyWandWithDiamonds(settings, count: count)) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Used ${cost * count} 💎 for $count Paint Bucket${count > 1 ? 's' : ''}! Fill mode active.',
+                                  ),
+                                  backgroundColor: const Color(0xFF2196F3),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          DiamondShopSheet.show(context);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.storefront_rounded,
+                                size: 15,
+                                color: isDark ? Colors.white60 : Colors.black45,
                               ),
-                            ),
-                          ],
+                              const SizedBox(width: 6),
+                              Text(
+                                'Diamond Shop & Booster Packs 💎',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : const Color(0xFF455A64),
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: isDark ? Colors.white30 : Colors.black26,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ],

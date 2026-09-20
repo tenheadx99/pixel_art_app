@@ -376,6 +376,57 @@ void main() {
       expect(settings.diamondsAvailable, initialDiamonds + 100 - 40);
     });
 
+    test('buyWandWithDiamonds with multiple count deducts correct diamonds and adds wands', () async {
+      final storage = LocalStorageService();
+      await storage.init();
+      final settings = AppSettingsProvider(storage);
+      final initialDiamonds = settings.diamondsAvailable;
+      settings.addDiamonds(200);
+      final provider = ColoringProvider(storage);
+      provider.loadArt(_testArt());
+
+      final initialWands = provider.magicWandsCount;
+      final success = provider.buyWandWithDiamonds(settings, count: 3);
+      expect(success, isTrue);
+      expect(provider.magicWandsCount, initialWands + 3);
+      expect(provider.isMagicWandMode, isTrue);
+      expect(settings.diamondsAvailable, initialDiamonds + 200 - (40 * 3));
+    });
+
+    test('buyBombWithDiamonds deducts diamonds and activates bomb mode', () async {
+      final storage = LocalStorageService();
+      await storage.init();
+      final settings = AppSettingsProvider(storage);
+      final initialDiamonds = settings.diamondsAvailable;
+      settings.addDiamonds(100);
+      final provider = ColoringProvider(storage);
+      provider.loadArt(_testArt());
+
+      final initialBombs = provider.bombsCount;
+      final success = provider.buyBombWithDiamonds(settings);
+      expect(success, isTrue);
+      expect(provider.bombsCount, initialBombs + 1);
+      expect(provider.isBombMode, isTrue);
+      expect(settings.diamondsAvailable, initialDiamonds + 100 - 40);
+    });
+
+    test('buyBombWithDiamonds with multiple count deducts correct diamonds and adds bombs', () async {
+      final storage = LocalStorageService();
+      await storage.init();
+      final settings = AppSettingsProvider(storage);
+      final initialDiamonds = settings.diamondsAvailable;
+      settings.addDiamonds(200);
+      final provider = ColoringProvider(storage);
+      provider.loadArt(_testArt());
+
+      final initialBombs = provider.bombsCount;
+      final success = provider.buyBombWithDiamonds(settings, count: 4);
+      expect(success, isTrue);
+      expect(provider.bombsCount, initialBombs + 4);
+      expect(provider.isBombMode, isTrue);
+      expect(settings.diamondsAvailable, initialDiamonds + 200 - (40 * 4));
+    });
+
     test('bomb fills all non-zero cells in a 3x3 region and decrements bomb count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());

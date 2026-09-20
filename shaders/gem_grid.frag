@@ -134,9 +134,10 @@ void main() {
     shift = clamp(shift, vec2(-1.20), vec2(1.20));
     vec2 lightDir = normalize(-shift);
 
-    // Brightened crystal color palette (luminous color lift, no muddy dark shadows)
-    vec3 brightColor = min(cellColor.rgb * 1.20 + vec3(0.08), vec3(1.0));
-    vec3 lightShade = min(brightColor + vec3(0.45), vec3(1.0));
+    // Jewel color palette: preserve true color saturation with balanced shading
+    vec3 baseCol = cellColor.rgb;
+    vec3 brightColor = min(baseCol * 1.05 + vec3(0.03), vec3(1.0));
+    vec3 lightShade = min(brightColor + vec3(0.20), vec3(1.0));
     vec3 darkShade = brightColor * 0.72;
 
     // --- 1. Octagonal Table Cut & 8 Facet Sector Geometry ---
@@ -154,39 +155,39 @@ void main() {
 
     // Per-facet lighting dot product (creates sharp light/shade steps between facets)
     float lightDot = dot(facetNormal, lightDir);
-    float facetIntensity = mix(0.82, 1.35, lightDot * 0.5 + 0.5);
+    float facetIntensity = mix(0.85, 1.14, lightDot * 0.5 + 0.5);
 
     vec3 baseColor;
     if (isTable) {
-        // Flat Table Facet (Top center octagonal cut) with White Crystal Glass Sheen
-        vec3 tableBase = min(brightColor * 1.22 + vec3(0.12), vec3(1.0));
+        // Flat Table Facet (Top center octagonal cut) with subtle glass sheen
+        vec3 tableBase = min(brightColor * 1.06 + vec3(0.04), vec3(1.0));
         float crystalGlassSheen = smoothstep(0.165, 0.0, octDist);
-        baseColor = mix(tableBase, vec3(1.0), 0.35 * crystalGlassSheen);
+        baseColor = mix(tableBase, lightShade, 0.20 * crystalGlassSheen);
     } else {
         // Crown Facet Body with stepped luminous crystal lighting contrast
         baseColor = clamp(brightColor * facetIntensity, darkShade, lightShade);
-        // Add subtle crystal refraction glow on light-facing crown facets
+        // Add subtle crystal refraction on light-facing crown facets
         if (lightDot > 0.1) {
-            baseColor = mix(baseColor, vec3(1.0), lightDot * 0.22);
+            baseColor = mix(baseColor, lightShade, lightDot * 0.15);
         }
     }
 
-    // --- 2. White Crystal Facet Seams & Octagonal Table Border ---
+    // --- 2. Crystal Facet Seams & Octagonal Table Border ---
     if (uEffectiveCell >= 14.0) {
-        // Octagonal Table Border Line (White Crystal Edge)
+        // Octagonal Table Border Line (Crystal Edge)
         float tableBorderDist = abs(octDist - 0.165);
         if (tableBorderDist < 0.016) {
             float bGlint = clamp(lightDot * 0.5 + 0.5, 0.4, 1.0);
-            baseColor = mix(baseColor, vec3(1.0), 0.55 * bGlint);
+            baseColor = mix(baseColor, vec3(1.0), 0.25 * bGlint);
         }
 
-        // Radial Facet Seams (Bright white crystal refraction lines)
+        // Radial Facet Seams (Subtle crystal refraction lines)
         float facetEdge = abs(fract((angle + 3.14159265) / 0.785398) - 0.5);
         if (facetEdge < 0.038 && octDist >= 0.165 && max(absDir.x, absDir.y) < 0.44) {
             if (lightDot > -0.2) {
-                baseColor = mix(baseColor, vec3(1.0), 0.42);
+                baseColor = mix(baseColor, vec3(1.0), 0.20);
             } else {
-                baseColor = mix(baseColor, darkShade * 0.6, 0.30);
+                baseColor = mix(baseColor, darkShade * 0.7, 0.25);
             }
         }
     }
@@ -197,42 +198,42 @@ void main() {
         float bevelT = smoothstep(0.38, 0.48, maxEdge);
         float edgeDirDot = dot(normalize(dir), lightDir);
         if (edgeDirDot > 0.1) {
-            baseColor = mix(baseColor, vec3(1.0), bevelT * 0.55);
+            baseColor = mix(baseColor, lightShade, bevelT * 0.35);
         } else {
-            baseColor = mix(baseColor, darkShade * 0.55, bevelT * 0.50);
+            baseColor = mix(baseColor, darkShade * 0.65, bevelT * 0.40);
         }
     }
 
-    // --- 4. High-Shine Crystal Specular Sparkle & 4-Point Star Glints ---
+    // --- 4. Refined Crystal Specular Sparkle & 4-Point Star Glints ---
     vec2 specPos = center + shift * 0.15;
     float specDist = length(uv - specPos);
 
     // Soft Wide Crystal Halo
-    if (specDist < 0.22) {
-        float halo = smoothstep(0.22, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), halo * 0.60);
+    if (specDist < 0.18) {
+        float halo = smoothstep(0.18, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), halo * 0.28);
     }
 
-    // Pure White Crystal Pinpoint Specular Glint
-    if (specDist < 0.08) {
-        float core = smoothstep(0.08, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), core * 0.95);
+    // White Crystal Pinpoint Specular Glint
+    if (specDist < 0.06) {
+        float core = smoothstep(0.06, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), core * 0.70);
     }
 
-    // 4-Point Crisp White Star Flare Glint (Zoom >= 18.0)
-    if (uEffectiveCell >= 18.0 && specDist < 0.24) {
+    // 4-Point Crisp Star Flare Glint (Zoom >= 18.0)
+    if (uEffectiveCell >= 18.0 && specDist < 0.20) {
         vec2 specDir = abs(uv - specPos);
-        if ((specDir.x < 0.016 && specDir.y < 0.18) || (specDir.y < 0.016 && specDir.x < 0.18)) {
-            float crossIntensity = smoothstep(0.18, 0.0, max(specDir.x, specDir.y));
-            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.92);
+        if ((specDir.x < 0.014 && specDir.y < 0.14) || (specDir.y < 0.014 && specDir.x < 0.14)) {
+            float crossIntensity = smoothstep(0.14, 0.0, max(specDir.x, specDir.y));
+            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.48);
         }
     }
 
     // Afterglow + glint sweep: a warm landing flash that fades over 450ms,
-    // and one bright diagonal streak crossing the face between 150-500ms.
+    // and one subtle diagonal streak crossing the face between 150-500ms.
     if (age < 0.55) {
         float glow = 1.0 - clamp(age / 0.45, 0.0, 1.0);
-        baseColor = mix(baseColor, vec3(1.0, 0.97, 0.88), glow * glow * 0.30);
+        baseColor = mix(baseColor, vec3(1.0, 0.97, 0.88), glow * glow * 0.18);
         if (age > 0.15) {
             float gt = clamp((age - 0.15) / 0.35, 0.0, 1.0);
             float gpos = (uv.x + uv.y) * 0.5;
@@ -240,7 +241,7 @@ void main() {
             float d = abs(gpos - sweep);
             if (d < 0.14) {
                 float streak = 1.0 - d / 0.14;
-                baseColor = mix(baseColor, vec3(1.0), streak * streak * 0.6 * (1.0 - gt));
+                baseColor = mix(baseColor, vec3(1.0), streak * streak * 0.35 * (1.0 - gt));
             }
         }
     }

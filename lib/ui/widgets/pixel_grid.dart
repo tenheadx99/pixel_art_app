@@ -693,8 +693,8 @@ class _PixelGridPainter extends CustomPainter {
   // Gem rendering tuning — kept as named constants for quick visual iteration.
   static const double _gemRingWidth = 0.18; // stroke width as fraction of radius
   static const double _gemHighlightOffset = 0.35; // specular dot offset from center
-  static const int _gemHighlightCoreAlpha = 160;
-  static const int _gemHighlightHaloAlpha = 90;
+  static const int _gemHighlightCoreAlpha = 95;
+  static const int _gemHighlightHaloAlpha = 45;
 
   /// Draws the static 3D body of a gem cell (drop shadow, 3D dome gradient, bevel, facet cuts).
   /// This heavy geometry is recorded into an offscreen [ui.Picture] cache.
@@ -729,11 +729,11 @@ class _PixelGridPainter extends CustomPainter {
       cellPaint,
     );
 
-    // 3. 3D Spherical Radial Gradient Body with Bright Crystal Lift
+    // 3. 3D Spherical Radial Gradient Body with Balanced Shading
     final focalOffset = Offset(c.dx + r * shiftX * 0.3, c.dy + r * shiftY * 0.3);
-    final brightBase = _lighten(base, 0.15);
-    final lightShade = _lighten(base, 0.48);
-    final darkShade = _darken(base, 0.28);
+    final brightBase = _lighten(base, 0.06);
+    final lightShade = _lighten(base, 0.22);
+    final darkShade = _darken(base, 0.22);
 
     cellPaint
       ..style = PaintingStyle.fill
@@ -750,7 +750,7 @@ class _PixelGridPainter extends CustomPainter {
     cellPaint
       ..style = PaintingStyle.stroke
       ..strokeWidth = max(0.8, r * _gemRingWidth)
-      ..color = Colors.white.withAlpha(90);
+      ..color = Colors.white.withAlpha(45);
     canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
     cellPaint.style = PaintingStyle.fill;
 
@@ -786,20 +786,20 @@ class _PixelGridPainter extends CustomPainter {
         final p1 = Offset(tableCenter.dx + tableRadius * cosA, tableCenter.dy + tableRadius * sinA);
         final p2 = Offset(c.dx + (r * 0.90) * cosA, c.dy + (r * 0.90) * sinA);
 
-        facetPaint.color = (i < 4) ? Colors.white.withAlpha(110) : darkShade.withAlpha(80);
+        facetPaint.color = (i < 4) ? Colors.white.withAlpha(50) : darkShade.withAlpha(50);
         canvas.drawLine(p1, p2, facetPaint);
       }
 
-      // Flat Octagonal Table Facet Cut with White Crystal Glass Sheen
+      // Flat Octagonal Table Facet Cut with subtle glass sheen
       cellPaint
         ..style = PaintingStyle.fill
-        ..color = Colors.white.withAlpha(110);
+        ..color = Colors.white.withAlpha(45);
       canvas.drawPath(octPath, cellPaint);
 
       cellPaint
         ..style = PaintingStyle.stroke
         ..strokeWidth = max(0.9, r * 0.06)
-        ..color = Colors.white.withAlpha(160);
+        ..color = Colors.white.withAlpha(75);
       canvas.drawPath(octPath, cellPaint);
       cellPaint.style = PaintingStyle.fill;
     }
@@ -809,7 +809,7 @@ class _PixelGridPainter extends CustomPainter {
       c.dx - r * _gemHighlightOffset * shiftX * 0.8,
       c.dy - r * _gemHighlightOffset * shiftY * 0.8,
     );
-    cellPaint.color = lightShade.withAlpha(45);
+    cellPaint.color = lightShade.withAlpha(30);
     canvas.drawCircle(bounceHL, r * 0.25, cellPaint);
   }
 
@@ -837,7 +837,7 @@ class _PixelGridPainter extends CustomPainter {
     // 4-Point Specular Star Flare for extra diamond glint (Zoom >= 24.0)
     if (effectiveCell >= 24.0) {
       final flarePaint = _flarePaint
-        ..color = Colors.white.withAlpha(210)
+        ..color = Colors.white.withAlpha(120)
         ..style = PaintingStyle.stroke
         ..strokeWidth = max(1.0, r * 0.08);
 

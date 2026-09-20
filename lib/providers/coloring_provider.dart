@@ -140,13 +140,15 @@ class ColoringProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  bool buyBombWithDiamonds(AppSettingsProvider appSettings) {
-    int cost = AppConstants.diamondCostBomb;
+  bool buyBombWithDiamonds(AppSettingsProvider appSettings, {int count = 1}) {
+    if (count <= 0) return false;
+    int costPer = AppConstants.diamondCostBomb;
     try {
-      cost = EconomyConfigService().currentConfig.diamondCostBomb;
+      costPer = EconomyConfigService().currentConfig.diamondCostBomb;
     } catch (_) {}
-    if (appSettings.useDiamonds(cost)) {
-      addBombs(1);
+    final totalCost = costPer * count;
+    if (appSettings.useDiamonds(totalCost)) {
+      addBombs(count);
       _isBombMode = true;
       _isMagicWandMode = false;
       _isEraseMode = false;
@@ -157,13 +159,15 @@ class ColoringProvider extends ChangeNotifier {
     return false;
   }
 
-  bool buyWandWithDiamonds(AppSettingsProvider appSettings) {
-    int cost = AppConstants.diamondCostWand;
+  bool buyWandWithDiamonds(AppSettingsProvider appSettings, {int count = 1}) {
+    if (count <= 0) return false;
+    int costPer = AppConstants.diamondCostWand;
     try {
-      cost = EconomyConfigService().currentConfig.diamondCostWand;
+      costPer = EconomyConfigService().currentConfig.diamondCostWand;
     } catch (_) {}
-    if (appSettings.useDiamonds(cost)) {
-      addMagicWands(1);
+    final totalCost = costPer * count;
+    if (appSettings.useDiamonds(totalCost)) {
+      addMagicWands(count);
       _isMagicWandMode = true;
       _isBombMode = false;
       _isEraseMode = false;
