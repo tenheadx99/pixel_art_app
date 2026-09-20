@@ -141,11 +141,31 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   bool buyBombWithDiamonds(AppSettingsProvider appSettings) {
-    final cost = EconomyConfigService().currentConfig.diamondCostBomb;
+    int cost = AppConstants.diamondCostBomb;
+    try {
+      cost = EconomyConfigService().currentConfig.diamondCostBomb;
+    } catch (_) {}
     if (appSettings.useDiamonds(cost)) {
       addBombs(1);
       _isBombMode = true;
       _isMagicWandMode = false;
+      _isEraseMode = false;
+      _haptic(HapticFeedback.selectionClick);
+      notifyListeners();
+      return true;
+    }
+    return false;
+  }
+
+  bool buyWandWithDiamonds(AppSettingsProvider appSettings) {
+    int cost = AppConstants.diamondCostWand;
+    try {
+      cost = EconomyConfigService().currentConfig.diamondCostWand;
+    } catch (_) {}
+    if (appSettings.useDiamonds(cost)) {
+      addMagicWands(1);
+      _isMagicWandMode = true;
+      _isBombMode = false;
       _isEraseMode = false;
       _haptic(HapticFeedback.selectionClick);
       notifyListeners();
@@ -1394,7 +1414,7 @@ class ColoringProvider extends ChangeNotifier {
       return false;
     }
     final targetNum = _currentArt!.grid[row][col];
-    if (targetNum == 0 || _filledGrid[row][col] > 0) return false;
+    if (targetNum == 0) return false;
 
     _beginUndo();
 
@@ -1418,12 +1438,14 @@ class ColoringProvider extends ChangeNotifier {
       final r = idx ~/ width;
       final c = idx % width;
 
-      if (_currentArt!.grid[r][c] == targetNum && _filledGrid[r][c] == 0) {
-        _setCell(r, c, targetNum);
-        _recordTimeLapse(r, c);
-        changed = true;
-        depthMap.putIfAbsent(currentDepth, () => []).add((r, c));
-        onCellFilledCorrectly?.call();
+      if (_currentArt!.grid[r][c] == targetNum) {
+        if (_filledGrid[r][c] == 0) {
+          _setCell(r, c, targetNum);
+          _recordTimeLapse(r, c);
+          changed = true;
+          depthMap.putIfAbsent(currentDepth, () => []).add((r, c));
+          onCellFilledCorrectly?.call();
+        }
 
         void checkAndEnqueue(int nextIdx) {
           if (visited[nextIdx] == 0) {
@@ -1455,6 +1477,7 @@ class ColoringProvider extends ChangeNotifier {
       _magicWandsCount--;
       _isMagicWandMode = false;
       _totalFillCount++;
+      _selectedNumber = targetNum;
       AnalyticsService().logBoosterUsed(
         type: 'magic_wand',
         remaining: _magicWandsCount,

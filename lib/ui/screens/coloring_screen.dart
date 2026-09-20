@@ -233,9 +233,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     _growController.onRingRevealed = (ringIndex, cells, totalRings) {
       if (!mounted) return;
       if (_settings?.soundsEnabled ?? true) {
-        final ratio = totalRings > 1 ? (ringIndex / (totalRings - 1)) : 0.0;
-        final chimeRate = 0.92 + ratio * 0.45;
-        context.read<SoundService>().playComboChime(rate: chimeRate);
+        final shouldPlaySound = totalRings <= 6 || ringIndex % 2 == 0 || ringIndex == totalRings - 1;
+        if (shouldPlaySound) {
+          final ratio = totalRings > 1 ? (ringIndex / (totalRings - 1)) : 0.0;
+          final chimeRate = 0.92 + ratio * 0.45;
+          context.read<SoundService>().playComboChime(rate: chimeRate);
+        }
       }
       if (_settings?.hapticsEnabled ?? true) {
         HapticFeedback.selectionClick();
@@ -406,7 +409,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         ? AppConstants.bombWaveRingDelayMs
         : AppConstants.wandWaveRingDelayMs;
 
-    _growController.addWave(rings, nowMs, ringDelayMs: delay);
+    _growController.addWave(rings, nowMs, ringDelayMs: delay, type: type);
     if (!_growTicker.isAnimating) _growTicker.repeat();
 
     if (_settings?.fillEffectsEnabled ?? true) {

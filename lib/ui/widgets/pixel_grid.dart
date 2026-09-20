@@ -149,7 +149,7 @@ class _PixelGridState extends State<PixelGrid> {
     _gemOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
+      widget.fillGrow?.settled,
       widget.fillGrow?.newlyRevealed,
     ]);
   }
@@ -203,7 +203,11 @@ class _PixelGridState extends State<PixelGrid> {
       // Decide the gesture's intent from the cell under the finger: a swipe
       // that starts on the selected number paints; anywhere else it pans.
       _strokeIsPan = _shouldPanFrom(event.position);
-      if (_strokeIsPan) widget.onRequestCanvasPan?.call(true);
+      // In wand/bomb mode, do not immediately activate canvas pan on pointer down
+      // so stationary taps are not swallowed by InteractiveViewer's gesture arena.
+      if (_strokeIsPan && !widget.provider.isMagicWandMode && !widget.provider.isBombMode) {
+        widget.onRequestCanvasPan?.call(true);
+      }
     } else {
       // Second finger: this is a pinch, not a stroke. Revert any paint.
       _downPosition = null;
@@ -216,13 +220,23 @@ class _PixelGridState extends State<PixelGrid> {
 
   void _onPointerMove(PointerMoveEvent event) {
     final art = widget.provider.currentArt;
-    if (art == null || widget.onCellDrag == null) return;
-    // A pan stroke is driven by the InteractiveViewer, not by painting.
-    if (_strokeIsPan) return;
+    if (art == null) return;
     if (_activePointers != 1) return;
+    final down = _downPosition;
+    if (down == null) return;
+    final dist = (event.position - down).distance;
+
+    // A pan stroke is driven by the InteractiveViewer, not by painting.
+    if (_strokeIsPan) {
+      if (dist >= kTouchSlop) {
+        widget.onRequestCanvasPan?.call(true);
+      }
+      return;
+    }
+
+    if (widget.onCellDrag == null) return;
     if (!_stroking) {
-      final down = _downPosition;
-      if (down == null || (event.position - down).distance < kTouchSlop) {
+      if (dist < kTouchSlop) {
         return;
       }
       _stroking = true;
@@ -1432,6 +1446,7 @@ class _PixelGridPainter extends CustomPainter {
           ch - cellGap * 2,
         );
         final grow = fillGrow!.factor(row, col, nowMs);
+        final crest = fillGrow!.crestGlow(row, col, nowMs);
         final drawRect = grow < 1.0
             ? Rect.fromCenter(
                 center: rect.center,
@@ -1439,8 +1454,14 @@ class _PixelGridPainter extends CustomPainter {
                 height: rect.height * (0.12 + 0.88 * grow),
               )
             : rect;
-        if (grow < 1.0) {
-          cellPaint.color = filledColors[expectedNumber] ?? Colors.grey;
+        if (grow < 1.0 || crest > 0.0) {
+          Color cellColor = filledColors[expectedNumber] ?? Colors.grey;
+          if (crest > 0.0) {
+            final isBomb = fillGrow!.activeWaveType == WaveFillType.bomb;
+            final crestTint = isBomb ? const Color(0xFFFFE082) : Colors.white;
+            cellColor = Color.lerp(cellColor, crestTint, crest * 0.08)!;
+          }
+          cellPaint.color = cellColor;
           canvas.drawRect(drawRect, cellPaint);
           if (colorblindMode) {
             _drawPattern(canvas, drawRect, expectedNumber, cw, ch);
@@ -1455,16 +1476,27 @@ class _PixelGridPainter extends CustomPainter {
             ),
             glossPaint,
           );
+
+          if (crest > 0.0) {
+            final crestRim = _glossPaint
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = (0.7 * crest).clamp(0.4, 1.0)
+              ..color = Colors.white.withAlpha((24 * crest).round());
+            canvas.drawRect(drawRect.deflate(0.5), crestRim);
+            _glossPaint.style = PaintingStyle.fill;
+          }
         }
 
-        // Afterglow: a soft warm flash that fades over 450ms after the
-        // fill, sharing the grow's clock. Stroke fills carry naturally
-        // staggered timestamps, so a swipe leaves a glowing trail.
+        // Afterglow: a soft warm flash. During wave fills, kept minimal
+        // to avoid over-glowing large groups of cells simultaneously.
+        final isWave = fillGrow?.isWaveActive ?? false;
+        final maxGlowAlpha = isWave ? 8 : 20;
+        final glowDuration = isWave ? 0.18 : 0.25;
         final age = (nowMs - startMs) / 1000.0;
-        if (age >= 0 && age < 0.45) {
-          final glow = 1.0 - age / 0.45;
+        if (age >= 0 && age < glowDuration) {
+          final glow = 1.0 - age / glowDuration;
           cellPaint.color =
-              const Color(0xFFFFF3D6).withAlpha((80 * glow * glow).round());
+              const Color(0xFFFFF3D6).withAlpha((maxGlowAlpha * glow * glow).round());
           canvas.drawRect(drawRect, cellPaint);
         }
       });
@@ -1656,8 +1688,8 @@ class _PixelGridPainter extends CustomPainter {
     _highlightStaging = null;
   }
 
-  /// Invalidates textures and static overlays during wave animations so the
-  /// next frame re-bakes with newly revealed wave rings.
+  /// Invalidates grid textures and static overlays during wave animations so the
+  /// next frame patches with newly revealed wave rings.
   static void markWaveDirty() {
     _cachedImageFillVersion = -1;
     _overlayFillVersion = -1;

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
@@ -232,10 +233,10 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
       startMs: now,
     ));
 
-    // 2. High-density exploding embers (24 flying particles for bigger blast)
-    for (var i = 0; i < 24; i++) {
+    // 2. High-density exploding embers (12 flying particles for subtle blast)
+    for (var i = 0; i < 12; i++) {
       final angle = _rnd.nextDouble() * math.pi * 2;
-      final speed = 2.8 + _rnd.nextDouble() * 4.2;
+      final speed = 2.4 + _rnd.nextDouble() * 3.5;
       final emberColor = i % 3 == 0
           ? const Color(0xFFFFD700)
           : (i % 3 == 1 ? const Color(0xFFFF4500) : const Color(0xFFFF8C00));
@@ -263,8 +264,8 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
     for (var ringIdx = 0; ringIdx < rings.length; ringIdx++) {
       final ringTime = now + ringIdx * delayMs;
       final ring = rings[ringIdx];
-      // Pick up to 3 representative cells per ring to keep particle overlay light & fast
-      final stride = (ring.length / 3).ceil().clamp(1, 100);
+      // Pick up to 2 representative cells per ring to keep particle overlay light & subtle
+      final stride = (ring.length / 2).ceil().clamp(1, 100);
       for (var i = 0; i < ring.length; i += stride) {
         final (r, c) = ring[i];
         _add(_FillEffect(
@@ -273,7 +274,7 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
           col: c,
           color: color,
           startMs: ringTime,
-          sparkleCount: 4,
+          sparkleCount: 2,
           seed: _rnd.nextDouble() * math.pi * 2,
         ));
       }
@@ -515,14 +516,14 @@ class _FillEffectsPainter extends CustomPainter {
     double rotation,
   ) {
     final int alphaByte = (alpha * 255).round().clamp(0, 255);
-    final int glowAlphaByte = (alpha * 140).round().clamp(0, 255);
+    final int glowAlphaByte = (alpha * 38).round().clamp(0, 255);
 
     // 1. Soft Radial Glow Halo
     paint
       ..style = PaintingStyle.fill
       ..color = color.withAlpha(glowAlphaByte)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.8);
-    canvas.drawCircle(c, r * 1.1, paint);
+      ..maskFilter = MaskFilter.blur(BlurStyle.normal, r * 0.5);
+    canvas.drawCircle(c, r * 1.0, paint);
     paint.maskFilter = null;
 
     // 2. Primary Outer Particle Shape
@@ -546,10 +547,10 @@ class _FillEffectsPainter extends CustomPainter {
         break;
     }
 
-    // 3. Bright White Center Core
+    // 3. Crisp Center Core
     paint
       ..style = PaintingStyle.fill
-      ..color = Colors.white.withAlpha((alpha * 220).round().clamp(0, 255));
+      ..color = Colors.white.withAlpha((alpha * 110).round().clamp(0, 255));
     canvas.drawCircle(c, r * 0.35, paint);
   }
 
@@ -716,39 +717,52 @@ class _FillEffectsPainter extends CustomPainter {
     // Radius in pixels is cellPx * 5.5 (diameter ~11 cells matching the circular blast)
     final maxRadius = cellPx * 5.5;
 
-    // A. Expanding Fiery Core Flash
+    // A. Expanding Fiery Core Flash with hardware-accelerated radial gradient (zero blur overhead)
     final flashProgress = (t / 0.5).clamp(0.0, 1.0);
     final flashScale = Curves.easeOutCubic.transform(flashProgress);
     final flashRadius = maxRadius * 0.75 * flashScale;
-    final flashAlpha = (1.0 - t).clamp(0.0, 1.0);
+    final flashAlpha = ((1.0 - t) * 0.28).clamp(0.0, 1.0);
 
-    paint
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFFF5252).withValues(alpha: flashAlpha * 0.45)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, cellPx * 0.5);
-    canvas.drawCircle(c, flashRadius, paint);
-
-    paint
-      ..color = const Color(0xFFFFD700).withValues(alpha: flashAlpha * 0.7)
-      ..maskFilter = MaskFilter.blur(BlurStyle.normal, cellPx * 0.2);
-    canvas.drawCircle(c, flashRadius * 0.5, paint);
-    paint.maskFilter = null;
+    if (flashRadius > 0.5 && flashAlpha > 0.01) {
+      paint
+        ..style = PaintingStyle.fill
+        ..shader = ui.Gradient.radial(
+          c,
+          math.max(1.0, flashRadius),
+          [
+            const Color(0xFFFFFFFF).withValues(alpha: flashAlpha * 0.35),
+            const Color(0xFFFFD700).withValues(alpha: flashAlpha * 0.22),
+            const Color(0xFFFF4500).withValues(alpha: flashAlpha * 0.10),
+            const Color(0x00FF4500),
+          ],
+          const [0.0, 0.22, 0.68, 1.0],
+        );
+      canvas.drawCircle(c, flashRadius, paint);
+      paint.shader = null;
+    }
 
     // B. Primary Expanding Outer Shockwave Ring
     final shockRadius = maxRadius * Curves.decelerate.transform(t);
-    final shockAlpha = (1.0 - t).clamp(0.0, 1.0);
+    final shockAlpha = ((1.0 - t) * 0.40).clamp(0.0, 1.0);
     paint
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (cellPx * 0.35 * (1.0 - t)).clamp(1.5, 8.0)
-      ..color = const Color(0xFFFF4500).withValues(alpha: shockAlpha * 0.85);
+      ..strokeWidth = (cellPx * 0.22 * (1.0 - t)).clamp(1.0, 4.0)
+      ..color = const Color(0xFFFF5722).withValues(alpha: shockAlpha * 0.55);
     canvas.drawCircle(c, shockRadius, paint);
 
-    // C. Inner Secondary Golden Ring
-    final innerRadius = maxRadius * 0.65 * Curves.easeOutQuad.transform(t);
+    // Subtle white rim at leading edge
     paint
-      ..strokeWidth = (cellPx * 0.2 * (1.0 - t)).clamp(1.0, 4.0)
-      ..color = const Color(0xFFFFD700).withValues(alpha: shockAlpha * 0.9);
+      ..strokeWidth = (cellPx * 0.08 * (1.0 - t)).clamp(0.8, 1.8)
+      ..color = Colors.white.withValues(alpha: shockAlpha * 0.40);
+    canvas.drawCircle(c, shockRadius, paint);
+
+    // C. Inner Secondary Golden Harmonic Ring
+    final innerRadius = maxRadius * 0.68 * Curves.easeOutQuad.transform(t);
+    paint
+      ..strokeWidth = (cellPx * 0.14 * (1.0 - t)).clamp(0.8, 2.5)
+      ..color = const Color(0xFFFFD700).withValues(alpha: shockAlpha * 0.35);
     canvas.drawCircle(c, innerRadius, paint);
+    paint.style = PaintingStyle.fill;
   }
 
   void _paintBombEmber(

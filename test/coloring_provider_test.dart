@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';
+import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
 PixelArt _testArt() => PixelArt(
   id: 'test_art',
@@ -278,6 +279,98 @@ void main() {
       expect(capturedRings![0], [(0, 0)]);
       // Ring 1 contains distance-1 connected cells
       expect(capturedRings![1], containsAll([(0, 1), (1, 0)]));
+    });
+
+    test('magic wand flows through already-filled cells in a connected component', () async {
+      final grid3x3 = [
+        [1, 1, 1],
+        [0, 0, 0],
+        [0, 0, 0],
+      ];
+      final art = PixelArt(
+        id: 'art_strip',
+        name: 'Strip',
+        gridWidth: 3,
+        gridHeight: 3,
+        grid: grid3x3,
+        colorMap: {1: const Color(0xFFFF0000)},
+      );
+      final provider = await _providerWith({});
+      provider.loadArt(art);
+
+      // Pre-fill the middle cell (0, 1)
+      provider.tryFillCell(0, 1);
+      expect(provider.filledGrid[0][1], 1);
+      expect(provider.filledGrid[0][0], 0);
+      expect(provider.filledGrid[0][2], 0);
+
+      // Tap (0, 0) with magic wand: should fill both (0, 0) and through (0, 1) to (0, 2)
+      provider.toggleMagicWandMode();
+      final success = provider.tryFillCell(0, 0);
+      expect(success, isTrue);
+      expect(provider.filledGrid[0][0], 1);
+      expect(provider.filledGrid[0][1], 1);
+      expect(provider.filledGrid[0][2], 1);
+    });
+
+    test('magic wand works when tapping an already-filled cell with unfilled neighbors', () async {
+      final grid3x3 = [
+        [1, 1, 1],
+        [0, 0, 0],
+        [0, 0, 0],
+      ];
+      final art = PixelArt(
+        id: 'art_strip',
+        name: 'Strip',
+        gridWidth: 3,
+        gridHeight: 3,
+        grid: grid3x3,
+        colorMap: {1: const Color(0xFFFF0000)},
+      );
+      final provider = await _providerWith({});
+      provider.loadArt(art);
+
+      // Pre-fill cell (0, 0)
+      provider.tryFillCell(0, 0);
+      expect(provider.filledGrid[0][0], 1);
+      expect(provider.filledGrid[0][1], 0);
+
+      // Tap (0, 0) with magic wand: should flood fill connected unfilled cells (0, 1) and (0, 2)
+      provider.toggleMagicWandMode();
+      final success = provider.tryFillCell(0, 0);
+      expect(success, isTrue);
+      expect(provider.filledGrid[0][1], 1);
+      expect(provider.filledGrid[0][2], 1);
+    });
+
+    test('magic wand synchronizes selectedNumber to match filled targetNum', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(largerTestArt());
+      provider.selectNumber(2);
+      expect(provider.selectedNumber, 2);
+
+      // Tap (0, 0) which is number 1
+      provider.toggleMagicWandMode();
+      final success = provider.tryFillCell(0, 0);
+      expect(success, isTrue);
+      expect(provider.selectedNumber, 1);
+    });
+
+    test('buyWandWithDiamonds deducts diamonds and activates wand mode', () async {
+      final storage = LocalStorageService();
+      await storage.init();
+      final settings = AppSettingsProvider(storage);
+      final initialDiamonds = settings.diamondsAvailable;
+      settings.addDiamonds(100);
+      final provider = ColoringProvider(storage);
+      provider.loadArt(_testArt());
+
+      final initialWands = provider.magicWandsCount;
+      final success = provider.buyWandWithDiamonds(settings);
+      expect(success, isTrue);
+      expect(provider.magicWandsCount, initialWands + 1);
+      expect(provider.isMagicWandMode, isTrue);
+      expect(settings.diamondsAvailable, initialDiamonds + 100 - 40);
     });
 
     test('bomb fills all non-zero cells in a 3x3 region and decrements bomb count', () async {

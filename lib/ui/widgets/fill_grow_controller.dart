@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../config/app_constants.dart';
+import '../../providers/coloring_provider.dart' show WaveFillType;
 
 class _PendingRing {
   final int ringIndex;
@@ -27,6 +28,7 @@ class FillGrowController extends ChangeNotifier {
   final int gridWidth;
   final Map<int, int> _startMs = {};
   final List<_PendingRing> _pendingRings = [];
+  WaveFillType? activeWaveType;
 
   FillGrowController(this.gridWidth);
 
@@ -78,7 +80,9 @@ class FillGrowController extends ChangeNotifier {
     List<List<(int r, int c)>> rings,
     int startMs, {
     int ringDelayMs = AppConstants.bombWaveRingDelayMs,
+    WaveFillType? type,
   }) {
+    activeWaveType = type;
     final totalRings = rings.length;
     for (var i = 0; i < totalRings; i++) {
       final ringTime = startMs + i * ringDelayMs;
@@ -104,6 +108,16 @@ class FillGrowController extends ChangeNotifier {
     return nowMs >= start;
   }
 
+  /// Intensity of the subtle wavefront crest (fading to 0.0 over 55ms).
+  double crestGlow(int row, int col, int nowMs) {
+    final start = _startMs[_key(row, col)];
+    if (start == null) return 0.0;
+    final age = nowMs - start;
+    if (age < 0 || age >= 55) return 0.0;
+    final t = age / 55.0;
+    return (1.0 - t) * (1.0 - t);
+  }
+
   /// 0 = just placed / waiting for wave, 1 = fully grown. Returns 1 for cells that
   /// aren't animating, so callers can use it unconditionally.
   double factor(int row, int col, int nowMs) {
@@ -116,6 +130,9 @@ class FillGrowController extends ChangeNotifier {
   }
 
   bool get isEmpty => _startMs.isEmpty && _pendingRings.isEmpty;
+
+  /// True while a wave animation is currently scheduled or expanding.
+  bool get isWaveActive => activeWaveType != null || _pendingRings.isNotEmpty;
 
   /// The fill timestamp of a still-registered cell, or null once it has been
   /// pruned. Lets the flat-flavor painter run its afterglow directly off the
@@ -165,6 +182,9 @@ class FillGrowController extends ChangeNotifier {
       }
     }
     _startMs.removeWhere((_, start) => nowMs - start >= _retentionMs);
+    if (_startMs.isEmpty && _pendingRings.isEmpty) {
+      activeWaveType = null;
+    }
     if (anySettled) _settled.fire();
     notifyListeners();
   }
@@ -172,6 +192,7 @@ class FillGrowController extends ChangeNotifier {
   void clear() {
     _startMs.clear();
     _pendingRings.clear();
+    activeWaveType = null;
   }
 }
 
