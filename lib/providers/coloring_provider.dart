@@ -1413,51 +1413,36 @@ class ColoringProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-    final targetNum = _currentArt!.grid[row][col];
+    var targetNum = _currentArt!.grid[row][col];
+    if (targetNum == 0) targetNum = _selectedNumber;
     if (targetNum == 0) return false;
+
+    if (_cellsByNumber.isEmpty) {
+      _buildCellIndex();
+    }
+    final cellIndices = _cellsByNumber[targetNum];
+    if (cellIndices == null || cellIndices.isEmpty) return false;
 
     _beginUndo();
 
-    // BFS with a head index (List.removeAt(0) is O(n) — O(n²) over a large
-    // region) and a flat visited bitmap instead of a Set of tuples. Bounds are
-    // checked at enqueue time; visit order is unchanged.
     final width = _currentArt!.gridWidth;
-    final height = _currentArt!.gridHeight;
-    final queue = <int>[row * width + col];
-    final visited = Uint8List(width * height);
-    final depths = <int, int>{row * width + col: 0};
     final Map<int, List<(int, int)>> depthMap = {};
-    var head = 0;
     bool changed = false;
 
-    while (head < queue.length) {
-      final idx = queue[head++];
-      final currentDepth = depths[idx] ?? 0;
-      if (visited[idx] != 0) continue;
-      visited[idx] = 1;
+    for (var i = 0; i < cellIndices.length; i++) {
+      final idx = cellIndices[i];
       final r = idx ~/ width;
       final c = idx % width;
+      if (_filledGrid[r][c] == 0) {
+        _setCell(r, c, targetNum);
+        _recordTimeLapse(r, c);
+        changed = true;
+        onCellFilledCorrectly?.call();
 
-      if (_currentArt!.grid[r][c] == targetNum) {
-        if (_filledGrid[r][c] == 0) {
-          _setCell(r, c, targetNum);
-          _recordTimeLapse(r, c);
-          changed = true;
-          depthMap.putIfAbsent(currentDepth, () => []).add((r, c));
-          onCellFilledCorrectly?.call();
-        }
-
-        void checkAndEnqueue(int nextIdx) {
-          if (visited[nextIdx] == 0) {
-            depths.putIfAbsent(nextIdx, () => currentDepth + 1);
-            queue.add(nextIdx);
-          }
-        }
-
-        if (r + 1 < height) checkAndEnqueue(idx + width);
-        if (r - 1 >= 0) checkAndEnqueue(idx - width);
-        if (c + 1 < width) checkAndEnqueue(idx + 1);
-        if (c - 1 >= 0) checkAndEnqueue(idx - 1);
+        final dr = r - row;
+        final dc = c - col;
+        final dist = math.sqrt(dr * dr + dc * dc).floor();
+        depthMap.putIfAbsent(dist, () => []).add((r, c));
       }
     }
 

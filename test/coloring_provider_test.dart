@@ -227,7 +227,7 @@ void main() {
       colorMap: {1: Color(0xFFFF0000), 2: Color(0xFF0000FF)},
     );
 
-    test('magic wand fills connected region of same number and decrements wand count', () async {
+    test('magic wand fills all cells of same number across artwork and decrements wand count', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
       expect(provider.magicWandsCount, 3);
@@ -241,17 +241,17 @@ void main() {
       expect(provider.isMagicWandMode, isFalse);
       expect(provider.magicWandsCount, 2);
 
-      // (0,0), (0,1), (1,0) are connected and should be filled
+      // (0,0), (0,1), (1,0) are 1 and should be filled
       expect(provider.filledGrid[0][0], 1);
       expect(provider.filledGrid[0][1], 1);
       expect(provider.filledGrid[1][0], 1);
 
-      // (2,1) and (2,2) are also 1 but not connected, so they should not be filled
-      expect(provider.filledGrid[2][1], 0);
-      expect(provider.filledGrid[2][2], 0);
+      // (2,1) and (2,2) are also 1 across the artwork and should also be filled!
+      expect(provider.filledGrid[2][1], 1);
+      expect(provider.filledGrid[2][2], 1);
     });
 
-    test('magic wand triggers onWaveFill with topological BFS depth rings', () async {
+    test('magic wand triggers onWaveFill with concentric distance rings across entire artwork', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
 
@@ -274,11 +274,13 @@ void main() {
       expect(capturedCenterR, 0);
       expect(capturedCenterC, 0);
       expect(capturedRings, isNotNull);
-      expect(capturedRings!.length, greaterThanOrEqualTo(2));
+      expect(capturedRings!.length, greaterThanOrEqualTo(3));
       // Ring 0 is the starting cell
       expect(capturedRings![0], [(0, 0)]);
-      // Ring 1 contains distance-1 connected cells
+      // Ring 1 contains distance-1 cells
       expect(capturedRings![1], containsAll([(0, 1), (1, 0)]));
+      // Ring 2 contains farther cells across the artwork
+      expect(capturedRings![2], containsAll([(2, 1), (2, 2)]));
     });
 
     test('magic wand flows through already-filled cells in a connected component', () async {
@@ -343,7 +345,7 @@ void main() {
       expect(provider.filledGrid[0][2], 1);
     });
 
-    test('magic wand synchronizes selectedNumber to match filled targetNum', () async {
+    test('magic wand completes target number across artwork and auto-advances selection', () async {
       final provider = await _providerWith({});
       provider.loadArt(largerTestArt());
       provider.selectNumber(2);
@@ -353,7 +355,8 @@ void main() {
       provider.toggleMagicWandMode();
       final success = provider.tryFillCell(0, 0);
       expect(success, isTrue);
-      expect(provider.selectedNumber, 1);
+      // All cells of 1 across the artwork were filled, so auto-advance moved to 2
+      expect(provider.selectedNumber, 2);
     });
 
     test('buyWandWithDiamonds deducts diamonds and activates wand mode', () async {

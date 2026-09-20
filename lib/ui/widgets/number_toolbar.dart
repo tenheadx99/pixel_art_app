@@ -153,7 +153,7 @@ class NumberToolbar extends StatelessWidget {
             },
           ),
 
-          // 3. Paint Bucket (Contiguous magic wand fill)
+          // 3. Paint Bucket (Fill all cells of target number across artwork)
           _ToolCircleButton(
             icon: const Icon(
               Icons.format_color_fill_rounded,
@@ -1116,7 +1116,7 @@ class _OutOfWandsDialog extends StatelessWidget {
                           const SizedBox(width: 7),
                           Flexible(
                             child: Text(
-                              'Fills connected cells of a number instantly',
+                              'Fills all cells of a number across the artwork',
                               style: TextStyle(
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w700,
