@@ -1490,8 +1490,8 @@ class _PixelGridPainter extends CustomPainter {
         // Afterglow: a soft warm flash. During wave fills, kept minimal
         // to avoid over-glowing large groups of cells simultaneously.
         final isWave = fillGrow?.isWaveActive ?? false;
-        final maxGlowAlpha = isWave ? 8 : 20;
-        final glowDuration = isWave ? 0.18 : 0.25;
+        final maxGlowAlpha = isWave ? 12 : 24;
+        final glowDuration = isWave ? 0.30 : 0.36;
         final age = (nowMs - startMs) / 1000.0;
         if (age >= 0 && age < glowDuration) {
           final glow = 1.0 - age / glowDuration;

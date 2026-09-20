@@ -108,13 +108,13 @@ class FillGrowController extends ChangeNotifier {
     return nowMs >= start;
   }
 
-  /// Intensity of the subtle wavefront crest (fading to 0.0 over 55ms).
+  /// Intensity of the subtle wavefront crest (fading to 0.0 over 110ms).
   double crestGlow(int row, int col, int nowMs) {
     final start = _startMs[_key(row, col)];
     if (start == null) return 0.0;
     final age = nowMs - start;
-    if (age < 0 || age >= 55) return 0.0;
-    final t = age / 55.0;
+    if (age < 0 || age >= 110) return 0.0;
+    final t = age / 110.0;
     return (1.0 - t) * (1.0 - t);
   }
 
