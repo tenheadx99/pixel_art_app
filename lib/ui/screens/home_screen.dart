@@ -18,7 +18,6 @@ import '../widgets/coin_fly.dart';
 import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
 import '../widgets/reward_popup.dart';
-import '../widgets/settings_sheet.dart';
 import '../widgets/diamond_shop_sheet.dart';
 import '../../data/services/economy_config_service.dart';
 import '../widgets/transitions.dart';
@@ -362,11 +361,6 @@ class _HomeScreenState extends State<HomeScreen> {
                           icon: Icons.photo_library,
                           onTap: () => _openGallery(context),
                         ),
-                        const SizedBox(width: 8),
-                        _HeaderIconButton(
-                          icon: Icons.settings_outlined,
-                          onTap: () => showSettingsSheet(context),
-                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -480,253 +474,220 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  /// Gamified header strip: level badge + XP bar + diamond balance. Tapping it
-  /// opens the profile/stats screen.
-  /// Gamified header strip: Level & Profile card on the left, Diamond Shop on the right.
+  /// Gamified header card: Level avatar, Streak, XP progress, and Diamond balance
+  /// unified into a single sleek card.
   Widget _buildPlayerStrip(
     BuildContext context,
     GalleryProvider gallery,
     AppSettingsProvider settings,
   ) {
-    return Row(
-      children: [
-        // 1. Profile Action Card (Level + Streak + XP Progress + Profile Chevron)
-        Expanded(
-          child: PressableScale(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              _openProfile(context);
-            },
-            scale: 0.98,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    final isShopEnabled = EconomyConfigService().isShopEnabled;
+    final canEarn = _canEarnDiamondsViaAd &&
+        settings.freeDiamondClaimsRemaining > 0;
+
+    return PressableScale(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        _openProfile(context);
+      },
+      scale: 0.98,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(25),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: Colors.white.withAlpha(35),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(20),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // 1. Level Avatar Badge
+            Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
-                color: Colors.white.withAlpha(25),
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: Colors.white.withAlpha(45),
-                  width: 1.2,
+                shape: BoxShape.circle,
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withAlpha(20),
+                    color: const Color(0xFFFF9D2E).withAlpha(120),
                     blurRadius: 8,
                     offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  // Level Badge with glowing ring
-                  Container(
-                    width: 38,
-                    height: 38,
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: const LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFFFF9D2E).withAlpha(120),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
+              child: Text(
+                '${settings.playerLevel}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // 2. Streak Flame Badge
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                _showStreakMilestoneDialog(context, gallery, settings);
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withAlpha(45),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: Colors.orange.withAlpha(120),
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.local_fire_department,
+                      color: Colors.orangeAccent,
+                      size: 14,
                     ),
-                    child: Text(
-                      '${settings.playerLevel}',
+                    const SizedBox(width: 2),
+                    Text(
+                      '${gallery.dailyStreak}d',
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Streak Flame Badge (nested tap)
-                  GestureDetector(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      _showStreakMilestoneDialog(context, gallery, settings);
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.orange.withAlpha(45),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: Colors.orange.withAlpha(120),
-                          width: 1,
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // 3. Level Title & XP Bar (WITHOUT "10 done")
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Level ${settings.playerLevel}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.local_fire_department,
-                            color: Colors.orangeAccent,
-                            size: 14,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            '${gallery.dailyStreak}d',
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 3),
+                      const Icon(
+                        Icons.arrow_forward_ios_rounded,
+                        size: 10,
+                        color: Colors.white70,
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  // Level Info & Progress + Chevron Affordance
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Row(
-                          children: [
-                            Text(
-                              'Level ${settings.playerLevel}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 12.5,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 2),
-                            const Icon(
-                              Icons.arrow_forward_ios_rounded,
-                              size: 10.5,
-                              color: Colors.white70,
-                            ),
-                            const Spacer(),
-                            Text(
-                              '${gallery.completedIds.length} done',
-                              style: TextStyle(
-                                color: Colors.white.withAlpha(180),
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 5),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
-                          child: TweenAnimationBuilder<double>(
-                            tween: Tween(end: settings.xpProgressInLevel),
-                            duration: const Duration(milliseconds: 500),
-                            curve: Curves.easeOutCubic,
-                            builder: (context, v, _) => LinearProgressIndicator(
-                              value: v,
-                              minHeight: 5,
-                              backgroundColor: Colors.white.withAlpha(45),
-                              valueColor: const AlwaysStoppedAnimation(Color(0xFFFFD24C)),
-                            ),
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(end: settings.xpProgressInLevel),
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, v, _) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 5,
+                        backgroundColor: Colors.white.withAlpha(45),
+                        valueColor:
+                            const AlwaysStoppedAnimation(Color(0xFFFFD24C)),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-          ),
-        ),
-
-        const SizedBox(width: 8),
-
-        // 2. Diamond Shop Action Pill
-        Builder(builder: (context) {
-          final isShopEnabled = EconomyConfigService().isShopEnabled;
-          final canEarn = _canEarnDiamondsViaAd &&
-              settings.freeDiamondClaimsRemaining > 0;
-          return PressableScale(
-            onTap: () {
-              HapticFeedback.lightImpact();
-              if (isShopEnabled) {
-                DiamondShopSheet.show(context);
-              } else if (canEarn) {
-                _watchAdForDiamonds('home_free_diamonds');
-              }
-            },
-            scale: 0.96,
-            child: AnimatedScale(
-              scale: _diamondChipPulse ? 1.15 : 1.0,
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutBack,
-              child: Container(
-                key: _diamondChipKey,
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      const Color(0xFFFF9F43).withAlpha(50),
-                      const Color(0xFFFF5252).withAlpha(40),
-                    ],
-                  ),
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: const Color(0xFFFFD24C).withAlpha(150),
-                    width: 1.2,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFFFF9F43).withAlpha(45),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
+            const SizedBox(width: 12),
+            // 4. Integrated Diamond Balance & Shop Action inside the Level Card
+            GestureDetector(
+              onTap: () {
+                HapticFeedback.lightImpact();
+                if (isShopEnabled) {
+                  DiamondShopSheet.show(context);
+                } else if (canEarn) {
+                  _watchAdForDiamonds('home_free_diamonds');
+                }
+              },
+              child: AnimatedScale(
+                scale: _diamondChipPulse ? 1.15 : 1.0,
+                duration: const Duration(milliseconds: 180),
+                curve: Curves.easeOutBack,
+                child: Container(
+                  key: _diamondChipKey,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(35),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: const Color(0xFFFFD24C).withAlpha(120),
+                      width: 1,
                     ),
-                  ],
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RollingCount(
-                      settings.diamondsAvailable,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      RollingCount(
+                        settings.diamondsAvailable,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w800,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    const Icon(
-                      Icons.diamond_rounded,
-                      color: Color(0xFFFFD24C),
-                      size: 16,
-                    ),
-                    if (isShopEnabled || canEarn) ...[
-                      const SizedBox(width: 5),
-                      Container(
-                        padding: const EdgeInsets.all(2.5),
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                      const SizedBox(width: 4),
+                      const Icon(
+                        Icons.diamond_rounded,
+                        color: Color(0xFFFFD24C),
+                        size: 15,
+                      ),
+                      if (isShopEnabled || canEarn) ...[
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.all(2),
+                          decoration: const BoxDecoration(
+                            color: Color(0xFFFFD24C),
+                            shape: BoxShape.circle,
                           ),
-                          shape: BoxShape.circle,
+                          child: const Icon(
+                            Icons.add_rounded,
+                            size: 10,
+                            color: Colors.black87,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.add_rounded,
-                          size: 11,
-                          color: Colors.black87,
-                        ),
-                      ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
-          );
-        }),
-      ],
+          ],
+        ),
+      ),
     );
   }
 

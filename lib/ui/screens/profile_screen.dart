@@ -14,6 +14,7 @@ import '../widgets/diamond_shop_sheet.dart';
 import '../widgets/entrance.dart';
 import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
+import '../widgets/settings_sheet.dart';
 import '../widgets/transitions.dart';
 import 'gallery_screen.dart';
 
@@ -211,6 +212,79 @@ class _ProfileScreenState extends State<ProfileScreen>
             Navigator.of(context).maybePop();
           },
         ),
+        actions: [
+          // Diamond balance & Shop Button
+          PressableScale(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              DiamondShopSheet.show(context);
+            },
+            scale: 0.95,
+            child: Container(
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFFFF9F43).withAlpha(40),
+                    const Color(0xFFFF5252).withAlpha(30),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: const Color(0xFFFFD24C).withAlpha(140),
+                  width: 1,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RollingCount(
+                    settings.diamondsAvailable,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w800,
+                      color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.diamond_rounded,
+                    color: Color(0xFFFFD24C),
+                    size: 15,
+                  ),
+                  const SizedBox(width: 4),
+                  Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFFFFD24C),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.add_rounded,
+                      size: 10,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          // Settings button (moved from Home Screen)
+          IconButton(
+            icon: Icon(
+              Icons.settings_outlined,
+              color: isDark ? Colors.white70 : const Color(0xFF2D3436),
+            ),
+            tooltip: 'Settings',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              showSettingsSheet(context);
+            },
+          ),
+          const SizedBox(width: 6),
+        ],
       ),
       body: Stack(
         children: [
@@ -228,7 +302,142 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
+
+              // Prominent Diamond Shop Action Banner
+              StaggeredEntrance(
+                slot: 1,
+                child: PressableScale(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    DiamondShopSheet.show(context);
+                  },
+                  scale: 0.98,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [
+                                const Color(0xFF2D184C),
+                                const Color(0xFF3F1B4E),
+                              ]
+                            : [
+                                const Color(0xFFFFF3E0),
+                                const Color(0xFFFFE0B2),
+                              ],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(18),
+                      border: Border.all(
+                        color: const Color(0xFFFF9F43).withAlpha(isDark ? 80 : 120),
+                        width: 1.2,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFFFF9F43).withAlpha(isDark ? 30 : 25),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 42,
+                          height: 42,
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                            ),
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF9D2E).withAlpha(120),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.diamond_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Diamond Shop',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Get hints, bombs & premium art',
+                                style: TextStyle(
+                                  color: isDark ? Colors.white70 : const Color(0xFF795548),
+                                  fontSize: 11.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 7,
+                          ),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFFF9F43), Color(0xFFFF5252)],
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF5252).withAlpha(90),
+                                blurRadius: 6,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Shop 💎',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                color: Colors.white,
+                                size: 16,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 18),
 
               // Section Header: Stats
               StaggeredEntrance(
