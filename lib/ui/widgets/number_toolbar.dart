@@ -702,6 +702,57 @@ class _DiamondQuantityRefillCardState extends State<_DiamondQuantityRefillCard> 
   }
 }
 
+class _DialogCloseButton extends StatelessWidget {
+  final bool isDark;
+
+  const _DialogCloseButton({
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkResponse(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          Navigator.of(context).pop();
+        },
+        radius: 22,
+        containedInkWell: true,
+        splashColor: isDark ? Colors.white24 : Colors.black12,
+        highlightColor: isDark ? Colors.white12 : Colors.black.withValues(alpha: 0.05),
+        child: Container(
+          width: 44,
+          height: 44,
+          alignment: Alignment.center,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.12)
+                  : Colors.black.withValues(alpha: 0.06),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.12)
+                    : Colors.black.withValues(alpha: 0.06),
+                width: 1,
+              ),
+            ),
+            child: Icon(
+              Icons.close_rounded,
+              size: 19,
+              color: isDark ? Colors.white70 : Colors.black54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _OutOfBombsDialog extends StatelessWidget {
   final ColoringProvider provider;
   final AppSettingsProvider settings;
@@ -773,33 +824,10 @@ class _OutOfBombsDialog extends StatelessWidget {
               SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  padding: const EdgeInsets.fromLTRB(20, 26, 20, 20),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      // Top Row: subtle close button on top-right
-                      Align(
-                        alignment: Alignment.topRight,
-                        child: GestureDetector(
-                          onTap: () => Navigator.of(context).pop(),
-                          child: Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: isDark
-                                  ? Colors.white.withValues(alpha: 0.08)
-                                  : Colors.black.withValues(alpha: 0.05),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.close_rounded,
-                              size: 18,
-                              color: isDark ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                        ),
-                      ),
-
                       // Hero Bomb with Radiant Sunburst & Sparks
                       const SizedBox(
                         width: 96,
@@ -1051,6 +1079,12 @@ class _OutOfBombsDialog extends StatelessWidget {
                   ),
                 ),
               ),
+              // Pinned top-right close button (always on top of scroll view)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: _DialogCloseButton(isDark: isDark),
+              ),
             ],
           ),
         ),
@@ -1271,28 +1305,6 @@ class _OutOfWandsDialog extends StatelessWidget {
                           Colors.transparent,
                         ],
                       ),
-                    ),
-                  ),
-                ),
-              ),
-              Positioned(
-                top: 14,
-                right: 14,
-                child: GestureDetector(
-                  onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    width: 32,
-                    height: 32,
-                    decoration: BoxDecoration(
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.08)
-                          : Colors.black.withValues(alpha: 0.05),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      Icons.close_rounded,
-                      size: 18,
-                      color: isDark ? Colors.white70 : Colors.black54,
                     ),
                   ),
                 ),
@@ -1529,6 +1541,12 @@ class _OutOfWandsDialog extends StatelessWidget {
                     ],
                   ),
                 ),
+              ),
+              // Pinned top-right close button (always on top of scroll view)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: _DialogCloseButton(isDark: isDark),
               ),
             ],
           ),
