@@ -95,6 +95,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   // Diamonds awarded for finishing this artwork (0 if it had already paid out);
   // shown in the completion HUD.
   int _lastDiamondAward = 0;
+  // XP awarded for finishing this artwork; rolled up in the completion HUD.
+  int _lastXpAward = 0;
+  // Guards the victory intro sequence (grid dissolve -> light-sweep shine -> HUD).
+  bool _isCelebratingIntro = false;
+  // Prevents replay tick race conditions while actively scrubbing.
+  bool _isSeeking = false;
   // True once the player has watched an ad to double this completion's reward,
   // so the offer is shown only once per finish.
   bool _rewardDoubled = false;
@@ -186,23 +192,9 @@ class _ColoringScreenState extends State<ColoringScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     );
-    _confettiController.addStatusListener((status) {
-      if (status == AnimationStatus.completed && mounted) {
-        final provider = _coloringProvider;
-        if (provider != null &&
-            provider.currentArt?.id == widget.art.id &&
-            provider.isComplete &&
-            _hudDismissed) {
-          setState(() {
-            _hudDismissed = false;
-          });
-          _hudController.forward(from: 0);
-        }
-      }
-    });
     _shimmerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 600),
+      duration: const Duration(milliseconds: 900),
       value: 1.0,
     );
     _hudController = AnimationController(
@@ -220,7 +212,9 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
     _replayController.addListener(_onReplayTick);
     _replayController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) _finishReplay();
+      if (status == AnimationStatus.completed && mounted) {
+        setState(() {});
+      }
     });
     // Drives the per-cell grow-in repaint; repeats only while cells animate.
     _growTicker = AnimationController(
@@ -449,9 +443,6 @@ class _ColoringScreenState extends State<ColoringScreen>
 
       void startCelebration() {
         if (!mounted) return;
-        _gridFadeController.forward();
-        // Pay out the diamond reward (once per artwork) and surface the
-        // "level complete" HUD after the confetti gets going.
         final gallery = context.read<GalleryProvider>();
         final isDaily = gallery.dailyArt?.id == widget.art.id;
         final awarded = settings.awardCompletionDiamonds(
@@ -462,9 +453,9 @@ class _ColoringScreenState extends State<ColoringScreen>
         // celebrates after the completion HUD appears.
         final cells = provider.filledCellCount;
         settings.addLifetimeCells(cells);
-        final levelUp = settings.addXp(
-          cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion,
-        );
+        final xpEarned =
+            cells * AppConstants.xpPerCell + AppConstants.xpPerCompletion;
+        final levelUp = settings.addXp(xpEarned);
         if (levelUp.leveledUp) {
           _lastLevelUp = levelUp;
         } else {
@@ -472,13 +463,38 @@ class _ColoringScreenState extends State<ColoringScreen>
         }
         setState(() {
           _lastDiamondAward = awarded;
+          _lastXpAward = xpEarned;
           _rewardDoubled = false;
           _hudDismissed = true;
+          _isCelebratingIntro = true;
         });
-        if (_settings?.soundsEnabled ?? true) {
-          context.read<SoundService>().playComboChime(rate: 1.25);
-        }
-        _confettiController.forward(from: 0);
+
+        // 1. Grid Lines "Dissolve to Art"
+        _gridFadeController.forward(from: 0);
+
+        // 2. Light-Sweep Shimmer across the pure finished canvas
+        Future.delayed(const Duration(milliseconds: 350), () {
+          if (!mounted) return;
+          if (_settings?.soundsEnabled ?? true) {
+            context.read<SoundService>().playComboChime(rate: 1.25);
+          }
+          _shimmerController.duration = const Duration(milliseconds: 900);
+          _shimmerController.forward(from: 0);
+        });
+
+        // 3. Victory HUD & Confetti burst in sync as the sweep finishes
+        Future.delayed(const Duration(milliseconds: 1100), () {
+          if (!mounted) return;
+          setState(() {
+            _isCelebratingIntro = false;
+            _hudDismissed = false;
+          });
+          _hudController.forward(from: 0);
+          _confettiController.forward(from: 0);
+          if (settings.hapticsEnabled) {
+            provider.victoryHaptic();
+          }
+        });
       }
 
       // First ensure artwork is shown completely on screen (fitted), then start celebration animation.
@@ -844,7 +860,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       child: _buildBottomSection(context, provider, settings),
                     );
                   }
-                  if (_confettiController.isAnimating) {
+                  if (_isCelebratingIntro) {
                     return const SizedBox.shrink();
                   }
                   return _hudDismissed
@@ -933,7 +949,12 @@ class _ColoringScreenState extends State<ColoringScreen>
     final settings = context.read<AppSettingsProvider>();
     void grant() {
       settings.addDiamonds(baseAward);
-      if (mounted) setState(() => _rewardDoubled = true);
+      if (mounted) {
+        setState(() {
+          _lastDiamondAward = _lastDiamondAward * 2;
+          _rewardDoubled = true;
+        });
+      }
       _coinBurstToChip();
       _showInfoSnack('Reward doubled! +$baseAward diamonds');
     }
@@ -1255,8 +1276,8 @@ class _ColoringScreenState extends State<ColoringScreen>
                                 ),
                               ),
                             ),
-                            // Consolidated Reward & Level Card (if diamonds awarded or level up)
-                            if (_lastDiamondAward > 0 || _lastLevelUp != null) ...[
+                            // Consolidated Reward & Level Card (diamonds awarded, XP earned, or level up)
+                            if (_lastDiamondAward > 0 || _lastXpAward > 0 || _lastLevelUp != null) ...[
                               const SizedBox(height: 12),
                               _hudReveal(
                                 1,
@@ -1264,7 +1285,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                                   width: double.infinity,
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 16,
-                                    vertical: 12,
+                                    vertical: 13,
                                   ),
                                   decoration: BoxDecoration(
                                     gradient: LinearGradient(
@@ -1338,67 +1359,123 @@ class _ColoringScreenState extends State<ColoringScreen>
                                             ],
                                           ),
                                         ),
-                                        const SizedBox(height: 8),
+                                        const SizedBox(height: 10),
                                       ],
-                                      if (_lastDiamondAward > 0)
-                                        Row(
-                                          mainAxisAlignment: MainAxisAlignment.center,
-                                          children: [
-                                            Container(
-                                              padding: const EdgeInsets.all(7),
-                                              decoration: const BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                gradient: LinearGradient(
-                                                  colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
-                                                ),
-                                              ),
-                                              child: const Icon(
-                                                Icons.diamond_rounded,
-                                                color: Colors.white,
-                                                size: 20,
-                                              ),
-                                            ),
-                                            const SizedBox(width: 10),
-                                            Column(
-                                              crossAxisAlignment: CrossAxisAlignment.start,
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                Text(
-                                                  'REWARD EARNED',
-                                                  style: TextStyle(
-                                                    fontSize: 10,
-                                                    fontWeight: FontWeight.w800,
-                                                    letterSpacing: 0.8,
-                                                    color: isDark ? const Color(0xFFFFD24C) : const Color(0xFFB76E00),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          if (_lastDiamondAward > 0)
+                                            Flexible(
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.all(7),
+                                                    decoration: const BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      gradient: LinearGradient(
+                                                        colors: [Color(0xFFFFD24C), Color(0xFFFF9D2E)],
+                                                      ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.diamond_rounded,
+                                                      color: Colors.white,
+                                                      size: 18,
+                                                    ),
                                                   ),
-                                                ),
-                                                Row(
-                                                  crossAxisAlignment: CrossAxisAlignment.baseline,
-                                                  textBaseline: TextBaseline.alphabetic,
-                                                  children: [
-                                                    Text(
-                                                      '+$_lastDiamondAward',
-                                                      style: TextStyle(
-                                                        fontSize: 20,
-                                                        fontWeight: FontWeight.w900,
-                                                        color: isDark ? Colors.white : const Color(0xFF4A2C00),
+                                                  const SizedBox(width: 8),
+                                                  Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        'DIAMONDS',
+                                                        style: TextStyle(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.w800,
+                                                          letterSpacing: 0.8,
+                                                          color: isDark
+                                                              ? const Color(0xFFFFD24C)
+                                                              : const Color(0xFFB76E00),
+                                                        ),
                                                       ),
-                                                    ),
-                                                    const SizedBox(width: 4),
-                                                    Text(
-                                                      'Diamonds',
-                                                      style: TextStyle(
-                                                        fontSize: 13,
-                                                        fontWeight: FontWeight.w700,
-                                                        color: isDark ? Colors.white70 : const Color(0xFF7A4A00),
+                                                      RollingCount(
+                                                        _lastDiamondAward,
+                                                        prefix: '+',
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight.w900,
+                                                          color: isDark
+                                                              ? Colors.white
+                                                              : const Color(0xFF4A2C00),
+                                                        ),
                                                       ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ],
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
                                             ),
-                                          ],
-                                        ),
+                                          if (_lastDiamondAward > 0 && _lastXpAward > 0)
+                                            Container(
+                                              height: 32,
+                                              width: 1.2,
+                                              margin: const EdgeInsets.symmetric(horizontal: 14),
+                                              color: isDark ? Colors.white24 : Colors.black12,
+                                            ),
+                                          if (_lastXpAward > 0)
+                                            Flexible(
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.all(7),
+                                                    decoration: const BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      gradient: LinearGradient(
+                                                        colors: [Color(0xFF8C7CFF), Color(0xFF6C5CE7)],
+                                                      ),
+                                                    ),
+                                                    child: const Icon(
+                                                      Icons.bolt_rounded,
+                                                      color: Colors.white,
+                                                      size: 18,
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 8),
+                                                  Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    children: [
+                                                      Text(
+                                                        'EXPERIENCE',
+                                                        style: TextStyle(
+                                                          fontSize: 9.5,
+                                                          fontWeight: FontWeight.w800,
+                                                          letterSpacing: 0.8,
+                                                          color: isDark
+                                                              ? const Color(0xFFA29BFE)
+                                                              : const Color(0xFF5A4BC7),
+                                                        ),
+                                                      ),
+                                                      RollingCount(
+                                                        _lastXpAward,
+                                                        prefix: '+',
+                                                        suffix: ' XP',
+                                                        style: TextStyle(
+                                                          fontSize: 18,
+                                                          fontWeight: FontWeight.w900,
+                                                          color: isDark
+                                                              ? Colors.white
+                                                              : const Color(0xFF2E2460),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1552,7 +1629,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                                             ),
                                             const SizedBox(width: 8),
                                             Text(
-                                              'Reward Doubled! (+${_lastDiamondAward * 2} 💎 Claimed)',
+                                              'Reward Doubled! (+$_lastDiamondAward 💎 Claimed)',
                                               style: const TextStyle(
                                                 fontSize: 13,
                                                 fontWeight: FontWeight.w700,
@@ -2042,8 +2119,22 @@ class _ColoringScreenState extends State<ColoringScreen>
       return;
     }
     final art = provider.currentArt;
-    if (art == null || provider.timeLapse.isEmpty) return;
-    _replayActions = List.from(provider.timeLapse);
+    if (art == null) return;
+
+    List<(int, int)> actions = List.from(provider.timeLapse);
+    if (actions.isEmpty) {
+      final grid = provider.getGridState();
+      for (int r = 0; r < art.gridHeight; r++) {
+        for (int c = 0; c < art.gridWidth; c++) {
+          if (grid[r][c] != 0) {
+            actions.add((r, c));
+          }
+        }
+      }
+    }
+    if (actions.isEmpty) return;
+
+    _replayActions = actions;
     _replayIndex = 0;
     _savedGridState = provider.getGridState();
     provider.restoreGridState(
@@ -2058,77 +2149,247 @@ class _ColoringScreenState extends State<ColoringScreen>
     setState(() {});
   }
 
+  void _seekReplay(double progress) {
+    if (_replayActions.isEmpty) return;
+    final provider = context.read<ColoringProvider>();
+    final art = provider.currentArt;
+    if (art == null) return;
+
+    _isSeeking = true;
+    final clampedProgress = progress.clamp(0.0, 1.0);
+    final target = (clampedProgress * _replayActions.length).floor();
+
+    if (target < _replayIndex) {
+      provider.restoreGridState(
+        List.generate(art.gridHeight, (_) => List.filled(art.gridWidth, 0)),
+      );
+      _replayIndex = 0;
+    }
+
+    while (_replayIndex < target && _replayIndex < _replayActions.length) {
+      final (r, c) = _replayActions[_replayIndex];
+      provider.timeLapseStep(r, c);
+      _replayIndex++;
+    }
+
+    _replayController.value = clampedProgress;
+    _isSeeking = false;
+    if (mounted) setState(() {});
+  }
+
   Widget _buildReplayControls() {
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     return Positioned(
-      bottom: 24,
-      left: 16,
-      right: 16,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xEE1E1E2A),
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(color: Colors.white24, width: 1),
-          boxShadow: const [
-            BoxShadow(
-              color: Colors.black38,
-              blurRadius: 12,
-              offset: Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    _replayController.isAnimating
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 26,
-                  ),
-                  onPressed: () {
-                    if (_replayController.isAnimating) {
-                      _replayController.stop();
-                    } else {
-                      _replayController.forward();
-                    }
-                    if (mounted) setState(() {});
-                  },
-                ),
-                const Text(
-                  'Replay',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
-                  ),
+      bottom: 16 + bottomInset,
+      left: 14,
+      right: 14,
+      child: AnimatedBuilder(
+        animation: _replayController,
+        builder: (context, _) {
+          final progress = _replayController.value.clamp(0.0, 1.0);
+          final percent = (progress * 100).round();
+          final isDone = progress >= 0.999;
+          final isPlaying = _replayController.isAnimating;
+          final totalCells = _replayActions.length;
+
+          return Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: BoxDecoration(
+              color: const Color(0xF2161426),
+              borderRadius: BorderRadius.circular(22),
+              border: Border.all(
+                color: Colors.white.withAlpha(35),
+                width: 1.2,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(120),
+                  blurRadius: 18,
+                  offset: const Offset(0, 6),
                 ),
               ],
             ),
-            Row(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildSpeedChip(1.0, '1x'),
-                const SizedBox(width: 6),
-                _buildSpeedChip(2.0, '2x'),
-                const SizedBox(width: 6),
-                _buildSpeedChip(4.0, '4x'),
-                const SizedBox(width: 8),
-                IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 22),
-                  onPressed: () {
-                    _replayController.stop();
-                    _replayController.reset();
-                    _finishReplay();
-                  },
+                // Header row: Badge, Progress text, and Exit button
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: AppStyle.primary.withAlpha(45),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: AppStyle.primary.withAlpha(90),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(
+                            Icons.timelapse_rounded,
+                            size: 13,
+                            color: Color(0xFFD6BBFB),
+                          ),
+                          SizedBox(width: 4),
+                          Text(
+                            'TIMELAPSE',
+                            style: TextStyle(
+                              color: Color(0xFFD6BBFB),
+                              fontWeight: FontWeight.w900,
+                              fontSize: 10,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        '$percent%  •  $_replayIndex / $totalCells cells',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    InkWell(
+                      onTap: () {
+                        _replayController.stop();
+                        _replayController.reset();
+                        _finishReplay();
+                      },
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(20),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white70,
+                          size: 17,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 2),
+                // Timeline Scrubber Slider
+                SliderTheme(
+                  data: SliderThemeData(
+                    trackHeight: 4.5,
+                    activeTrackColor: AppStyle.primary,
+                    inactiveTrackColor: Colors.white.withAlpha(30),
+                    thumbColor: Colors.white,
+                    thumbShape: const RoundSliderThumbShape(
+                      enabledThumbRadius: 6.5,
+                      elevation: 2,
+                    ),
+                    overlayColor: AppStyle.primary.withAlpha(40),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                  ),
+                  child: Slider(
+                    value: progress,
+                    onChanged: (val) => _seekReplay(val),
+                    onChangeStart: (_) {
+                      if (_replayController.isAnimating) {
+                        _replayController.stop();
+                      }
+                    },
+                  ),
+                ),
+                // Bottom control actions: Play/Pause/Restart & Speed Selectors
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    InkWell(
+                      onTap: () {
+                        if (_replayController.isAnimating) {
+                          _replayController.stop();
+                        } else {
+                          if (isDone) {
+                            _seekReplay(0);
+                            _replayController.forward(from: 0);
+                          } else {
+                            _replayController.forward();
+                          }
+                        }
+                        if (mounted) setState(() {});
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF8C7CFF), Color(0xFF6C5CE7)],
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6C5CE7).withAlpha(90),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isDone
+                                  ? Icons.replay_rounded
+                                  : isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                              color: Colors.white,
+                              size: 17,
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              isDone
+                                  ? 'Restart'
+                                  : isPlaying
+                                      ? 'Pause'
+                                      : 'Play',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildSpeedChip(1.0, '1x'),
+                        const SizedBox(width: 5),
+                        _buildSpeedChip(2.0, '2x'),
+                        const SizedBox(width: 5),
+                        _buildSpeedChip(4.0, '4x'),
+                      ],
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -2139,17 +2400,21 @@ class _ColoringScreenState extends State<ColoringScreen>
       onTap: () => _setReplaySpeed(speed),
       borderRadius: BorderRadius.circular(16),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
         decoration: BoxDecoration(
-          color: isSelected ? AppStyle.primary : Colors.white12,
+          color: isSelected ? AppStyle.primary : Colors.white.withAlpha(20),
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected ? AppStyle.primary : Colors.white.withAlpha(40),
+            width: 1,
+          ),
         ),
         child: Text(
           label,
           style: TextStyle(
             color: Colors.white,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.w900 : FontWeight.w600,
+            fontSize: 11.5,
           ),
         ),
       ),
@@ -2157,7 +2422,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   void _onReplayTick() {
-    if (_replayActions.isEmpty) return;
+    if (_isSeeking || _replayActions.isEmpty) return;
     final provider = context.read<ColoringProvider>();
     final target = (_replayController.value * _replayActions.length).floor();
     while (_replayIndex < target && _replayIndex < _replayActions.length) {
