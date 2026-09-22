@@ -843,11 +843,7 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void setBrushSize(int size) {
-    if (size > 1 && _brushesCount <= 0) {
-      _brushSize = 1;
-    } else {
-      _brushSize = size.clamp(1, 3);
-    }
+    _brushSize = size.clamp(1, 3);
     notifyListeners();
   }
 
@@ -985,16 +981,6 @@ class ColoringProvider extends ChangeNotifier {
 
       _totalFillCount++;
       _consecutiveFills++;
-      if (_brushSize > 1) {
-        if (_brushesCount > 0) {
-          _brushesCount--;
-          AnalyticsService()
-              .logBoosterUsed(type: 'brush', remaining: _brushesCount);
-          if (_brushesCount == 0) {
-            _brushSize = 1;
-          }
-        }
-      }
       _checkCompletion();
       _checkAchievements();
       _updateNextFillable();
@@ -1082,16 +1068,6 @@ class ColoringProvider extends ChangeNotifier {
       _fillVibrate();
       _totalFillCount++;
       _consecutiveFills++;
-      if (_brushSize > 1) {
-        if (_brushesCount > 0) {
-          _brushesCount--;
-          AnalyticsService()
-              .logBoosterUsed(type: 'brush', remaining: _brushesCount);
-          if (_brushesCount == 0) {
-            _brushSize = 1;
-          }
-        }
-      }
       _checkCompletion();
     }
     _checkAchievements();

@@ -986,7 +986,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   Widget _buildModePill(ColoringProvider provider) {
     final active = provider.isEraseMode ||
         provider.isMagicWandMode ||
-        provider.isBombMode;
+        provider.isBombMode ||
+        provider.brushSize > 1;
     final Color color;
     final IconData icon;
     final String text;
@@ -998,10 +999,14 @@ class _ColoringScreenState extends State<ColoringScreen>
       color = Colors.black87;
       icon = Icons.bolt;
       text = 'Bomb mode: tap an area to explode';
-    } else {
+    } else if (provider.isMagicWandMode) {
       color = const Color(0xFF9C27B0);
       icon = Icons.auto_fix_high_rounded;
       text = 'Magic wand: tap an area';
+    } else {
+      color = const Color(0xFFE91E63);
+      icon = Icons.grid_view_rounded;
+      text = 'Multi-cell mode (3x3)';
     }
     final statusBarHeight = MediaQuery.of(context).padding.top;
     return Positioned(

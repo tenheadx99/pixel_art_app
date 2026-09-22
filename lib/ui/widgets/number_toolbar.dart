@@ -96,11 +96,12 @@ class NumberToolbar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final brushActive = !provider.isEraseMode && !provider.isMagicWandMode && !provider.isBombMode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isMulti = provider.brushSize > 1;
+    final isPaintActive = !provider.isEraseMode && !provider.isMagicWandMode && !provider.isBombMode;
     final bombActive = provider.isBombMode;
     final wandActive = provider.isMagicWandMode;
 
-    final brushesCount = provider.brushesCount;
     final bombsCount = provider.bombsCount;
     final magicWandsCount = provider.magicWandsCount;
     final hintsAvailable = settings.hintsAvailable;
@@ -110,27 +111,33 @@ class NumberToolbar extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // 1. Paintbrush Tool (Cycles brush size: 1, 2, 3)
+          // 1. Single / Multi Gem Cell Tool (Ad-free toggle between 1x1 single and 3x3 multi)
           _ToolCircleButton(
-            icon: const Icon(
-              Icons.brush_rounded,
-              color: Colors.pinkAccent,
-              size: 24,
+            icon: SizedBox(
+              width: 24,
+              height: 24,
+              child: CustomPaint(
+                painter: MultiCellIconPainter(
+                  isMulti: isMulti,
+                  isDark: isDark,
+                  activeColor: const Color(0xFFE91E63),
+                ),
+              ),
             ),
-            badgeValue: brushesCount == 0 ? 'ad' : '$brushesCount',
-            isActive: brushActive,
+            badgeValue: isMulti ? '3x3' : '1x',
+            badgeColor: isMulti
+                ? const Color(0xFFE91E63)
+                : (isDark ? const Color(0xFF4A4E69) : Colors.grey.shade600),
+            isActive: isPaintActive && isMulti,
             onTap: () {
-              if (brushesCount == 0) {
-                _watchAdRefill(context, 'Brush', () => provider.addBrushes(1));
-              } else {
-                final nextSize = provider.brushSize == 3 ? 1 : provider.brushSize + 1;
-                provider.setBrushSize(nextSize);
-                if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode) {
-                  if (provider.isEraseMode) provider.toggleEraseMode();
-                  if (provider.isMagicWandMode) provider.toggleMagicWandMode();
-                  if (provider.isBombMode) provider.toggleBombMode();
-                }
+              if (provider.isEraseMode || provider.isMagicWandMode || provider.isBombMode) {
+                if (provider.isEraseMode) provider.toggleEraseMode();
+                if (provider.isMagicWandMode) provider.toggleMagicWandMode();
+                if (provider.isBombMode) provider.toggleBombMode();
               }
+              final nextSize = provider.brushSize > 1 ? 1 : 3;
+              provider.setBrushSize(nextSize);
+              HapticFeedback.selectionClick();
             },
           ),
 
@@ -213,12 +220,14 @@ class _ToolCircleButton extends StatelessWidget {
   final Widget icon;
   final String badgeValue;
   final bool isActive;
+  final Color? badgeColor;
   final VoidCallback? onTap;
 
   const _ToolCircleButton({
     required this.icon,
     required this.badgeValue,
     required this.isActive,
+    this.badgeColor,
     this.onTap,
   });
 
@@ -271,7 +280,7 @@ class _ToolCircleButton extends StatelessWidget {
                 vertical: isAd ? 2 : 4,
               ),
               decoration: BoxDecoration(
-                color: isAd ? Colors.blue : Colors.orange,
+                color: badgeColor ?? (isAd ? Colors.blue : Colors.orange),
                 borderRadius: BorderRadius.circular(10),
                 shape: BoxShape.rectangle,
                 border: Border.all(
@@ -300,6 +309,72 @@ class _ToolCircleButton extends StatelessWidget {
       ),
     );
   }
+}
+
+class MultiCellIconPainter extends CustomPainter {
+  final bool isMulti;
+  final bool isDark;
+  final Color activeColor;
+
+  const MultiCellIconPainter({
+    required this.isMulti,
+    required this.isDark,
+    this.activeColor = Colors.pinkAccent,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    const cellSize = 5.6;
+    const gap = 1.8;
+    const totalW = 3 * cellSize + 2 * gap;
+    final startX = (size.width - totalW) / 2;
+    final startY = (size.height - totalW) / 2;
+
+    final fillPaint = Paint()
+      ..color = activeColor
+      ..style = PaintingStyle.fill;
+
+    final outlinePaint = Paint()
+      ..color = isDark ? Colors.white.withAlpha(45) : Colors.black.withAlpha(40)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    final faintFillPaint = Paint()
+      ..color = isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(8)
+      ..style = PaintingStyle.fill;
+
+    final glintPaint = Paint()
+      ..color = Colors.white.withAlpha(210)
+      ..style = PaintingStyle.fill;
+
+    for (var r = 0; r < 3; r++) {
+      for (var c = 0; c < 3; c++) {
+        final x = startX + c * (cellSize + gap);
+        final y = startY + r * (cellSize + gap);
+        final rect = RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, y, cellSize, cellSize),
+          const Radius.circular(1.5),
+        );
+        final isCenter = r == 1 && c == 1;
+
+        if (isMulti || isCenter) {
+          canvas.drawRRect(rect, fillPaint);
+          // Facet glint in top-left
+          canvas.drawCircle(Offset(x + 1.6, y + 1.6), 0.7, glintPaint);
+        } else {
+          // Unselected outer cells when in single-gem mode
+          canvas.drawRRect(rect, faintFillPaint);
+          canvas.drawRRect(rect, outlinePaint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant MultiCellIconPainter oldDelegate) =>
+      isMulti != oldDelegate.isMulti ||
+      isDark != oldDelegate.isDark ||
+      activeColor != oldDelegate.activeColor;
 }
 
 class BombIconPainter extends CustomPainter {

@@ -727,32 +727,6 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                             }
                           },
                         ),
-                        const SizedBox(height: 10),
-
-                        // Buy Paint Brush
-                        _buildExchangeTile(
-                          context: context,
-                          title: 'Paint Brush',
-                          subtitle: 'Cycles brush size to color faster',
-                          icon: Icons.brush_rounded,
-                          iconColor: Colors.pinkAccent,
-                          cost: economy.diamondCostBrush,
-                          countOwned: coloring.brushesCount,
-                          cardBg: cardBg,
-                          textColor: textColor,
-                          brand: brand,
-                          onBuy: () {
-                            if (settings.useDiamonds(economy.diamondCostBrush)) {
-                              coloring.addBrushes(1);
-                              _showToast(
-                                  'Bought 1 Paint Brush for ${economy.diamondCostBrush} 💎!');
-                            } else {
-                              _showToast(
-                                  'Not enough Diamonds! You need ${economy.diamondCostBrush} 💎.',
-                                  isError: true);
-                            }
-                          },
-                        ),
                         const SizedBox(height: 20),
                       ],
                     ),
