@@ -97,8 +97,6 @@ class _ColoringScreenState extends State<ColoringScreen>
   int _lastDiamondAward = 0;
   // XP awarded for finishing this artwork; rolled up in the completion HUD.
   int _lastXpAward = 0;
-  // Guards the victory intro sequence (grid dissolve -> light-sweep shine -> HUD).
-  bool _isCelebratingIntro = false;
   // Prevents replay tick race conditions while actively scrubbing.
   bool _isSeeking = false;
   // True once the player has watched an ad to double this completion's reward,
@@ -192,9 +190,23 @@ class _ColoringScreenState extends State<ColoringScreen>
       vsync: this,
       duration: const Duration(seconds: 3),
     );
+    _confettiController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && mounted) {
+        final provider = _coloringProvider;
+        if (provider != null &&
+            provider.currentArt?.id == widget.art.id &&
+            provider.isComplete &&
+            _hudDismissed) {
+          setState(() {
+            _hudDismissed = false;
+          });
+          _hudController.forward(from: 0);
+        }
+      }
+    });
     _shimmerController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 600),
       value: 1.0,
     );
     _hudController = AnimationController(
@@ -466,35 +478,12 @@ class _ColoringScreenState extends State<ColoringScreen>
           _lastXpAward = xpEarned;
           _rewardDoubled = false;
           _hudDismissed = true;
-          _isCelebratingIntro = true;
         });
-
-        // 1. Grid Lines "Dissolve to Art"
-        _gridFadeController.forward(from: 0);
-
-        // 2. Light-Sweep Shimmer across the pure finished canvas
-        Future.delayed(const Duration(milliseconds: 350), () {
-          if (!mounted) return;
-          if (_settings?.soundsEnabled ?? true) {
-            context.read<SoundService>().playComboChime(rate: 1.25);
-          }
-          _shimmerController.duration = const Duration(milliseconds: 900);
-          _shimmerController.forward(from: 0);
-        });
-
-        // 3. Victory HUD & Confetti burst in sync as the sweep finishes
-        Future.delayed(const Duration(milliseconds: 1100), () {
-          if (!mounted) return;
-          setState(() {
-            _isCelebratingIntro = false;
-            _hudDismissed = false;
-          });
-          _hudController.forward(from: 0);
-          _confettiController.forward(from: 0);
-          if (settings.hapticsEnabled) {
-            provider.victoryHaptic();
-          }
-        });
+        _gridFadeController.forward();
+        if (_settings?.soundsEnabled ?? true) {
+          context.read<SoundService>().playComboChime(rate: 1.25);
+        }
+        _confettiController.forward(from: 0);
       }
 
       // First ensure artwork is shown completely on screen (fitted), then start celebration animation.
@@ -860,7 +849,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       child: _buildBottomSection(context, provider, settings),
                     );
                   }
-                  if (_isCelebratingIntro) {
+                  if (_confettiController.isAnimating) {
                     return const SizedBox.shrink();
                   }
                   return _hudDismissed

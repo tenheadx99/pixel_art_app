@@ -86,12 +86,6 @@ void main() {
         return;
     }
 
-    // Hairline Grid Border between filled gems
-    if (isCellBorder) {
-        fragColor = vec4(0.82, 0.82, 0.82, 1.0);
-        return;
-    }
-
     // Filled Gem -> Full 3D Faceted Cushion Diamond Drill
     vec2 center = vec2(0.5);
 
@@ -120,7 +114,7 @@ void main() {
         uv = center + (cellUV - center) / max(scale, 0.01);
         vec2 od = abs(uv - center);
         if (max(od.x, od.y) > 0.5) {
-            fragColor = vec4(isCellBorder ? vec3(0.82, 0.82, 0.82) : vec3(1.0), 1.0);
+            fragColor = vec4(1.0);
             return;
         }
     }

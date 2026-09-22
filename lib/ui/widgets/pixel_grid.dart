@@ -72,8 +72,7 @@ class PixelGrid extends StatefulWidget {
   /// Warms the gem fragment shader. Call from main() for the gem flavor so
   /// the program is compiled before the first grid frame; otherwise that
   /// frame falls back to the (expensive) CPU whole-grid bake.
-  static Future<void> preloadGemShader() =>
-      _PixelGridState.preloadGemShader();
+  static Future<void> preloadGemShader() => _PixelGridState.preloadGemShader();
 
   @override
   State<PixelGrid> createState() => _PixelGridState();
@@ -94,13 +93,14 @@ class _PixelGridState extends State<PixelGrid> {
   /// Loads the gem fragment shader once per process. Safe to call repeatedly;
   /// concurrent callers share one load, and a failed load allows a retry.
   static Future<void> preloadGemShader() {
-    return _shaderLoad ??=
-        ui.FragmentProgram.fromAsset('shaders/gem_grid.frag').then((program) {
-      _gemShaderProgram = program;
-    }).catchError((Object e) {
-      debugPrint('Error loading gem GLSL shader: $e');
-      _shaderLoad = null;
-    });
+    return _shaderLoad ??= ui.FragmentProgram.fromAsset('shaders/gem_grid.frag')
+        .then((program) {
+          _gemShaderProgram = program;
+        })
+        .catchError((Object e) {
+          debugPrint('Error loading gem GLSL shader: $e');
+          _shaderLoad = null;
+        });
   }
 
   // Merged per-layer repaint listenables, built once here instead of inside
@@ -205,7 +205,9 @@ class _PixelGridState extends State<PixelGrid> {
       _strokeIsPan = _shouldPanFrom(event.position);
       // In wand/bomb mode, do not immediately activate canvas pan on pointer down
       // so stationary taps are not swallowed by InteractiveViewer's gesture arena.
-      if (_strokeIsPan && !widget.provider.isMagicWandMode && !widget.provider.isBombMode) {
+      if (_strokeIsPan &&
+          !widget.provider.isMagicWandMode &&
+          !widget.provider.isBombMode) {
         widget.onRequestCanvasPan?.call(true);
       }
     } else {
@@ -520,9 +522,18 @@ class _PixelGridPainter extends CustomPainter {
   /// this, every visible cell allocated and laid out a TextPainter per frame.
   static final Map<int, TextPainter> _textCache = {};
 
-  static TextPainter _numberPainter(int number, double fontSize, int alphaStep, {bool isContrast = false}) {
+  static TextPainter _numberPainter(
+    int number,
+    double fontSize,
+    int alphaStep, {
+    bool isContrast = false,
+  }) {
     final textColor = isContrast ? Colors.white : const Color(0xFF555555);
-    final key = (isContrast ? 1000000 : 0) + number * 10000 + (fontSize * 10).round() * 10 + alphaStep;
+    final key =
+        (isContrast ? 1000000 : 0) +
+        number * 10000 +
+        (fontSize * 10).round() * 10 +
+        alphaStep;
     return _textCache.putIfAbsent(key, () {
       return TextPainter(
         text: TextSpan(
@@ -644,7 +655,8 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final isRevealed =
             fillGrow == null || fillGrow!.isRevealed(row, col, nowMs);
-        if (expectedNumber == 0 || (filledGrid[row][col] > 0 && isRevealed)) continue;
+        if (expectedNumber == 0 || (filledGrid[row][col] > 0 && isRevealed))
+          continue;
         final isSelected = expectedNumber == selectedNumber;
         final isHighlighted =
             highlightedNumber != null && expectedNumber == highlightedNumber;
@@ -691,14 +703,22 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   // Gem rendering tuning — kept as named constants for quick visual iteration.
-  static const double _gemRingWidth = 0.18; // stroke width as fraction of radius
-  static const double _gemHighlightOffset = 0.35; // specular dot offset from center
+  static const double _gemRingWidth =
+      0.18; // stroke width as fraction of radius
+  static const double _gemHighlightOffset =
+      0.35; // specular dot offset from center
   static const int _gemHighlightCoreAlpha = 95;
   static const int _gemHighlightHaloAlpha = 45;
 
   /// Draws the static 3D body of a gem cell (drop shadow, 3D dome gradient, bevel, facet cuts).
   /// This heavy geometry is recorded into an offscreen [ui.Picture] cache.
-  void _drawGemBase(Canvas canvas, Rect rect, Color base, Paint cellPaint, double effectiveCell) {
+  void _drawGemBase(
+    Canvas canvas,
+    Rect rect,
+    Color base,
+    Paint cellPaint,
+    double effectiveCell,
+  ) {
     final c = rect.center;
     final r = rect.shortestSide / 2;
 
@@ -708,7 +728,10 @@ class _PixelGridPainter extends CustomPainter {
         ..shader = null
         ..style = PaintingStyle.fill
         ..color = base;
-      canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(2)), cellPaint);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+        cellPaint,
+      );
       return;
     }
 
@@ -716,21 +739,31 @@ class _PixelGridPainter extends CustomPainter {
     const shiftY = -0.707;
 
     // 2. Ambient Drop Shadow (gives 3D depth above the canvas grid)
-    final shadowOffset = Offset(c.dx - shiftX * r * 0.08, c.dy - shiftY * r * 0.08);
+    final shadowOffset = Offset(
+      c.dx - shiftX * r * 0.08,
+      c.dy - shiftY * r * 0.08,
+    );
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
       ..color = const Color(0x35000000);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromCenter(center: shadowOffset, width: rect.width, height: rect.height),
+        Rect.fromCenter(
+          center: shadowOffset,
+          width: rect.width,
+          height: rect.height,
+        ),
         const Radius.circular(3),
       ),
       cellPaint,
     );
 
     // 3. 3D Spherical Radial Gradient Body with Balanced Shading
-    final focalOffset = Offset(c.dx + r * shiftX * 0.3, c.dy + r * shiftY * 0.3);
+    final focalOffset = Offset(
+      c.dx + r * shiftX * 0.3,
+      c.dy + r * shiftY * 0.3,
+    );
     final brightBase = _lighten(base, 0.06);
     final lightShade = _lighten(base, 0.22);
     final darkShade = _darken(base, 0.22);
@@ -743,7 +776,10 @@ class _PixelGridPainter extends CustomPainter {
         [lightShade, brightBase, darkShade],
         [0.0, 0.55, 1.0],
       );
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      cellPaint,
+    );
     cellPaint.shader = null;
 
     // Bevel outer ring for edge definition
@@ -751,7 +787,10 @@ class _PixelGridPainter extends CustomPainter {
       ..style = PaintingStyle.stroke
       ..strokeWidth = max(0.8, r * _gemRingWidth)
       ..color = Colors.white.withAlpha(45);
-    canvas.drawRRect(RRect.fromRectAndRadius(rect, const Radius.circular(4)), cellPaint);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(rect, const Radius.circular(4)),
+      cellPaint,
+    );
     cellPaint.style = PaintingStyle.fill;
 
     // 4. Tier 3 High Detail: Octagonal Table Cut & 8 Facet Crown Seams (Zoom >= 16.0)
@@ -761,7 +800,10 @@ class _PixelGridPainter extends CustomPainter {
         ..strokeWidth = max(0.8, r * 0.07);
 
       final tableRadius = r * 0.44;
-      final tableCenter = Offset(c.dx + shiftX * r * 0.08, c.dy + shiftY * r * 0.08);
+      final tableCenter = Offset(
+        c.dx + shiftX * r * 0.08,
+        c.dy + shiftY * r * 0.08,
+      );
 
       // Octagonal Table Path
       final octPath = Path();
@@ -783,10 +825,15 @@ class _PixelGridPainter extends CustomPainter {
         final cosA = cos(a);
         final sinA = sin(a);
 
-        final p1 = Offset(tableCenter.dx + tableRadius * cosA, tableCenter.dy + tableRadius * sinA);
+        final p1 = Offset(
+          tableCenter.dx + tableRadius * cosA,
+          tableCenter.dy + tableRadius * sinA,
+        );
         final p2 = Offset(c.dx + (r * 0.90) * cosA, c.dy + (r * 0.90) * sinA);
 
-        facetPaint.color = (i < 4) ? Colors.white.withAlpha(50) : darkShade.withAlpha(50);
+        facetPaint.color = (i < 4)
+            ? Colors.white.withAlpha(50)
+            : darkShade.withAlpha(50);
         canvas.drawLine(p1, p2, facetPaint);
       }
 
@@ -815,7 +862,14 @@ class _PixelGridPainter extends CustomPainter {
 
   /// Draws the lightweight dynamic specular highlight dot & star glare flare.
   /// Shifted dynamically per frame based on [shiftX] and [shiftY] from tilt/position.
-  void _drawGemHighlight(Canvas canvas, Rect rect, Paint cellPaint, double effectiveCell, double shiftX, double shiftY) {
+  void _drawGemHighlight(
+    Canvas canvas,
+    Rect rect,
+    Paint cellPaint,
+    double effectiveCell,
+    double shiftX,
+    double shiftY,
+  ) {
     if (effectiveCell < 10.0) return;
 
     final c = rect.center;
@@ -880,9 +934,18 @@ class _PixelGridPainter extends CustomPainter {
 
   static Color _lighten(Color color, double amount) {
     return _lightenCache.putIfAbsent(color.toARGB32(), () {
-      final r = (color.r * 255 + (255 - color.r * 255) * amount).round().clamp(0, 255);
-      final g = (color.g * 255 + (255 - color.g * 255) * amount).round().clamp(0, 255);
-      final b = (color.b * 255 + (255 - color.b * 255) * amount).round().clamp(0, 255);
+      final r = (color.r * 255 + (255 - color.r * 255) * amount).round().clamp(
+        0,
+        255,
+      );
+      final g = (color.g * 255 + (255 - color.g * 255) * amount).round().clamp(
+        0,
+        255,
+      );
+      final b = (color.b * 255 + (255 - color.b * 255) * amount).round().clamp(
+        0,
+        255,
+      );
       return Color.fromARGB((color.a * 255).round(), r, g, b);
     });
   }
@@ -961,7 +1024,8 @@ class _PixelGridPainter extends CustomPainter {
           final isRevealed =
               fillGrow == null || fillGrow!.isRevealed(r, col, nowMs);
           if (filledGrid[r][col] > 0 && isRevealed) {
-            paint.color = filledColors[expectedNumber] ??
+            paint.color =
+                filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
           } else if (expectedNumber > 0) {
             paint.color = _previewColor(expectedNumber, 0).withAlpha(128);
@@ -1016,7 +1080,8 @@ class _PixelGridPainter extends CustomPainter {
           // number so both render paths look identical.
           final expectedNumber = art.grid[r][col] as int;
           paint.color =
-              filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+              filledColors[expectedNumber] ??
+              AppStyle.numberToColor(expectedNumber);
           c.drawRect(
             Rect.fromLTWH(col.toDouble(), r.toDouble(), 1.0, 1.0),
             paint,
@@ -1048,10 +1113,7 @@ class _PixelGridPainter extends CustomPainter {
 
     // Default every cell to "finished" (255) so only fresh fills animate.
     paint.color = const Color(0xFFFFFFFF);
-    c.drawRect(
-      Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
-      paint,
-    );
+    c.drawRect(Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()), paint);
 
     fillGrow?.forEachActive((row, col, startMs) {
       final ageMs = nowMs - startMs;
@@ -1077,7 +1139,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = 0.2 * gridLineOpacity;
+    final cellGap = gemStyle ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
     final detailStep = (detail * 4).round();
@@ -1162,7 +1224,8 @@ class _PixelGridPainter extends CustomPainter {
       final nowMs = DateTime.now().millisecondsSinceEpoch;
       for (var r = 0; r < gridHeight; r++) {
         for (var c = 0; c < gridWidth; c++) {
-          final isFilled = filledGrid[r][c] > 0 &&
+          final isFilled =
+              filledGrid[r][c] > 0 &&
               (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
           final expectedNumber = art.grid[r][c] as int;
           final rect = Rect.fromLTWH(
@@ -1172,7 +1235,9 @@ class _PixelGridPainter extends CustomPainter {
             ch - cellGap * 2,
           );
           if (isFilled) {
-            final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
             _drawGemBase(recorderCanvas, rect, color, recPaint, effectiveCell);
             if (colorblindMode) {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
@@ -1237,7 +1302,14 @@ class _PixelGridPainter extends CustomPainter {
           cw - cellGap * 2,
           ch - cellGap * 2,
         );
-        _drawGemHighlight(canvas, rect, cellPaint, effectiveCell, shiftX, shiftY);
+        _drawGemHighlight(
+          canvas,
+          rect,
+          cellPaint,
+          effectiveCell,
+          shiftX,
+          shiftY,
+        );
       }
     }
   }
@@ -1285,8 +1357,7 @@ class _PixelGridPainter extends CustomPainter {
     final highlightPaint = _highlightTintPaint;
 
     final selectedBorderPaint = _selectedBorderPaint
-      ..color =
-          isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
+      ..color = isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
 
     // Reused per-cell paints; _drawGemBase toggles shader/style, so reset.
     final cellPaint = _cellPaint
@@ -1351,12 +1422,7 @@ class _PixelGridPainter extends CustomPainter {
             }
 
             canvas.drawRect(
-              Rect.fromLTWH(
-                rect.left,
-                rect.top,
-                rect.width,
-                rect.height * 0.3,
-              ),
+              Rect.fromLTWH(rect.left, rect.top, rect.width, rect.height * 0.3),
               glossPaint,
             );
           }
@@ -1371,7 +1437,8 @@ class _PixelGridPainter extends CustomPainter {
           }
         }
 
-        final isVisuallyFilled = isFilled &&
+        final isVisuallyFilled =
+            isFilled &&
             (fillGrow == null || fillGrow!.isRevealed(row, col, nowMs));
 
         if (isHighlighted && !isVisuallyFilled && expectedNumber > 0) {
@@ -1385,7 +1452,10 @@ class _PixelGridPainter extends CustomPainter {
           canvas.drawRect(rect.deflate(1), glowPaint);
         }
 
-        if (showNumbers && !isVisuallyFilled && expectedNumber > 0 && detailStep > 0) {
+        if (showNumbers &&
+            !isVisuallyFilled &&
+            expectedNumber > 0 &&
+            detailStep > 0) {
           final tp = _numberPainter(expectedNumber, fontSize, detailStep);
           tp.paint(
             canvas,
@@ -1397,7 +1467,6 @@ class _PixelGridPainter extends CustomPainter {
         }
       }
     }
-
   }
 
   /// Flat-flavor animated overlay: growing cells, afterglow, the
@@ -1495,8 +1564,9 @@ class _PixelGridPainter extends CustomPainter {
         final age = (nowMs - startMs) / 1000.0;
         if (age >= 0 && age < glowDuration) {
           final glow = 1.0 - age / glowDuration;
-          cellPaint.color =
-              const Color(0xFFFFF3D6).withAlpha((maxGlowAlpha * glow * glow).round());
+          cellPaint.color = const Color(
+            0xFFFFF3D6,
+          ).withAlpha((maxGlowAlpha * glow * glow).round());
           canvas.drawRect(drawRect, cellPaint);
         }
       });
@@ -1601,8 +1671,7 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final int colorValue;
         if (filledGrid[row][col] > 0) {
-          colorValue = (filledColors[expectedNumber] ?? Colors.grey)
-              .toARGB32();
+          colorValue = (filledColors[expectedNumber] ?? Colors.grey).toARGB32();
         } else if (expectedNumber == 0) {
           colorValue = 0xFFE8E8E8;
         } else {
