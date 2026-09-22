@@ -45,6 +45,7 @@ class ColoringProvider extends ChangeNotifier {
   int _totalEraseCount = 0;
   int _consecutiveFills = 0;
   List<(int, int)> _timeLapse = [];
+  bool _isReplaying = false;
   // Progress-bar milestones (percent ints, e.g. 30/65/100) already claimed for
   // the current art. Persisted so re-coloring never re-grants a gift.
   Set<int> _claimedMilestones = {};
@@ -107,6 +108,16 @@ class ColoringProvider extends ChangeNotifier {
   bool get isBombMode => _isBombMode;
   int get bombsCount => _bombsCount;
   int get brushesCount => _brushesCount;
+  bool get isReplaying => _isReplaying;
+
+  void setReplaying(bool value) {
+    if (_isReplaying == value) return;
+    _isReplaying = value;
+    if (_inStroke && value) {
+      cancelStroke();
+    }
+    notifyListeners();
+  }
 
   void toggleMagicWandMode() {
     _isMagicWandMode = !_isMagicWandMode;
@@ -911,6 +922,7 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   bool tryFillCell(int row, int col) {
+    if (_isReplaying) return false;
     return _runWithCompletionCheck(() {
       if (_currentArt == null) return false;
       if (row < 0 || row >= _currentArt!.gridHeight) return false;
@@ -996,7 +1008,7 @@ class ColoringProvider extends ChangeNotifier {
   /// Starts a drag stroke: one undo entry covers the whole stroke and the
   /// stroke counts as a single fill for stats/streaks.
   void beginStroke() {
-    if (_currentArt == null || _inStroke) return;
+    if (_isReplaying || _currentArt == null || _inStroke) return;
     _beginUndo();
     _inStroke = true;
     _strokeChanged = false;
@@ -1018,7 +1030,7 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void strokeFill(int row, int col) {
-    if (!_inStroke || _currentArt == null) return;
+    if (_isReplaying || !_inStroke || _currentArt == null) return;
     if (row < 0 || row >= _currentArt!.gridHeight) return;
     if (col < 0 || col >= _currentArt!.gridWidth) return;
 
@@ -1170,7 +1182,7 @@ class ColoringProvider extends ChangeNotifier {
       (_filledPerNumber[number] ?? 0) < (_totalPerNumber[number] ?? 0);
 
   bool tryEraseCell(int row, int col) {
-    if (_currentArt == null) return false;
+    if (_isReplaying || _currentArt == null) return false;
     if (row < 0 || row >= _currentArt!.gridHeight) return false;
     if (col < 0 || col >= _currentArt!.gridWidth) return false;
     if (_filledGrid[row][col] <= 0) return false;
@@ -1188,7 +1200,7 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void fillAllOfSelectedNumber() {
-    if (_currentArt == null) return;
+    if (_isReplaying || _currentArt == null) return;
     final previouslyCompleted = _getCompletedNumbers();
     bool changed = false;
     _beginUndo();
@@ -1225,7 +1237,7 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void undo() {
-    if (_undoStack.isEmpty) return;
+    if (_isReplaying || _undoStack.isEmpty) return;
     undoHaptic();
     final entry = _undoStack.removeLast();
     int fillCount = 0;
@@ -1246,7 +1258,7 @@ class ColoringProvider extends ChangeNotifier {
   }
 
   void resetArt() {
-    if (_currentArt == null) return;
+    if (_isReplaying || _currentArt == null) return;
     _filledGrid = List.generate(
       _currentArt!.gridHeight,
       (_) => List.filled(_currentArt!.gridWidth, 0),

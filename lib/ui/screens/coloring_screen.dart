@@ -99,6 +99,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   int _lastXpAward = 0;
   // Prevents replay tick race conditions while actively scrubbing.
   bool _isSeeking = false;
+  bool get _isReplaying =>
+      _replayController.isAnimating || _replayActions.isNotEmpty;
   // True once the player has watched an ad to double this completion's reward,
   // so the offer is shown only once per finish.
   bool _rewardDoubled = false;
@@ -638,6 +640,11 @@ class _ColoringScreenState extends State<ColoringScreen>
       provider.onBombExploded = null;
       provider.onWaveFill = null;
     }
+    if (_savedGridState != null) {
+      _coloringProvider?.restoreGridState(_savedGridState!);
+      _savedGridState = null;
+    }
+    _coloringProvider?.setReplaying(false);
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
     _coloringProvider?.saveProgress();
@@ -727,10 +734,20 @@ class _ColoringScreenState extends State<ColoringScreen>
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PopScope(
+      canPop: !_isReplaying,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) {
+          if (_savedGridState != null) {
+            provider.restoreGridState(_savedGridState!);
+            _savedGridState = null;
+          }
+          provider.setReplaying(false);
           _saveArtwork(context, provider);
           _maybeShowExitInterstitial();
+        } else if (_isReplaying) {
+          _replayController.stop();
+          _replayController.reset();
+          _finishReplay();
         }
       },
       child: Scaffold(
@@ -755,7 +772,8 @@ class _ColoringScreenState extends State<ColoringScreen>
                 builder: (context, _) {
                   final show = provider.currentArt?.id == widget.art.id &&
                       !provider.isComplete &&
-                      !provider.isEraseMode;
+                      !provider.isEraseMode &&
+                      !_isReplaying;
                   return Positioned.fill(
                     child: NextCellPulse(
                       transformController: _transformController,
@@ -808,7 +826,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 child: ListenableBuilder(
                   listenable: provider,
                   builder: (context, _) {
-                    if (provider.currentArt?.id != widget.art.id) {
+                    if (provider.currentArt?.id != widget.art.id || _isReplaying) {
                       return const SizedBox.shrink();
                     }
                     return _buildMiniMap(provider, isDark);
@@ -818,7 +836,10 @@ class _ColoringScreenState extends State<ColoringScreen>
 
               ListenableBuilder(
                 listenable: provider,
-                builder: (context, _) => _buildModePill(provider),
+                builder: (context, _) {
+                  if (_isReplaying) return const SizedBox.shrink();
+                  return _buildModePill(provider);
+                },
               ),
               ConfettiOverlay(
                 animation: _confettiController,
@@ -2126,6 +2147,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _replayActions = actions;
     _replayIndex = 0;
     _savedGridState = provider.getGridState();
+    provider.setReplaying(true);
     provider.restoreGridState(
       List.generate(art.gridHeight, (_) => List.filled(art.gridWidth, 0)),
     );
@@ -2429,8 +2451,10 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   void _finishReplay() {
+    final provider = context.read<ColoringProvider>();
+    provider.setReplaying(false);
     if (_savedGridState != null) {
-      context.read<ColoringProvider>().restoreGridState(_savedGridState!);
+      provider.restoreGridState(_savedGridState!);
       _savedGridState = null;
     }
     _replayActions = [];
@@ -2478,7 +2502,15 @@ class _ColoringScreenState extends State<ColoringScreen>
               Row(
                 children: [
                   GestureDetector(
-                    onTap: () => Navigator.pop(context),
+                    onTap: () {
+                      if (_isReplaying) {
+                        _replayController.stop();
+                        _replayController.reset();
+                        _finishReplay();
+                        return;
+                      }
+                      Navigator.pop(context);
+                    },
                     child: Icon(
                       Icons.arrow_back_ios_new_rounded,
                       size: 18,
@@ -2705,6 +2737,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     tag: 'art_canvas_${widget.art.id}',
                     child: PixelGrid(
                       provider: provider,
+                      readOnly: _isReplaying,
                       cellSize: _cellSize,
                       brushSize: provider.brushSize,
                       isEraseMode: provider.isEraseMode,
@@ -2714,17 +2747,23 @@ class _ColoringScreenState extends State<ColoringScreen>
                       fillGrow: _growController,
                       sectionShimmer: _shimmerController,
                       tiltNotifier: _tiltNotifier,
-                      onCellTap: (row, col) => provider.tryFillCell(row, col),
-                      onCellLongPress: (row, col) {
-                        provider.eyedropperHaptic();
-                        _showColorPreview(context, provider, row, col);
-                      },
-                      onCellDragStart: () {
-                        if (!provider.isMagicWandMode) provider.beginStroke();
-                      },
-                      onCellDrag: provider.strokeFill,
-                      onCellDragEnd: provider.endStroke,
-                      onCellDragCancel: provider.cancelStroke,
+                      onCellTap: _isReplaying
+                          ? null
+                          : (row, col) => provider.tryFillCell(row, col),
+                      onCellLongPress: _isReplaying
+                          ? null
+                          : (row, col) {
+                              provider.eyedropperHaptic();
+                              _showColorPreview(context, provider, row, col);
+                            },
+                      onCellDragStart: _isReplaying
+                          ? null
+                          : () {
+                              if (!provider.isMagicWandMode) provider.beginStroke();
+                            },
+                      onCellDrag: _isReplaying ? null : provider.strokeFill,
+                      onCellDragEnd: _isReplaying ? null : provider.endStroke,
+                      onCellDragCancel: _isReplaying ? null : provider.cancelStroke,
                       onRequestCanvasPan: (enabled) {
                         _canvasPanNotifier.value = enabled;
                       },

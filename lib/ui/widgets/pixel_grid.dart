@@ -15,6 +15,7 @@ class PixelGrid extends StatefulWidget {
   final int brushSize;
   final bool isEraseMode;
   final bool colorblindMode;
+  final bool readOnly;
 
   /// Completion fade (0.0 = working grid, 1.0 = clean picture). Wired as a
   /// listenable so the canvas repaints without rebuilding the widget tree.
@@ -35,7 +36,7 @@ class PixelGrid extends StatefulWidget {
   /// Idle at 1.0; the coloring screen runs it forward when a color finishes.
   final Animation<double>? sectionShimmer;
 
-  final void Function(int row, int col) onCellTap;
+  final void Function(int row, int col)? onCellTap;
   final void Function(int row, int col)? onCellLongPress;
   final VoidCallback? onCellDragStart;
   final void Function(int row, int col)? onCellDrag;
@@ -55,11 +56,12 @@ class PixelGrid extends StatefulWidget {
     required this.brushSize,
     required this.isEraseMode,
     required this.colorblindMode,
+    this.readOnly = false,
     this.gridFade,
     this.transform,
     this.fillGrow,
     this.sectionShimmer,
-    required this.onCellTap,
+    this.onCellTap,
     this.onCellLongPress,
     this.onCellDragStart,
     this.onCellDrag,
@@ -178,7 +180,8 @@ class _PixelGridState extends State<PixelGrid> {
         oldWidget.transform != widget.transform ||
         oldWidget.fillGrow != widget.fillGrow ||
         oldWidget.tiltNotifier != widget.tiltNotifier ||
-        oldWidget.sectionShimmer != widget.sectionShimmer) {
+        oldWidget.sectionShimmer != widget.sectionShimmer ||
+        oldWidget.readOnly != widget.readOnly) {
       _rebuildRepaintListenables();
     }
   }
@@ -236,7 +239,7 @@ class _PixelGridState extends State<PixelGrid> {
       return;
     }
 
-    if (widget.onCellDrag == null) return;
+    if (widget.readOnly || widget.onCellDrag == null) return;
     if (!_stroking) {
       if (dist < kTouchSlop) {
         return;
@@ -266,6 +269,7 @@ class _PixelGridState extends State<PixelGrid> {
   /// isn't the selected one, or over a cell that is already filled. Erase
   /// swipes always paint (erase).
   bool _shouldPanFrom(Offset globalPos) {
+    if (widget.readOnly) return true;
     if (widget.isEraseMode) return false;
     final provider = widget.provider;
     if (provider.isMagicWandMode || provider.isBombMode) return true;
@@ -291,33 +295,41 @@ class _PixelGridState extends State<PixelGrid> {
       onPointerUp: _onPointerEnd,
       onPointerCancel: _onPointerEnd,
       child: GestureDetector(
-        onTapUp: (details) {
-          final pos = _gridPos(details.globalPosition, art);
-          if (pos != null) widget.onCellTap(pos.$1, pos.$2);
-        },
-        onLongPressStart: (details) {
-          if (widget.onCellLongPress == null) return;
-          final pos = _gridPos(details.globalPosition, art);
-          if (pos != null) widget.onCellLongPress!(pos.$1, pos.$2);
-        },
+        onTapUp: widget.readOnly
+            ? null
+            : (details) {
+                final pos = _gridPos(details.globalPosition, art);
+                if (pos != null) widget.onCellTap?.call(pos.$1, pos.$2);
+              },
+        onLongPressStart: widget.readOnly
+            ? null
+            : (details) {
+                if (widget.onCellLongPress == null) return;
+                final pos = _gridPos(details.globalPosition, art);
+                if (pos != null) widget.onCellLongPress!(pos.$1, pos.$2);
+              },
         child: MouseRegion(
-          onHover: (event) {
-            final pos = _gridPos(event.position, art);
-            // Mouse-move events fire continuously; only rebuild (and force a
-            // full grid repaint) when the hovered CELL actually changes.
-            if (pos?.$1 == _hoverRow && pos?.$2 == _hoverCol) return;
-            setState(() {
-              _hoverRow = pos?.$1;
-              _hoverCol = pos?.$2;
-            });
-          },
-          onExit: (_) {
-            if (_hoverRow == null && _hoverCol == null) return;
-            setState(() {
-              _hoverRow = null;
-              _hoverCol = null;
-            });
-          },
+          onHover: widget.readOnly
+              ? null
+              : (event) {
+                  final pos = _gridPos(event.position, art);
+                  // Mouse-move events fire continuously; only rebuild (and force a
+                  // full grid repaint) when the hovered CELL actually changes.
+                  if (pos?.$1 == _hoverRow && pos?.$2 == _hoverCol) return;
+                  setState(() {
+                    _hoverRow = pos?.$1;
+                    _hoverCol = pos?.$2;
+                  });
+                },
+          onExit: widget.readOnly
+              ? null
+              : (_) {
+                  if (_hoverRow == null && _hoverCol == null) return;
+                  setState(() {
+                    _hoverRow = null;
+                    _hoverCol = null;
+                  });
+                },
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
@@ -356,19 +368,19 @@ class _PixelGridState extends State<PixelGrid> {
       art: art,
       filledGrid: widget.provider.filledGrid,
       filledColors: widget.provider.filledColors,
-      selectedNumber: widget.provider.selectedNumber,
-      showNumbers: widget.provider.showNumbers,
-      highlightedNumber: widget.provider.highlightedNumber,
+      selectedNumber: widget.readOnly ? -1 : widget.provider.selectedNumber,
+      showNumbers: !widget.readOnly && widget.provider.showNumbers,
+      highlightedNumber: widget.readOnly ? null : widget.provider.highlightedNumber,
       cellSize: widget.cellSize,
-      isEraseMode: widget.isEraseMode,
+      isEraseMode: widget.readOnly ? false : widget.isEraseMode,
       brushSize: widget.brushSize,
       colorblindMode: widget.colorblindMode,
       gridFade: widget.gridFade,
       transform: widget.transform,
       fillGrow: widget.fillGrow,
       sectionShimmer: widget.sectionShimmer,
-      hoverRow: _hoverRow,
-      hoverCol: _hoverCol,
+      hoverRow: widget.readOnly ? null : _hoverRow,
+      hoverCol: widget.readOnly ? null : _hoverCol,
       gemStyle: FlavorConfig.current.cellStyle == CellRenderStyle.gem,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
@@ -655,8 +667,9 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final isRevealed =
             fillGrow == null || fillGrow!.isRevealed(row, col, nowMs);
-        if (expectedNumber == 0 || (filledGrid[row][col] > 0 && isRevealed))
+        if (expectedNumber == 0 || (filledGrid[row][col] > 0 && isRevealed)) {
           continue;
+        }
         final isSelected = expectedNumber == selectedNumber;
         final isHighlighted =
             highlightedNumber != null && expectedNumber == highlightedNumber;
