@@ -9,6 +9,7 @@ import 'package:pixel_art_app/data/services/economy_config_service.dart';
 import 'package:pixel_art_app/data/services/iap_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';
+import 'package:pixel_art_app/ui/widgets/number_toolbar.dart';
 
 class DiamondShopSheet extends StatefulWidget {
   const DiamondShopSheet({super.key});
@@ -649,8 +650,14 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                         _buildExchangeTile(
                           context: context,
                           title: 'Paint Bomb',
-                          subtitle: 'Fills a 3x3 region instantly',
-                          icon: Icons.local_fire_department_rounded,
+                          subtitle: 'Fills an 11-cell circular region instantly',
+                          iconWidget: const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CustomPaint(
+                              painter: BombIconPainter(),
+                            ),
+                          ),
                           iconColor: Colors.deepOrangeAccent,
                           cost: economy.diamondCostBomb,
                           countOwned: coloring.bombsCount,
@@ -670,13 +677,13 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                         ),
                         const SizedBox(height: 10),
 
-                        // Buy Magic Wand
+                        // Buy Paint Bucket
                         _buildExchangeTile(
                           context: context,
-                          title: 'Magic Wand',
+                          title: 'Paint Bucket',
                           subtitle: 'Fills all matching cells of selected color',
-                          icon: Icons.auto_fix_high_rounded,
-                          iconColor: Colors.purpleAccent,
+                          icon: Icons.format_color_fill_rounded,
+                          iconColor: Colors.blueAccent,
                           cost: economy.diamondCostWand,
                           countOwned: coloring.magicWandsCount,
                           cardBg: cardBg,
@@ -686,7 +693,7 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                             if (settings.useDiamonds(economy.diamondCostWand)) {
                               coloring.addMagicWands(1);
                               _showToast(
-                                  'Bought 1 Magic Wand for ${economy.diamondCostWand} 💎!');
+                                  'Bought 1 Paint Bucket for ${economy.diamondCostWand} 💎!');
                             } else {
                               _showToast(
                                   'Not enough Diamonds! You need ${economy.diamondCostWand} 💎.',
@@ -702,7 +709,7 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                           title: 'Hint Pack',
                           subtitle: 'Reveals 5 hidden cells',
                           icon: Icons.lightbulb_rounded,
-                          iconColor: Colors.amberAccent,
+                          iconColor: Colors.orangeAccent,
                           cost: economy.diamondCostHint,
                           countOwned: settings.hintsAvailable,
                           cardBg: cardBg,
@@ -716,6 +723,32 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                             } else {
                               _showToast(
                                   'Not enough Diamonds! You need ${economy.diamondCostHint} 💎.',
+                                  isError: true);
+                            }
+                          },
+                        ),
+                        const SizedBox(height: 10),
+
+                        // Buy Paint Brush
+                        _buildExchangeTile(
+                          context: context,
+                          title: 'Paint Brush',
+                          subtitle: 'Cycles brush size to color faster',
+                          icon: Icons.brush_rounded,
+                          iconColor: Colors.pinkAccent,
+                          cost: economy.diamondCostBrush,
+                          countOwned: coloring.brushesCount,
+                          cardBg: cardBg,
+                          textColor: textColor,
+                          brand: brand,
+                          onBuy: () {
+                            if (settings.useDiamonds(economy.diamondCostBrush)) {
+                              coloring.addBrushes(1);
+                              _showToast(
+                                  'Bought 1 Paint Brush for ${economy.diamondCostBrush} 💎!');
+                            } else {
+                              _showToast(
+                                  'Not enough Diamonds! You need ${economy.diamondCostBrush} 💎.',
                                   isError: true);
                             }
                           },
@@ -953,10 +986,13 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(
-                                      Icons.local_fire_department_rounded,
-                                      size: 13,
-                                      color: Colors.deepOrangeAccent),
+                                  const SizedBox(
+                                    width: 14,
+                                    height: 14,
+                                    child: CustomPaint(
+                                      painter: BombIconPainter(),
+                                    ),
+                                  ),
                                   const SizedBox(width: 4),
                                   Text(
                                     '+${pack.bonusBombs} Bombs',
@@ -973,20 +1009,20 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 8, vertical: 3),
                               decoration: BoxDecoration(
-                                color: Colors.purple.withValues(alpha: 0.25),
+                                color: Colors.blue.withValues(alpha: 0.25),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                    color: Colors.purpleAccent
+                                    color: Colors.blueAccent
                                         .withValues(alpha: 0.5)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  const Icon(Icons.auto_fix_high_rounded,
-                                      size: 13, color: Colors.purpleAccent),
+                                  const Icon(Icons.format_color_fill_rounded,
+                                      size: 13, color: Colors.blueAccent),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '+${pack.bonusWands} Wands',
+                                    '+${pack.bonusWands} Paint Buckets',
                                     style: const TextStyle(
                                         fontSize: 11,
                                         color: Colors.white,
@@ -1412,7 +1448,8 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
     required BuildContext context,
     required String title,
     required String subtitle,
-    required IconData icon,
+    IconData? icon,
+    Widget? iconWidget,
     required Color iconColor,
     required int cost,
     required int countOwned,
@@ -1445,7 +1482,7 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                 shape: BoxShape.circle,
                 border: Border.all(color: iconColor.withValues(alpha: 0.4)),
               ),
-              child: Icon(icon, color: iconColor, size: 24),
+              child: iconWidget ?? Icon(icon, color: iconColor, size: 24),
             ),
             const SizedBox(width: 14),
             Expanded(
