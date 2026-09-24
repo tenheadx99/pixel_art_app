@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -29,26 +30,91 @@ class _GalleryScreenState extends State<GalleryScreen> {
 
   /// Entrance stagger runs once per screen visit, not again after deletes.
   bool _entranceDone = false;
+  Timer? _entranceTimer;
 
   @override
   void initState() {
     super.initState();
     _loadArtworks();
     // After the initial stagger has played, new builds render statically.
-    Future.delayed(const Duration(milliseconds: 800), () {
-      _entranceDone = true;
+    _entranceTimer = Timer(const Duration(milliseconds: 800), () {
+      if (mounted) {
+        setState(() {
+          _entranceDone = true;
+        });
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _entranceTimer?.cancel();
+    super.dispose();
+  }
+
+  String _artworkKey(UserArtwork art) {
+    if (art.pixelArtId.trim().isNotEmpty) {
+      return art.pixelArtId.trim();
+    }
+    if (art.name.trim().isNotEmpty) {
+      return art.name.trim();
+    }
+    if (art.filePath.trim().isNotEmpty) {
+      return art.filePath.trim();
+    }
+    return art.id;
   }
 
   Future<void> _loadArtworks() async {
     final db = context.read<DatabaseService>();
+    final storage = context.read<LocalStorageService>();
     final saved = await db.getSavedArtworks();
     // Backing out during the DB query would setState on a disposed screen.
     if (!mounted) return;
+
+    final allArtworks = saved.map((m) => UserArtwork.fromJson(m)).toList();
+
+    // Sort to prioritize higher completion and newer artworks
+    allArtworks.sort((a, b) {
+      final compCmp = b.completionPercent.compareTo(a.completionPercent);
+      if (compCmp != 0) return compCmp;
+      return b.dateCreated.compareTo(a.dateCreated);
+    });
+
+    final uniqueList = <UserArtwork>[];
+    final seenKeys = <String>{};
+    final duplicatesToDelete = <UserArtwork>[];
+
+    for (final art in allArtworks) {
+      final key = _artworkKey(art);
+      if (seenKeys.add(key)) {
+        uniqueList.add(art);
+      } else {
+        duplicatesToDelete.add(art);
+      }
+    }
+
+    // Sort the unique list to display newest first
+    uniqueList.sort((a, b) => b.dateCreated.compareTo(a.dateCreated));
+
     setState(() {
-      _artworks = saved.map((m) => UserArtwork.fromJson(m)).toList();
+      _artworks = uniqueList;
       _isLoading = false;
     });
+
+    // Clean up duplicate entries from database and storage in background
+    if (duplicatesToDelete.isNotEmpty) {
+      final keptFilePaths = uniqueList.map((a) => a.filePath).toSet();
+      for (final dup in duplicatesToDelete) {
+        try {
+          await db.deleteArtwork(dup.id);
+          if (dup.filePath.isNotEmpty && !keptFilePaths.contains(dup.filePath)) {
+            final fileName = dup.filePath.split('/').last;
+            await storage.deleteFile(fileName);
+          }
+        } catch (_) {}
+      }
+    }
   }
 
   @override
@@ -98,6 +164,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
                     itemBuilder: (context, index) {
                       final artwork = _artworks[index];
                       final card = _DeletableCard(
+                        key: ValueKey(artwork.id),
                         deleting: _deleting.contains(artwork.id),
                         child: _ArtworkCard(
                           artwork: artwork,
@@ -226,6 +293,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
       final fileName = artwork.filePath.split('/').last;
       await storage.deleteFile(fileName);
       await db.deleteArtwork(artwork.id);
+      if (artwork.pixelArtId.trim().isNotEmpty) {
+        await db.deleteArtworksByPixelArtId(artwork.pixelArtId.trim());
+      }
       if (!mounted) return;
       _deleting.remove(artwork.id);
       _loadArtworks();
@@ -392,7 +462,7 @@ class _DeletableCard extends StatelessWidget {
   final bool deleting;
   final Widget child;
 
-  const _DeletableCard({required this.deleting, required this.child});
+  const _DeletableCard({super.key, required this.deleting, required this.child});
 
   @override
   Widget build(BuildContext context) {

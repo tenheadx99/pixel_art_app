@@ -160,9 +160,21 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
         widget.parent.name,
       );
       if (path == null) return;
+      try {
+        final existingArtworks = await databaseService.getSavedArtworks();
+        final old = existingArtworks
+            .where((m) => m['pixel_art_id'] == widget.parent.id)
+            .firstOrNull;
+        final oldPath = old?['file_path'] as String?;
+        if (oldPath != null && oldPath.isNotEmpty && oldPath != path) {
+          final oldFileName = oldPath.split('/').last;
+          await storageService.deleteFile(oldFileName);
+        }
+      } catch (_) {}
+
       await databaseService.saveArtwork(
         UserArtwork(
-          id: const Uuid().v4(),
+          id: widget.parent.id,
           pixelArtId: widget.parent.id,
           name: widget.parent.name,
           filePath: path,

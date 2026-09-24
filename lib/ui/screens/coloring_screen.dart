@@ -23,7 +23,6 @@ import 'paywall_screen.dart';
 import '../../data/services/ad_service.dart';
 import '../../data/services/analytics_service.dart';
 import '../../data/services/database_service.dart';
-import '../../data/services/iap_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../data/services/review_service.dart';
@@ -117,6 +116,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   double _smoothTiltX = 0.0;
   double _smoothTiltY = 0.0;
   final DateTime _sessionStart = DateTime.now();
+  int? _lastSelectedNumber;
+  Timer? _autoMoveTimer;
 
   // Coin bursts fly to the top bar's diamond chip, which pulses on arrival.
   final GlobalKey _diamondChipKey = GlobalKey();
@@ -259,14 +260,14 @@ class _ColoringScreenState extends State<ColoringScreen>
     _zoomAnimController =
         AnimationController(
           vsync: this,
-          duration: const Duration(milliseconds: 350),
+          duration: const Duration(milliseconds: 300),
         )..addListener(() {
           final tween = _zoomTween;
           if (tween == null) return;
           _transformController.value = tween.evaluate(
             CurvedAnimation(
               parent: _zoomAnimController,
-              curve: Curves.easeInOut,
+              curve: Curves.easeOutCubic,
             ),
           );
         });
@@ -304,6 +305,7 @@ class _ColoringScreenState extends State<ColoringScreen>
               soundService.playLightClick();
             }
           }
+          _scheduleAutoMoveToNextHintedCell();
         }
         ..onSectionCompleted = () {
           if (_settings?.hapticsEnabled ?? true) {
@@ -447,6 +449,16 @@ class _ColoringScreenState extends State<ColoringScreen>
     }
 
     _checkMilestones(provider, settings);
+
+    if (provider.selectedNumber != _lastSelectedNumber) {
+      final prevNumber = _lastSelectedNumber;
+      _lastSelectedNumber = provider.selectedNumber;
+      if (prevNumber != null && !provider.isComplete && !provider.isStroking) {
+        _scheduleAutoMoveToNextHintedCell(
+          delay: const Duration(milliseconds: 120),
+        );
+      }
+    }
 
     if (provider.isComplete && !_wasComplete) {
       _wasComplete = true;
@@ -644,6 +656,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       _coloringProvider?.restoreGridState(_savedGridState!);
       _savedGridState = null;
     }
+    _autoMoveTimer?.cancel();
     _coloringProvider?.setReplaying(false);
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
@@ -742,7 +755,9 @@ class _ColoringScreenState extends State<ColoringScreen>
             _savedGridState = null;
           }
           provider.setReplaying(false);
-          _saveArtwork(context, provider);
+          if (provider.isComplete) {
+            _saveArtwork(context, provider);
+          }
           _maybeShowExitInterstitial();
         } else if (_isReplaying) {
           _replayController.stop();
@@ -2534,6 +2549,9 @@ class _ColoringScreenState extends State<ColoringScreen>
               // Large grids fit the screen with tiny cells; allow zooming until a
               // cell is ~28px so every artwork stays comfortably tappable.
               maxScale: max(4.0, 28.0 / _cellSize),
+              boundaryMargin: EdgeInsets.all(
+                max(_viewerSize.width, _viewerSize.height),
+              ),
               child: child!,
             );
           },
@@ -2594,7 +2612,14 @@ class _ColoringScreenState extends State<ColoringScreen>
                               if (!provider.isMagicWandMode) provider.beginStroke();
                             },
                       onCellDrag: _isReplaying ? null : provider.strokeFill,
-                      onCellDragEnd: _isReplaying ? null : provider.endStroke,
+                      onCellDragEnd: _isReplaying
+                          ? null
+                          : () {
+                              provider.endStroke();
+                              _scheduleAutoMoveToNextHintedCell(
+                                delay: const Duration(milliseconds: 40),
+                              );
+                            },
                       onCellDragCancel: _isReplaying ? null : provider.cancelStroke,
                       onRequestCanvasPan: (enabled) {
                         _canvasPanNotifier.value = enabled;
@@ -2705,12 +2730,15 @@ class _ColoringScreenState extends State<ColoringScreen>
               NumberToolbar(
                 provider: provider,
                 settings: settings,
-                onHint: () => _useHint(provider, settings),
               ),
               const SizedBox(height: 12),
               NumberPalette(
                 provider: provider,
-                onNumberReTapped: (number) => _locateNextCellForNumber(number),
+                onNumberTapped: (number) => _locateNextCellForNumber(number),
+                onNumberReTapped: (number) {
+                  provider.cycleNextFillable();
+                  _locateNextCellForNumber(number, force: true);
+                },
               ),
               // The coloring screen is where users spend their time — the banner
               // lives here for free users.
@@ -2725,40 +2753,60 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  /// Locates and smooth-zooms to the next unfilled cell of [number] without spending a hint.
-  void _locateNextCellForNumber(int number) {
+  /// Whether the cell at [row], [col] is currently visible in the unobstructed viewport area.
+  bool _isCellVisibleOnScreen(int row, int col) {
+    if (_viewerSize == Size.zero) return false;
+    final art = widget.art;
+    final gridLeft = (_viewerSize.width - art.gridWidth * _cellSize) / 2;
+    final gridTop = (_viewerSize.height - art.gridHeight * _cellSize) / 2;
+    final cx = gridLeft + (col + 0.5) * _cellSize;
+    final cy = gridTop + (row + 0.5) * _cellSize;
+
+    final matrix = _transformController.value;
+    final screenCenter = MatrixUtils.transformPoint(matrix, Offset(cx, cy));
+
+    final mediaQuery = MediaQuery.maybeOf(context);
+    final topSafe = (mediaQuery?.padding.top ?? 24.0) + 75.0;
+    final bottomSafe = _viewerSize.height -
+        ((mediaQuery?.padding.bottom ?? 16.0) +
+            (context.read<AppSettingsProvider>().isProUser ? 150.0 : 220.0));
+    const horizontalSafe = 24.0;
+
+    final safeArea = Rect.fromLTRB(
+      horizontalSafe,
+      topSafe,
+      _viewerSize.width - horizontalSafe,
+      bottomSafe,
+    );
+
+    return safeArea.contains(screenCenter);
+  }
+
+  /// Locates and smooth-zooms to the next unfilled cell of [number] if it is off-screen,
+  /// or when [force] is true.
+  void _locateNextCellForNumber(int number, {bool force = false}) {
     final provider = _coloringProvider;
     if (provider == null) return;
     final target = provider.nextFillable;
     if (target != null) {
-      _zoomToCell(target.$1, target.$2);
-      _showInfoSnack('Focusing on #$number 📍');
+      final settings = _settings ?? context.read<AppSettingsProvider>();
+      if (force ||
+          (settings.autoMoveEnabled &&
+              !_isCellVisibleOnScreen(target.$1, target.$2))) {
+        _zoomToCell(target.$1, target.$2);
+        _showInfoSnack('Focusing on #$number 📍');
+      }
     } else {
       _showInfoSnack('#$number is already completed! ✨');
     }
   }
 
-  /// Spends a hint to fill one correct cell and zooms the viewport to it.
-  /// With no hints left, offers a rewarded ad or a purchase instead.
-  void _useHint(ColoringProvider provider, AppSettingsProvider settings) {
-    if (settings.hintsAvailable <= 0) {
-      _showRefillDialog(provider: provider, settings: settings, forHints: true);
-      return;
-    }
-    final target = provider.applyHint();
-    if (target == null) {
-      _showInfoSnack('Nothing left to fill!');
-      return;
-    }
-    settings.useHint();
-    AnalyticsService()
-        .logBoosterUsed(type: 'hint', remaining: settings.hintsAvailable);
-    _zoomToCell(target.$1, target.$2);
-  }
-
-  void _zoomToCell(int row, int col) {
+  void _zoomToCell(int row, int col, {double? targetScale}) {
     if (_viewerSize == Size.zero) return;
-    const scale = 2.5;
+    final currentScale = _transformController.value.getMaxScaleOnAxis();
+    final maxScale = max(4.0, 28.0 / _cellSize);
+    final scale = (targetScale ?? (currentScale >= 2.0 ? currentScale : 2.5))
+        .clamp(1.0, maxScale);
     final art = widget.art;
     final gridLeft = (_viewerSize.width - art.gridWidth * _cellSize) / 2;
     final gridTop = (_viewerSize.height - art.gridHeight * _cellSize) / 2;
@@ -2776,86 +2824,26 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  void _showRefillDialog({
-    required ColoringProvider provider,
-    required AppSettingsProvider settings,
-    required bool forHints,
+  void _scheduleAutoMoveToNextHintedCell({
+    Duration delay = const Duration(milliseconds: 100),
   }) {
-    final adService = context.read<AdService>();
-    final iapService = context.read<IAPService>();
-    final label = forHints ? 'hints' : 'magic wands';
-    final adAmount = forHints
-        ? AppConstants.hintsPerRewardedAd
-        : AppConstants.wandsPerRewardedAd;
-    final buyAmount = forHints
-        ? AppConstants.hintsPerPurchase
-        : AppConstants.wandsPerPurchase;
+    _autoMoveTimer?.cancel();
+    _autoMoveTimer = Timer(delay, () {
+      if (!mounted) return;
+      final settings = _settings ?? context.read<AppSettingsProvider>();
+      if (!settings.autoMoveEnabled) return;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: [
-            Icon(
-              forHints ? Icons.lightbulb_rounded : Icons.auto_fix_high_rounded,
-              color: AppStyle.primary,
-            ),
-            const SizedBox(width: 8),
-            Text('Out of ${forHints ? 'Hints' : 'Wands'}'),
-          ],
-        ),
-        content: Text('Get more $label to keep the flow going!'),
-        actions: [
-          TextButton.icon(
-            icon: const Icon(Icons.play_circle_outline),
-            label: Text('Watch Ad (+$adAmount)'),
-            onPressed: () {
-              Navigator.pop(ctx);
-              if (AppConfig.disableAds || !AppConfig.showAds) {
-                if (forHints) {
-                  settings.addHints(adAmount);
-                } else {
-                  provider.addMagicWands(adAmount);
-                }
-                _showInfoSnack('[Simulated Ad] +$adAmount $label earned!');
-                return;
-              }
-              adService.showRewardedAd(
-                placement: forHints ? 'refill_hints' : 'refill_wands',
-                onRewarded: () {
-                  if (forHints) {
-                    settings.addHints(adAmount);
-                  } else {
-                    provider.addMagicWands(adAmount);
-                  }
-                  _showInfoSnack('+$adAmount $label earned!');
-                },
-                onUnavailable: () => _showInfoSnack(
-                    'No ad available right now — try again later.'),
-              );
-            },
-          ),
-          ElevatedButton.icon(
-            icon: const Icon(Icons.shopping_bag_outlined),
-            label: Text('Buy $buyAmount'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppStyle.primary,
-              foregroundColor: Colors.white,
-            ),
-            onPressed: () {
-              Navigator.pop(ctx);
-              iapService.buyConsumable(
-                forHints
-                    ? AppConstants.hintProductId
-                    : AppConstants.wandPackProductId,
-              );
-            },
-          ),
-        ],
-      ),
-    );
+      final provider = _coloringProvider;
+      if (provider == null || provider.isComplete || provider.isStroking) return;
+      final next = provider.nextFillable;
+      if (next != null) {
+        if (!_isCellVisibleOnScreen(next.$1, next.$2)) {
+          _zoomToCell(next.$1, next.$2);
+        }
+      }
+    });
   }
+
 
   Future<void> _saveArtwork(
     BuildContext context,
@@ -2883,9 +2871,21 @@ class _ColoringScreenState extends State<ColoringScreen>
       final path =
           await screenshotService.saveArtwork(pngBytes, widget.art.name);
       if (path == null) return;
+      try {
+        final existingArtworks = await databaseService.getSavedArtworks();
+        final old = existingArtworks
+            .where((m) => m['pixel_art_id'] == widget.art.id)
+            .firstOrNull;
+        final oldPath = old?['file_path'] as String?;
+        if (oldPath != null && oldPath.isNotEmpty && oldPath != path) {
+          final oldFileName = oldPath.split('/').last;
+          await storageService.deleteFile(oldFileName);
+        }
+      } catch (_) {}
+
       await databaseService.saveArtwork(
         UserArtwork(
-          id: const Uuid().v4(),
+          id: widget.art.id,
           pixelArtId: widget.art.id,
           name: widget.art.name,
           filePath: path,

@@ -29,9 +29,11 @@ class UserArtwork {
 
   factory UserArtwork.fromJson(Map<String, dynamic> json) {
     return UserArtwork(
-      id: json['id'] as String,
-      pixelArtId: json['pixel_art_id'] as String,
-      name: json['name'] as String,
+      id: json['id'] as String? ?? '',
+      pixelArtId:
+          (json['pixel_art_id'] as String?) ??
+          (json['id'] as String? ?? ''),
+      name: json['name'] as String? ?? '',
       filePath: json['file_path'] as String? ?? '',
       dateCreated:
           DateTime.tryParse(json['date_created'] as String? ?? '') ??

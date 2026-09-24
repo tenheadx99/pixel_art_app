@@ -8,15 +8,16 @@ import '../../providers/app_settings_provider.dart';
 import '../../data/services/sound_service.dart';
 import '../theme/app_style.dart';
 import '../../config/flavor.dart';
+import '../screens/onboarding_screen.dart';
+import '../screens/settings_screen.dart';
+import 'transitions.dart';
 
 void showSettingsSheet(BuildContext context) {
-  showModalBottomSheet(
-    context: context,
-    showDragHandle: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+  Navigator.of(context).push(
+    fadeThroughRoute(
+      const SettingsScreen(),
+      name: 'settings',
     ),
-    builder: (_) => const SettingsSheet(),
   );
 }
 
@@ -53,6 +54,13 @@ class SettingsSheet extends StatelessWidget {
                   subtitle: const Text('Draw dot patterns on cells by color'),
                   value: settings.colorblindMode,
                   onChanged: (_) => settings.toggleColorblindMode(),
+                ),
+                SwitchListTile(
+                  secondary: const Icon(Icons.center_focus_strong_outlined),
+                  title: const Text('Auto-navigate to next cell'),
+                  subtitle: const Text('Move camera when the next number is off-screen'),
+                  value: settings.autoMoveEnabled,
+                  onChanged: (_) => settings.toggleAutoMove(),
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.vibration),
@@ -168,6 +176,21 @@ class SettingsSheet extends StatelessWidget {
                   subtitle: Text(_getLanguageName(settings.appLocale, l10n)),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: () => _showLanguagePicker(context, settings, l10n),
+                ),
+                const Divider(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.school_outlined),
+                  title: const Text('How to Play (Guide)'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.pop(context);
+                    Navigator.of(context).push(
+                      fadeThroughRoute(
+                        const OnboardingScreen(isReplay: true),
+                        name: 'onboarding_guide',
+                      ),
+                    );
+                  },
                 ),
                 const Divider(height: 8),
                 ListTile(

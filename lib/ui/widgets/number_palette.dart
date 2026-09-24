@@ -7,11 +7,13 @@ import '../theme/app_style.dart';
 
 class NumberPalette extends StatefulWidget {
   final ColoringProvider provider;
+  final void Function(int number)? onNumberTapped;
   final void Function(int number)? onNumberReTapped;
 
   const NumberPalette({
     super.key,
     required this.provider,
+    this.onNumberTapped,
     this.onNumberReTapped,
   });
 
@@ -187,6 +189,7 @@ class _NumberPaletteState extends State<NumberPalette> {
                 widget.onNumberReTapped?.call(number);
               } else {
                 provider.selectNumber(number);
+                widget.onNumberTapped?.call(number);
               }
             },
             child: Center(

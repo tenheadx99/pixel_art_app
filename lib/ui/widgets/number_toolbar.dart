@@ -104,7 +104,6 @@ class NumberToolbar extends StatelessWidget {
 
     final bombsCount = provider.bombsCount;
     final magicWandsCount = provider.magicWandsCount;
-    final hintsAvailable = settings.hintsAvailable;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -179,25 +178,7 @@ class NumberToolbar extends StatelessWidget {
             },
           ),
 
-          // 4. Hint (Lightbulb)
-          _ToolCircleButton(
-            icon: const Icon(
-              Icons.lightbulb_rounded,
-              color: Colors.orangeAccent,
-              size: 24,
-            ),
-            badgeValue: hintsAvailable == 0 ? 'ad' : '$hintsAvailable',
-            isActive: false,
-            onTap: () {
-              if (hintsAvailable == 0) {
-                _watchAdRefill(context, 'Hint', () => settings.addHints(1));
-              } else {
-                onHint?.call();
-              }
-            },
-          ),
-
-          // 5. Diamond Shop Button
+          // 4. Diamond Shop Button
           _ToolCircleButton(
             icon: Icon(
               Icons.diamond_rounded,

@@ -21,6 +21,7 @@ class AppConstants {
   static const String darkModePrefKey = 'is_dark_mode';
   static const String completedIdsPrefKey = 'completed_ids';
   static const String inProgressPrefKey = 'in_progress';
+  static const String autoMovePrefKey = 'auto_move_enabled';
 
   static const Map<int, Color> defaultPalette = {
     1: Color(0xFFFF0000),

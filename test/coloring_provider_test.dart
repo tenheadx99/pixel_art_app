@@ -97,6 +97,22 @@ void main() {
       expect(provider.selectedNumber, 2);
     });
 
+    test('cycleNextFillable cycles through unfilled cells for selected number', () async {
+      final provider = await _providerWith({});
+      provider.loadArt(twoColorArt());
+      provider.selectNumber(2);
+      expect(provider.nextFillable, (0, 1));
+      final next1 = provider.cycleNextFillable();
+      expect(next1, (1, 0));
+      expect(provider.nextFillable, (1, 0));
+      final next2 = provider.cycleNextFillable();
+      expect(next2, (1, 1));
+      expect(provider.nextFillable, (1, 1));
+      final next3 = provider.cycleNextFillable();
+      expect(next3, (0, 1)); // cycles back to start
+      expect(provider.nextFillable, (0, 1));
+    });
+
     test('undo reverts timeLapse entries for filled cells', () async {
       final provider = await _providerWith({});
       provider.loadArt(twoColorArt());
@@ -645,6 +661,17 @@ void main() {
       expect(provider.selectedNumber, 2);
       expect(provider.highlightedNumber, 2);
       expect(provider.nextFillable, (0, 1));
+    });
+
+    test('autoMoveEnabled defaults to true and toggles properly', () async {
+      final storage = LocalStorageService();
+      await storage.init();
+      final settings = AppSettingsProvider(storage);
+      expect(settings.autoMoveEnabled, isTrue);
+      settings.toggleAutoMove();
+      expect(settings.autoMoveEnabled, isFalse);
+      settings.toggleAutoMove();
+      expect(settings.autoMoveEnabled, isTrue);
     });
   });
 }

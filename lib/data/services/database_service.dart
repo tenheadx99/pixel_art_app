@@ -122,6 +122,14 @@ class DatabaseService {
   Future<void> saveArtwork(Map<String, dynamic> artwork) async {
     if (!isSupported) return;
     final db = await database;
+    final pixelArtId = artwork['pixel_art_id'];
+    if (pixelArtId != null && pixelArtId.toString().trim().isNotEmpty) {
+      await db.delete(
+        'saved_artworks',
+        where: 'pixel_art_id = ?',
+        whereArgs: [pixelArtId.toString().trim()],
+      );
+    }
     await db.insert(
       'saved_artworks',
       artwork,
@@ -139,6 +147,16 @@ class DatabaseService {
     if (!isSupported) return;
     final db = await database;
     await db.delete('saved_artworks', where: 'id = ?', whereArgs: [id]);
+  }
+
+  Future<void> deleteArtworksByPixelArtId(String pixelArtId) async {
+    if (!isSupported) return;
+    final db = await database;
+    await db.delete(
+      'saved_artworks',
+      where: 'pixel_art_id = ?',
+      whereArgs: [pixelArtId],
+    );
   }
 
   Future<void> saveInProgress(Map<String, dynamic> data) async {

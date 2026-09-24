@@ -14,9 +14,9 @@ import '../widgets/diamond_shop_sheet.dart';
 import '../widgets/entrance.dart';
 import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
-import '../widgets/settings_sheet.dart';
 import '../widgets/transitions.dart';
 import 'gallery_screen.dart';
+import 'settings_screen.dart';
 
 /// Achievement meta description, lore, and rewards.
 class _AchievementMeta {
@@ -280,7 +280,12 @@ class _ProfileScreenState extends State<ProfileScreen>
             tooltip: 'Settings',
             onPressed: () {
               HapticFeedback.lightImpact();
-              showSettingsSheet(context);
+              Navigator.of(context).push(
+                fadeThroughRoute(
+                  const SettingsScreen(),
+                  name: 'settings',
+                ),
+              );
             },
           ),
           const SizedBox(width: 6),

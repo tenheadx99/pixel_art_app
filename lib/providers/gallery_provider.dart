@@ -124,11 +124,22 @@ class GalleryProvider extends ChangeNotifier {
     return cats.toList()..sort();
   }
 
+  static List<PixelArt> _deduplicate(List<PixelArt> arts) {
+    final seen = <String>{};
+    final unique = <PixelArt>[];
+    for (final art in arts) {
+      if (seen.add(art.id)) {
+        unique.add(art);
+      }
+    }
+    return unique;
+  }
+
   Future<void> loadCatalog(List<PixelArt> preMade) async {
     _isLoading = true;
     notifyListeners();
 
-    _catalog = List.from(preMade);
+    _catalog = _deduplicate(preMade);
     _completedIds = _storageService.getStringSet(
       AppConstants.completedIdsPrefKey,
     );
@@ -149,7 +160,7 @@ class GalleryProvider extends ChangeNotifier {
   /// User state (completed/favorites/progress) is keyed by art id and needs
   /// no migration.
   void updateCatalog(List<PixelArt> catalog, {Set<String> retiredIds = const {}}) {
-    _catalog = catalog;
+    _catalog = _deduplicate(catalog);
     _retiredIds = retiredIds;
     // The selected category may have been renamed/hidden by the update.
     if (_selectedCategory != 'All' &&

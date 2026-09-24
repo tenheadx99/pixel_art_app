@@ -30,6 +30,7 @@ import 'ui/widgets/transitions.dart';
 import 'providers/coloring_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
+import 'ui/screens/onboarding_screen.dart';
 import 'ui/screens/home_screen.dart';
 import 'ui/screens/force_update_screen.dart';
 import 'ui/theme/app_style.dart';
@@ -459,9 +460,17 @@ class _IntroFlow extends StatelessWidget {
       displayDuration: const Duration(seconds: 2),
       loadingMessage: 'Loading your next canvas...',
       onFinished: () {
-        Navigator.of(context).pushReplacement(
-          fadeThroughRoute(const HomeScreen(), name: 'home'),
-        );
+        final storage = context.read<LocalStorageService>();
+        final hasSeenOnboarding = storage.getBool('has_seen_onboarding');
+        if (!hasSeenOnboarding) {
+          Navigator.of(context).pushReplacement(
+            fadeThroughRoute(const OnboardingScreen(), name: 'onboarding'),
+          );
+        } else {
+          Navigator.of(context).pushReplacement(
+            fadeThroughRoute(const HomeScreen(), name: 'home'),
+          );
+        }
       },
     );
   }

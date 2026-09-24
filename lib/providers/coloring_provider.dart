@@ -884,6 +884,31 @@ class ColoringProvider extends ChangeNotifier {
     _nextFillable = null;
   }
 
+  /// Cycles through unfilled cells for the currently selected number, moving
+  /// the hinted cell cursor to the next unfilled cell, and notifies listeners.
+  (int, int)? cycleNextFillable() {
+    if (_currentArt == null) return null;
+    if (!_hasUnfilled(_selectedNumber)) return null;
+    final cells = _cellsByNumber[_selectedNumber];
+    if (cells == null || cells.isEmpty) return null;
+
+    final width = _currentArt!.gridWidth;
+    final start = ((_nextCursor[_selectedNumber] ?? 0) + 1) % cells.length;
+    for (var offset = 0; offset < cells.length; offset++) {
+      final i = (start + offset) % cells.length;
+      final idx = cells[i];
+      final row = idx ~/ width;
+      final col = idx % width;
+      if (_filledGrid[row][col] == 0) {
+        _nextCursor[_selectedNumber] = i;
+        _nextFillable = (row, col);
+        notifyListeners();
+        return (row, col);
+      }
+    }
+    return null;
+  }
+
   /// Builds the per-number row-major cell index for the current artwork.
   /// One O(W×H) pass at load time; the tap hot path never rescans.
   void _buildCellIndex() {
