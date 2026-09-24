@@ -138,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildHeader(context, gallery, settings),
                 if (gallery.dailyArt != null)
                   SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     sliver: SliverToBoxAdapter(
                       child: _DailyPixelBanner(
                         gallery: gallery,
@@ -261,8 +261,11 @@ class _HomeScreenState extends State<HomeScreen> {
     GalleryProvider gallery,
     AppSettingsProvider settings,
   ) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final headerHeight = topPadding + 192.0;
+
     return SliverAppBar(
-      expandedHeight: 276,
+      expandedHeight: headerHeight,
       pinned: false,
       floating: true,
       backgroundColor: Colors.transparent,
@@ -275,8 +278,8 @@ class _HomeScreenState extends State<HomeScreen> {
               end: Alignment.bottomRight,
             ),
             borderRadius: const BorderRadius.only(
-              bottomLeft: Radius.circular(32),
-              bottomRight: Radius.circular(32),
+              bottomLeft: Radius.circular(28),
+              bottomRight: Radius.circular(28),
             ),
           ),
           child: Stack(
@@ -293,9 +296,9 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               Padding(
                 padding: EdgeInsets.only(
-                  top: MediaQuery.of(context).padding.top + 16,
-                  left: 24,
-                  right: 24,
+                  top: topPadding + 12,
+                  left: 20,
+                  right: 20,
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -317,13 +320,13 @@ class _HomeScreenState extends State<HomeScreen> {
                             borderRadius: BorderRadius.circular(16),
                             child: Image.asset(
                               FlavorConfig.current.appIconPath,
-                              width: 48,
-                              height: 48,
+                              width: 44,
+                              height: 44,
                               fit: BoxFit.cover,
                             ),
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -331,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 FlavorConfig.current.appName,
                                 style: const TextStyle(
-                                  fontSize: 26,
+                                  fontSize: 24,
                                   fontWeight: FontWeight.bold,
                                   color: Colors.white,
                                   letterSpacing: 0.5,
@@ -342,7 +345,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 FlavorConfig.current.splashTagline,
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 12.5,
                                   color: Colors.white70,
                                   letterSpacing: 1.5,
                                 ),
@@ -363,14 +366,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     _buildPlayerStrip(context, gallery, settings),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
                     Row(
                       children: [
                         Expanded(
                           child: Container(
-                            height: 42,
+                            height: 40,
                             decoration: BoxDecoration(
                               color: Colors.white.withAlpha(40),
                               borderRadius: BorderRadius.circular(14),
@@ -394,7 +397,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 ),
                                 border: InputBorder.none,
                                 contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 11,
+                                  vertical: 10,
                                 ),
                               ),
                             ),
@@ -402,7 +405,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                         const SizedBox(width: 10),
                         Container(
-                          height: 42,
+                          height: 40,
                           padding: const EdgeInsets.symmetric(horizontal: 12),
                           decoration: BoxDecoration(
                             color: Colors.white.withAlpha(40),
@@ -1540,31 +1543,38 @@ class _DailyPixelBanner extends StatelessWidget {
       onTap: onPlay,
       scale: 0.98,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: const LinearGradient(
-            colors: [Color(0xFFD98E73), Color(0xFFC97E68)],
+            colors: [Color(0xFFFF5E62), Color(0xFFFF9966)],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFC97E68).withAlpha(35),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
+              color: const Color(0xFFFF5E62).withAlpha(50),
+              blurRadius: 14,
+              offset: const Offset(0, 5),
             ),
           ],
         ),
         child: Row(
           children: [
             Container(
-              width: 64,
-              height: 64,
+              width: 72,
+              height: 72,
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.white.withAlpha(220),
-                borderRadius: BorderRadius.circular(14),
+                color: Colors.white.withAlpha(235),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Center(
                 child: AspectRatio(
@@ -1588,8 +1598,8 @@ class _DailyPixelBanner extends StatelessWidget {
                     children: [
                       Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
+                          horizontal: 7,
+                          vertical: 2.5,
                         ),
                         decoration: BoxDecoration(
                           color: Colors.white.withAlpha(35),
@@ -1618,8 +1628,8 @@ class _DailyPixelBanner extends StatelessWidget {
                         },
                         child: Container(
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
+                            horizontal: 7,
+                            vertical: 2.5,
                           ),
                           decoration: BoxDecoration(
                             color: Colors.white.withAlpha(45),
@@ -1648,39 +1658,78 @@ class _DailyPixelBanner extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 4),
                   Text(
                     art.name,
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 17,
+                      fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  const SizedBox(height: 3),
-                  Row(
-                    children: [
-                      // Breathes while today's daily is uncolored — a quiet
-                      // "the streak needs you" nudge; still when done.
-                      _BreathingFlame(active: !done),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          done
-                              ? '${gallery.dailyStreak}d streak · New in ${hoursToNext}h ${minsToNext}m'
-                              : '${gallery.dailyStreak}d streak · ⏳ ${hoursToNext}h left',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11.5,
-                            fontWeight: FontWeight.w600,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(45),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: const Color(0xFFFFD54F).withAlpha(140),
+                        width: 1,
                       ),
-                    ],
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(20),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _BreathingFlame(active: !done),
+                        const SizedBox(width: 5),
+                        Text(
+                          '${gallery.dailyStreak}d streak',
+                          style: const TextStyle(
+                            color: Color(0xFFFFD54F),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 5),
+                          child: Text(
+                            '•',
+                            style: TextStyle(
+                              color: Colors.white.withAlpha(160),
+                              fontSize: 10,
+                            ),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            done
+                                ? 'New in ${hoursToNext}h ${minsToNext}m'
+                                : '⏳ ${hoursToNext}h left',
+                            style: TextStyle(
+                              color: Colors.white.withAlpha(230),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
               ),
@@ -1692,10 +1741,10 @@ class _DailyPixelBanner extends StatelessWidget {
               scale: 0.95,
               child: Container(
                 padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
                       color: Colors.black.withAlpha(25),
