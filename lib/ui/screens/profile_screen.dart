@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
+import '../../config/flavor.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../providers/coloring_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../motion.dart';
 import '../theme/app_style.dart';
 import '../widgets/confetti_overlay.dart';
 import '../widgets/diamond_shop_sheet.dart';
+import '../widgets/email_auth_sheet.dart';
 import '../widgets/entrance.dart';
 import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
@@ -173,7 +176,9 @@ class _ProfileScreenState extends State<ProfileScreen>
     final settings = context.watch<AppSettingsProvider>();
     final gallery = context.watch<GalleryProvider>();
     final storage = context.read<LocalStorageService>();
+    final auth = context.watch<AuthProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final flavor = FlavorConfig.current;
 
     final earned = storage
         .getString(ColoringProvider.achievementsStorageKey)
@@ -297,15 +302,30 @@ class _ProfileScreenState extends State<ProfileScreen>
             physics: const BouncingScrollPhysics(),
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
-              // Hero Level Passport Card
+              // Hero Level Passport Card with User Avatar & Name
               StaggeredEntrance(
                 slot: 0,
                 child: _LevelPassportCard(
                   settings: settings,
                   rankTitle: _getRankTitle(settings.playerLevel),
                   onTap: () => _showLevelPerksSheet(context, settings),
+                  onAvatarTap: () => _showAccountSheet(context),
                 ),
               ),
+
+              if (!auth.isAuthenticated) ...[
+                const SizedBox(height: 12),
+                StaggeredEntrance(
+                  slot: 1,
+                  child: _buildGuestBackupBanner(
+                    context,
+                    isDark,
+                    flavor,
+                    gallery,
+                    settings,
+                  ),
+                ),
+              ],
 
               const SizedBox(height: 14),
 
@@ -737,6 +757,491 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         ],
       ),
+    );
+  }
+
+  /// Guest warning & cloud backup encouragement card.
+  Widget _buildGuestBackupBanner(
+    BuildContext context,
+    bool isDark,
+    FlavorConfig flavor,
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+  ) {
+    return PressableScale(
+      onTap: () => _showAccountSheet(context),
+      scale: 0.98,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [
+                    const Color(0xFF1F223D),
+                    const Color(0xFF2B1F45),
+                  ]
+                : [
+                    const Color(0xFFEEF2FF),
+                    const Color(0xFFF3E8FF),
+                  ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: const Color(0xFF8A2BE2).withAlpha(isDark ? 80 : 100),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF8A2BE2).withAlpha(isDark ? 25 : 15),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6C5CE7), Color(0xFF8A2BE2)],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF8A2BE2).withAlpha(100),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.cloud_upload_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Protect Your Art & Progress',
+                    style: TextStyle(
+                      color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Sign in to sync ${gallery.completedIds.length} artworks & ${settings.diamondsAvailable} 💎 safely to cloud.',
+                    style: TextStyle(
+                      color: isDark ? Colors.white70 : const Color(0xFF5A5A72),
+                      fontSize: 11,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF6C5CE7), Color(0xFF8A2BE2)],
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Sign In',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  SizedBox(width: 2),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    color: Colors.white,
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniSyncStat(String label, String value, bool isDark) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w800,
+            color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.white60 : Colors.black54,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Displays the Account & Cloud Sync management sheet.
+  void _showAccountSheet(BuildContext context) {
+    HapticFeedback.lightImpact();
+    final settings = context.read<AppSettingsProvider>();
+    final gallery = context.read<GalleryProvider>();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final flavor = FlavorConfig.current;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return Consumer<AuthProvider>(
+          builder: (context, auth, _) {
+            final isAuthenticated = auth.isAuthenticated;
+            final user = auth.user;
+            final rawName = user?.displayName?.trim();
+            final emailPrefix = (user?.email?.split('@').first ?? '').trim();
+            final displayName = (rawName != null && rawName.isNotEmpty)
+                ? rawName
+                : (emailPrefix.isNotEmpty ? emailPrefix : 'Pixel Artist');
+            final photoUrl = auth.photoUrl;
+            final email = user?.email ?? '';
+
+            return Container(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF1E1E2E) : Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(isDark ? 100 : 30),
+                    blurRadius: 24,
+                    offset: const Offset(0, -6),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 44,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 18),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white24 : Colors.black12,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+
+                  if (isAuthenticated) ...[
+                    // Avatar & Info Row
+                    Row(
+                      children: [
+                        Container(
+                          width: 62,
+                          height: 62,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: flavor.primary.withAlpha(140),
+                              width: 2.5,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: flavor.primary.withAlpha(80),
+                                blurRadius: 12,
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: (photoUrl != null && photoUrl.isNotEmpty)
+                                ? Image.network(
+                                    photoUrl,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (ctx, err, stack) => Container(
+                                      color: flavor.primary.withAlpha(50),
+                                      alignment: Alignment.center,
+                                      child: Text(
+                                        displayName.isNotEmpty ? displayName[0].toUpperCase() : 'P',
+                                        style: TextStyle(
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.w900,
+                                          color: flavor.primary,
+                                        ),
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    color: flavor.primary.withAlpha(50),
+                                    alignment: Alignment.center,
+                                    child: Text(
+                                      displayName.isNotEmpty ? displayName[0].toUpperCase() : 'P',
+                                      style: TextStyle(
+                                        fontSize: 24,
+                                        fontWeight: FontWeight.w900,
+                                        color: flavor.primary,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      displayName,
+                                      style: TextStyle(
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w800,
+                                        color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  if (settings.isProUser) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFFFFD700), Color(0xFFFF9D2E)],
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'PRO',
+                                        style: TextStyle(
+                                          color: Colors.black87,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if (email.isNotEmpty) ...[
+                                const SizedBox(height: 2),
+                                Text(
+                                  email,
+                                  style: TextStyle(
+                                    fontSize: 12.5,
+                                    color: isDark ? Colors.white60 : Colors.black54,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                              const SizedBox(height: 4),
+                              Row(
+                                children: [
+                                  const Icon(Icons.cloud_done_rounded, size: 13, color: Color(0xFF00C853)),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'Firestore Synced${user?.uid != null ? ' • ID: ${user!.uid.substring(0, 6)}...' : ''}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF00C853),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 18),
+
+                    // Sync & Stats Grid
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withAlpha(12) : const Color(0xFFF3F4F9),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
+                        ),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceAround,
+                            children: [
+                              _buildMiniSyncStat('Completed', '${gallery.completedIds.length} 🎨', isDark),
+                              Container(width: 1, height: 26, color: isDark ? Colors.white24 : Colors.black12),
+                              _buildMiniSyncStat('Favorites', '${gallery.favoriteIds.length} ❤️', isDark),
+                              Container(width: 1, height: 26, color: isDark ? Colors.white24 : Colors.black12),
+                              _buildMiniSyncStat('Diamonds', '${settings.diamondsAvailable} 💎', isDark),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: auth.isSyncing
+                                      ? null
+                                      : () async {
+                                          final res = await auth.syncCloudData(settings: settings, gallery: gallery);
+                                          if (res != null && res.success && context.mounted) {
+                                            ScaffoldMessenger.of(context).showSnackBar(
+                                              const SnackBar(
+                                                content: Text('All progress synced to cloud! ✨'),
+                                                duration: Duration(seconds: 2),
+                                              ),
+                                            );
+                                          }
+                                        },
+                                  icon: auth.isSyncing
+                                      ? const SizedBox(
+                                          width: 15,
+                                          height: 15,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : const Icon(Icons.sync_rounded, size: 17),
+                                  label: Text(auth.isSyncing ? 'Syncing...' : 'Sync Now'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: flavor.primary,
+                                    foregroundColor: Colors.white,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    // Sign Out Button
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed: () {
+                          Navigator.of(sheetContext).pop();
+                          auth.signOut();
+                        },
+                        icon: const Icon(Icons.logout_rounded, size: 16, color: Colors.redAccent),
+                        label: const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.redAccent, width: 1.2),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          padding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                      ),
+                    ),
+                  ] else ...[
+                    // Not signed in / Guest
+                    Container(
+                      width: 58,
+                      height: 58,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [flavor.primary.withAlpha(50), flavor.primary.withAlpha(20)],
+                        ),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(Icons.cloud_upload_outlined, size: 28, color: flavor.primary),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Connect Your Account',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Back up your completed artworks, favorites, XP, and diamond balance so you never lose your progress.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.white70 : Colors.black54,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 18),
+                    // Google Sign In
+                    ElevatedButton.icon(
+                      onPressed: () async {
+                        Navigator.of(sheetContext).pop();
+                        final success = await auth.signInWithGoogle(settings: settings, gallery: gallery);
+                        if (success && context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Signed in with Google! 🎨')),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.account_circle_rounded, size: 18),
+                      label: const Text('Continue with Google'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: flavor.primary,
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(46),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    // Email Sign In
+                    OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(sheetContext).pop();
+                        EmailAuthSheet.show(context);
+                      },
+                      icon: const Icon(Icons.email_outlined, size: 18),
+                      label: const Text('Continue with Email'),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size.fromHeight(46),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1277,11 +1782,13 @@ class _LevelPassportCard extends StatelessWidget {
   final AppSettingsProvider settings;
   final String rankTitle;
   final VoidCallback onTap;
+  final VoidCallback? onAvatarTap;
 
   const _LevelPassportCard({
     required this.settings,
     required this.rankTitle,
     required this.onTap,
+    this.onAvatarTap,
   });
 
   @override
@@ -1289,6 +1796,22 @@ class _LevelPassportCard extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final progress = settings.xpProgressInLevel;
     final percent = (progress * 100).toInt();
+
+    AuthProvider? auth;
+    try {
+      auth = context.watch<AuthProvider>();
+    } catch (_) {
+      auth = null;
+    }
+
+    final isAuthenticated = auth != null && auth.isAuthenticated;
+    final user = auth?.user;
+    final rawName = user?.displayName?.trim();
+    final emailPrefix = (user?.email?.split('@').first ?? '').trim();
+    final displayName = (rawName != null && rawName.isNotEmpty)
+        ? rawName
+        : (emailPrefix.isNotEmpty ? emailPrefix : 'Pixel Artist');
+    final photoUrl = auth?.photoUrl;
 
     return PressableScale(
       onTap: onTap,
@@ -1329,129 +1852,361 @@ class _LevelPassportCard extends StatelessWidget {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Dual-Ring Illuminated Level Avatar
-                        Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(
-                              width: 66,
-                              height: 66,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                border: Border.all(
-                                  color: Colors.white.withAlpha(80),
-                                  width: 2.5,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFFF9D2E).withAlpha(120),
-                                    blurRadius: 16,
+                        // Dual-Ring Illuminated Avatar
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onAvatarTap ?? onTap,
+                          child: Stack(
+                            clipBehavior: Clip.none,
+                            alignment: Alignment.center,
+                            children: [
+                              Container(
+                                width: 66,
+                                height: 66,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: Colors.white.withAlpha(90),
+                                    width: 2.5,
                                   ),
-                                ],
-                              ),
-                            ),
-                            Container(
-                              width: 56,
-                              height: 56,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFFFFE066),
-                                    Color(0xFFFF9D2E),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: isAuthenticated
+                                          ? const Color(0xFF69F0AE).withAlpha(110)
+                                          : const Color(0xFFFF9D2E).withAlpha(120),
+                                      blurRadius: 16,
+                                      spreadRadius: 1,
+                                    ),
                                   ],
                                 ),
                               ),
-                              child: Center(
-                                child: Text(
-                                  '${settings.playerLevel}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.w900,
-                                    letterSpacing: -0.5,
+                              Container(
+                                width: 56,
+                                height: 56,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                    colors: isAuthenticated
+                                        ? [
+                                            const Color(0xFF8A2BE2),
+                                            const Color(0xFFDA22FF),
+                                          ]
+                                        : [
+                                            const Color(0xFFFFE066),
+                                            const Color(0xFFFF9D2E),
+                                          ],
                                   ),
                                 ),
-                              ),
-                            ),
-                            Positioned(
-                              top: 0,
-                              right: 2,
-                              child: Container(
-                                padding: const EdgeInsets.all(3),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFFFD700),
-                                  shape: BoxShape.circle,
+                                child: ClipOval(
+                                  child: (isAuthenticated && photoUrl != null && photoUrl.isNotEmpty)
+                                      ? Image.network(
+                                          photoUrl,
+                                          fit: BoxFit.cover,
+                                          width: 56,
+                                          height: 56,
+                                          errorBuilder: (context, error, stackTrace) => Center(
+                                            child: Text(
+                                              displayName.isNotEmpty
+                                                  ? displayName[0].toUpperCase()
+                                                  : 'P',
+                                              style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 24,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      : Center(
+                                          child: isAuthenticated
+                                              ? Text(
+                                                  displayName.isNotEmpty
+                                                      ? displayName[0].toUpperCase()
+                                                      : 'P',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.w900,
+                                                  ),
+                                                )
+                                              : Text(
+                                                  '${settings.playerLevel}',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 24,
+                                                    fontWeight: FontWeight.w900,
+                                                    letterSpacing: -0.5,
+                                                  ),
+                                                ),
+                                        ),
                                 ),
-                                child: const Icon(
-                                  Icons.star_rounded,
-                                  size: 12,
-                                  color: Color(0xFF6B21A8),
-                                ),
                               ),
-                            ),
-                          ],
+                              // Corner Level Badge
+                              if (isAuthenticated)
+                                Positioned(
+                                  bottom: -2,
+                                  right: -2,
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [Color(0xFFFFE066), Color(0xFFFF9D2E)],
+                                      ),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: Colors.white, width: 1.5),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withAlpha(80),
+                                          blurRadius: 4,
+                                          offset: const Offset(0, 1),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Text(
+                                      'Lv.${settings.playerLevel}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF4A154B),
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                )
+                              else
+                                Positioned(
+                                  top: 0,
+                                  right: 2,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFFFD700),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.star_rounded,
+                                      size: 12,
+                                      color: Color(0xFF6B21A8),
+                                    ),
+                                  ),
+                                ),
+                              if (settings.isProUser)
+                                Positioned(
+                                  top: -4,
+                                  left: -4,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(3.5),
+                                    decoration: const BoxDecoration(
+                                      gradient: LinearGradient(
+                                        colors: [Color(0xFFFFD700), Color(0xFFFF9D2E)],
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.workspace_premium_rounded,
+                                      size: 11,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
-                                children: [
-                                  Text(
-                                    'Level ${settings.playerLevel}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 22,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.2,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 6),
-                                  const Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    size: 13,
-                                    color: Colors.white70,
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 4),
-                              // Rank Chip
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 9,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withAlpha(45),
-                                  borderRadius: BorderRadius.circular(20),
-                                  border: Border.all(
-                                    color: Colors.white.withAlpha(60),
-                                    width: 1,
-                                  ),
-                                ),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: onAvatarTap ?? onTap,
                                 child: Row(
-                                  mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    const Icon(
-                                      Icons.workspace_premium_rounded,
-                                      size: 13,
-                                      color: Color(0xFFFFE066),
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(
-                                      rankTitle,
-                                      style: const TextStyle(
-                                        color: Colors.white,
-                                        fontSize: 11,
-                                        fontWeight: FontWeight.w700,
+                                    Flexible(
+                                      child: Text(
+                                        isAuthenticated ? displayName : 'Level ${settings.playerLevel}',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 20,
+                                          fontWeight: FontWeight.w900,
+                                          letterSpacing: 0.2,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
+                                    ),
+                                    if (settings.isProUser) ...[
+                                      const SizedBox(width: 6),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFFFFD700),
+                                              Color(0xFFFF9D2E),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(8),
+                                          boxShadow: [
+                                            BoxShadow(
+                                              color: const Color(0xFFFF9D2E).withAlpha(120),
+                                              blurRadius: 6,
+                                            ),
+                                          ],
+                                        ),
+                                        child: const Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              Icons.workspace_premium_rounded,
+                                              size: 10,
+                                              color: Colors.black87,
+                                            ),
+                                            SizedBox(width: 2),
+                                            Text(
+                                              'PRO',
+                                              style: TextStyle(
+                                                color: Colors.black87,
+                                                fontSize: 9.5,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(width: 6),
+                                    const Icon(
+                                      Icons.arrow_forward_ios_rounded,
+                                      size: 13,
+                                      color: Colors.white70,
                                     ),
                                   ],
                                 ),
+                              ),
+                              const SizedBox(height: 5),
+                              // Rank & Cloud Status Row
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  // Rank Chip
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 2.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withAlpha(45),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: Colors.white.withAlpha(60),
+                                        width: 1,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          isAuthenticated
+                                              ? Icons.military_tech_rounded
+                                              : Icons.workspace_premium_rounded,
+                                          size: 12,
+                                          color: const Color(0xFFFFE066),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          isAuthenticated
+                                              ? 'Lv.${settings.playerLevel} • $rankTitle'
+                                              : rankTitle,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (isAuthenticated)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF69F0AE).withAlpha(40),
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
+                                          color: const Color(0xFF69F0AE).withAlpha(80),
+                                          width: 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          if (auth.isSyncing)
+                                            const SizedBox(
+                                              width: 11,
+                                              height: 11,
+                                              child: CircularProgressIndicator(
+                                                strokeWidth: 1.5,
+                                                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF69F0AE)),
+                                              ),
+                                            )
+                                          else
+                                            const Icon(
+                                              Icons.cloud_done_rounded,
+                                              size: 11,
+                                              color: Color(0xFF69F0AE),
+                                            ),
+                                          const SizedBox(width: 3),
+                                          Text(
+                                            auth.isSyncing ? 'Syncing...' : 'Synced',
+                                            style: const TextStyle(
+                                              color: Color(0xFF69F0AE),
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 7,
+                                        vertical: 2.5,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white.withAlpha(30),
+                                        borderRadius: BorderRadius.circular(20),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            Icons.cloud_off_rounded,
+                                            size: 11,
+                                            color: Colors.white70,
+                                          ),
+                                          SizedBox(width: 3),
+                                          Text(
+                                            'Local Only',
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
                               ),
                             ],
                           ),

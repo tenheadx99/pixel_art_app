@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../config/app_constants.dart';
+import '../../config/flavor.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../providers/gallery_provider.dart';
 import 'local_storage_service.dart';
@@ -29,7 +30,7 @@ class CloudSyncResult {
 }
 
 /// Cloud sync engine that reconciles local game progress (SharedPreferences)
-/// with the user's remote Firestore profile at `users/{userId}`.
+/// with the user's remote Firestore profile at `{appPrefix}_users/{userId}`.
 class CloudSyncService {
   static final CloudSyncService _instance = CloudSyncService._();
   factory CloudSyncService() => _instance;
@@ -37,8 +38,18 @@ class CloudSyncService {
 
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  /// Normalized prefix derived from the app name (e.g. "pixely", "divine_pixels", "anime_pixels").
+  static String get appPrefix {
+    return FlavorConfig.current.appName.toLowerCase().replaceAll(' ', '_');
+  }
+
+  /// App-specific collection name, e.g. "pixely_users", "divine_pixels_users", "anime_pixels_users".
+  static String get usersCollection {
+    return '${appPrefix}_users';
+  }
+
   DocumentReference<Map<String, dynamic>> _userDoc(String userId) {
-    return _db.collection('users').doc(userId);
+    return _db.collection(usersCollection).doc(userId);
   }
 
   /// Syncs local state with Firestore.
@@ -51,7 +62,23 @@ class CloudSyncService {
   }) async {
     try {
       final docRef = _userDoc(userId);
-      final snapshot = await docRef.get();
+      var snapshot = await docRef.get();
+
+      // Backward compatibility: If doc does not exist in {appPrefix}_users yet,
+      // check if it was previously saved under users/{appPrefix}_{userId} or users/{userId}.
+      if (!snapshot.exists || snapshot.data() == null) {
+        final legacyPrefixedDoc = _db.collection('users').doc('${appPrefix}_$userId');
+        final legacyPrefixedSnap = await legacyPrefixedDoc.get();
+        if (legacyPrefixedSnap.exists && legacyPrefixedSnap.data() != null) {
+          snapshot = legacyPrefixedSnap;
+        } else {
+          final legacyDocRef = _db.collection('users').doc(userId);
+          final legacySnapshot = await legacyDocRef.get();
+          if (legacySnapshot.exists && legacySnapshot.data() != null) {
+            snapshot = legacySnapshot;
+          }
+        }
+      }
 
       // Read local state
       final localDiamonds = storage.getInt('diamonds_available', defaultValue: 50);
@@ -70,6 +97,10 @@ class CloudSyncService {
       if (!snapshot.exists || snapshot.data() == null) {
         // First sync: Upload local progress and purchase entitlements to cloud
         final data = {
+          'appId': appPrefix,
+          'appName': FlavorConfig.current.appName,
+          'flavor': currentFlavor.name,
+          'userId': userId,
           'diamonds': localDiamonds,
           'xp': localXp,
           'level': localLevel,
@@ -87,7 +118,7 @@ class CloudSyncService {
         };
 
         await docRef.set(data, SetOptions(merge: true));
-        developer.log('Initial cloud sync complete for user $userId', name: 'CloudSync');
+        developer.log('Initial cloud sync complete for $usersCollection/$userId', name: 'CloudSync');
 
         return CloudSyncResult(
           success: true,
@@ -152,6 +183,10 @@ class CloudSyncService {
 
       // Write merged state back to Firestore
       await docRef.set({
+        'appId': appPrefix,
+        'appName': FlavorConfig.current.appName,
+        'flavor': currentFlavor.name,
+        'userId': userId,
         'diamonds': mergedDiamonds,
         'xp': mergedXp,
         'level': mergedLevel,
@@ -167,7 +202,7 @@ class CloudSyncService {
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      developer.log('Cloud sync reconciled for user $userId (diamonds: $mergedDiamonds, completed: ${mergedCompleted.length}, pro: $mergedPro)', name: 'CloudSync');
+      developer.log('Cloud sync reconciled for $usersCollection/$userId (diamonds: $mergedDiamonds, completed: ${mergedCompleted.length}, pro: $mergedPro)', name: 'CloudSync');
 
       return CloudSyncResult(
         success: true,
@@ -193,7 +228,7 @@ class CloudSyncService {
     }
   }
 
-  /// Records a purchase transaction in Firestore under `users/{userId}/purchases/{docId}`.
+  /// Records a purchase transaction in Firestore under `{appPrefix}_users/{userId}/purchases/{docId}`.
   Future<void> logPurchaseTransaction({
     required String userId,
     required String productId,
@@ -208,6 +243,10 @@ class CloudSyncService {
           : '${productId}_${now.millisecondsSinceEpoch}';
 
       await _userDoc(userId).collection('purchases').doc(docId).set({
+        'appId': appPrefix,
+        'appName': FlavorConfig.current.appName,
+        'flavor': currentFlavor.name,
+        'userId': userId,
         'productId': productId,
         'orderId': orderId,
         'status': status ?? 'purchased',
@@ -216,7 +255,7 @@ class CloudSyncService {
         'clientDate': now.toIso8601String(),
       }, SetOptions(merge: true));
 
-      developer.log('Logged purchase $productId ($docId) for user $userId', name: 'CloudSync');
+      developer.log('Logged purchase $productId ($docId) for user $usersCollection/$userId', name: 'CloudSync');
     } catch (e, st) {
       developer.log('Failed to log purchase to Firestore', name: 'CloudSync', error: e, stackTrace: st);
     }
@@ -226,7 +265,10 @@ class CloudSyncService {
   Future<void> deleteUserData(String userId) async {
     try {
       await _userDoc(userId).delete();
-      developer.log('Deleted cloud user data for $userId', name: 'CloudSync');
+      // Also delete legacy doc locations if any existed
+      await _db.collection('users').doc('${appPrefix}_$userId').delete();
+      await _db.collection('users').doc(userId).delete();
+      developer.log('Deleted cloud user data for $usersCollection/$userId', name: 'CloudSync');
     } catch (e) {
       developer.log('Failed to delete cloud data for $userId', name: 'CloudSync', error: e);
     }

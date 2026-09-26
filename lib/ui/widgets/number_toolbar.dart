@@ -104,6 +104,20 @@ class NumberToolbar extends StatelessWidget {
     );
   }
 
+  void _showOutOfHintsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => _OutOfHintsDialog(
+        provider: provider,
+        settings: settings,
+        onWatchAd: (_, toolName, onRefilled) {
+          _watchAdRefill(context, toolName, onRefilled);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -114,6 +128,7 @@ class NumberToolbar extends StatelessWidget {
 
     final bombsCount = provider.bombsCount;
     final magicWandsCount = provider.magicWandsCount;
+    final hintsAvailable = settings.hintsAvailable;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8.0),
@@ -188,7 +203,28 @@ class NumberToolbar extends StatelessWidget {
             },
           ),
 
-          // 4. Diamond Shop Button
+          // 4. Hint (Lightbulb) Tool
+          _ToolCircleButton(
+            icon: const Icon(
+              Icons.lightbulb_rounded,
+              color: Color(0xFFFFB300),
+              size: 24,
+            ),
+            badgeValue: hintsAvailable == 0 ? 'ad' : '$hintsAvailable',
+            badgeColor: hintsAvailable == 0
+                ? const Color(0xFFFF9800)
+                : const Color(0xFFFFA000),
+            isActive: false,
+            onTap: () {
+              if (hintsAvailable == 0) {
+                _showOutOfHintsDialog(context);
+              } else {
+                onHint?.call();
+              }
+            },
+          ),
+
+          // 5. Diamond Shop Button
           _ToolCircleButton(
             icon: Icon(
               Icons.diamond_rounded,
@@ -235,8 +271,8 @@ class _ToolCircleButton extends StatelessWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 56,
-            height: 56,
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
               color: isActive
                   ? (isDark ? AppStyle.primary.withAlpha(70) : AppStyle.primary.withAlpha(35))
@@ -1611,6 +1647,323 @@ class _OutOfWandsDialog extends StatelessWidget {
                 ),
               ),
               // Pinned top-right close button (always on top of scroll view)
+              Positioned(
+                top: 10,
+                right: 10,
+                child: _DialogCloseButton(isDark: isDark),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OutOfHintsDialog extends StatelessWidget {
+  final ColoringProvider provider;
+  final AppSettingsProvider settings;
+  final void Function(BuildContext, String, VoidCallback) onWatchAd;
+
+  const _OutOfHintsDialog({
+    required this.provider,
+    required this.settings,
+    required this.onWatchAd,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final economy = EconomyConfigService().currentConfig;
+    final cost = max(10, (economy.diamondCostHint / 3).round());
+    final currentDiamonds = settings.diamondsAvailable;
+    final hasEnoughDiamonds = currentDiamonds >= cost;
+
+    return Dialog(
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+      elevation: 0,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 350),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1C202C) : Colors.white,
+          borderRadius: BorderRadius.circular(32),
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withValues(alpha: 0.09)
+                : Colors.black.withValues(alpha: 0.06),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.6 : 0.16),
+              blurRadius: 40,
+              offset: const Offset(0, 16),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(32),
+          child: Stack(
+            children: [
+              Positioned(
+                top: -30,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    width: 220,
+                    height: 160,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          const Color(0xFFFFB300).withValues(alpha: isDark ? 0.35 : 0.22),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 28, 22, 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 80,
+                        height: 80,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFFFFD54F), Color(0xFFFF9800)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFFFFB300).withValues(alpha: 0.45),
+                              blurRadius: 18,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(
+                            Icons.lightbulb_rounded,
+                            color: Colors.white,
+                            size: 44,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Out of Hints!',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.3,
+                          color: isDark ? Colors.white : const Color(0xFF171A21),
+                        ),
+                      ),
+                      Container(
+                        margin: const EdgeInsets.only(top: 8, bottom: 18),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isDark ? const Color(0xFF2B2516) : const Color(0xFFFFF8E1),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: isDark ? const Color(0xFF4E3D18) : const Color(0xFFFFE082),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('💡', style: TextStyle(fontSize: 14)),
+                            const SizedBox(width: 7),
+                            Flexible(
+                              child: Text(
+                                'Reveals & colors the next cell automatically',
+                                style: TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                  color: isDark
+                                      ? const Color(0xFFFFE082)
+                                      : const Color(0xFFE65100),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Option 1: FREE REFILL CARD (Watch Video)
+                      PressableScale(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          onWatchAd(context, 'Hint', () {
+                            settings.addHints(1);
+                          });
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: [
+                                Color(0xFFFFB300),
+                                Color(0xFFF57C00),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFFF9800).withValues(alpha: 0.38),
+                                blurRadius: 14,
+                                offset: const Offset(0, 5),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 40,
+                                height: 40,
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.25),
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.play_arrow_rounded,
+                                  color: Colors.white,
+                                  size: 26,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      'Watch Video',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.2,
+                                      ),
+                                    ),
+                                    SizedBox(height: 1.5),
+                                    Text(
+                                      'Earn +1 Hint',
+                                      style: TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 9,
+                                  vertical: 4.5,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.08),
+                                      blurRadius: 4,
+                                    ),
+                                  ],
+                                ),
+                                child: const Text(
+                                  'FREE 🎁',
+                                  style: TextStyle(
+                                    color: Color(0xFFE65100),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Option 2: INSTANT DIAMOND REFILL CARD WITH MULTI-QUANTITY CONVERTER
+                      if (hasEnoughDiamonds) ...[
+                        const SizedBox(height: 10),
+                        _DiamondQuantityRefillCard(
+                          itemSingular: 'Hint',
+                          itemPlural: 'Hints',
+                          unitCost: cost,
+                          currentDiamonds: currentDiamonds,
+                          accentColor: const Color(0xFFFF9800),
+                          isDark: isDark,
+                          onBuy: (count) {
+                            final messenger = ScaffoldMessenger.maybeOf(context);
+                            Navigator.of(context).pop();
+                            final totalCost = cost * count;
+                            if (settings.useDiamonds(totalCost)) {
+                              settings.addHints(count);
+                              messenger?.showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Used $totalCost 💎 for $count Hint${count > 1 ? 's' : ''}! 💡',
+                                  ),
+                                  backgroundColor: const Color(0xFFFF9800),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      GestureDetector(
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          DiamondShopSheet.show(context);
+                        },
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.storefront_rounded,
+                                size: 15,
+                                color: isDark ? Colors.white60 : Colors.black45,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Diamond Shop & Booster Packs 💎',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: isDark ? Colors.white70 : const Color(0xFF455A64),
+                                  decoration: TextDecoration.underline,
+                                  decorationColor: isDark ? Colors.white30 : Colors.black26,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
               Positioned(
                 top: 10,
                 right: 10,

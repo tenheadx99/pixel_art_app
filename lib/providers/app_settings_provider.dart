@@ -44,7 +44,7 @@ class AppSettingsProvider extends ChangeNotifier {
   double _ambientVolume = 0.5;
   String _particleStyle = 'sparkles';
   bool _dailyRemindersEnabled = true;
-  bool _autoMoveEnabled = true;
+  bool _autoMoveEnabled = false;
   int _hintsAvailable = 3;
   int _diamondsAvailable = 50;
   int _totalXp = 0;
@@ -152,7 +152,7 @@ class AppSettingsProvider extends ChangeNotifier {
     );
     _autoMoveEnabled = _storageService.getBool(
       AppConstants.autoMovePrefKey,
-      defaultValue: true,
+      defaultValue: false,
     );
     _hintsAvailable = _storageService.getInt(
       AppConstants.hintsPrefKey,

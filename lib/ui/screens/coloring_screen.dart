@@ -23,6 +23,8 @@ import '../../data/services/ad_service.dart';
 import '../../data/services/analytics_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/local_storage_service.dart';
+import '../../data/services/auth_service.dart';
+import '../../data/services/cloud_sync_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../data/services/review_service.dart';
 import '../../data/services/screenshot_service.dart';
@@ -486,6 +488,9 @@ class _ColoringScreenState extends State<ColoringScreen>
         if (!mounted) return;
         final gallery = _galleryProvider ?? (mounted ? context.read<GalleryProvider>() : null);
         if (gallery == null) return;
+        if (!gallery.isCompleted(widget.art.id)) {
+          gallery.markCompleted(widget.art.id);
+        }
         final isDaily = gallery.dailyArt?.id == widget.art.id;
         final awarded = settings.awardCompletionDiamonds(
           widget.art.id,
@@ -514,6 +519,22 @@ class _ColoringScreenState extends State<ColoringScreen>
           context.read<SoundService>().playComboChime(rate: 1.25);
         }
         _confettiController.forward(from: 0);
+
+        // Auto-sync completed artwork, newly earned diamonds, streak, and XP to Firestore
+        try {
+          final uid = AuthService().uid;
+          if (uid != null) {
+            final storage = _storageService ?? (mounted ? context.read<LocalStorageService>() : null);
+            if (storage != null) {
+              CloudSyncService().syncUserData(
+                userId: uid,
+                storage: storage,
+                settingsProvider: settings,
+                galleryProvider: gallery,
+              );
+            }
+          }
+        } catch (_) {}
       }
 
       // First ensure artwork is shown completely on screen (fitted), then start celebration animation.
@@ -1000,6 +1021,19 @@ class _ColoringScreenState extends State<ColoringScreen>
       }
       _coinBurstToChip();
       _showInfoSnack('Reward doubled! +$baseAward diamonds');
+      try {
+        final uid = AuthService().uid;
+        if (uid != null) {
+          final storage = _storageService ?? (mounted ? context.read<LocalStorageService>() : null);
+          if (storage != null) {
+            CloudSyncService().syncUserData(
+              userId: uid,
+              storage: storage,
+              settingsProvider: settings,
+            );
+          }
+        }
+      } catch (_) {}
     }
 
     if (AppConfig.disableAds || !AppConfig.showAds) {
@@ -2767,6 +2801,7 @@ class _ColoringScreenState extends State<ColoringScreen>
               NumberToolbar(
                 provider: provider,
                 settings: settings,
+                onHint: () => _useHint(provider, settings),
               ),
               const SizedBox(height: 12),
               NumberPalette(
@@ -2817,6 +2852,23 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
 
     return safeArea.contains(screenCenter);
+  }
+
+  /// Uses a hint to fill one correct cell and zooms the viewport to it.
+  void _useHint(ColoringProvider provider, AppSettingsProvider settings) {
+    if (settings.hintsAvailable <= 0) return;
+    final target = provider.applyHint();
+    if (target == null) {
+      _showInfoSnack('All cells completed! ✨');
+      return;
+    }
+    settings.useHint();
+    AnalyticsService().logBoosterUsed(
+      type: 'hint',
+      remaining: settings.hintsAvailable,
+    );
+    _zoomToCell(target.$1, target.$2);
+    _showInfoSnack('Hint used! 💡');
   }
 
   /// Locates and smooth-zooms to the next unfilled cell of [number] if it is off-screen,

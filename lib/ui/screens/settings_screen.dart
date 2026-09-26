@@ -36,6 +36,13 @@ class SettingsScreen extends StatelessWidget {
     final privacyTitle = l10n?.privacyPolicy ?? 'Privacy Policy';
     final termsTitle = l10n?.termsOfService ?? 'Terms of Service';
 
+    AuthProvider? auth;
+    try {
+      auth = Provider.of<AuthProvider>(context, listen: true);
+    } catch (_) {
+      auth = null;
+    }
+
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF7F8FD),
       appBar: AppBar(
@@ -63,7 +70,7 @@ class SettingsScreen extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
               // Section 0: Cloud Save & Account
-              _buildAccountCard(context, isDark, flavor),
+              _buildAccountCard(context, isDark, flavor, auth),
               const SizedBox(height: 20),
 
               // Section 1: Appearance & Display
@@ -115,6 +122,16 @@ class SettingsScreen extends StatelessWidget {
                           const SizedBox(width: 14),
                           Expanded(
                             child: SegmentedButton<String>(
+                              showSelectedIcon: false,
+                              style: SegmentedButton.styleFrom(
+                                selectedBackgroundColor: flavor.primary,
+                                selectedForegroundColor: Colors.white,
+                                backgroundColor: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(8),
+                                foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                                side: BorderSide(
+                                  color: isDark ? Colors.white12 : Colors.black12,
+                                ),
+                              ),
                               segments: const [
                                 ButtonSegment(
                                   value: 'sparkles',
@@ -192,18 +209,28 @@ class SettingsScreen extends StatelessWidget {
                           const SizedBox(width: 14),
                           Expanded(
                             child: SegmentedButton<String>(
+                              showSelectedIcon: false,
+                              style: SegmentedButton.styleFrom(
+                                selectedBackgroundColor: flavor.primary,
+                                selectedForegroundColor: Colors.white,
+                                backgroundColor: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(8),
+                                foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                                side: BorderSide(
+                                  color: isDark ? Colors.white12 : Colors.black12,
+                                ),
+                              ),
                               segments: const [
                                 ButtonSegment(
                                   value: 'soft',
-                                  label: Text('Soft', style: TextStyle(fontSize: 12)),
+                                  label: Text('Soft', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                                 ),
                                 ButtonSegment(
                                   value: 'medium',
-                                  label: Text('Medium', style: TextStyle(fontSize: 12)),
+                                  label: Text('Medium', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                                 ),
                                 ButtonSegment(
                                   value: 'heavy',
-                                  label: Text('Heavy', style: TextStyle(fontSize: 12)),
+                                  label: Text('Heavy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                                 ),
                               ],
                               selected: {settings.hapticIntensity},
@@ -316,6 +343,52 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
+
+              // Section 5: Account Actions (Logout & Delete Account)
+              if (auth != null && auth.isAuthenticated) ...[
+                _buildSectionHeader('ACCOUNT', isDark, Colors.redAccent),
+                _buildCard(
+                  isDark: isDark,
+                  children: [
+                    ListTile(
+                      leading: _buildIconCircle(
+                        Icons.logout_rounded,
+                        isDark ? Colors.white70 : const Color(0xFF4A4E69),
+                        isDark,
+                      ),
+                      title: const Text(
+                        'Log Out',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      subtitle: Text(
+                        'Sign out of ${auth.email ?? auth.displayName ?? 'your account'}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded, size: 20),
+                      onTap: () => _showLogoutConfirmDialog(context, auth!, isDark),
+                    ),
+                    _buildDivider(isDark),
+                    ListTile(
+                      leading: _buildIconCircle(
+                        Icons.delete_forever_rounded,
+                        Colors.redAccent,
+                        isDark,
+                      ),
+                      title: const Text(
+                        'Delete Account',
+                        style: TextStyle(fontWeight: FontWeight.w600, color: Colors.redAccent),
+                      ),
+                      subtitle: const Text(
+                        'Permanently delete account and cloud backup',
+                        style: TextStyle(fontSize: 12, color: Colors.redAccent),
+                      ),
+                      trailing: const Icon(Icons.chevron_right_rounded, size: 20, color: Colors.redAccent),
+                      onTap: () => _showDeleteAccountDialog(context, auth!),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+              ],
 
               // App Version Badge
               FutureBuilder<PackageInfo>(
@@ -534,12 +607,14 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildAccountCard(BuildContext context, bool isDark, FlavorConfig flavor) {
-    AuthProvider? auth;
-    try {
-      auth = Provider.of<AuthProvider>(context, listen: true);
-    } catch (_) {
-      auth = null;
+  Widget _buildAccountCard(BuildContext context, bool isDark, FlavorConfig flavor, [AuthProvider? authParam]) {
+    AuthProvider? auth = authParam;
+    if (auth == null) {
+      try {
+        auth = Provider.of<AuthProvider>(context, listen: true);
+      } catch (_) {
+        auth = null;
+      }
     }
     if (auth == null) {
       return const SizedBox.shrink();
@@ -654,56 +729,37 @@ class SettingsScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 14),
                 Divider(height: 1, color: borderColor),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    TextButton.icon(
-                      icon: authProvider.isSyncing
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : Icon(Icons.sync_rounded, size: 16, color: flavor.primary),
-                      label: Text(
-                        authProvider.isSyncing ? 'Syncing...' : 'Sync Now',
-                        style: TextStyle(fontSize: 13, color: flavor.primary, fontWeight: FontWeight.w600),
-                      ),
-                      onPressed: authProvider.isSyncing
-                          ? null
-                          : () async {
-                              final messenger = ScaffoldMessenger.of(context);
-                              final settings = context.read<AppSettingsProvider>();
-                              final gallery = context.read<GalleryProvider>();
-                              final res = await authProvider.syncCloudData(settings: settings, gallery: gallery);
-                              if (res != null && res.success) {
-                                messenger.showSnackBar(
-                                  const SnackBar(
-                                    content: Text('Cloud sync completed!'),
-                                    duration: Duration(seconds: 2),
-                                  ),
-                                );
-                              }
-                            },
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    icon: authProvider.isSyncing
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(Icons.sync_rounded, size: 16, color: flavor.primary),
+                    label: Text(
+                      authProvider.isSyncing ? 'Syncing...' : 'Sync Now',
+                      style: TextStyle(fontSize: 13, color: flavor.primary, fontWeight: FontWeight.w600),
                     ),
-                    const Spacer(),
-                    TextButton.icon(
-                      icon: const Icon(Icons.logout_rounded, size: 16, color: Colors.grey),
-                      label: const Text(
-                        'Sign Out',
-                        style: TextStyle(fontSize: 13, color: Colors.grey),
-                      ),
-                      onPressed: () => authProvider.signOut(),
-                    ),
-                  ],
-                ),
-                Center(
-                  child: TextButton(
-                    onPressed: () => _showDeleteAccountDialog(context, authProvider),
-                    child: const Text(
-                      'Delete Account & Data',
-                      style: TextStyle(fontSize: 11, color: Colors.redAccent),
-                    ),
+                    onPressed: authProvider.isSyncing
+                        ? null
+                        : () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final settings = context.read<AppSettingsProvider>();
+                            final gallery = context.read<GalleryProvider>();
+                            final res = await authProvider.syncCloudData(settings: settings, gallery: gallery);
+                            if (res != null && res.success) {
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Cloud sync completed! ✨'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                            }
+                          },
                   ),
                 ),
               ],
@@ -835,29 +891,176 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showDeleteAccountDialog(BuildContext context, AuthProvider auth) {
+    HapticFeedback.heavyImpact();
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
-        title: const Text('Delete Cloud Account?'),
-        content: const Text(
-          'This will permanently delete your cloud account and backed up data. Local progress on this device will be preserved as a guest.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        icon: Container(
+          width: 52,
+          height: 52,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.redAccent.withAlpha(30),
+            shape: BoxShape.circle,
           ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(dialogCtx);
-              final success = await auth.deleteAccount();
-              if (context.mounted && success) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Account deleted.')),
-                );
-              }
-            },
-            child: const Text('Delete Account', style: TextStyle(color: Colors.redAccent)),
+          child: const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.redAccent,
+            size: 28,
+          ),
+        ),
+        title: const Text(
+          'Delete Account & Cloud Data?',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Are you sure you want to delete your account? This action is permanent.',
+              style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+            ),
+            SizedBox(height: 10),
+            Text(
+              '• All your cloud backups, completed artworks, favorites, and synced purchases will be deleted from the server.\n'
+              '• You will continue as a guest on this device, but your cloud account cannot be recovered.',
+              style: TextStyle(fontSize: 12.5, height: 1.4, color: Colors.grey),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    final messenger = ScaffoldMessenger.of(context);
+                    final success = await auth.deleteAccount();
+                    if (context.mounted) {
+                      if (success) {
+                        messenger.showSnackBar(
+                          const SnackBar(
+                            content: Text('Your account and cloud data have been deleted.'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      } else {
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(auth.errorMessage ?? 'Failed to delete account. Please try signing in again first.'),
+                            backgroundColor: Colors.redAccent,
+                          ),
+                        );
+                      }
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'Delete',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmDialog(BuildContext context, AuthProvider auth, bool isDark) {
+    HapticFeedback.mediumImpact();
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        icon: Container(
+          width: 50,
+          height: 50,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orangeAccent.withAlpha(30),
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(
+            Icons.logout_rounded,
+            color: Colors.orangeAccent,
+            size: 26,
+          ),
+        ),
+        title: const Text(
+          'Log Out?',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18),
+        ),
+        content: const Text(
+          'Are you sure you want to log out? Your progress, favorites, and completed artworks will remain safely stored in the cloud.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13.5, height: 1.35),
+        ),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        actions: [
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  style: OutlinedButton.styleFrom(
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Cancel'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    Navigator.pop(dialogCtx);
+                    await auth.signOut();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Logged out successfully.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isDark ? const Color(0xFF2E2B45) : const Color(0xFF1E1E2D),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text(
+                    'Log Out',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -663,15 +663,15 @@ void main() {
       expect(provider.nextFillable, (0, 1));
     });
 
-    test('autoMoveEnabled defaults to true and toggles properly', () async {
+    test('autoMoveEnabled defaults to false and toggles properly', () async {
       final storage = LocalStorageService();
       await storage.init();
       final settings = AppSettingsProvider(storage);
-      expect(settings.autoMoveEnabled, isTrue);
-      settings.toggleAutoMove();
       expect(settings.autoMoveEnabled, isFalse);
       settings.toggleAutoMove();
       expect(settings.autoMoveEnabled, isTrue);
+      settings.toggleAutoMove();
+      expect(settings.autoMoveEnabled, isFalse);
     });
   });
 }

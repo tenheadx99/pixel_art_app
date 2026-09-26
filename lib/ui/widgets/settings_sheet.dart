@@ -29,6 +29,8 @@ class SettingsSheet extends StatelessWidget {
     final l10n = AppLocalizations.of(context)!;
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
+        final flavor = FlavorConfig.current;
+        final isDark = settings.isDarkMode;
         return SafeArea(
           child: SingleChildScrollView(
             child: Column(
@@ -80,18 +82,28 @@ class SettingsSheet extends StatelessWidget {
                         const SizedBox(width: 16),
                         Expanded(
                           child: SegmentedButton<String>(
+                            showSelectedIcon: false,
+                            style: SegmentedButton.styleFrom(
+                              selectedBackgroundColor: flavor.primary,
+                              selectedForegroundColor: Colors.white,
+                              backgroundColor: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(8),
+                              foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                              side: BorderSide(
+                                color: isDark ? Colors.white12 : Colors.black12,
+                              ),
+                            ),
                             segments: const [
                               ButtonSegment(
                                 value: 'soft',
-                                label: Text('Soft', style: TextStyle(fontSize: 12)),
+                                label: Text('Soft', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                               ),
                               ButtonSegment(
                                 value: 'medium',
-                                label: Text('Medium', style: TextStyle(fontSize: 12)),
+                                label: Text('Medium', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                               ),
                               ButtonSegment(
                                 value: 'heavy',
-                                label: Text('Heavy', style: TextStyle(fontSize: 12)),
+                                label: Text('Heavy', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                               ),
                             ],
                             selected: {settings.hapticIntensity},
@@ -129,6 +141,16 @@ class SettingsSheet extends StatelessWidget {
                         const SizedBox(width: 12),
                         Expanded(
                           child: SegmentedButton<String>(
+                            showSelectedIcon: false,
+                            style: SegmentedButton.styleFrom(
+                              selectedBackgroundColor: flavor.primary,
+                              selectedForegroundColor: Colors.white,
+                              backgroundColor: isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(8),
+                              foregroundColor: isDark ? Colors.white70 : Colors.black87,
+                              side: BorderSide(
+                                color: isDark ? Colors.white12 : Colors.black12,
+                              ),
+                            ),
                             segments: const [
                               ButtonSegment(
                                 value: 'sparkles',

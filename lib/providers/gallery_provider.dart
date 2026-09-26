@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
@@ -9,6 +10,8 @@ import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/remote_catalog_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/data/services/ad_service.dart';
+import 'package:pixel_art_app/data/services/auth_service.dart';
+import 'package:pixel_art_app/data/services/cloud_sync_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
 class GalleryProvider extends ChangeNotifier {
@@ -32,6 +35,7 @@ class GalleryProvider extends ChangeNotifier {
 
   List<PixelArt> get catalog => _catalog;
   Set<String> get completedIds => _completedIds;
+  Set<String> get favoriteIds => _favoriteIds;
   bool get isLoading => _isLoading;
   String get selectedCategory => _selectedCategory;
 
@@ -532,6 +536,24 @@ class GalleryProvider extends ChangeNotifier {
     // three other things that day.
     _registerDailyCompletion();
     notifyListeners();
+
+    // Automatically sync newly completed artwork to Firestore
+    _syncCompletionToCloud();
+  }
+
+  void _syncCompletionToCloud() {
+    try {
+      final uid = AuthService().uid;
+      if (uid != null) {
+        CloudSyncService().syncUserData(
+          userId: uid,
+          storage: _storageService,
+          galleryProvider: this,
+        );
+      }
+    } catch (e) {
+      developer.log('Auto cloud sync on completion skipped: $e', name: 'GalleryProvider');
+    }
   }
 
   void setCategory(String category) {
