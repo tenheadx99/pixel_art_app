@@ -8,7 +8,6 @@ import '../../data/services/database_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
 import '../../providers/app_settings_provider.dart';
-import '../../providers/coloring_provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../widgets/ad_banner.dart';
 import '../widgets/art_preview_painter.dart';
@@ -48,14 +47,24 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
 
   String get _revealedPrefKey => 'split_revealed_${widget.parent.id}';
 
+  bool _initialized = false;
+
   @override
   void initState() {
     super.initState();
     _partFillables = SplitArt.partFillableCounts(widget.parent);
-    _revealed = context.read<LocalStorageService>().getBool(_revealedPrefKey);
-    _refresh();
-    if (_revealed) _revealController.value = 1.0;
-    WidgetsBinding.instance.addPostFrameCallback((_) => _maybeReveal());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_initialized) {
+      _initialized = true;
+      _revealed = context.read<LocalStorageService>().getBool(_revealedPrefKey);
+      _refresh();
+      if (_revealed) _revealController.value = 1.0;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeReveal());
+    }
   }
 
   @override
@@ -116,10 +125,7 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
     Navigator.push(
       context,
       fadeThroughRoute(
-        ChangeNotifierProvider.value(
-          value: context.read<ColoringProvider>(),
-          child: ColoringScreen(art: SplitArt.partOf(widget.parent, index)),
-        ),
+        ColoringScreen(art: SplitArt.partOf(widget.parent, index)),
         name: 'coloring',
       ),
     ).then((_) {
@@ -146,6 +152,7 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
   /// counterpart of ColoringScreen._saveArtwork, rendered offscreen because
   /// no single canvas ever held the whole grid.
   Future<void> _saveMergedArtwork() async {
+    if (!mounted) return;
     // Fire-and-forget from _maybeReveal: a render/IO failure must degrade
     // silently (the reveal already played), not become an uncaught error.
     try {

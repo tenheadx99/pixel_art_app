@@ -4,7 +4,6 @@ import '../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
 import '../../providers/app_settings_provider.dart';
-import '../../providers/coloring_provider.dart';
 import '../../config/app_config.dart';
 import '../../data/models/pixel_art.dart';
 import '../../data/models/split_art.dart';
@@ -812,10 +811,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       fadeThroughRoute(
-        ChangeNotifierProvider.value(
-          value: context.read<ColoringProvider>(),
-          child: ColoringScreen(art: art),
-        ),
+        ColoringScreen(art: art),
         name: 'coloring',
       ),
     ).then((_) {

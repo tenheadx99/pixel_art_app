@@ -44,7 +44,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
     AnalyticsService().logPaywallShown(source: widget.source);
     _selectedPlan = RemoteConfigService().plusYearlyProductId;
     _pageController = PageController(viewportFraction: 0.84, initialPage: 0);
-    _loadPrices();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadPrices();
+    });
   }
 
   @override
@@ -58,6 +60,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   Future<void> _loadPrices() async {
+    if (!mounted) return;
     final iap = context.read<IAPService>();
     final rc = RemoteConfigService();
     final p1day = await iap.getPrice(rc.plus1DayProductId);

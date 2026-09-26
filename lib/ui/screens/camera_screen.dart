@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../providers/camera_provider.dart';
-import '../../providers/coloring_provider.dart';
 import '../../config/app_constants.dart';
 import '../../data/services/analytics_service.dart';
 import '../../ui/theme/app_style.dart';
@@ -489,10 +488,7 @@ class _CameraScreenBody extends StatelessWidget {
     Navigator.pushReplacement(
       context,
       fadeThroughRoute(
-        ChangeNotifierProvider.value(
-          value: context.read<ColoringProvider>(),
-          child: ColoringScreen(art: art),
-        ),
+        ColoringScreen(art: art),
         name: 'coloring',
       ),
     );

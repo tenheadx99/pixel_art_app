@@ -106,6 +106,10 @@ class _ColoringScreenState extends State<ColoringScreen>
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
   AdService? _adService;
+  LocalStorageService? _storageService;
+  DatabaseService? _databaseService;
+  SoundService? _soundService;
+  GalleryProvider? _galleryProvider;
   Size _viewerSize = Size.zero;
   // Toggled per gesture: a single-finger swipe that begins over a non-selected
   // cell pans the canvas; otherwise the finger paints (swipe-to-fill).
@@ -245,7 +249,8 @@ class _ColoringScreenState extends State<ColoringScreen>
         if (shouldPlaySound) {
           final ratio = totalRings > 1 ? (ringIndex / (totalRings - 1)) : 0.0;
           final chimeRate = 0.92 + ratio * 0.45;
-          context.read<SoundService>().playComboChime(rate: chimeRate);
+          final soundService = _soundService ?? (mounted ? context.read<SoundService>() : null);
+          soundService?.playComboChime(rate: chimeRate);
         }
       }
       if (_settings?.hapticsEnabled ?? true) {
@@ -271,7 +276,17 @@ class _ColoringScreenState extends State<ColoringScreen>
           );
         });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
       final provider = context.read<ColoringProvider>();
+      _storageService = context.read<LocalStorageService>();
+      _databaseService = context.read<DatabaseService>();
+      _galleryProvider = context.read<GalleryProvider>();
+      final soundService = context.read<SoundService>();
+      _soundService = soundService;
+      _settings = context.read<AppSettingsProvider>()
+        ..addListener(_onSettingsChanged);
+      _adService = context.read<AdService>();
+
       // loadArt awaits any save still encoding on its worker isolate before
       // reading storage (quick exit-and-reopen must not restore stale
       // progress); everything below reads the freshly loaded state.
@@ -283,9 +298,6 @@ class _ColoringScreenState extends State<ColoringScreen>
       _confettiController.reset();
       _wasComplete = provider.isComplete;
       _gridFadeController.value = _wasComplete ? 1.0 : 0.0;
-      _settings = context.read<AppSettingsProvider>()
-        ..addListener(_onSettingsChanged);
-      _adService = context.read<AdService>();
       // Preload the session-exit interstitial and the "next artwork"
       // rewarded interstitial; the capping logic decides later what shows.
       if (!(_settings?.isProUser ?? false)) {
@@ -293,7 +305,6 @@ class _ColoringScreenState extends State<ColoringScreen>
           ..loadInterstitialAd()
           ..preloadRewardedInterstitial();
       }
-      final soundService = context.read<SoundService>();
       _coloringProvider = provider
         ..addListener(_onProviderChanged)
         ..onCellFilledCorrectly = () {
@@ -438,7 +449,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     final provider = _coloringProvider;
     if (provider == null || !mounted) return;
 
-    final settings = context.read<AppSettingsProvider>();
+    final settings = _settings ?? (mounted ? context.read<AppSettingsProvider>() : null);
+    if (settings == null) return;
 
     final unlocked = provider.lastUnlockedAchievement;
     if (unlocked != null) {
@@ -468,7 +480,8 @@ class _ColoringScreenState extends State<ColoringScreen>
 
       void startCelebration() {
         if (!mounted) return;
-        final gallery = context.read<GalleryProvider>();
+        final gallery = _galleryProvider ?? (mounted ? context.read<GalleryProvider>() : null);
+        if (gallery == null) return;
         final isDaily = gallery.dailyArt?.id == widget.art.id;
         final awarded = settings.awardCompletionDiamonds(
           widget.art.id,
@@ -546,7 +559,8 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   /// Surfaces the otherwise-hidden long-press color preview, once ever.
   void _maybeShowLongPressTip() {
-    final storage = context.read<LocalStorageService>();
+    final storage = _storageService ?? (mounted ? context.read<LocalStorageService>() : null);
+    if (storage == null) return;
     const key = 'tip_longpress_shown';
     if (storage.getBool(key)) return;
     storage.setBool(key, true);
@@ -969,8 +983,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// Offers a rewarded ad that doubles this completion's diamond payout (adds
   /// the base award a second time). Fires once per finish.
   void _watchAdToDouble(int baseAward) {
-    final adService = context.read<AdService>();
-    final settings = context.read<AppSettingsProvider>();
+    final adService = _adService ?? (mounted ? context.read<AdService>() : null);
+    final settings = _settings ?? (mounted ? context.read<AppSettingsProvider>() : null);
+    if (adService == null || settings == null) return;
     void grant() {
       settings.addDiamonds(baseAward);
       if (mounted) {
@@ -1076,7 +1091,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// part that's the next unfinished sibling tile; when none remain, pop back
   /// to the part picker so it can play the merge reveal.
   void _openNextArt() {
-    final gallery = context.read<GalleryProvider>();
+    final gallery = _galleryProvider ?? (mounted ? context.read<GalleryProvider>() : null);
+    if (gallery == null) return;
     if (_isPart) {
       final parentId = SplitArt.parentIdOf(widget.art.id);
       final partIndex = SplitArt.partIndexOf(widget.art.id) ?? 0;
@@ -1108,7 +1124,8 @@ class _ColoringScreenState extends State<ColoringScreen>
       Navigator.pop(context);
       return;
     }
-    final settings = context.read<AppSettingsProvider>();
+    final settings = _settings ?? (mounted ? context.read<AppSettingsProvider>() : null);
+    if (settings == null) return;
     final candidates = gallery.catalog
         .where(
           (a) =>
@@ -1512,7 +1529,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                             ],
                             // HERO 2× DIAMOND BUTTON (Rewarded Video Ad - Revenue Generator)
                             if (_lastDiamondAward > 0 &&
-                                !context.read<AppSettingsProvider>().isProUser) ...[
+                                !(_settings?.isProUser ?? false)) ...[
                               const SizedBox(height: 12),
                               _hudReveal(
                                 2,
@@ -1728,7 +1745,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                               ),
                             ),
                             // Pro / Plus Plan Upsell Link (for non-pro users)
-                            if (!context.read<AppSettingsProvider>().isProUser &&
+                            if (!(_settings?.isProUser ?? false) &&
                                 RemoteConfigService().premiumArtworksEnabled) ...[
                               const SizedBox(height: 12),
                               _hudReveal(
@@ -2318,7 +2335,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     ColoringProvider provider,
     bool isComplete,
   ) {
-    final settings = context.read<AppSettingsProvider>();
+    final settings = _settings ?? context.read<AppSettingsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
@@ -2768,7 +2785,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     final topSafe = (mediaQuery?.padding.top ?? 24.0) + 75.0;
     final bottomSafe = _viewerSize.height -
         ((mediaQuery?.padding.bottom ?? 16.0) +
-            (context.read<AppSettingsProvider>().isProUser ? 150.0 : 220.0));
+            ((_settings?.isProUser ?? false) ? 150.0 : 220.0));
     const horizontalSafe = 24.0;
 
     final safeArea = Rect.fromLTRB(
@@ -2788,7 +2805,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     if (provider == null) return;
     final target = provider.nextFillable;
     if (target != null) {
-      final settings = _settings ?? context.read<AppSettingsProvider>();
+      final settings = _settings ?? (mounted ? context.read<AppSettingsProvider>() : null);
+      if (settings == null) return;
       if (force ||
           (settings.autoMoveEnabled &&
               !_isCellVisibleOnScreen(target.$1, target.$2))) {
@@ -2829,8 +2847,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     _autoMoveTimer?.cancel();
     _autoMoveTimer = Timer(delay, () {
       if (!mounted) return;
-      final settings = _settings ?? context.read<AppSettingsProvider>();
-      if (!settings.autoMoveEnabled) return;
+      final settings = _settings ?? (mounted ? context.read<AppSettingsProvider>() : null);
+      if (settings == null || !settings.autoMoveEnabled) return;
 
       final provider = _coloringProvider;
       if (provider == null || provider.isComplete || provider.isStroking) return;
@@ -2853,13 +2871,15 @@ class _ColoringScreenState extends State<ColoringScreen>
       // PartSelectionScreen once every tile is done. Flush the save first:
       // markCompleted's all-parts check reads the _pct pref written there.
       await provider.saveProgress();
-      if (context.mounted && provider.isComplete) {
-        context.read<GalleryProvider>().markCompleted(widget.art.id);
+      final gallery = _galleryProvider ?? (context.mounted ? context.read<GalleryProvider>() : null);
+      if (gallery != null && provider.isComplete) {
+        gallery.markCompleted(widget.art.id);
       }
       return;
     }
-    final storageService = context.read<LocalStorageService>();
-    final databaseService = context.read<DatabaseService>();
+    final storageService = _storageService ?? (context.mounted ? context.read<LocalStorageService>() : null);
+    final databaseService = _databaseService ?? (context.mounted ? context.read<DatabaseService>() : null);
+    if (storageService == null || databaseService == null) return;
     final screenshotService = ScreenshotService(storageService);
     // This runs unawaited on every artwork completion; a full disk or a
     // capture failure must degrade like the null early-returns, not become an

@@ -35,7 +35,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
   @override
   void initState() {
     super.initState();
-    _loadArtworks();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadArtworks();
+    });
     // After the initial stagger has played, new builds render statically.
     _entranceTimer = Timer(const Duration(milliseconds: 800), () {
       if (mounted) {
@@ -66,6 +68,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Future<void> _loadArtworks() async {
+    if (!mounted) return;
     final db = context.read<DatabaseService>();
     final storage = context.read<LocalStorageService>();
     final saved = await db.getSavedArtworks();

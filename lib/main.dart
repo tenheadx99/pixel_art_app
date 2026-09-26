@@ -460,6 +460,7 @@ class _IntroFlow extends StatelessWidget {
       displayDuration: const Duration(seconds: 2),
       loadingMessage: 'Loading your next canvas...',
       onFinished: () {
+        if (!context.mounted) return;
         final storage = context.read<LocalStorageService>();
         final hasSeenOnboarding = storage.getBool('has_seen_onboarding');
         if (!hasSeenOnboarding) {
