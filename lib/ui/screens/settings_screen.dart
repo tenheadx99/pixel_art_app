@@ -553,9 +553,11 @@ class SettingsScreen extends StatelessWidget {
 
     if (authProvider.isAuthenticated) {
           final user = authProvider.user;
-          final displayName = user?.displayName?.isNotEmpty == true
-              ? user!.displayName!
-              : (user?.email?.split('@').first ?? 'Player');
+          final rawName = user?.displayName?.trim();
+          final emailPrefix = (user?.email?.split('@').first ?? '').trim();
+          final displayName = (rawName != null && rawName.isNotEmpty)
+              ? rawName
+              : (emailPrefix.isNotEmpty ? emailPrefix : 'Player');
           final email = user?.email ?? '';
 
           return Container(
@@ -585,7 +587,7 @@ class SettingsScreen extends StatelessWidget {
                           : null,
                       child: (authProvider.photoUrl == null || authProvider.photoUrl!.isEmpty)
                           ? Text(
-                              displayName.substring(0, 1).toUpperCase(),
+                              displayName.isNotEmpty ? displayName.substring(0, 1).toUpperCase() : 'P',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,

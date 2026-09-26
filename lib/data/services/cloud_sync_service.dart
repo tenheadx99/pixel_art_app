@@ -11,6 +11,8 @@ class CloudSyncResult {
   final int diamonds;
   final int completedArtsCount;
   final int unlockedArtsCount;
+  final int favoriteArtsCount;
+  final bool isPro;
   final DateTime syncedAt;
   final String? error;
 
@@ -19,6 +21,8 @@ class CloudSyncResult {
     required this.diamonds,
     required this.completedArtsCount,
     required this.unlockedArtsCount,
+    this.favoriteArtsCount = 0,
+    this.isPro = false,
     required this.syncedAt,
     this.error,
   });
@@ -58,9 +62,13 @@ class CloudSyncService {
       final localStreak = storage.getInt('daily_streak_count', defaultValue: 0);
       final localCompleted = storage.getStringSet(AppConstants.completedIdsPrefKey);
       final localUnlocked = storage.getStringSet('diamond_unlocked_ids');
+      final localFavorites = storage.getStringSet('favorite_ids');
+      final localPro = storage.getBool(AppConstants.proPrefKey);
+      final localRemoveAds = storage.getBool(AppConstants.removeAdsPrefKey);
+      final localPlusExpiry = storage.getInt(AppConstants.plusExpiryPrefKey);
 
       if (!snapshot.exists || snapshot.data() == null) {
-        // First sync: Upload local progress to cloud
+        // First sync: Upload local progress and purchase entitlements to cloud
         final data = {
           'diamonds': localDiamonds,
           'xp': localXp,
@@ -70,6 +78,10 @@ class CloudSyncService {
           'dailyStreak': localStreak,
           'completedArtworks': localCompleted.toList(),
           'unlockedArtworks': localUnlocked.toList(),
+          'favoriteArtworks': localFavorites.toList(),
+          'isPro': localPro,
+          'isRemoveAds': localRemoveAds,
+          'plusExpiry': localPlusExpiry,
           'updatedAt': FieldValue.serverTimestamp(),
           'createdAt': FieldValue.serverTimestamp(),
         };
@@ -82,6 +94,8 @@ class CloudSyncService {
           diamonds: localDiamonds,
           completedArtsCount: localCompleted.length,
           unlockedArtsCount: localUnlocked.length,
+          favoriteArtsCount: localFavorites.length,
+          isPro: localPro,
           syncedAt: DateTime.now(),
         );
       }
@@ -96,6 +110,10 @@ class CloudSyncService {
       final remoteStreak = (remote['dailyStreak'] as num?)?.toInt() ?? 0;
       final remoteCompletedList = List<String>.from(remote['completedArtworks'] ?? const []);
       final remoteUnlockedList = List<String>.from(remote['unlockedArtworks'] ?? const []);
+      final remoteFavoritesList = List<String>.from(remote['favoriteArtworks'] ?? const []);
+      final remotePro = (remote['isPro'] as bool?) ?? false;
+      final remoteRemoveAds = (remote['isRemoveAds'] as bool?) ?? false;
+      final remotePlusExpiry = (remote['plusExpiry'] as num?)?.toInt() ?? 0;
 
       final mergedDiamonds = max(localDiamonds, remoteDiamonds);
       final mergedXp = max(localXp, remoteXp);
@@ -105,6 +123,10 @@ class CloudSyncService {
       final mergedStreak = max(localStreak, remoteStreak);
       final mergedCompleted = {...localCompleted, ...remoteCompletedList};
       final mergedUnlocked = {...localUnlocked, ...remoteUnlockedList};
+      final mergedFavorites = {...localFavorites, ...remoteFavoritesList};
+      final mergedPro = localPro || remotePro;
+      final mergedRemoveAds = localRemoveAds || remoteRemoveAds;
+      final mergedPlusExpiry = max(localPlusExpiry, remotePlusExpiry);
 
       // Write merged state to local storage
       storage.setInt('diamonds_available', mergedDiamonds);
@@ -115,13 +137,17 @@ class CloudSyncService {
       storage.setInt('daily_streak_count', mergedStreak);
       storage.setStringList(AppConstants.completedIdsPrefKey, mergedCompleted.toList());
       storage.setStringList('diamond_unlocked_ids', mergedUnlocked.toList());
+      storage.setStringList('favorite_ids', mergedFavorites.toList());
+      storage.setBool(AppConstants.proPrefKey, mergedPro);
+      storage.setBool(AppConstants.removeAdsPrefKey, mergedRemoveAds);
+      storage.setInt(AppConstants.plusExpiryPrefKey, mergedPlusExpiry);
 
       // Update in-memory providers if provided
       if (settingsProvider != null) {
         settingsProvider.reloadEconomy();
       }
       if (galleryProvider != null) {
-        galleryProvider.reloadUnlockedPieces();
+        galleryProvider.reloadCloudState();
       }
 
       // Write merged state back to Firestore
@@ -134,16 +160,22 @@ class CloudSyncService {
         'dailyStreak': mergedStreak,
         'completedArtworks': mergedCompleted.toList(),
         'unlockedArtworks': mergedUnlocked.toList(),
+        'favoriteArtworks': mergedFavorites.toList(),
+        'isPro': mergedPro,
+        'isRemoveAds': mergedRemoveAds,
+        'plusExpiry': mergedPlusExpiry,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
 
-      developer.log('Cloud sync reconciled for user $userId (diamonds: $mergedDiamonds, completed: ${mergedCompleted.length})', name: 'CloudSync');
+      developer.log('Cloud sync reconciled for user $userId (diamonds: $mergedDiamonds, completed: ${mergedCompleted.length}, pro: $mergedPro)', name: 'CloudSync');
 
       return CloudSyncResult(
         success: true,
         diamonds: mergedDiamonds,
         completedArtsCount: mergedCompleted.length,
         unlockedArtsCount: mergedUnlocked.length,
+        favoriteArtsCount: mergedFavorites.length,
+        isPro: mergedPro,
         syncedAt: DateTime.now(),
       );
     } catch (e, st) {
@@ -153,9 +185,40 @@ class CloudSyncService {
         diamonds: storage.getInt('diamonds_available', defaultValue: 50),
         completedArtsCount: storage.getStringSet(AppConstants.completedIdsPrefKey).length,
         unlockedArtsCount: storage.getStringSet('diamond_unlocked_ids').length,
+        favoriteArtsCount: storage.getStringSet('favorite_ids').length,
+        isPro: storage.getBool(AppConstants.proPrefKey),
         syncedAt: DateTime.now(),
         error: e.toString(),
       );
+    }
+  }
+
+  /// Records a purchase transaction in Firestore under `users/{userId}/purchases/{docId}`.
+  Future<void> logPurchaseTransaction({
+    required String userId,
+    required String productId,
+    String? orderId,
+    String? status,
+    int? quantity,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final docId = (orderId != null && orderId.trim().isNotEmpty)
+          ? orderId.replaceAll('/', '_').replaceAll(':', '_')
+          : '${productId}_${now.millisecondsSinceEpoch}';
+
+      await _userDoc(userId).collection('purchases').doc(docId).set({
+        'productId': productId,
+        'orderId': orderId,
+        'status': status ?? 'purchased',
+        'quantity': quantity ?? 1,
+        'timestamp': FieldValue.serverTimestamp(),
+        'clientDate': now.toIso8601String(),
+      }, SetOptions(merge: true));
+
+      developer.log('Logged purchase $productId ($docId) for user $userId', name: 'CloudSync');
+    } catch (e, st) {
+      developer.log('Failed to log purchase to Firestore', name: 'CloudSync', error: e, stackTrace: st);
     }
   }
 

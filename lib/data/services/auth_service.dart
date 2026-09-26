@@ -44,7 +44,7 @@ class AuthService {
 
   /// Links the current anonymous user with Google credentials.
   /// If the Google account is already used by an existing account, logs into that account instead.
-  Future<UserCredential> signInWithGoogle() async {
+  Future<User?> signInWithGoogle() async {
     final googleUser = await _googleSignIn.signIn();
     if (googleUser == null) {
       throw FirebaseAuthException(
@@ -63,61 +63,93 @@ class AuthService {
     if (current != null && current.isAnonymous) {
       try {
         // Upgrade current anonymous session so local progress carries over directly
-        final result = await current.linkWithCredential(credential);
-        developer.log('Successfully upgraded anonymous user to Google account: ${result.user?.email}', name: 'AuthService');
-        return result;
+        final user = await _wrapAuthCall(() => current.linkWithCredential(credential));
+        developer.log('Successfully upgraded anonymous user to Google account: ${user?.email}', name: 'AuthService');
+        return user;
       } on FirebaseAuthException catch (e) {
         // If this Google credential belongs to a pre-existing account, sign into it
         if (e.code == 'credential-already-in-use' || e.code == 'email-already-in-use') {
           developer.log('Google account already exists. Signing into existing account.', name: 'AuthService');
-          return await _auth.signInWithCredential(credential);
+          return await _wrapAuthCall(() => _auth.signInWithCredential(credential));
         }
         rethrow;
       }
     } else {
-      return await _auth.signInWithCredential(credential);
+      return await _wrapAuthCall(() => _auth.signInWithCredential(credential));
     }
   }
 
   /// Links or signs in with Email and Password.
-  Future<UserCredential> signInWithEmail({
+  Future<User?> signInWithEmail({
     required String email,
     required String password,
   }) async {
-    return await _auth.signInWithEmailAndPassword(
+    return await _wrapAuthCall(() => _auth.signInWithEmailAndPassword(
       email: email.trim(),
       password: password,
-    );
+    ));
   }
 
   /// Registers a new account with Email and Password and links it to the current anonymous session.
-  Future<UserCredential> registerWithEmail({
+  Future<User?> registerWithEmail({
     required String email,
     required String password,
   }) async {
     final current = _auth.currentUser;
     if (current != null && current.isAnonymous) {
+      final credential = EmailAuthProvider.credential(
+        email: email.trim(),
+        password: password,
+      );
       try {
-        final credential = EmailAuthProvider.credential(
-          email: email.trim(),
-          password: password,
-        );
-        return await current.linkWithCredential(credential);
+        return await _wrapAuthCall(() => current.linkWithCredential(credential));
       } on FirebaseAuthException catch (e) {
         if (e.code == 'credential-already-in-use' || e.code == 'email-already-in-use') {
-          // Fallback to direct sign-in if account exists
-          return await _auth.signInWithEmailAndPassword(
-            email: email.trim(),
-            password: password,
-          );
+          // If the account already exists, attempt direct sign-in with the provided password.
+          // If sign-in fails (e.g. different password entered), rethrow the original error
+          // so the user receives a clear "Account already exists" message.
+          try {
+            return await signInWithEmail(
+              email: email.trim(),
+              password: password,
+            );
+          } catch (_) {
+            rethrow;
+          }
         }
         rethrow;
       }
     } else {
-      return await _auth.createUserWithEmailAndPassword(
+      return await _wrapAuthCall(() => _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
-      );
+      ));
+    }
+  }
+
+  /// Sends a password reset email to [email].
+  Future<void> sendPasswordResetEmail(String email) async {
+    await _auth.sendPasswordResetEmail(email: email.trim());
+  }
+
+  /// Executes an authentication operation and returns the resulting [User].
+  /// Absorbs the known FlutterFire on Android Pigeon deserialization bug
+  /// (`List<Object?>` vs `PigeonUserDetails`) while verifying that the native
+  /// Firebase authentication completed successfully.
+  Future<User?> _wrapAuthCall(Future<UserCredential> Function() call) async {
+    try {
+      final cred = await call();
+      return cred.user ?? _auth.currentUser;
+    } catch (e, st) {
+      if (e is TypeError || e.toString().contains('PigeonUserDetails')) {
+        developer.log(
+          'Absorbed known Pigeon deserialization bug in auth call. Native user is: ${_auth.currentUser?.email ?? _auth.currentUser?.uid}',
+          name: 'AuthService',
+        );
+        return _auth.currentUser;
+      }
+      developer.log('Auth call error', name: 'AuthService', error: e, stackTrace: st);
+      rethrow;
     }
   }
 

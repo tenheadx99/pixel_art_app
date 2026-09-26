@@ -10,6 +10,8 @@ import 'package:pixel_art_app/data/services/remote_config_service.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/data/models/economy_config.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
+import 'package:pixel_art_app/data/services/auth_service.dart';
+import 'package:pixel_art_app/data/services/cloud_sync_service.dart';
 
 /// Result of an [AppSettingsProvider.addXp] call, so the UI can celebrate a
 /// level-up with the reward popup.
@@ -177,6 +179,14 @@ class AppSettingsProvider extends ChangeNotifier {
     _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 50);
     _totalXp = _storageService.getInt(_totalXpPrefKey);
     _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
+    reloadEntitlements();
+  }
+
+  /// Reloads Pro, Remove Ads, and subscription entitlement status from storage.
+  void reloadEntitlements() {
+    _isProUser = _storageService.getBool(AppConstants.proPrefKey);
+    _isRemoveAds = _storageService.getBool(AppConstants.removeAdsPrefKey);
+    _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
     notifyListeners();
   }
 
@@ -549,6 +559,9 @@ class AppSettingsProvider extends ChangeNotifier {
               addWands(AppConstants.wandsPerPurchase);
             }
           }
+
+          // Push purchase receipt and updated entitlements directly to Firestore
+          _syncPurchasesToCloud(purchase);
         } else if (purchase.status == PurchaseStatus.error) {
           developer.log(
             'Purchase failed for ${purchase.productID}',
@@ -576,6 +589,29 @@ class AppSettingsProvider extends ChangeNotifier {
       // escape the subscription as uncaught async errors.
       developer.log('Purchase stream error', name: 'IAP', error: e);
     });
+  }
+
+  /// Safely records purchase transactions and syncs entitlements to Firestore.
+  void _syncPurchasesToCloud(PurchaseDetails purchase) {
+    try {
+      final uid = AuthService().uid;
+      if (uid != null) {
+        CloudSyncService().logPurchaseTransaction(
+          userId: uid,
+          productId: purchase.productID,
+          orderId: purchase.purchaseID,
+          status: purchase.status.name,
+        );
+        CloudSyncService().syncUserData(
+          userId: uid,
+          storage: _storageService,
+          settingsProvider: this,
+        );
+      }
+    } catch (e) {
+      // Gracefully catches cases where Firebase is not initialized (e.g. unit tests or offline)
+      developer.log('Cloud purchase sync skipped: $e', name: 'IAP');
+    }
   }
 
   @override

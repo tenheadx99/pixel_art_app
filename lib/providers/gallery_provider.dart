@@ -559,10 +559,18 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reloads cloud-backed state (unlocked pieces, completed artworks, and favorites)
+  /// from local storage into memory after a cloud sync.
+  void reloadCloudState() {
+    _diamondUnlockedIds = _storageService.getStringSet(_diamondUnlockedPrefKey);
+    _completedIds = _storageService.getStringSet(AppConstants.completedIdsPrefKey);
+    _favoriteIds = _storageService.getStringSet('favorite_ids');
+    notifyListeners();
+  }
+
   /// Reloads diamond-unlocked artworks from local storage (e.g. after cloud sync).
   void reloadUnlockedPieces() {
-    _diamondUnlockedIds = _storageService.getStringSet(_diamondUnlockedPrefKey);
-    notifyListeners();
+    reloadCloudState();
   }
 
   bool isUnlocked(PixelArt art, bool isProUser) {

@@ -59,11 +59,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final credential = await _authService.signInWithGoogle();
+      final user = await _authService.signInWithGoogle();
       _isLoading = false;
       notifyListeners();
 
-      if (credential.user != null) {
+      if (user != null || isAuthenticated) {
         await syncCloudData(settings: settings, gallery: gallery);
       }
       return true;
@@ -80,6 +80,10 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = null;
       } else if (errStr.contains('ApiException: 10') || errStr.contains('DEVELOPER_ERROR')) {
         _errorMessage = 'Configuration error (ApiException 10): Ensure debug SHA-1 is added in Firebase Console and google-services.json is updated.';
+      } else if (isAuthenticated) {
+        // Native auth succeeded despite platform interface error
+        await syncCloudData(settings: settings, gallery: gallery);
+        return true;
       } else {
         _errorMessage = 'Google sign-in error: $errStr';
       }
@@ -100,11 +104,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final credential = await _authService.signInWithEmail(email: email, password: password);
+      final user = await _authService.signInWithEmail(email: email, password: password);
       _isLoading = false;
       notifyListeners();
 
-      if (credential.user != null) {
+      if (user != null || isAuthenticated) {
         await syncCloudData(settings: settings, gallery: gallery);
       }
       return true;
@@ -113,8 +117,13 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = _mapAuthError(e.code, e.message);
       notifyListeners();
       return false;
-    } catch (e) {
+    } catch (e, st) {
+      developer.log('Sign in error', name: 'Auth', error: e, stackTrace: st);
       _isLoading = false;
+      if (isAuthenticated) {
+        await syncCloudData(settings: settings, gallery: gallery);
+        return true;
+      }
       _errorMessage = 'An error occurred during sign in.';
       notifyListeners();
       return false;
@@ -133,11 +142,11 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final credential = await _authService.registerWithEmail(email: email, password: password);
+      final user = await _authService.registerWithEmail(email: email, password: password);
       _isLoading = false;
       notifyListeners();
 
-      if (credential.user != null) {
+      if (user != null || isAuthenticated) {
         await syncCloudData(settings: settings, gallery: gallery);
       }
       return true;
@@ -146,8 +155,13 @@ class AuthProvider extends ChangeNotifier {
       _errorMessage = _mapAuthError(e.code, e.message);
       notifyListeners();
       return false;
-    } catch (e) {
+    } catch (e, st) {
+      developer.log('Register error', name: 'Auth', error: e, stackTrace: st);
       _isLoading = false;
+      if (isAuthenticated) {
+        await syncCloudData(settings: settings, gallery: gallery);
+        return true;
+      }
       _errorMessage = 'An error occurred during registration.';
       notifyListeners();
       return false;
@@ -234,6 +248,31 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  /// Sends a password reset email to [email].
+  Future<bool> sendPasswordResetEmail(String email) async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _authService.sendPasswordResetEmail(email);
+      _isLoading = false;
+      notifyListeners();
+      return true;
+    } on FirebaseAuthException catch (e) {
+      _isLoading = false;
+      _errorMessage = _mapAuthError(e.code, e.message);
+      notifyListeners();
+      return false;
+    } catch (e, st) {
+      developer.log('Password reset error', name: 'Auth', error: e, stackTrace: st);
+      _isLoading = false;
+      _errorMessage = 'Failed to send password reset email.';
+      notifyListeners();
+      return false;
+    }
+  }
+
   String _mapAuthError(String code, String? defaultMsg) {
     switch (code) {
       case 'invalid-email':
@@ -246,6 +285,7 @@ class AuthProvider extends ChangeNotifier {
       case 'invalid-credential':
         return 'Incorrect email or password.';
       case 'email-already-in-use':
+      case 'credential-already-in-use':
         return 'An account already exists with this email.';
       case 'weak-password':
         return 'Password should be at least 6 characters.';
@@ -253,6 +293,8 @@ class AuthProvider extends ChangeNotifier {
         return 'Sign-in method is not enabled. Please contact support.';
       case 'network-request-failed':
         return 'Network connection issue. Please check your internet.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
       default:
         return defaultMsg ?? 'Authentication error occurred.';
     }
