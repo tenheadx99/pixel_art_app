@@ -23,8 +23,10 @@ import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/analytics_service.dart';
+import 'data/services/auth_service.dart';
 import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
+import 'providers/auth_provider.dart';
 import 'ui/widgets/pixel_grid.dart';
 import 'ui/widgets/transitions.dart';
 import 'providers/coloring_provider.dart';
@@ -248,6 +250,9 @@ class _AppBootstrapState extends State<AppBootstrap>
     final hadFirstSession = localStorageService.getBool('had_first_session');
     localStorageService.setBool('had_first_session', true);
 
+    // Initialize anonymous authentication silently in the background
+    final authInitFuture = AuthService().initialize();
+
     await adInitFuture;
     AdService()
       ..isFirstSession = !hadFirstSession
@@ -255,6 +260,8 @@ class _AppBootstrapState extends State<AppBootstrap>
       // Warm the rewarded cache so the first watch-ad tap shows instantly.
       // Not gated by isFirstSession: rewarded ads are user-initiated.
       ..preloadRewardedAd();
+
+    await authInitFuture;
 
     if (!mounted) return;
     setState(() {
@@ -305,6 +312,9 @@ class _AppBootstrapState extends State<AppBootstrap>
         Provider<IAPService>.value(value: _dependencies!.iapService),
         Provider<AdService>.value(value: AdService()),
         Provider<SoundService>.value(value: _dependencies!.soundService),
+        ChangeNotifierProvider<AuthProvider>(
+          create: (_) => AuthProvider(_dependencies!.localStorageService),
+        ),
         ChangeNotifierProvider<AppSettingsProvider>(
           create: (_) {
             final provider = AppSettingsProvider(

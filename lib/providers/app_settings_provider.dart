@@ -171,6 +171,15 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reloads diamond and economy balances from local storage (e.g. after cloud sync).
+  void reloadEconomy() {
+    _hintsAvailable = _storageService.getInt(AppConstants.hintsPrefKey, defaultValue: 3);
+    _diamondsAvailable = _storageService.getInt('diamonds_available', defaultValue: 50);
+    _totalXp = _storageService.getInt(_totalXpPrefKey);
+    _playerLevel = _storageService.getInt(_playerLevelPrefKey, defaultValue: 1);
+    notifyListeners();
+  }
+
   /// Adds [amount] XP, persists totals, and rolls the level forward. Returns a
   /// [LevelUpResult] so callers can celebrate; level-ups also grant diamonds.
   LevelUpResult addXp(int amount) {

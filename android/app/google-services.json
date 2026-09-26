@@ -12,7 +12,28 @@
           "package_name": "com.krishanvachan.app"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "433057017992-2slrcumdi70ghtegbuevgbacfg7oe12m.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.krishanvachan.app",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-s0bdakbapjfpuu33l92902ub7el0hu5i.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.krishanvachan.app",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
@@ -20,66 +41,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      }
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:433057017992:android:aab219586e1979cc55af3d",
-        "android_client_info": {
-          "package_name": "com.tenhead.mycolorbook.my_coloring_book"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      },
-      "admob_app_id": "ca-app-pub-9064606616675657~7094953933"
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:433057017992:android:f9a922b4c41a0a2255af3d",
-        "android_client_info": {
-          "package_name": "com.tenhead.pixelyart"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
-        }
-      },
-      "admob_app_id": "ca-app-pub-9064606616675657~3438969555"
-    },
-    {
-      "client_info": {
-        "mobilesdk_app_id": "1:433057017992:android:d1f8d47bd6532e9055af3d",
-        "android_client_info": {
-          "package_name": "com.tenhead.divinepixels"
-        }
-      },
-      "oauth_client": [],
-      "api_key": [
-        {
-          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
-        }
-      ],
-      "services": {
-        "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -90,7 +57,28 @@
           "package_name": "com.tenhead.animepixels"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "433057017992-0efatg7ltboehs0l3a4k6al801u285kn.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.animepixels",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-ot348r8j1s7j9dot7cjkmgkkqrl9d8j6.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.animepixels",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
@@ -98,18 +86,44 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:433057017992:android:1d0938add0b865f655af3d",
+        "mobilesdk_app_id": "1:433057017992:android:e22425c6735432c355af3d",
         "android_client_info": {
-          "package_name": "com.tenhead.pixelcalm"
+          "package_name": "com.tenhead.balbodh"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "433057017992-b8t206r0nf540npasb57pu60i2hfcvkm.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.balbodh",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-d58hi4609sfjr32ip1ta09elpdpfktv8.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.balbodh",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
@@ -117,18 +131,44 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:433057017992:android:73e309f29187bf1155af3d",
+        "mobilesdk_app_id": "1:433057017992:android:d1f8d47bd6532e9055af3d",
         "android_client_info": {
-          "package_name": "com.tenhead.resumebuilder"
+          "package_name": "com.tenhead.divinepixels"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "433057017992-dhed6u46cjfrsic41d0qfjk1opvcolt4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.divinepixels",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-i0s7p27d3hhpf3mqto67brbt3avdn664.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.divinepixels",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
@@ -136,7 +176,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -147,7 +192,28 @@
           "package_name": "com.tenhead.gemart"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "433057017992-24e49s493ojjcmlt36uk555jatmbmutl.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.gemart",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-8qdgeiia6svot6cud7in4beu6vtbm8dg.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.gemart",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
@@ -155,7 +221,103 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:aab219586e1979cc55af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.mycolorbook.my_coloring_book"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "433057017992-c9v9r75j0pe7akoev2tc6k14sgl8ah4l.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.mycolorbook.my_coloring_book",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-kip7mp2l7iq6a7e7ridbfnjqq63c01u7.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.mycolorbook.my_coloring_book",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      },
+      "admob_app_id": "ca-app-pub-9064606616675657~7094953933"
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:1d0938add0b865f655af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.pixelcalm"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "433057017992-82r6o0avsue67rl7kjaa8tnuscroeb84.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.pixelcalm",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-cnkshoqn1stkhn7pgqrirk84amnkp1as.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.pixelcalm",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     },
@@ -163,10 +325,31 @@
       "client_info": {
         "mobilesdk_app_id": "1:433057017992:android:f9a922b4c41a0a2255af3d",
         "android_client_info": {
-          "package_name": "com.tenhead.biblepixels"
+          "package_name": "com.tenhead.pixelyart"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "433057017992-dk8tmlq4h8aahcff51bk8svkg1sbktm2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.pixelyart",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-t26evtb65h7ql8java60lc4j2p842do2.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.pixelyart",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
@@ -174,7 +357,57 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:73e309f29187bf1155af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.resumebuilder"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "433057017992-46pvn92q103mipo7lfvcdfgdu82scbqc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.resumebuilder",
+            "certificate_hash": "9ba27cf6bf43efbbf4466abb5ba0d5cbeb1b0ba2"
+          }
+        },
+        {
+          "client_id": "433057017992-f9jrhcp2909qtmdt98rvmanur12adml9.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.tenhead.resumebuilder",
+            "certificate_hash": "73d282cbfc27b60730ae3577ca63a885f78ac01b"
+          }
+        },
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -559,6 +559,12 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Reloads diamond-unlocked artworks from local storage (e.g. after cloud sync).
+  void reloadUnlockedPieces() {
+    _diamondUnlockedIds = _storageService.getStringSet(_diamondUnlockedPrefKey);
+    notifyListeners();
+  }
+
   bool isUnlocked(PixelArt art, bool isProUser) {
     if (!art.isPremium) {
       return true;

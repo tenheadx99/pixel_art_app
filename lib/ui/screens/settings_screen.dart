@@ -11,8 +11,11 @@ import '../../data/services/review_service.dart';
 import '../../data/services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/gallery_provider.dart';
 import '../theme/app_style.dart';
 import '../widgets/transitions.dart';
+import '../widgets/email_auth_sheet.dart';
 import 'onboarding_screen.dart';
 
 /// Full-screen Settings screen.
@@ -59,6 +62,10 @@ class SettingsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 40),
             children: [
+              // Section 0: Cloud Save & Account
+              _buildAccountCard(context, isDark, flavor),
+              const SizedBox(height: 20),
+
               // Section 1: Appearance & Display
               _buildSectionHeader('DISPLAY & APPEARANCE', isDark, flavor.primary),
               _buildCard(
@@ -524,6 +531,334 @@ class SettingsScreen extends StatelessWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _buildAccountCard(BuildContext context, bool isDark, FlavorConfig flavor) {
+    AuthProvider? auth;
+    try {
+      auth = Provider.of<AuthProvider>(context, listen: true);
+    } catch (_) {
+      auth = null;
+    }
+    if (auth == null) {
+      return const SizedBox.shrink();
+    }
+    final authProvider = auth;
+
+    final cardBg = isDark ? const Color(0xFF1E1E2E) : Colors.white;
+    final borderColor = isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(15);
+    final textColor = isDark ? Colors.white : const Color(0xFF22223B);
+    final subtextColor = isDark ? Colors.white70 : Colors.black54;
+
+    if (authProvider.isAuthenticated) {
+          final user = authProvider.user;
+          final displayName = user?.displayName?.isNotEmpty == true
+              ? user!.displayName!
+              : (user?.email?.split('@').first ?? 'Player');
+          final email = user?.email ?? '';
+
+          return Container(
+            decoration: BoxDecoration(
+              color: cardBg,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: borderColor),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(isDark ? 30 : 10),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: flavor.primary.withAlpha(40),
+                      backgroundImage: (authProvider.photoUrl != null && authProvider.photoUrl!.isNotEmpty)
+                          ? NetworkImage(authProvider.photoUrl!)
+                          : null,
+                      child: (authProvider.photoUrl == null || authProvider.photoUrl!.isEmpty)
+                          ? Text(
+                              displayName.substring(0, 1).toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: flavor.primary,
+                              ),
+                            )
+                          : null,
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  displayName,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: textColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.green.withAlpha(35),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: const Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.cloud_done_rounded, color: Colors.green, size: 12),
+                                    SizedBox(width: 3),
+                                    Text(
+                                      'Synced',
+                                      style: TextStyle(
+                                        color: Colors.green,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                          if (email.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              email,
+                              style: TextStyle(fontSize: 12, color: subtextColor),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Divider(height: 1, color: borderColor),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    TextButton.icon(
+                      icon: authProvider.isSyncing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(Icons.sync_rounded, size: 16, color: flavor.primary),
+                      label: Text(
+                        authProvider.isSyncing ? 'Syncing...' : 'Sync Now',
+                        style: TextStyle(fontSize: 13, color: flavor.primary, fontWeight: FontWeight.w600),
+                      ),
+                      onPressed: authProvider.isSyncing
+                          ? null
+                          : () async {
+                              final messenger = ScaffoldMessenger.of(context);
+                              final settings = context.read<AppSettingsProvider>();
+                              final gallery = context.read<GalleryProvider>();
+                              final res = await authProvider.syncCloudData(settings: settings, gallery: gallery);
+                              if (res != null && res.success) {
+                                messenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Cloud sync completed!'),
+                                    duration: Duration(seconds: 2),
+                                  ),
+                                );
+                              }
+                            },
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.logout_rounded, size: 16, color: Colors.grey),
+                      label: const Text(
+                        'Sign Out',
+                        style: TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
+                      onPressed: () => authProvider.signOut(),
+                    ),
+                  ],
+                ),
+                Center(
+                  child: TextButton(
+                    onPressed: () => _showDeleteAccountDialog(context, authProvider),
+                    child: const Text(
+                      'Delete Account & Data',
+                      style: TextStyle(fontSize: 11, color: Colors.redAccent),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Guest / Not signed in
+        return Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: isDark
+                  ? [const Color(0xFF1E1E2E), const Color(0xFF26243A)]
+                  : [Colors.white, const Color(0xFFF3F2FD)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: borderColor),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(isDark ? 30 : 10),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(18),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: flavor.primary.withAlpha(isDark ? 40 : 25),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.cloud_sync_rounded, color: flavor.primary, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Cloud Save & Backup',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: textColor,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Playing as Guest',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.amberAccent : Colors.orange.shade800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Back up your earned diamonds, artwork unlocks, and stats across devices safely.',
+                style: TextStyle(fontSize: 12.5, color: subtextColor, height: 1.3),
+              ),
+              if (authProvider.errorMessage != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  authProvider.errorMessage!,
+                  style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+                ),
+              ],
+              const SizedBox(height: 14),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isDark ? Colors.white : const Color(0xFF1F1F1F),
+                  foregroundColor: isDark ? Colors.black87 : Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                icon: authProvider.isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.g_mobiledata_rounded, size: 26, color: Colors.blueAccent),
+                label: Text(
+                  authProvider.isLoading ? 'Connecting...' : 'Sign In with Google',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+                onPressed: authProvider.isLoading
+                    ? null
+                    : () {
+                        final settings = context.read<AppSettingsProvider>();
+                        final gallery = context.read<GalleryProvider>();
+                        authProvider.signInWithGoogle(settings: settings, gallery: gallery);
+                      },
+              ),
+              const SizedBox(height: 4),
+              Center(
+                child: TextButton(
+                  onPressed: () => EmailAuthSheet.show(context),
+                  child: Text(
+                    'Or use Email & Password',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: flavor.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+
+  }
+
+  void _showDeleteAccountDialog(BuildContext context, AuthProvider auth) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        title: const Text('Delete Cloud Account?'),
+        content: const Text(
+          'This will permanently delete your cloud account and backed up data. Local progress on this device will be preserved as a guest.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              final success = await auth.deleteAccount();
+              if (context.mounted && success) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Account deleted.')),
+                );
+              }
+            },
+            child: const Text('Delete Account', style: TextStyle(color: Colors.redAccent)),
+          ),
+        ],
+      ),
     );
   }
 }
