@@ -7,6 +7,7 @@ import '../../config/flavor.dart';
 import '../../data/services/local_storage_service.dart';
 import '../motion.dart';
 import '../theme/app_style.dart';
+import '../widgets/number_toolbar.dart';
 import '../widgets/pressable.dart';
 import '../widgets/transitions.dart';
 import 'home_screen.dart';
@@ -1171,7 +1172,7 @@ class _BoostersSlideState extends State<_BoostersSlide>
       badgeColor: const Color(0xFFFF9F1A),
       title: 'Color Bomb & Boosters',
       subtitle:
-          'Blast through tricky sections with high-impact power-ups! Tap the Color Bomb to ignite an explosive area fill, use the Magic Wand for instant chain-fills, or Finder to uncover hidden numbers.',
+          'Supercharge your flow with game-changing boosters! Unleash the Color Bomb for an explosive area blast, tap the Paint Bucket to color all cells of a number, or use the 3x3 Brush for multi-cell speed.',
       isDark: widget.isDark,
       child: _buildBoosterVisuals(),
     );
@@ -1256,31 +1257,55 @@ class _BoostersSlideState extends State<_BoostersSlide>
         ),
         const SizedBox(height: 14),
 
-        // 3 Booster Cards Row
+        // 3 Booster Cards Row using exact coloring screen toolbar icons and badge styles
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             _BoosterFeatureChip(
-              icon: Icons.bolt_rounded,
-              color: const Color(0xFFFF4757),
+              icon: const SizedBox(
+                width: 24,
+                height: 24,
+                child: CustomPaint(painter: BombIconPainter()),
+              ),
+              badgeValue: '3',
+              badgeColor: Colors.orange,
+              accentColor: const Color(0xFFFF4757),
               label: 'Color Bomb',
               description: 'Area blast',
               isDark: widget.isDark,
             ),
             const SizedBox(width: 8),
             _BoosterFeatureChip(
-              icon: Icons.auto_fix_high_rounded,
-              color: const Color(0xFFBD93F9),
-              label: 'Magic Wand',
-              description: 'Chain fill',
+              icon: const Icon(
+                Icons.format_color_fill_rounded,
+                color: Colors.blueAccent,
+                size: 24,
+              ),
+              badgeValue: '5',
+              badgeColor: Colors.orange,
+              accentColor: Colors.blueAccent,
+              label: 'Paint Bucket',
+              description: 'Fill all cells',
               isDark: widget.isDark,
             ),
             const SizedBox(width: 8),
             _BoosterFeatureChip(
-              icon: Icons.search_rounded,
-              color: const Color(0xFF00F0FF),
-              label: 'Find Hint',
-              description: 'Locate cells',
+              icon: SizedBox(
+                width: 24,
+                height: 24,
+                child: CustomPaint(
+                  painter: MultiCellIconPainter(
+                    isMulti: true,
+                    isDark: widget.isDark,
+                    activeColor: const Color(0xFFE91E63),
+                  ),
+                ),
+              ),
+              badgeValue: '3x3',
+              badgeColor: const Color(0xFFE91E63),
+              accentColor: const Color(0xFFE91E63),
+              label: '3x3 Brush',
+              description: 'Multi-cell fill',
               isDark: widget.isDark,
             ),
           ],
@@ -1325,26 +1350,30 @@ class _BoostersSlideState extends State<_BoostersSlide>
     return Transform.scale(
       scale: pulse,
       child: Container(
-        width: 48,
-        height: 48,
+        width: 52,
+        height: 52,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          gradient: const RadialGradient(
-            colors: [Color(0xFF333333), Color(0xFF111111)],
+          color: widget.isDark ? const Color(0xFF1E1D32) : Colors.white,
+          border: Border.all(
+            color: widget.isDark ? Colors.white.withAlpha(40) : Colors.grey.shade300,
+            width: 2,
           ),
-          border: Border.all(color: const Color(0xFFFF4757), width: 2),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFF4757).withAlpha(140),
+              color: const Color(0xFFFF4757).withAlpha(widget.isDark ? 100 : 70),
               blurRadius: 14,
+              offset: const Offset(0, 3),
             ),
           ],
         ),
         child: const Center(
-          child: Icon(
-            Icons.bolt_rounded,
-            color: Color(0xFFFFD32A),
-            size: 26,
+          child: SizedBox(
+            width: 30,
+            height: 30,
+            child: CustomPaint(
+              painter: BombIconPainter(),
+            ),
           ),
         ),
       ),
@@ -1364,15 +1393,19 @@ class _BoostersSlideState extends State<_BoostersSlide>
 }
 
 class _BoosterFeatureChip extends StatelessWidget {
-  final IconData icon;
-  final Color color;
+  final Widget icon;
+  final String badgeValue;
+  final Color? badgeColor;
+  final Color accentColor;
   final String label;
   final String description;
   final bool isDark;
 
   const _BoosterFeatureChip({
     required this.icon,
-    required this.color,
+    required this.badgeValue,
+    this.badgeColor,
+    required this.accentColor,
     required this.label,
     required this.description,
     required this.isDark,
@@ -1381,19 +1414,19 @@ class _BoosterFeatureChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 90,
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+      width: 94,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
         color: isDark ? const Color(0xFF1B1A30) : Colors.white,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: color.withAlpha(isDark ? 90 : 60),
+          color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(20),
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: color.withAlpha(isDark ? 30 : 15),
-            blurRadius: 8,
+            color: accentColor.withAlpha(isDark ? 35 : 18),
+            blurRadius: 10,
             offset: const Offset(0, 3),
           ),
         ],
@@ -1401,15 +1434,64 @@ class _BoosterFeatureChip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(
-            padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: color.withAlpha(35),
-            ),
-            child: Icon(icon, color: color, size: 18),
+          // Circular Tool Button identical to coloring screen NumberToolbar
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: isDark ? Colors.white.withAlpha(16) : Colors.white,
+                  border: Border.all(
+                    color: isDark ? Colors.white.withAlpha(30) : Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: isDark ? Colors.black.withAlpha(60) : Colors.black.withAlpha(15),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(child: icon),
+              ),
+              // Floating Badge in Top Right
+              Positioned(
+                top: -3,
+                right: -4,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4.5, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: badgeColor ?? Colors.orange,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Colors.white,
+                      width: 1.2,
+                    ),
+                  ),
+                  constraints: const BoxConstraints(
+                    minWidth: 16,
+                    minHeight: 14,
+                  ),
+                  child: Center(
+                    child: Text(
+                      badgeValue,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                        height: 1.05,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           Text(
             label,
             style: TextStyle(
@@ -1719,69 +1801,78 @@ class _OnboardingSlideLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Spacer(flex: 1),
-
-          // Interactive Visual Card
-          child,
-
-          const Spacer(flex: 1),
-
-          // Slide Badge Tag
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: badgeColor.withAlpha(25),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: badgeColor.withAlpha(60)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.maxHeight,
             ),
-            child: Text(
-              badge,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
-                letterSpacing: 0.8,
-                color: badgeColor,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const SizedBox(height: 12),
+                  // Interactive Visual Card
+                  child,
+                  const SizedBox(height: 16),
+
+                  // Slide Badge Tag
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: badgeColor.withAlpha(25),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: badgeColor.withAlpha(60)),
+                    ),
+                    child: Text(
+                      badge,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                        color: badgeColor,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Title
+                  Text(
+                    title,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.2,
+                      color: isDark ? Colors.white : const Color(0xFF14142B),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+
+                  // Subtitle
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Text(
+                      subtitle,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.4,
+                        fontWeight: FontWeight.w400,
+                        color: isDark ? Colors.white70 : Colors.black87.withAlpha(180),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
             ),
           ),
-          const SizedBox(height: 12),
-
-          // Title
-          Text(
-            title,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.w900,
-              letterSpacing: -0.2,
-              color: isDark ? Colors.white : const Color(0xFF14142B),
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Subtitle
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13.5,
-                height: 1.45,
-                fontWeight: FontWeight.w400,
-                color: isDark ? Colors.white70 : Colors.black87.withAlpha(180),
-              ),
-            ),
-          ),
-
-          const Spacer(flex: 1),
-        ],
-      ),
+        );
+      },
     );
   }
 }

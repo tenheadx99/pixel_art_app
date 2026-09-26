@@ -8,7 +8,6 @@ import 'package:sensors_plus/sensors_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:uuid/uuid.dart';
 import '../../config/app_config.dart';
 import '../../config/flavor.dart';
 import '../../config/app_constants.dart';
