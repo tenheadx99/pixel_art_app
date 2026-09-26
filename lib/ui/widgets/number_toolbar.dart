@@ -24,12 +24,14 @@ class NumberToolbar extends StatelessWidget {
   });
 
   void _watchAdRefill(BuildContext context, String toolName, VoidCallback onRefilled) {
+    if (!context.mounted) return;
     final adService = context.read<AdService>();
+    final messenger = ScaffoldMessenger.maybeOf(context);
 
     // Fallback/Simulated reward if ads are disabled or in debug/testing scenarios
     // so that the feature is fully testable.
     if (AppConfig.disableAds || !AppConfig.showAds) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger?.showSnackBar(
         SnackBar(
           content: Text('[Simulated Ad] Refilling $toolName...'),
           duration: const Duration(milliseconds: 500),
@@ -38,7 +40,7 @@ class NumberToolbar extends StatelessWidget {
       Future.delayed(const Duration(milliseconds: 500), () {
         if (context.mounted) {
           onRefilled();
-          ScaffoldMessenger.of(context).showSnackBar(
+          messenger?.showSnackBar(
             SnackBar(
               content: Text('+1 $toolName refilled!'),
               backgroundColor: Colors.green,
@@ -52,20 +54,24 @@ class NumberToolbar extends StatelessWidget {
     adService.showRewardedAd(
       placement: 'refill_${toolName.toLowerCase().replaceAll(' ', '_')}',
       onRewarded: () {
-        onRefilled();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('+1 $toolName refilled!'),
-            backgroundColor: Colors.green,
-          ),
-        );
+        if (context.mounted) {
+          onRefilled();
+          messenger?.showSnackBar(
+            SnackBar(
+              content: Text('+1 $toolName refilled!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
       },
       onUnavailable: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No ad available right now — try again later.'),
-          ),
-        );
+        if (context.mounted) {
+          messenger?.showSnackBar(
+            const SnackBar(
+              content: Text('No ad available right now — try again later.'),
+            ),
+          );
+        }
       },
     );
   }
@@ -77,7 +83,9 @@ class NumberToolbar extends StatelessWidget {
       builder: (ctx) => _OutOfBombsDialog(
         provider: provider,
         settings: settings,
-        onWatchAd: _watchAdRefill,
+        onWatchAd: (_, toolName, onRefilled) {
+          _watchAdRefill(context, toolName, onRefilled);
+        },
       ),
     );
   }
@@ -89,7 +97,9 @@ class NumberToolbar extends StatelessWidget {
       builder: (ctx) => _OutOfWandsDialog(
         provider: provider,
         settings: settings,
-        onWatchAd: _watchAdRefill,
+        onWatchAd: (_, toolName, onRefilled) {
+          _watchAdRefill(context, toolName, onRefilled);
+        },
       ),
     );
   }
@@ -1083,9 +1093,10 @@ class _OutOfBombsDialog extends StatelessWidget {
                           accentColor: const Color(0xFF00B0FF),
                           isDark: isDark,
                           onBuy: (count) {
+                            final messenger = ScaffoldMessenger.maybeOf(context);
                             Navigator.of(context).pop();
                             if (provider.buyBombWithDiamonds(settings, count: count)) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger?.showSnackBar(
                                 SnackBar(
                                   content: Text(
                                     'Used ${cost * count} 💎 for $count Bomb${count > 1 ? 's' : ''}! Bomb mode active.',
@@ -1548,9 +1559,10 @@ class _OutOfWandsDialog extends StatelessWidget {
                           accentColor: const Color(0xFF2196F3),
                           isDark: isDark,
                           onBuy: (count) {
+                            final messenger = ScaffoldMessenger.maybeOf(context);
                             Navigator.of(context).pop();
                             if (provider.buyWandWithDiamonds(settings, count: count)) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              messenger?.showSnackBar(
                                 SnackBar(
                                   content: Text(
                                     'Used ${cost * count} 💎 for $count Paint Bucket${count > 1 ? 's' : ''}! Fill mode active.',

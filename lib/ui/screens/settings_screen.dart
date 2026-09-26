@@ -6,6 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
+import '../../data/services/local_storage_service.dart';
+import '../../data/services/review_service.dart';
 import '../../data/services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/app_settings_provider.dart';
@@ -27,6 +29,7 @@ class SettingsScreen extends StatelessWidget {
     final hapticTitle = l10n?.hapticFeedback ?? 'Vibration & Haptics';
     final soundTitle = l10n?.soundEffects ?? 'Sound Effects';
     final langTitle = l10n?.language ?? 'Language';
+    final rateUsTitle = l10n?.rateUs ?? 'Rate Us';
     final privacyTitle = l10n?.privacyPolicy ?? 'Privacy Policy';
     final termsTitle = l10n?.termsOfService ?? 'Terms of Service';
 
@@ -277,6 +280,19 @@ class SettingsScreen extends StatelessWidget {
               _buildCard(
                 isDark: isDark,
                 children: [
+                  ListTile(
+                    leading: _buildIconCircle(Icons.star_rounded, const Color(0xFFFFB300), isDark),
+                    title: Text(rateUsTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Rate your experience in the app', style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      ReviewService().requestInAppReview(
+                        storage: context.read<LocalStorageService>(),
+                      );
+                    },
+                  ),
+                  _buildDivider(isDark),
                   ListTile(
                     leading: _buildIconCircle(Icons.privacy_tip_outlined, Colors.grey, isDark),
                     title: Text(privacyTitle, style: const TextStyle(fontWeight: FontWeight.w600)),

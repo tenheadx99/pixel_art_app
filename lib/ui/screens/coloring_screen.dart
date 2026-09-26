@@ -41,6 +41,7 @@ import '../../ui/widgets/fill_grow_controller.dart';
 import '../../ui/widgets/rolling_count.dart';
 import '../../ui/widgets/transitions.dart';
 import '../../ui/widgets/diamond_shop_sheet.dart';
+import '../../ui/widgets/rating_dialog.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -102,6 +103,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   // True once the player has watched an ad to double this completion's reward,
   // so the offer is shown only once per finish.
   bool _rewardDoubled = false;
+  // Guard so rating prompt is displayed at most once per artwork completion session.
+  bool _ratingPromptShownThisArtwork = false;
   LevelUpResult? _lastLevelUp;
   ColoringProvider? _coloringProvider;
   AppSettingsProvider? _settings;
@@ -207,6 +210,7 @@ class _ColoringScreenState extends State<ColoringScreen>
             _hudDismissed = false;
           });
           _hudController.forward(from: 0);
+          _maybeShowRatingOnCompletion();
         }
       }
     });
@@ -1826,13 +1830,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                             borderRadius: BorderRadius.circular(20),
                             onTap: () {
                               setState(() => _hudDismissed = true);
-                              ReviewService().maybeRequestReview(
-                                storage: context.read<LocalStorageService>(),
-                                completedCount: context
-                                    .read<GalleryProvider>()
-                                    .completedIds
-                                    .length,
-                              );
+                              _maybeShowRatingOnCompletion();
                             },
                             child: Container(
                               padding: const EdgeInsets.all(8),
@@ -1884,6 +1882,29 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// Opens the in-canvas shop: spend earned diamonds on hints and tools.
   void _showShop(ColoringProvider provider, AppSettingsProvider settings) {
     DiamondShopSheet.show(context);
+  }
+
+  void _maybeShowRatingOnCompletion() {
+    if (_ratingPromptShownThisArtwork) return;
+    final storage = _storageService ?? (mounted ? context.read<LocalStorageService>() : null);
+    final gallery = _galleryProvider ?? (mounted ? context.read<GalleryProvider>() : null);
+    if (storage == null || gallery == null) return;
+    final completedCount = gallery.completedIds.contains(widget.art.id)
+        ? gallery.completedIds.length
+        : gallery.completedIds.length + 1;
+    if (ReviewService().shouldShowOnCompletion(
+      storage: storage,
+      completedCount: completedCount,
+    )) {
+      _ratingPromptShownThisArtwork = true;
+      Future.delayed(const Duration(milliseconds: 600), () {
+        if (!mounted) return;
+        showRatingDialog(
+          context,
+          storage: storage,
+        );
+      });
+    }
   }
 
 
@@ -1959,7 +1980,7 @@ class _ColoringScreenState extends State<ColoringScreen>
 
   void _showInfoSnack(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
+    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
       SnackBar(
         content: Text(message),
         behavior: SnackBarBehavior.floating,
