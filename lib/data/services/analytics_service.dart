@@ -946,7 +946,7 @@ class AnalyticsService {
         parameters: {
           'art_id': artId,
           'unlock_type': unlockType,
-          if (diamondCost != null) 'diamond_cost': diamondCost,
+          'diamond_cost': ?diamondCost,
         },
       );
     } catch (e) {
@@ -1008,7 +1008,7 @@ class AnalyticsService {
       await a.logEvent(
         name: success ? 'cloud_sync_success' : 'cloud_sync_failed',
         parameters: {
-          if (artworksCount != null) 'artworks_count': artworksCount,
+          'artworks_count': ?artworksCount,
           if (error != null)
             'error': error.length > 100 ? error.substring(0, 100) : error,
         },
@@ -1033,7 +1033,7 @@ class AnalyticsService {
         name: 'player_level_up',
         parameters: {
           'level': level,
-          if (totalXp != null) 'total_xp': totalXp,
+          'total_xp': ?totalXp,
         },
       );
     } catch (e) {

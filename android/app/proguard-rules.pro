@@ -22,5 +22,15 @@
 -keep class com.android.billingclient.api.** { *; }
 -keep class io.flutter.plugins.inapppurchase.** { *; }
 
+# Google Sign-In & Play Services Auth
+-keep class com.google.android.gms.auth.api.signin.** { *; }
+-keep class com.google.android.gms.common.** { *; }
+-dontwarn com.google.android.gms.auth.**
+
+# SQLite (sqflite)
+-keep class com.tekartik.sqflite.** { *; }
+-dontwarn com.tekartik.sqflite.**
+
 # Play Core (deferred components / split install referenced by Flutter)
 -dontwarn com.google.android.play.core.**
+
