@@ -690,7 +690,7 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                           textColor: textColor,
                           brand: brand,
                           onBuy: () {
-                            if (settings.useDiamonds(economy.diamondCostWand)) {
+                            if (settings.useDiamonds(economy.diamondCostWand, itemName: 'wand_pack')) {
                               coloring.addMagicWands(1);
                               _showToast(
                                   'Bought 1 Paint Bucket for ${economy.diamondCostWand} 💎!');
@@ -716,7 +716,7 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
                           textColor: textColor,
                           brand: brand,
                           onBuy: () {
-                            if (settings.useDiamonds(economy.diamondCostHint)) {
+                            if (settings.useDiamonds(economy.diamondCostHint, itemName: 'hint_pack')) {
                               settings.addHints(5);
                               _showToast(
                                   'Bought 5 Hints for ${economy.diamondCostHint} 💎!');

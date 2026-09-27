@@ -215,6 +215,11 @@ class AppSettingsProvider extends ChangeNotifier {
       _diamondsAvailable += diamondsAwarded;
       _storageService.setInt('diamonds_available', _diamondsAvailable);
       AnalyticsService().setPlayerProperties(level: _playerLevel);
+      AnalyticsService().logLevelUp(level: _playerLevel, totalXp: _totalXp);
+      AnalyticsService().logEarnVirtualCurrency(
+        source: 'level_up',
+        value: diamondsAwarded,
+      );
     }
     notifyListeners();
     return LevelUpResult(
@@ -235,6 +240,7 @@ class AppSettingsProvider extends ChangeNotifier {
   void toggleHaptics() {
     _hapticsEnabled = !_hapticsEnabled;
     _storageService.setBool('haptics_enabled', _hapticsEnabled);
+    AnalyticsService().logSettingChanged(settingName: 'haptics', value: _hapticsEnabled);
     notifyListeners();
   }
 
@@ -422,19 +428,21 @@ class AppSettingsProvider extends ChangeNotifier {
     if (dailyStreakBonusClaimedToday) return 0;
     _storageService.setString(AppConstants.streakBonusDayPrefKey, _todayStamp);
     final amount = RemoteConfigService().dailyStreakAdBonus;
-    addDiamonds(amount);
+    addDiamonds(amount, source: 'daily_streak_ad_bonus');
     return amount;
   }
 
   void toggleDarkMode() {
     _isDarkMode = !_isDarkMode;
     _storageService.setBool(AppConstants.darkModePrefKey, _isDarkMode);
+    AnalyticsService().logSettingChanged(settingName: 'dark_mode', value: _isDarkMode);
     notifyListeners();
   }
 
   void toggleColorblindMode() {
     _colorblindMode = !_colorblindMode;
     _storageService.setBool('colorblind_mode', _colorblindMode);
+    AnalyticsService().logSettingChanged(settingName: 'colorblind_mode', value: _colorblindMode);
     notifyListeners();
   }
 
@@ -444,16 +452,23 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addDiamonds(int count) {
+  void addDiamonds(int count, {String source = 'reward'}) {
+    if (count <= 0) return;
     _diamondsAvailable += count;
     _storageService.setInt('diamonds_available', _diamondsAvailable);
+    AnalyticsService().logEarnVirtualCurrency(source: source, value: count);
     notifyListeners();
   }
 
-  bool useDiamonds(int count) {
+  bool useDiamonds(int count, {String itemName = 'diamonds_spent', String? artId}) {
     if (_diamondsAvailable < count) return false;
     _diamondsAvailable -= count;
     _storageService.setInt('diamonds_available', _diamondsAvailable);
+    AnalyticsService().logSpendVirtualCurrency(
+      itemName: itemName,
+      value: count,
+      artId: artId,
+    );
     notifyListeners();
     return true;
   }
@@ -467,7 +482,7 @@ class AppSettingsProvider extends ChangeNotifier {
     final amount = AppConstants.diamondsPerCompletion +
         (isDaily ? AppConstants.diamondsDailyBonus : 0);
     _storageService.setBool(key, true);
-    addDiamonds(amount);
+    addDiamonds(amount, source: isDaily ? 'daily_artwork_completion' : 'artwork_completion');
     return amount;
   }
 
@@ -498,6 +513,8 @@ class AppSettingsProvider extends ChangeNotifier {
             purchase.status == PurchaseStatus.restored) {
           if (purchase.status == PurchaseStatus.purchased) {
             AnalyticsService().logPurchase(productId: purchase.productID);
+          } else if (purchase.status == PurchaseStatus.restored) {
+            AnalyticsService().logRestoreSuccess(productsRestored: 1);
           }
           // Check dynamic Diamond Packs first
           final activePacks = EconomyConfigService().currentConfig.diamondPacks;
@@ -515,7 +532,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
           if (matchedPack != null) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addDiamonds(matchedPack.totalDiamonds);
+              addDiamonds(matchedPack.totalDiamonds, source: 'iap_diamond_pack');
               if (matchedPack.bonusWands > 0) {
                 addWands(matchedPack.bonusWands);
               }
@@ -567,6 +584,16 @@ class AppSettingsProvider extends ChangeNotifier {
             'Purchase failed for ${purchase.productID}',
             name: 'IAP',
             error: purchase.error,
+          );
+          AnalyticsService().logPurchaseFailed(
+            productId: purchase.productID,
+            reason: 'error',
+            errorCode: purchase.error?.code,
+          );
+        } else if (purchase.status == PurchaseStatus.canceled) {
+          AnalyticsService().logPurchaseFailed(
+            productId: purchase.productID,
+            reason: 'cancelled',
           );
         }
         if (purchase.pendingCompletePurchase) {

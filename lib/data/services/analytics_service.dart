@@ -874,8 +874,230 @@ class AnalyticsService {
   }
 
   // ---------------------------------------------------------------------------
-  // User Properties
+  // Virtual Currency / Economy
   // ---------------------------------------------------------------------------
+
+  /// Logs spending virtual currency (diamonds).
+  Future<void> logSpendVirtualCurrency({
+    required String itemName,
+    required int value,
+    String? artId,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logSpendVirtualCurrency(
+        itemName: itemName,
+        virtualCurrencyName: 'diamonds',
+        value: value,
+      );
+      if (artId != null) {
+        await a.logEvent(
+          name: 'diamonds_spent',
+          parameters: {
+            'item_name': itemName,
+            'value': value,
+            'art_id': artId,
+          },
+        );
+      }
+    } catch (e) {
+      developer.log('Error logging logSpendVirtualCurrency: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs earning virtual currency (diamonds).
+  Future<void> logEarnVirtualCurrency({
+    required String source,
+    required int value,
+  }) async {
+    final a = _analytics;
+    if (a == null || value <= 0) return;
+    try {
+      await a.logEarnVirtualCurrency(
+        virtualCurrencyName: 'diamonds',
+        value: value,
+      );
+      await a.logEvent(
+        name: 'diamonds_earned',
+        parameters: {
+          'source': source,
+          'value': value,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logEarnVirtualCurrency: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs when an artwork is unlocked (via diamonds, rewarded ad, or pro pass).
+  Future<void> logArtworkUnlocked({
+    required String artId,
+    required String unlockType, // 'diamond' | 'rewarded_ad' | 'pro'
+    int? diamondCost,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'artwork_unlocked',
+        parameters: {
+          'art_id': artId,
+          'unlock_type': unlockType,
+          if (diamondCost != null) 'diamond_cost': diamondCost,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logArtworkUnlocked: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Authentication & Cloud Sync
+  // ---------------------------------------------------------------------------
+
+  /// Logs user login.
+  Future<void> logLogin({required String method}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logLogin(loginMethod: method);
+    } catch (e) {
+      developer.log('Error logging logLogin: $e', name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs user registration.
+  Future<void> logSignUp({required String method}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logSignUp(signUpMethod: method);
+    } catch (e) {
+      developer.log('Error logging logSignUp: $e', name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs when an anonymous guest session is linked with Google or Email.
+  Future<void> logAccountLinked({required String provider}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'account_linked',
+        parameters: {'provider': provider},
+      );
+    } catch (e) {
+      developer.log('Error logging logAccountLinked: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs cloud sync results.
+  Future<void> logCloudSync({
+    required bool success,
+    int? artworksCount,
+    String? error,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: success ? 'cloud_sync_success' : 'cloud_sync_failed',
+        parameters: {
+          if (artworksCount != null) 'artworks_count': artworksCount,
+          if (error != null)
+            'error': error.length > 100 ? error.substring(0, 100) : error,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logCloudSync: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Progression & Gamification
+  // ---------------------------------------------------------------------------
+
+  /// Logs player level-up.
+  Future<void> logLevelUp({required int level, int? totalXp}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logLevelUp(level: level);
+      await a.logEvent(
+        name: 'player_level_up',
+        parameters: {
+          'level': level,
+          if (totalXp != null) 'total_xp': totalXp,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logLevelUp: $e', name: 'AnalyticsService');
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Engagement & UX
+  // ---------------------------------------------------------------------------
+
+  /// Logs when an artwork is added or removed from favorites.
+  Future<void> logFavoriteToggled({
+    required String artId,
+    required bool isFavorite,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'favorite_toggled',
+        parameters: {
+          'art_id': artId,
+          'is_favorite': isFavorite ? 1 : 0,
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logFavoriteToggled: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs search query.
+  Future<void> logSearch({required String query}) async {
+    final a = _analytics;
+    if (a == null || query.trim().isEmpty) return;
+    try {
+      await a.logSearch(searchTerm: query.trim());
+    } catch (e) {
+      developer.log('Error logging logSearch: $e', name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs when a user setting is changed.
+  Future<void> logSettingChanged({
+    required String settingName,
+    required dynamic value,
+  }) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'setting_changed',
+        parameters: {
+          'setting_name': settingName,
+          'value': value.toString(),
+        },
+      );
+    } catch (e) {
+      developer.log('Error logging logSettingChanged: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
 
   /// Sets audience-segmentation user properties.
   Future<void> setPlayerProperties({

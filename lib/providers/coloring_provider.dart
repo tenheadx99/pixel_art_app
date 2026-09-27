@@ -158,7 +158,7 @@ class ColoringProvider extends ChangeNotifier {
       costPer = EconomyConfigService().currentConfig.diamondCostBomb;
     } catch (_) {}
     final totalCost = costPer * count;
-    if (appSettings.useDiamonds(totalCost)) {
+    if (appSettings.useDiamonds(totalCost, itemName: 'booster_bomb', artId: _currentArt?.id)) {
       addBombs(count);
       _isBombMode = true;
       _isMagicWandMode = false;
@@ -177,7 +177,7 @@ class ColoringProvider extends ChangeNotifier {
       costPer = EconomyConfigService().currentConfig.diamondCostWand;
     } catch (_) {}
     final totalCost = costPer * count;
-    if (appSettings.useDiamonds(totalCost)) {
+    if (appSettings.useDiamonds(totalCost, itemName: 'booster_wand', artId: _currentArt?.id)) {
       addMagicWands(count);
       _isMagicWandMode = true;
       _isBombMode = false;
@@ -1240,6 +1240,7 @@ class ColoringProvider extends ChangeNotifier {
   void undo() {
     if (_isReplaying || _undoStack.isEmpty) return;
     undoHaptic();
+    AnalyticsService().logUndoUsed(artId: _currentArt?.id ?? '');
     final entry = _undoStack.removeLast();
     int fillCount = 0;
     for (final (row, col, prev) in entry.reversed) {
@@ -1260,6 +1261,12 @@ class ColoringProvider extends ChangeNotifier {
 
   void resetArt() {
     if (_isReplaying || _currentArt == null) return;
+    final prevPct = (_progress * 100).round();
+    AnalyticsService().logArtworkCleared(
+      artId: _currentArt!.id,
+      title: _currentArt!.name,
+      progressPct: prevPct,
+    );
     _filledGrid = List.generate(
       _currentArt!.gridHeight,
       (_) => List.filled(_currentArt!.gridWidth, 0),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../data/services/analytics_service.dart';
 import '../../l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../providers/gallery_provider.dart';
@@ -163,7 +164,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     sliver: SliverToBoxAdapter(
                       child: _DailyPixelBanner(
                         gallery: gallery,
-                        onPlay: () => _openColoring(context, gallery.dailyArt!),
+                        onPlay: () {
+                          AnalyticsService().logDailyPixelTapped(
+                            artId: gallery.dailyArt!.id,
+                            title: gallery.dailyArt!.name,
+                            completedToday: gallery.dailyCompletedToday,
+                          );
+                          _openColoring(context, gallery.dailyArt!);
+                        },
                         showBonusClaim: _canEarnDiamondsViaAd &&
                             !settings.dailyStreakBonusClaimedToday,
                         bonusAmount: RemoteConfigService().dailyStreakAdBonus,
@@ -177,7 +185,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     sliver: SliverToBoxAdapter(
                       child: _ContinueRow(
                         gallery: gallery,
-                        onOpen: (art) => _openColoring(context, art),
+                        onOpen: (art) {
+                          AnalyticsService().logContinueRowTapped(
+                            artId: art.id,
+                            title: art.name,
+                            progressPct: gallery.artProgressPercent(art),
+                          );
+                          _openColoring(context, art);
+                        },
                       ),
                     ),
                   ),
@@ -1207,11 +1222,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: ElevatedButton.icon(
                         onPressed: canAfford
                             ? () {
-                                if (settings.useDiamonds(unlockCost)) {
+                                if (settings.useDiamonds(unlockCost, itemName: 'artwork_unlock', artId: art.id)) {
                                   HapticFeedback.mediumImpact();
                                   context
                                       .read<GalleryProvider>()
-                                      .unlockWithDiamonds(art.id);
+                                      .unlockWithDiamonds(art.id, cost: unlockCost);
                                   Navigator.pop(ctx);
                                   _openColoring(context, art);
                                 }

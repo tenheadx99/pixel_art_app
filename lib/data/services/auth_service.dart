@@ -1,6 +1,7 @@
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'analytics_service.dart';
 
 /// Manages authentication using a phased approach:
 /// - Silent Anonymous authentication on launch (zero-friction casual play)
@@ -33,7 +34,11 @@ class AuthService {
     try {
       if (_auth.currentUser == null) {
         developer.log('Initializing silent anonymous authentication...', name: 'AuthService');
-        return await _signInAnonymouslySafely();
+        final user = await _signInAnonymouslySafely();
+        if (user != null) {
+          AnalyticsService().logLogin(method: 'anonymous');
+        }
+        return user;
       }
       return _auth.currentUser;
     } catch (e, st) {
@@ -65,6 +70,7 @@ class AuthService {
         // Upgrade current anonymous session so local progress carries over directly
         final user = await _wrapAuthCall(() => current.linkWithCredential(credential));
         developer.log('Successfully upgraded anonymous user to Google account: ${user?.email}', name: 'AuthService');
+        AnalyticsService().logAccountLinked(provider: 'google');
         return user;
       } on FirebaseAuthException catch (e) {
         // If this Google credential belongs to a pre-existing account, sign into it
@@ -102,7 +108,9 @@ class AuthService {
         password: password,
       );
       try {
-        return await _wrapAuthCall(() => current.linkWithCredential(credential));
+        final user = await _wrapAuthCall(() => current.linkWithCredential(credential));
+        AnalyticsService().logAccountLinked(provider: 'email');
+        return user;
       } on FirebaseAuthException catch (e) {
         if (e.code == 'credential-already-in-use' || e.code == 'email-already-in-use') {
           // If the account already exists, attempt direct sign-in with the provided password.

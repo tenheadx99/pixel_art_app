@@ -55,11 +55,18 @@ class GalleryProvider extends ChangeNotifier {
 
   void setSearchQuery(String query) {
     _searchQuery = query;
+    if (query.trim().isNotEmpty) {
+      AnalyticsService().logSearch(query: query.trim());
+    }
     notifyListeners();
   }
 
   void toggleFavoritesOnly() {
     _favoritesOnly = !_favoritesOnly;
+    AnalyticsService().logGalleryFilterApplied(
+      filterType: 'favorites',
+      value: _favoritesOnly ? 'favorites_only' : 'all',
+    );
     notifyListeners();
   }
 
@@ -314,6 +321,7 @@ class GalleryProvider extends ChangeNotifier {
           _streakBrokenValue = _dailyStreak;
           _storageService.setInt(_streakBrokenAtPrefKey, _streakBrokenAtMs);
           _storageService.setInt(_streakBrokenValuePrefKey, _streakBrokenValue);
+          AnalyticsService().logStreakBroken(brokenStreakValue: _streakBrokenValue);
         }
         _dailyStreak = 0;
         _storageService.setInt(_streakPrefKey, 0);
@@ -328,7 +336,7 @@ class GalleryProvider extends ChangeNotifier {
 
   bool buyStreakFreeze(AppSettingsProvider settings) {
     if (_streakFreezes >= 2) return false;
-    if (settings.useDiamonds(150)) {
+    if (settings.useDiamonds(150, itemName: 'streak_freeze')) {
       _streakFreezes++;
       _storageService.setInt(_streakFreezesPrefKey, _streakFreezes);
       notifyListeners();
@@ -354,7 +362,9 @@ class GalleryProvider extends ChangeNotifier {
 
   bool repairStreakWithDiamonds(AppSettingsProvider settings) {
     if (!canRepairStreak) return false;
-    if (settings.useDiamonds(300)) {
+    final brokenVal = _streakBrokenValue;
+    if (settings.useDiamonds(300, itemName: 'streak_repair')) {
+      AnalyticsService().logStreakRepaired(repairedValue: brokenVal);
       _restoreStreak();
       return true;
     }
@@ -363,9 +373,11 @@ class GalleryProvider extends ChangeNotifier {
 
   void repairStreakWithAd(AdService adService, VoidCallback onRewarded) {
     if (!canRepairStreak) return;
+    final brokenVal = _streakBrokenValue;
     adService.showRewardedAd(
       placement: 'streak_repair',
       onRewarded: () {
+        AnalyticsService().logStreakRepaired(repairedValue: brokenVal);
         _restoreStreak();
         onRewarded();
       },
@@ -496,12 +508,14 @@ class GalleryProvider extends ChangeNotifier {
   bool isFavorite(String id) => _favoriteIds.contains(id);
 
   void toggleFavorite(String id) {
-    if (_favoriteIds.contains(id)) {
+    final willBeFavorite = !_favoriteIds.contains(id);
+    if (!willBeFavorite) {
       _favoriteIds.remove(id);
     } else {
       _favoriteIds.add(id);
     }
     _storageService.setStringList('favorite_ids', _favoriteIds.toList());
+    AnalyticsService().logFavoriteToggled(artId: id, isFavorite: willBeFavorite);
     notifyListeners();
   }
 
@@ -558,6 +572,7 @@ class GalleryProvider extends ChangeNotifier {
 
   void setCategory(String category) {
     _selectedCategory = category;
+    AnalyticsService().logGalleryFilterApplied(filterType: 'category', value: category);
     notifyListeners();
   }
 
@@ -571,13 +586,19 @@ class GalleryProvider extends ChangeNotifier {
 
   void unlockForSession(String id) {
     _sessionUnlockedIds.add(id);
+    AnalyticsService().logArtworkUnlocked(artId: id, unlockType: 'rewarded_ad');
     notifyListeners();
   }
 
   /// Permanently unlocks [id] after a diamond purchase.
-  void unlockWithDiamonds(String id) {
+  void unlockWithDiamonds(String id, {int cost = 0}) {
     _diamondUnlockedIds.add(id);
     _storageService.addToStringSet(_diamondUnlockedPrefKey, id);
+    AnalyticsService().logArtworkUnlocked(
+      artId: id,
+      unlockType: 'diamond',
+      diamondCost: cost > 0 ? cost : null,
+    );
     notifyListeners();
   }
 

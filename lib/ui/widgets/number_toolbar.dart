@@ -1914,7 +1914,7 @@ class _OutOfHintsDialog extends StatelessWidget {
                             final messenger = ScaffoldMessenger.maybeOf(context);
                             Navigator.of(context).pop();
                             final totalCost = cost * count;
-                            if (settings.useDiamonds(totalCost)) {
+                            if (settings.useDiamonds(totalCost, itemName: 'hint_refill')) {
                               settings.addHints(count);
                               messenger?.showSnackBar(
                                 SnackBar(

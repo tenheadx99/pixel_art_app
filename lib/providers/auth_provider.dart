@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../data/services/analytics_service.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/cloud_sync_service.dart';
 import '../data/services/local_storage_service.dart';
@@ -64,6 +65,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       if (user != null || isAuthenticated) {
+        AnalyticsService().logLogin(method: 'google');
         await syncCloudData(settings: settings, gallery: gallery);
       }
       return true;
@@ -82,6 +84,7 @@ class AuthProvider extends ChangeNotifier {
         _errorMessage = 'Configuration error (ApiException 10): Ensure debug SHA-1 is added in Firebase Console and google-services.json is updated.';
       } else if (isAuthenticated) {
         // Native auth succeeded despite platform interface error
+        AnalyticsService().logLogin(method: 'google');
         await syncCloudData(settings: settings, gallery: gallery);
         return true;
       } else {
@@ -109,6 +112,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       if (user != null || isAuthenticated) {
+        AnalyticsService().logLogin(method: 'email');
         await syncCloudData(settings: settings, gallery: gallery);
       }
       return true;
@@ -121,6 +125,7 @@ class AuthProvider extends ChangeNotifier {
       developer.log('Sign in error', name: 'Auth', error: e, stackTrace: st);
       _isLoading = false;
       if (isAuthenticated) {
+        AnalyticsService().logLogin(method: 'email');
         await syncCloudData(settings: settings, gallery: gallery);
         return true;
       }
@@ -147,6 +152,7 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       if (user != null || isAuthenticated) {
+        AnalyticsService().logSignUp(method: 'email');
         await syncCloudData(settings: settings, gallery: gallery);
       }
       return true;
@@ -159,6 +165,7 @@ class AuthProvider extends ChangeNotifier {
       developer.log('Register error', name: 'Auth', error: e, stackTrace: st);
       _isLoading = false;
       if (isAuthenticated) {
+        AnalyticsService().logSignUp(method: 'email');
         await syncCloudData(settings: settings, gallery: gallery);
         return true;
       }
@@ -184,6 +191,12 @@ class AuthProvider extends ChangeNotifier {
       storage: _storage,
       settingsProvider: settings,
       galleryProvider: gallery,
+    );
+
+    AnalyticsService().logCloudSync(
+      success: result.success,
+      artworksCount: result.completedArtsCount,
+      error: result.error,
     );
 
     _isSyncing = false;

@@ -46,10 +46,14 @@ class IAPService {
   Future<void> restorePurchases() async {
     if (!_enabled) return;
     try {
-      if (!await InAppPurchase.instance.isAvailable()) return;
+      if (!await InAppPurchase.instance.isAvailable()) {
+        AnalyticsService().logRestoreFailed(errorCode: 'store_unavailable');
+        return;
+      }
       await InAppPurchase.instance.restorePurchases();
     } catch (e) {
       developer.log('restorePurchases failed', name: 'IAP', error: e);
+      AnalyticsService().logRestoreFailed(errorCode: e.toString());
     }
   }
 
