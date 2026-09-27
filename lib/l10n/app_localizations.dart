@@ -221,7 +221,7 @@ abstract class AppLocalizations {
   /// No description provided for @rateUs.
   ///
   /// In en, this message translates to:
-  /// **'Rate Us'**
+  /// **'Write Review'**
   String get rateUs;
 
   /// No description provided for @termsOfService.

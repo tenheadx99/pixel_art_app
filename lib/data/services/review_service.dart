@@ -15,6 +15,7 @@ class ReviewService {
   ReviewService._();
 
   static const String _hasRatedKey = 'app_has_rated';
+  static const String _userSubmittedRatingKey = 'app_user_submitted_rating';
   static const String _lastRequestKey = 'review_last_request_ms';
 
   bool _dismissedOnHomeThisSession = false;
@@ -28,8 +29,15 @@ class ReviewService {
   }
 
   /// Whether the user has already submitted a rating / review.
-  bool hasRated(LocalStorageService storage) =>
-      storage.getBool(_hasRatedKey, defaultValue: false);
+  bool hasRated(LocalStorageService storage) {
+    if (!storage.getBool(_userSubmittedRatingKey, defaultValue: false)) {
+      if (storage.getBool(_hasRatedKey, defaultValue: false)) {
+        storage.setBool(_hasRatedKey, false);
+      }
+      return false;
+    }
+    return storage.getBool(_hasRatedKey, defaultValue: false);
+  }
 
   /// Whether the rating prompt should be shown on the home artwork listing screen.
   /// Shows if user completed at least 1 artwork, hasn't rated yet, and hasn't
@@ -66,6 +74,7 @@ class ReviewService {
     required LocalStorageService storage,
     int stars = 5,
   }) async {
+    storage.setBool(_userSubmittedRatingKey, true);
     storage.setBool(_hasRatedKey, true);
     storage.setInt(_lastRequestKey, DateTime.now().millisecondsSinceEpoch);
 
@@ -85,6 +94,7 @@ class ReviewService {
     bool markRated = true,
   }) async {
     if (markRated) {
+      storage.setBool(_userSubmittedRatingKey, true);
       storage.setBool(_hasRatedKey, true);
     }
     storage.setInt(_lastRequestKey, DateTime.now().millisecondsSinceEpoch);

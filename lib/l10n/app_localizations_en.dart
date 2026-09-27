@@ -66,7 +66,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get privacyPolicy => 'Privacy Policy';
 
   @override
-  String get rateUs => 'Rate Us';
+  String get rateUs => 'Write Review';
 
   @override
   String get termsOfService => 'Terms of Service';

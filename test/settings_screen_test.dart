@@ -63,5 +63,8 @@ void main() {
     // Now scroll down to verify later sections
     await tester.scrollUntilVisible(find.text('How to Play (Guide)'), 200);
     expect(find.text('How to Play (Guide)'), findsOneWidget);
+
+    await tester.scrollUntilVisible(find.text('Write Review'), 200);
+    expect(find.text('Write Review'), findsOneWidget);
   });
 }

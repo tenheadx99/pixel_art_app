@@ -6,7 +6,6 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
-import '../../data/services/local_storage_service.dart';
 import '../../data/services/review_service.dart';
 import '../../data/services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
@@ -32,7 +31,7 @@ class SettingsScreen extends StatelessWidget {
     final hapticTitle = l10n?.hapticFeedback ?? 'Vibration & Haptics';
     final soundTitle = l10n?.soundEffects ?? 'Sound Effects';
     final langTitle = l10n?.language ?? 'Language';
-    final rateUsTitle = l10n?.rateUs ?? 'Rate Us';
+    final rateUsTitle = 'Write Review';
     final privacyTitle = l10n?.privacyPolicy ?? 'Privacy Policy';
     final termsTitle = l10n?.termsOfService ?? 'Terms of Service';
 
@@ -317,13 +316,24 @@ class SettingsScreen extends StatelessWidget {
                   ListTile(
                     leading: _buildIconCircle(Icons.star_rounded, const Color(0xFFFFB300), isDark),
                     title: Text(rateUsTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
-                    subtitle: const Text('Rate your experience in the app', style: TextStyle(fontSize: 12)),
+                    subtitle: const Text('Rate your experience on Google Play', style: TextStyle(fontSize: 12)),
                     trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
+                    onTap: () async {
                       HapticFeedback.lightImpact();
-                      ReviewService().requestInAppReview(
-                        storage: context.read<LocalStorageService>(),
-                      );
+                      try {
+                        await ReviewService().openStoreListing();
+                      } catch (_) {
+                        try {
+                          final info = await PackageInfo.fromPlatform();
+                          final uri = Uri.parse('market://details?id=${info.packageName}');
+                          if (await canLaunchUrl(uri)) {
+                            await launchUrl(uri, mode: LaunchMode.externalApplication);
+                          } else {
+                            final webUri = Uri.parse('https://play.google.com/store/apps/details?id=${info.packageName}');
+                            await launchUrl(webUri, mode: LaunchMode.externalApplication);
+                          }
+                        } catch (_) {}
+                      }
                     },
                   ),
                   _buildDivider(isDark),

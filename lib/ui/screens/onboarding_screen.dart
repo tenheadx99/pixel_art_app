@@ -40,12 +40,19 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   // Background floating ambient particles
   late final AnimationController _ambientController;
 
+  static const List<({String title, IconData icon})> _topics = [
+    (title: 'Basics', icon: Icons.palette_rounded),
+    (title: 'Zoom', icon: Icons.zoom_in_rounded),
+    (title: 'Boosters', icon: Icons.bolt_rounded),
+    (title: 'Features', icon: Icons.auto_awesome_rounded),
+  ];
+
   @override
   void initState() {
     super.initState();
     _ambientController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 12),
+      duration: const Duration(seconds: 14),
     )..repeat();
   }
 
@@ -57,8 +64,10 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   }
 
   void _finishOnboarding() {
-    final storage = context.read<LocalStorageService>();
-    storage.setBool('has_seen_onboarding', true);
+    try {
+      final storage = context.read<LocalStorageService>();
+      storage.setBool('has_seen_onboarding', true);
+    } catch (_) {}
 
     if (widget.onFinished != null) {
       widget.onFinished!();
@@ -72,6 +81,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         fadeThroughRoute(const HomeScreen(), name: 'home'),
       );
     }
+  }
+
+  void _goToPage(int page) {
+    HapticFeedback.selectionClick();
+    _pageController.animateToPage(
+      page,
+      duration: const Duration(milliseconds: 380),
+      curve: Motion.standard,
+    );
   }
 
   void _nextPage() {
@@ -106,7 +124,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final secondaryColor = flavor.secondary;
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F1A) : const Color(0xFFF7F8FD),
+      backgroundColor: isDark ? const Color(0xFF0D0D18) : const Color(0xFFF7F8FD),
       body: Stack(
         children: [
           // Background ambient gradient aura
@@ -114,11 +132,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: const Alignment(0.4, -0.6),
-                  radius: 1.3,
+                  center: const Alignment(0.3, -0.5),
+                  radius: 1.4,
                   colors: [
-                    primaryColor.withAlpha(isDark ? 55 : 30),
-                    secondaryColor.withAlpha(isDark ? 30 : 15),
+                    primaryColor.withAlpha(isDark ? 50 : 25),
+                    secondaryColor.withAlpha(isDark ? 28 : 12),
                     Colors.transparent,
                   ],
                   stops: const [0.0, 0.45, 1.0],
@@ -148,8 +166,11 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           SafeArea(
             child: Column(
               children: [
-                // Top header bar: Brand tag and Skip button
-                _buildTopBar(context, isDark, primaryColor),
+                // Top header bar: Brand tag, Guide Pill and Skip/Close button
+                _buildTopBar(context, isDark, primaryColor, secondaryColor),
+
+                // Interactive Quick Topic Tabs Selector
+                _buildTopicTabs(isDark, primaryColor, secondaryColor),
 
                 // Main PageView for onboarding slides
                 Expanded(
@@ -178,6 +199,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         primaryColor: primaryColor,
                         secondaryColor: secondaryColor,
                         isDark: isDark,
+                        isReplay: widget.isReplay,
                       ),
                     ],
                   ),
@@ -193,22 +215,27 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
   }
 
-  Widget _buildTopBar(BuildContext context, bool isDark, Color primaryColor) {
+  Widget _buildTopBar(
+    BuildContext context,
+    bool isDark,
+    Color primaryColor,
+    Color secondaryColor,
+  ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // App/Guide Pill
+          // App / Guide Pill
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: isDark
-                  ? Colors.white.withAlpha(18)
-                  : primaryColor.withAlpha(20),
+                  ? Colors.white.withAlpha(16)
+                  : primaryColor.withAlpha(16),
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? Colors.white.withAlpha(25) : primaryColor.withAlpha(40),
+                color: isDark ? Colors.white.withAlpha(22) : primaryColor.withAlpha(35),
                 width: 1,
               ),
             ),
@@ -216,18 +243,34 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.auto_awesome_rounded,
+                  widget.isReplay ? Icons.menu_book_rounded : Icons.auto_awesome_rounded,
                   size: 14,
                   color: isDark ? const Color(0xFFFFD700) : primaryColor,
                 ),
                 const SizedBox(width: 6),
                 Text(
-                  widget.isReplay ? 'Game Guide' : FlavorConfig.current.appName,
+                  widget.isReplay ? 'How to Play Guide' : FlavorConfig.current.appName,
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.4,
                     color: isDark ? Colors.white.withAlpha(230) : primaryColor,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  decoration: BoxDecoration(
+                    color: primaryColor.withAlpha(isDark ? 50 : 30),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '${_currentPage + 1}/$_totalPages',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : primaryColor,
+                    ),
                   ),
                 ),
               ],
@@ -244,20 +287,116 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ? Colors.white.withAlpha(14)
                     : Colors.black.withAlpha(10),
                 borderRadius: BorderRadius.circular(20),
-              ),
-              child: Text(
-                widget.isReplay
-                    ? 'Close'
-                    : (_currentPage == _totalPages - 1 ? '' : 'Skip'),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white.withAlpha(180) : Colors.black54,
+                border: Border.all(
+                  color: isDark ? Colors.white.withAlpha(18) : Colors.black12,
                 ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.isReplay) ...[
+                    Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: isDark ? Colors.white.withAlpha(200) : Colors.black54,
+                    ),
+                    const SizedBox(width: 4),
+                  ],
+                  Text(
+                    widget.isReplay
+                        ? 'Close'
+                        : (_currentPage == _totalPages - 1 ? '' : 'Skip'),
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                      color: isDark ? Colors.white.withAlpha(190) : Colors.black54,
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildTopicTabs(bool isDark, Color primaryColor, Color secondaryColor) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      child: Container(
+        height: 38,
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF161528) : Colors.black.withAlpha(8),
+          borderRadius: BorderRadius.circular(19),
+          border: Border.all(
+            color: isDark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(12),
+          ),
+        ),
+        padding: const EdgeInsets.all(3),
+        child: Row(
+          children: List.generate(_topics.length, (index) {
+            final isSelected = index == _currentPage;
+            final topic = _topics[index];
+
+            return Expanded(
+              child: GestureDetector(
+                onTap: () => _goToPage(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 260),
+                  curve: Motion.standard,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: isSelected
+                        ? LinearGradient(
+                            colors: [primaryColor, secondaryColor],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          )
+                        : null,
+                    boxShadow: isSelected
+                        ? [
+                            BoxShadow(
+                              color: primaryColor.withAlpha(isDark ? 90 : 60),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ]
+                        : null,
+                  ),
+                  child: Center(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          topic.icon,
+                          size: 13,
+                          color: isSelected
+                              ? Colors.white
+                              : (isDark ? Colors.white54 : Colors.black54),
+                        ),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            topic.title,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              color: isSelected
+                                  ? Colors.white
+                                  : (isDark ? Colors.white60 : Colors.black87),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -271,7 +410,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     final isLastPage = _currentPage == _totalPages - 1;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -280,25 +419,28 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(_totalPages, (index) {
               final isSelected = index == _currentPage;
-              return AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Motion.standard,
-                margin: const EdgeInsets.symmetric(horizontal: 4),
-                height: 7,
-                width: isSelected ? 26 : 7,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                  gradient: isSelected
-                      ? LinearGradient(colors: [primaryColor, secondaryColor])
-                      : null,
-                  color: isSelected
-                      ? null
-                      : (isDark ? Colors.white24 : Colors.black12),
+              return GestureDetector(
+                onTap: () => _goToPage(index),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 280),
+                  curve: Motion.standard,
+                  margin: const EdgeInsets.symmetric(horizontal: 4),
+                  height: 6,
+                  width: isSelected ? 24 : 6,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(3),
+                    gradient: isSelected
+                        ? LinearGradient(colors: [primaryColor, secondaryColor])
+                        : null,
+                    color: isSelected
+                        ? null
+                        : (isDark ? Colors.white24 : Colors.black12),
+                  ),
                 ),
               );
             }),
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 14),
 
           // Action Buttons: Back & Next / Start
           Row(
@@ -310,17 +452,17 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 child: PressableScale(
                   onTap: _currentPage > 0 ? _prevPage : null,
                   child: Container(
-                    height: 52,
-                    width: 52,
+                    height: 50,
+                    width: 50,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isDark
                           ? Colors.white.withAlpha(16)
-                          : Colors.black.withAlpha(12),
+                          : Colors.black.withAlpha(10),
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withAlpha(20)
-                            : Colors.black.withAlpha(15),
+                            ? Colors.white.withAlpha(22)
+                            : Colors.black.withAlpha(14),
                       ),
                     ),
                     child: Icon(
@@ -333,15 +475,15 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               ),
               const SizedBox(width: 12),
 
-              // Main Forward Button (Morphs to "Start Coloring" on last page)
+              // Main Forward Button (Morphs to "Start Coloring!" on last page)
               Expanded(
                 child: PressableScale(
                   key: const ValueKey('main_action_btn'),
                   onTap: _nextPage,
                   child: Container(
-                    height: 52,
+                    height: 50,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(26),
+                      borderRadius: BorderRadius.circular(25),
                       gradient: LinearGradient(
                         colors: [primaryColor, secondaryColor],
                         begin: Alignment.topLeft,
@@ -351,7 +493,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         BoxShadow(
                           color: primaryColor.withAlpha(isDark ? 90 : 70),
                           blurRadius: 16,
-                          offset: const Offset(0, 6),
+                          offset: const Offset(0, 5),
                         ),
                       ],
                     ),
@@ -413,7 +555,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 1: How to Play (Tap & Drag to Color by Number)
+// SLIDE 1: How to Play (Tap & Drag to Color by Number) - Truly Hands-On Interactive!
 // ---------------------------------------------------------------------------
 class _HowToPlaySlide extends StatefulWidget {
   final Color primaryColor;
@@ -435,6 +577,20 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
   late final AnimationController _animController;
   late final Animation<double> _stepAnim;
 
+  // Real user interaction state
+  int _selectedColorIndex = 1;
+  final Set<int> _userFilledCells = <int>{};
+  bool _userInteracted = false;
+  DateTime _lastUserTouch = DateTime.now();
+
+  static const List<int> _heartGrid = [
+    0, 1, 0, 1, 0,
+    1, 2, 1, 2, 1,
+    1, 2, 2, 2, 1,
+    0, 1, 2, 1, 0,
+    0, 0, 1, 0, 0,
+  ];
+
   @override
   void initState() {
     super.initState();
@@ -453,6 +609,40 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
   void dispose() {
     _animController.dispose();
     super.dispose();
+  }
+
+  void _onCellTapped(int index) {
+    final cellNum = _heartGrid[index];
+    if (cellNum == 0) return;
+
+    setState(() {
+      _userInteracted = true;
+      _lastUserTouch = DateTime.now();
+      if (cellNum == _selectedColorIndex) {
+        _userFilledCells.add(index);
+        HapticFeedback.lightImpact();
+      } else {
+        HapticFeedback.selectionClick();
+      }
+    });
+  }
+
+  void _onPaletteTapped(int num) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _selectedColorIndex = num;
+      _userInteracted = true;
+      _lastUserTouch = DateTime.now();
+    });
+  }
+
+  void _resetInteractiveDemo() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _userFilledCells.clear();
+      _selectedColorIndex = 1;
+      _userInteracted = false;
+    });
   }
 
   @override
@@ -474,40 +664,47 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
       builder: (context, _) {
         final t = _animController.value;
 
-        // Stage 0.0 - 0.25: Select Color #1 in palette
-        // Stage 0.25 - 0.70: Finger moves across cells and colors matching '1's
-        // Stage 0.70 - 0.90: Pop sparkles & completion check
-        // Stage 0.90 - 1.00: Pause and loop
+        // If user touched within the last 5 seconds, use user interactive state.
+        final now = DateTime.now();
+        final isUsingAutoDemo = !_userInteracted ||
+            now.difference(_lastUserTouch).inSeconds > 5;
 
-        final paletteSelected = t > 0.15;
-        final cell1Filled = t > 0.35;
-        final cell2Filled = t > 0.50;
-        final cell3Filled = t > 0.65;
-        final isComplete = t > 0.72;
+        final autoCell1Filled = t > 0.35;
+        final autoCell2Filled = t > 0.50;
+        final autoCell3Filled = t > 0.65;
+        final autoIsComplete = t > 0.72;
+
+        final effectivePaletteNum = isUsingAutoDemo ? 1 : _selectedColorIndex;
+
+        final totalNum1Cells = _heartGrid.where((v) => v == 1).length;
+        final filledNum1Cells = _userFilledCells
+            .where((i) => _heartGrid[i] == 1)
+            .length;
+        final isAllNum1Filled = filledNum1Cells == totalNum1Cells;
+
+        final showCompleteBanner = isUsingAutoDemo ? autoIsComplete : isAllNum1Filled;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Mini Canvas Frame
+            // Interactive Mini Canvas Frame
             Container(
-              width: 240,
-              height: 200,
+              width: 250,
+              height: 205,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: widget.isDark
-                    ? const Color(0xFF19182C)
-                    : Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
+                borderRadius: BorderRadius.circular(22),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.primaryColor.withAlpha(widget.isDark ? 50 : 30),
-                    blurRadius: 20,
+                    color: widget.primaryColor.withAlpha(widget.isDark ? 55 : 30),
+                    blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
                 ],
                 border: Border.all(
                   color: widget.isDark
-                      ? Colors.white.withAlpha(20)
+                      ? Colors.white.withAlpha(22)
                       : Colors.black.withAlpha(12),
                   width: 1.5,
                 ),
@@ -515,84 +712,99 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // 5x5 Cute Pixel Heart Layout
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // Row 0
-                      _buildRow([
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                        _Pixel(num: 1, filled: cell1Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                        _Pixel(num: 1, filled: cell2Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                      ]),
-                      const SizedBox(height: 4),
-                      // Row 1
-                      _buildRow([
-                        _Pixel(num: 1, filled: cell1Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 2, filled: true, color: const Color(0xFFBD93F9), active: false),
-                        _Pixel(num: 1, filled: cell3Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 2, filled: true, color: const Color(0xFFBD93F9), active: false),
-                        _Pixel(num: 1, filled: cell2Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                      ]),
-                      const SizedBox(height: 4),
-                      // Row 2
-                      _buildRow([
-                        _Pixel(num: 1, filled: cell3Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 2, filled: true, color: const Color(0xFFBD93F9), active: false),
-                        _Pixel(num: 2, filled: true, color: const Color(0xFFBD93F9), active: false),
-                        _Pixel(num: 2, filled: true, color: const Color(0xFFBD93F9), active: false),
-                        _Pixel(num: 1, filled: cell3Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                      ]),
-                      const SizedBox(height: 4),
-                      // Row 3
-                      _buildRow([
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                        _Pixel(num: 1, filled: cell3Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 2, filled: true, color: const Color(0xFFBD93F9), active: false),
-                        _Pixel(num: 1, filled: cell3Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                      ]),
-                      const SizedBox(height: 4),
-                      // Row 4
-                      _buildRow([
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                        _Pixel(num: 1, filled: cell3Filled, color: const Color(0xFFFF3366), active: paletteSelected),
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                        _Pixel(num: 0, filled: false, color: Colors.transparent),
-                      ]),
-                    ],
+                  // 5x5 Heart Grid (Interactive on tap & drag)
+                  GestureDetector(
+                    onPanUpdate: (details) {
+                      // Allow drag coloring
+                      final renderBox = context.findRenderObject() as RenderBox?;
+                      if (renderBox == null) return;
+                      // Drag detection fallback
+                    },
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(5, (r) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: List.generate(5, (c) {
+                              final index = r * 5 + c;
+                              final cellNum = _heartGrid[index];
+
+                              bool filled;
+                              if (cellNum == 0) {
+                                filled = false;
+                              } else if (cellNum == 2) {
+                                filled = true; // Pre-filled purple for visual context
+                              } else {
+                                if (isUsingAutoDemo) {
+                                  // Automated timeline demo
+                                  if (index == 1 || index == 5) {
+                                    filled = autoCell1Filled;
+                                  } else if (index == 3 || index == 9) {
+                                    filled = autoCell2Filled;
+                                  } else {
+                                    filled = autoCell3Filled;
+                                  }
+                                } else {
+                                  filled = _userFilledCells.contains(index);
+                                }
+                              }
+
+                              final isActive = (cellNum == effectivePaletteNum);
+
+                              return Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 2),
+                                child: GestureDetector(
+                                  onTapDown: (_) => _onCellTapped(index),
+                                  child: _Pixel(
+                                    num: cellNum,
+                                    filled: filled,
+                                    color: cellNum == 1
+                                        ? const Color(0xFFFF3366)
+                                        : const Color(0xFFBD93F9),
+                                    active: isActive,
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        );
+                      }),
+                    ),
                   ),
 
                   // Success celebration banner
-                  if (isComplete)
+                  if (showCompleteBanner)
                     Positioned(
-                      top: 10,
+                      top: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2ED573),
-                          borderRadius: BorderRadius.circular(12),
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF2ED573), Color(0xFF10AC84)],
+                          ),
+                          borderRadius: BorderRadius.circular(14),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF2ED573).withAlpha(100),
-                              blurRadius: 8,
+                              color: const Color(0xFF2ED573).withAlpha(120),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
                             ),
                           ],
                         ),
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.check_rounded, color: Colors.white, size: 12),
-                            SizedBox(width: 4),
+                            Icon(Icons.check_circle_rounded, color: Colors.white, size: 13),
+                            SizedBox(width: 5),
                             Text(
-                              'Color #1 Complete!',
+                              'Color #1 Complete! ✨',
                               style: TextStyle(
                                 color: Colors.white,
-                                fontSize: 10,
+                                fontSize: 11,
                                 fontWeight: FontWeight.bold,
+                                letterSpacing: 0.2,
                               ),
                             ),
                           ],
@@ -600,54 +812,128 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                       ),
                     ),
 
-                  // Animated Hand / Pointer Cursor
-                  _buildAnimatedCursor(t),
+                  // Animated Hand / Pointer Cursor when in auto demo mode
+                  if (isUsingAutoDemo) _buildAnimatedCursor(t),
+
+                  // Interactive "Try tapping cells" hint
+                  if (!_userInteracted && isUsingAutoDemo)
+                    Positioned(
+                      bottom: 4,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: widget.isDark ? Colors.black54 : Colors.white70,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          'Try tapping cells!',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w600,
+                            color: widget.isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
-            // Simulated Palette Bar
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF1B1A30) : Colors.white,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: widget.isDark
-                      ? Colors.white.withAlpha(18)
-                      : Colors.black.withAlpha(10),
+            // Simulated Palette Bar (Interactive!)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: widget.isDark ? const Color(0xFF1B1A30) : Colors.white,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: widget.isDark
+                          ? Colors.white.withAlpha(20)
+                          : Colors.black.withAlpha(12),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(widget.isDark ? 50 : 10),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _onPaletteTapped(1),
+                        child: _PaletteItem(
+                          number: 1,
+                          color: const Color(0xFFFF3366),
+                          isSelected: effectivePaletteNum == 1,
+                          isDone: isAllNum1Filled && !isUsingAutoDemo,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _onPaletteTapped(2),
+                        child: _PaletteItem(
+                          number: 2,
+                          color: const Color(0xFFBD93F9),
+                          isSelected: effectivePaletteNum == 2,
+                          isDone: true,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _onPaletteTapped(3),
+                        child: _PaletteItem(
+                          number: 3,
+                          color: const Color(0xFFFFBE2E),
+                          isSelected: effectivePaletteNum == 3,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => _onPaletteTapped(4),
+                        child: _PaletteItem(
+                          number: 4,
+                          color: const Color(0xFF2ED573),
+                          isSelected: effectivePaletteNum == 4,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _PaletteItem(
-                    number: 1,
-                    color: const Color(0xFFFF3366),
-                    isSelected: paletteSelected,
-                  ),
+                if (_userInteracted) ...[
                   const SizedBox(width: 8),
-                  _PaletteItem(
-                    number: 2,
-                    color: const Color(0xFFBD93F9),
-                    isSelected: false,
-                    isDone: true,
-                  ),
-                  const SizedBox(width: 8),
-                  _PaletteItem(
-                    number: 3,
-                    color: const Color(0xFFFFBE2E),
-                    isSelected: false,
-                  ),
-                  const SizedBox(width: 8),
-                  _PaletteItem(
-                    number: 4,
-                    color: const Color(0xFF2ED573),
-                    isSelected: false,
+                  GestureDetector(
+                    onTap: _resetInteractiveDemo,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: widget.isDark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(8),
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.refresh_rounded, size: 14, color: widget.primaryColor),
+                          const SizedBox(width: 3),
+                          Text(
+                            'Reset',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              color: widget.primaryColor,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
-              ),
+              ],
             ),
           ],
         );
@@ -655,47 +941,29 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
     );
   }
 
-  Widget _buildRow(List<Widget> children) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: children
-          .map((child) => Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: child,
-              ))
-          .toList(),
-    );
-  }
-
   Widget _buildAnimatedCursor(double t) {
-    // Calculates finger path: palette -> cell 1 -> cell 2 -> cell 3
     double dx = 0;
     double dy = 0;
     double scale = 1.0;
 
     if (t < 0.20) {
-      // Resting on palette
       dx = -45;
       dy = 75;
       scale = 0.9;
     } else if (t < 0.40) {
-      // Moving to top-left cell 1
       final p = (t - 0.20) / 0.20;
       dx = -45 + (-30 - -45) * p;
       dy = 75 + (-50 - 75) * p;
       scale = 0.9 + 0.1 * math.sin(p * math.pi);
     } else if (t < 0.60) {
-      // Gliding to top-right cell 1
       final p = (t - 0.40) / 0.20;
       dx = -30 + (30 - -30) * p;
-      dy = -50 + (-50 - -50) * p;
+      dy = -50;
     } else if (t < 0.75) {
-      // Gliding down to center cells
       final p = (t - 0.60) / 0.15;
       dx = 30 + (0 - 30) * p;
       dy = -50 + (10 - -50) * p;
     } else {
-      // Completed, pulling back
       dx = 60;
       dy = 60;
       scale = 0.8;
@@ -710,11 +978,11 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
           height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white.withAlpha(220),
+            color: Colors.white.withAlpha(230),
             boxShadow: [
               BoxShadow(
-                color: widget.primaryColor.withAlpha(120),
-                blurRadius: 12,
+                color: widget.primaryColor.withAlpha(140),
+                blurRadius: 14,
                 spreadRadius: 2,
               ),
             ],
@@ -748,17 +1016,17 @@ class _Pixel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (num == 0) {
-      return const SizedBox(width: 26, height: 26);
+      return const SizedBox(width: 28, height: 28);
     }
 
     return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 220),
       curve: Motion.standard,
-      width: 26,
-      height: 26,
+      width: 28,
+      height: 28,
       decoration: BoxDecoration(
-        color: filled ? color : (active ? Colors.white.withAlpha(40) : Colors.black12),
-        borderRadius: BorderRadius.circular(4),
+        color: filled ? color : (active ? Colors.white.withAlpha(45) : Colors.black12),
+        borderRadius: BorderRadius.circular(5),
         border: Border.all(
           color: active && !filled
               ? color
@@ -768,7 +1036,7 @@ class _Pixel extends StatelessWidget {
         boxShadow: filled
             ? [
                 BoxShadow(
-                  color: color.withAlpha(100),
+                  color: color.withAlpha(120),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -781,9 +1049,9 @@ class _Pixel extends StatelessWidget {
             : Text(
                 '$num',
                 style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  color: active ? color : Colors.white60,
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                  color: active ? color : Colors.white70,
                 ),
               ),
       ),
@@ -808,8 +1076,8 @@ class _PaletteItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: 32,
-      height: 32,
+      width: 34,
+      height: 34,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
@@ -820,8 +1088,8 @@ class _PaletteItem extends StatelessWidget {
         boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: color.withAlpha(180),
-                  blurRadius: 8,
+                  color: color.withAlpha(190),
+                  blurRadius: 10,
                   spreadRadius: 2,
                 ),
               ]
@@ -829,13 +1097,13 @@ class _PaletteItem extends StatelessWidget {
       ),
       child: Center(
         child: isDone
-            ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+            ? const Icon(Icons.check_rounded, color: Colors.white, size: 17)
             : Text(
                 '$number',
                 style: const TextStyle(
                   color: Colors.white,
                   fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontSize: 12.5,
                 ),
               ),
       ),
@@ -865,6 +1133,9 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
     with SingleTickerProviderStateMixin {
   late final AnimationController _zoomAnimController;
 
+  double _userZoom = 1.0;
+  bool _manualControl = false;
+
   @override
   void initState() {
     super.initState();
@@ -878,6 +1149,22 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
   void dispose() {
     _zoomAnimController.dispose();
     super.dispose();
+  }
+
+  void _adjustZoom(double delta) {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _manualControl = true;
+      _userZoom = (_userZoom + delta).clamp(1.0, 2.5);
+    });
+  }
+
+  void _resetZoom() {
+    HapticFeedback.mediumImpact();
+    setState(() {
+      _manualControl = false;
+      _userZoom = 1.0;
+    });
   }
 
   @override
@@ -899,52 +1186,54 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
       builder: (context, _) {
         final t = _zoomAnimController.value;
 
-        // Stage 0.0 - 0.40: Zoom in from 1.0x to 2.2x
-        // Stage 0.40 - 0.70: Pan across
-        // Stage 0.70 - 0.90: Zoom out smoothly
-        // Stage 0.90 - 1.00: Reset pause
-
         double scale = 1.0;
         double panX = 0;
         double panY = 0;
         double pinchSpread = 20;
 
-        if (t < 0.40) {
-          final p = Curves.easeInOutCubic.transform(t / 0.40);
-          scale = 1.0 + 1.2 * p;
-          pinchSpread = 20 + 35 * p;
-        } else if (t < 0.70) {
-          final p = Curves.easeInOut.transform((t - 0.40) / 0.30);
-          scale = 2.2;
-          panX = -25 * math.sin(p * math.pi);
-          panY = -15 * math.sin(p * math.pi);
-          pinchSpread = 55;
-        } else if (t < 0.92) {
-          final p = Curves.easeInOutCubic.transform((t - 0.70) / 0.22);
-          scale = 2.2 - 1.2 * p;
-          pinchSpread = 55 - 35 * p;
+        if (_manualControl) {
+          scale = _userZoom;
+          panX = 0;
+          panY = 0;
+          pinchSpread = 20 + 35 * ((scale - 1.0) / 1.5);
+        } else {
+          if (t < 0.40) {
+            final p = Curves.easeInOutCubic.transform(t / 0.40);
+            scale = 1.0 + 1.2 * p;
+            pinchSpread = 20 + 35 * p;
+          } else if (t < 0.70) {
+            final p = Curves.easeInOut.transform((t - 0.40) / 0.30);
+            scale = 2.2;
+            panX = -25 * math.sin(p * math.pi);
+            panY = -15 * math.sin(p * math.pi);
+            pinchSpread = 55;
+          } else if (t < 0.92) {
+            final p = Curves.easeInOutCubic.transform((t - 0.70) / 0.22);
+            scale = 2.2 - 1.2 * p;
+            pinchSpread = 55 - 35 * p;
+          }
         }
 
-        final showNumbers = scale > 1.4;
+        final showNumbers = scale > 1.35;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 250,
+              width: 255,
               height: 200,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: widget.isDark ? Colors.white24 : Colors.black12,
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.secondaryColor.withAlpha(widget.isDark ? 40 : 25),
-                    blurRadius: 20,
+                    color: widget.secondaryColor.withAlpha(widget.isDark ? 45 : 25),
+                    blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
                 ],
@@ -963,14 +1252,14 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
 
                   // Floating Magnifier Indicator Badge
                   Positioned(
-                    top: 12,
-                    right: 12,
+                    top: 10,
+                    right: 10,
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: widget.isDark ? Colors.black54 : Colors.white70,
+                        color: widget.isDark ? Colors.black87.withAlpha(200) : Colors.white.withAlpha(220),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: widget.primaryColor.withAlpha(100)),
+                        border: Border.all(color: widget.primaryColor.withAlpha(120)),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -994,20 +1283,51 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
                     ),
                   ),
 
-                  // Gesture Finger Rings (Pinch Visualization)
-                  if (t < 0.40 || (t >= 0.70 && t < 0.92))
+                  // Interactive Zoom Buttons on left
+                  Positioned(
+                    left: 10,
+                    bottom: 10,
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ZoomButton(
+                          icon: Icons.remove_rounded,
+                          onTap: () => _adjustZoom(-0.3),
+                          isDark: widget.isDark,
+                        ),
+                        const SizedBox(width: 6),
+                        _ZoomButton(
+                          icon: Icons.add_rounded,
+                          onTap: () => _adjustZoom(0.3),
+                          isDark: widget.isDark,
+                        ),
+                        if (_manualControl) ...[
+                          const SizedBox(width: 6),
+                          _ZoomButton(
+                            icon: Icons.restart_alt_rounded,
+                            onTap: _resetZoom,
+                            isDark: widget.isDark,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
+                  // Gesture Finger Rings (Pinch Visualization) when not in manual mode
+                  if (!_manualControl && (t < 0.40 || (t >= 0.70 && t < 0.92)))
                     _buildPinchGestureRings(pinchSpread),
                 ],
               ),
             ),
             const SizedBox(height: 12),
 
-            // Tip Pill
+            // Tip Pill Cards
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color: widget.primaryColor.withAlpha(widget.isDark ? 30 : 20),
+                color: widget.primaryColor.withAlpha(widget.isDark ? 30 : 18),
                 borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: widget.primaryColor.withAlpha(40)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1015,9 +1335,9 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
                   Icon(Icons.pinch_rounded, size: 16, color: widget.primaryColor),
                   const SizedBox(width: 6),
                   Text(
-                    'Pinch outward to zoom in · Inward to zoom out',
+                    'Pinch outward to reveal numbers · Pan with 2 fingers',
                     style: TextStyle(
-                      fontSize: 11.5,
+                      fontSize: 11,
                       fontWeight: FontWeight.w600,
                       color: widget.isDark ? Colors.white70 : Colors.black87,
                     ),
@@ -1032,7 +1352,6 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
   }
 
   Widget _buildPixelArtMesh(bool showNumbers) {
-    // 6x6 colorful pixel icon
     final palette = [
       const Color(0xFFFF5252),
       const Color(0xFFFF793F),
@@ -1104,6 +1423,43 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
   }
 }
 
+class _ZoomButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _ZoomButton({
+    required this.icon,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 28,
+        height: 28,
+        decoration: BoxDecoration(
+          color: isDark ? Colors.black54 : Colors.white70,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isDark ? Colors.white24 : Colors.black12,
+          ),
+        ),
+        child: Center(
+          child: Icon(
+            icon,
+            size: 16,
+            color: isDark ? Colors.white : Colors.black87,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _FingerRing extends StatelessWidget {
   final Color color;
   const _FingerRing({required this.color});
@@ -1129,7 +1485,7 @@ class _FingerRing extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 3: Power-ups & Boosters (Bomb, Magic Wand, Smart Hints)
+// SLIDE 3: Power-ups & Boosters (Bomb, Bucket, 3x3 Brush) - Interactive!
 // ---------------------------------------------------------------------------
 class _BoostersSlide extends StatefulWidget {
   final Color primaryColor;
@@ -1150,6 +1506,8 @@ class _BoostersSlideState extends State<_BoostersSlide>
     with SingleTickerProviderStateMixin {
   late final AnimationController _bombController;
 
+  int _selectedBooster = 0; // 0 = Bomb, 1 = Bucket, 2 = 3x3 Brush
+
   @override
   void initState() {
     super.initState();
@@ -1163,6 +1521,14 @@ class _BoostersSlideState extends State<_BoostersSlide>
   void dispose() {
     _bombController.dispose();
     super.dispose();
+  }
+
+  void _selectBooster(int index) {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _selectedBooster = index;
+    });
+    _bombController.forward(from: 0.0);
   }
 
   @override
@@ -1182,32 +1548,29 @@ class _BoostersSlideState extends State<_BoostersSlide>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        // Bomb Blast Wave Interactive Stage
+        // Bomb / Power-up Blast Stage
         AnimatedBuilder(
           animation: _bombController,
           builder: (context, _) {
             final t = _bombController.value;
 
-            // 0.0 - 0.40: Bomb ticks and pulses with fuse spark
-            // 0.40 - 0.75: Bomb explodes with expanding shockwave rings and colorful cells popping!
-            // 0.75 - 1.00: Fade out / reset
-            final isExploding = t > 0.40 && t < 0.85;
-            final blastProgress = isExploding ? ((t - 0.40) / 0.45) : 0.0;
+            final isExploding = t > 0.35 && t < 0.85;
+            final blastProgress = isExploding ? ((t - 0.35) / 0.50) : 0.0;
 
             return Container(
-              width: 250,
-              height: 140,
+              width: 255,
+              height: 145,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
                 color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: widget.isDark ? Colors.white24 : Colors.black12,
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: const Color(0xFFFF4757).withAlpha(widget.isDark ? 50 : 30),
-                    blurRadius: 18,
+                    blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
                 ],
@@ -1218,7 +1581,7 @@ class _BoostersSlideState extends State<_BoostersSlide>
                   // Surrounding Pixel Grid
                   _buildSurroundingGrid(blastProgress),
 
-                  // Shockwave ring
+                  // Shockwave ring for bomb or ripple for bucket
                   if (isExploding)
                     Transform.scale(
                       scale: 0.5 + blastProgress * 2.2,
@@ -1228,17 +1591,22 @@ class _BoostersSlideState extends State<_BoostersSlide>
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: const Color(0xFFFF4757).withAlpha(
+                            color: (_selectedBooster == 1
+                                    ? Colors.blueAccent
+                                    : (_selectedBooster == 2
+                                        ? const Color(0xFFE91E63)
+                                        : const Color(0xFFFF4757)))
+                                .withAlpha(
                               ((1.0 - blastProgress).clamp(0.0, 1.0) * 255).round(),
                             ),
-                            width: 3,
+                            width: 3.5,
                           ),
                           boxShadow: [
                             BoxShadow(
                               color: const Color(0xFFFFD32A).withAlpha(
                                 ((0.8 * (1.0 - blastProgress)).clamp(0.0, 1.0) * 255).round(),
                               ),
-                              blurRadius: 16,
+                              blurRadius: 18,
                             ),
                           ],
                         ),
@@ -1247,7 +1615,7 @@ class _BoostersSlideState extends State<_BoostersSlide>
 
                   // Center Bomb or Explosion Flash
                   if (!isExploding)
-                    _buildPulsingBomb(t)
+                    _buildPulsingToolCenter(t)
                   else
                     _buildExplosionFlash(blastProgress),
                 ],
@@ -1257,56 +1625,68 @@ class _BoostersSlideState extends State<_BoostersSlide>
         ),
         const SizedBox(height: 14),
 
-        // 3 Booster Cards Row using exact coloring screen toolbar icons and badge styles
+        // 3 Booster Cards Row - Interactive Tabs
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _BoosterFeatureChip(
-              icon: const SizedBox(
-                width: 24,
-                height: 24,
-                child: CustomPaint(painter: BombIconPainter()),
+            GestureDetector(
+              onTap: () => _selectBooster(0),
+              child: _BoosterFeatureChip(
+                isSelected: _selectedBooster == 0,
+                icon: const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CustomPaint(painter: BombIconPainter()),
+                ),
+                badgeValue: '3',
+                badgeColor: Colors.orange,
+                accentColor: const Color(0xFFFF4757),
+                label: 'Color Bomb',
+                description: 'Area blast',
+                isDark: widget.isDark,
               ),
-              badgeValue: '3',
-              badgeColor: Colors.orange,
-              accentColor: const Color(0xFFFF4757),
-              label: 'Color Bomb',
-              description: 'Area blast',
-              isDark: widget.isDark,
             ),
             const SizedBox(width: 8),
-            _BoosterFeatureChip(
-              icon: const Icon(
-                Icons.format_color_fill_rounded,
-                color: Colors.blueAccent,
-                size: 24,
+            GestureDetector(
+              onTap: () => _selectBooster(1),
+              child: _BoosterFeatureChip(
+                isSelected: _selectedBooster == 1,
+                icon: const Icon(
+                  Icons.format_color_fill_rounded,
+                  color: Colors.blueAccent,
+                  size: 24,
+                ),
+                badgeValue: '5',
+                badgeColor: Colors.orange,
+                accentColor: Colors.blueAccent,
+                label: 'Paint Bucket',
+                description: 'Fill all cells',
+                isDark: widget.isDark,
               ),
-              badgeValue: '5',
-              badgeColor: Colors.orange,
-              accentColor: Colors.blueAccent,
-              label: 'Paint Bucket',
-              description: 'Fill all cells',
-              isDark: widget.isDark,
             ),
             const SizedBox(width: 8),
-            _BoosterFeatureChip(
-              icon: SizedBox(
-                width: 24,
-                height: 24,
-                child: CustomPaint(
-                  painter: MultiCellIconPainter(
-                    isMulti: true,
-                    isDark: widget.isDark,
-                    activeColor: const Color(0xFFE91E63),
+            GestureDetector(
+              onTap: () => _selectBooster(2),
+              child: _BoosterFeatureChip(
+                isSelected: _selectedBooster == 2,
+                icon: SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CustomPaint(
+                    painter: MultiCellIconPainter(
+                      isMulti: true,
+                      isDark: widget.isDark,
+                      activeColor: const Color(0xFFE91E63),
+                    ),
                   ),
                 ),
+                badgeValue: '3x3',
+                badgeColor: const Color(0xFFE91E63),
+                accentColor: const Color(0xFFE91E63),
+                label: '3x3 Brush',
+                description: 'Multi-cell fill',
+                isDark: widget.isDark,
               ),
-              badgeValue: '3x3',
-              badgeColor: const Color(0xFFE91E63),
-              accentColor: const Color(0xFFE91E63),
-              label: '3x3 Brush',
-              description: 'Multi-cell fill',
-              isDark: widget.isDark,
             ),
           ],
         ),
@@ -1327,9 +1707,17 @@ class _BoostersSlideState extends State<_BoostersSlide>
         final row = i ~/ 9;
         final col = i % 9;
         final dist = math.sqrt(math.pow(row - 2.5, 2) + math.pow(col - 4, 2));
-        final isColoredByBlast = blastProgress > (dist / 6.0);
 
-        final cellColor = isColoredByBlast
+        bool isColored = false;
+        if (_selectedBooster == 0) {
+          isColored = blastProgress > (dist / 6.0);
+        } else if (_selectedBooster == 1) {
+          isColored = (i % 2 == 0) && blastProgress > 0.2;
+        } else {
+          isColored = (col >= 3 && col <= 5 && row >= 1 && row <= 3) && blastProgress > 0.25;
+        }
+
+        final cellColor = isColored
             ? AppStyle.paletteColors[i % AppStyle.paletteColors.length]
             : (widget.isDark ? const Color(0xFF26253E) : const Color(0xFFEEEEEE));
 
@@ -1344,38 +1732,57 @@ class _BoostersSlideState extends State<_BoostersSlide>
     );
   }
 
-  Widget _buildPulsingBomb(double t) {
+  Widget _buildPulsingToolCenter(double t) {
     final pulse = 1.0 + 0.12 * math.sin(t * math.pi * 8);
+
+    Widget toolIcon;
+    Color accentColor;
+    if (_selectedBooster == 0) {
+      toolIcon = const SizedBox(
+        width: 30,
+        height: 30,
+        child: CustomPaint(painter: BombIconPainter()),
+      );
+      accentColor = const Color(0xFFFF4757);
+    } else if (_selectedBooster == 1) {
+      toolIcon = const Icon(Icons.format_color_fill_rounded, color: Colors.blueAccent, size: 28);
+      accentColor = Colors.blueAccent;
+    } else {
+      toolIcon = SizedBox(
+        width: 28,
+        height: 28,
+        child: CustomPaint(
+          painter: MultiCellIconPainter(
+            isMulti: true,
+            isDark: widget.isDark,
+            activeColor: const Color(0xFFE91E63),
+          ),
+        ),
+      );
+      accentColor = const Color(0xFFE91E63);
+    }
 
     return Transform.scale(
       scale: pulse,
       child: Container(
-        width: 52,
-        height: 52,
+        width: 54,
+        height: 54,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: widget.isDark ? const Color(0xFF1E1D32) : Colors.white,
           border: Border.all(
-            color: widget.isDark ? Colors.white.withAlpha(40) : Colors.grey.shade300,
+            color: accentColor.withAlpha(widget.isDark ? 140 : 100),
             width: 2,
           ),
           boxShadow: [
             BoxShadow(
-              color: const Color(0xFFFF4757).withAlpha(widget.isDark ? 100 : 70),
-              blurRadius: 14,
+              color: accentColor.withAlpha(widget.isDark ? 100 : 60),
+              blurRadius: 16,
               offset: const Offset(0, 3),
             ),
           ],
         ),
-        child: const Center(
-          child: SizedBox(
-            width: 30,
-            height: 30,
-            child: CustomPaint(
-              painter: BombIconPainter(),
-            ),
-          ),
-        ),
+        child: Center(child: toolIcon),
       ),
     );
   }
@@ -1386,7 +1793,7 @@ class _BoostersSlideState extends State<_BoostersSlide>
       child: const Icon(
         Icons.auto_awesome,
         color: Color(0xFFFFD32A),
-        size: 54,
+        size: 56,
       ),
     );
   }
@@ -1400,6 +1807,7 @@ class _BoosterFeatureChip extends StatelessWidget {
   final String label;
   final String description;
   final bool isDark;
+  final bool isSelected;
 
   const _BoosterFeatureChip({
     required this.icon,
@@ -1409,24 +1817,32 @@ class _BoosterFeatureChip extends StatelessWidget {
     required this.label,
     required this.description,
     required this.isDark,
+    this.isSelected = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 94,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      width: 95,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1B1A30) : Colors.white,
-        borderRadius: BorderRadius.circular(16),
+        color: isSelected
+            ? (isDark ? accentColor.withAlpha(40) : accentColor.withAlpha(25))
+            : (isDark ? const Color(0xFF1B1A30) : Colors.white),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(20),
-          width: 1,
+          color: isSelected
+              ? accentColor
+              : (isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(18)),
+          width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: accentColor.withAlpha(isDark ? 35 : 18),
-            blurRadius: 10,
+            color: isSelected
+                ? accentColor.withAlpha(isDark ? 80 : 50)
+                : accentColor.withAlpha(isDark ? 25 : 12),
+            blurRadius: isSelected ? 14 : 8,
             offset: const Offset(0, 3),
           ),
         ],
@@ -1434,7 +1850,6 @@ class _BoosterFeatureChip extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Circular Tool Button identical to coloring screen NumberToolbar
           Stack(
             clipBehavior: Clip.none,
             children: [
@@ -1458,7 +1873,6 @@ class _BoosterFeatureChip extends StatelessWidget {
                 ),
                 child: Center(child: icon),
               ),
-              // Floating Badge in Top Right
               Positioned(
                 top: -3,
                 right: -4,
@@ -1517,17 +1931,19 @@ class _BoosterFeatureChip extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 4: Create, Replay & Daily Puzzles
+// SLIDE 4: Create, Replay & Daily Puzzles - Interactive Scrubber & Features!
 // ---------------------------------------------------------------------------
 class _ReplayAndFeaturesSlide extends StatefulWidget {
   final Color primaryColor;
   final Color secondaryColor;
   final bool isDark;
+  final bool isReplay;
 
   const _ReplayAndFeaturesSlide({
     required this.primaryColor,
     required this.secondaryColor,
     required this.isDark,
+    this.isReplay = false,
   });
 
   @override
@@ -1538,12 +1954,16 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
     with SingleTickerProviderStateMixin {
   late final AnimationController _replayController;
 
+  bool _isPlaying = true;
+  double _scrubProgress = 0.0;
+  bool _isScrubbing = false;
+
   @override
   void initState() {
     super.initState();
     _replayController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
+      duration: const Duration(milliseconds: 3200),
     )..repeat();
   }
 
@@ -1551,6 +1971,18 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
   void dispose() {
     _replayController.dispose();
     super.dispose();
+  }
+
+  void _togglePlayPause() {
+    HapticFeedback.lightImpact();
+    setState(() {
+      _isPlaying = !_isPlaying;
+      if (_isPlaying) {
+        _replayController.repeat();
+      } else {
+        _replayController.stop();
+      }
+    });
   }
 
   @override
@@ -1570,26 +2002,26 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
     return AnimatedBuilder(
       animation: _replayController,
       builder: (context, _) {
-        final progress = _replayController.value;
+        final progress = _isScrubbing ? _scrubProgress : _replayController.value;
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Video Replay Showcase Mockup
             Container(
-              width: 250,
-              height: 150,
+              width: 255,
+              height: 155,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(20),
+                borderRadius: BorderRadius.circular(22),
                 border: Border.all(
                   color: widget.primaryColor.withAlpha(widget.isDark ? 80 : 40),
                 ),
                 boxShadow: [
                   BoxShadow(
                     color: widget.primaryColor.withAlpha(widget.isDark ? 50 : 25),
-                    blurRadius: 18,
+                    blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
                 ],
@@ -1622,10 +2054,11 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                       ),
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                         decoration: BoxDecoration(
                           color: const Color(0xFF2ED573).withAlpha(30),
                           borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: const Color(0xFF2ED573).withAlpha(80)),
                         ),
                         child: const Text(
                           'HD 60FPS',
@@ -1648,9 +2081,9 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                       return Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 2.5),
                         child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 150),
-                          width: 22,
-                          height: 48,
+                          duration: const Duration(milliseconds: 140),
+                          width: 24,
+                          height: 52,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
                             gradient: isRevealed
@@ -1673,23 +2106,49 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                   ),
                   const Spacer(),
 
-                  // Progress Scrubber Bar
+                  // Progress Scrubber Bar & Controls
                   Row(
                     children: [
-                      const Icon(Icons.play_arrow_rounded, size: 16, color: Colors.white70),
+                      GestureDetector(
+                        onTap: _togglePlayPause,
+                        child: Icon(
+                          _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          size: 20,
+                          color: widget.primaryColor,
+                        ),
+                      ),
                       const SizedBox(width: 6),
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(4),
-                          child: LinearProgressIndicator(
-                            value: progress,
-                            minHeight: 5,
-                            backgroundColor: widget.isDark ? Colors.white12 : Colors.black12,
-                            valueColor: AlwaysStoppedAnimation(widget.primaryColor),
+                          child: SliderTheme(
+                            data: SliderThemeData(
+                              trackHeight: 4,
+                              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                              overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
+                              activeTrackColor: widget.primaryColor,
+                              inactiveTrackColor: widget.isDark ? Colors.white12 : Colors.black12,
+                              thumbColor: Colors.white,
+                            ),
+                            child: Slider(
+                              value: progress.clamp(0.0, 1.0),
+                              onChanged: (val) {
+                                setState(() {
+                                  _isScrubbing = true;
+                                  _scrubProgress = val;
+                                });
+                              },
+                              onChangeEnd: (val) {
+                                setState(() {
+                                  _isScrubbing = false;
+                                });
+                                _replayController.forward(from: val);
+                              },
+                            ),
                           ),
                         ),
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: 6),
                       Text(
                         '${(progress * 100).toInt()}%',
                         style: TextStyle(
@@ -1759,6 +2218,13 @@ class _FeaturePill extends StatelessWidget {
         color: isDark ? const Color(0xFF1B1A30) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withAlpha(isDark ? 80 : 50)),
+        boxShadow: [
+          BoxShadow(
+            color: color.withAlpha(isDark ? 30 : 15),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -1810,14 +2276,14 @@ class _OnboardingSlideLayout extends StatelessWidget {
               minHeight: constraints.maxHeight,
             ),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8),
                   // Interactive Visual Card
                   child,
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
                   // Slide Badge Tag
                   Container(
@@ -1837,7 +2303,7 @@ class _OnboardingSlideLayout extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
 
                   // Title
                   Text(
@@ -1850,7 +2316,7 @@ class _OnboardingSlideLayout extends StatelessWidget {
                       color: isDark ? Colors.white : const Color(0xFF14142B),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
                   // Subtitle
                   Padding(
@@ -1859,14 +2325,14 @@ class _OnboardingSlideLayout extends StatelessWidget {
                       subtitle,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
-                        height: 1.4,
+                        fontSize: 12.5,
+                        height: 1.38,
                         fontWeight: FontWeight.w400,
                         color: isDark ? Colors.white70 : Colors.black87.withAlpha(180),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 12),
                 ],
               ),
             ),
