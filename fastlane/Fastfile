@@ -116,7 +116,20 @@ platform :android do
   end
 
   desc "Upload build to production only (skip metadata and screenshots)"
-  lane :upload_only do
+  lane :upload_only do |options|
+    flavor = options[:flavor] || "original"
+    package_names = {
+      "original" => "com.tenhead.pixelyart",
+      "devotional" => "com.tenhead.divinepixels",
+      "anime" => "com.tenhead.animepixels",
+      "pixelcalm" => "com.tenhead.pixelcalm",
+      "diamond" => "com.tenhead.gemart",
+      "bible" => "com.tenhead.biblepixels"
+    }
+
+    package_name = package_names[flavor]
+    UI.user_error!("Unknown flavor: #{flavor}") unless package_name
+
     # Validate Google Play credentials
     play_key = ENV["PLAY_JSON_KEY"] || File.join(PROJECT_ROOT, "play-store-key.json")
     unless (ENV["PLAY_JSON_KEY"] && !ENV["PLAY_JSON_KEY"].empty?) || File.exist?(play_key)
@@ -124,22 +137,27 @@ platform :android do
     end
 
     # Build the signed release AAB if it does not exist
-    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "originalRelease", "app-original-release.aab")
-    if File.exist?(aab_path)
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+    if File.exist?(aab_path) && (options[:rebuild] != true && options[:rebuild] != "true")
       UI.message("Signed App Bundle (.aab) already exists at #{aab_path}. Skipping rebuild!")
     else
-      build_signed
+      target_file = flavor == "original" ? "lib/main.dart" : "lib/main_#{flavor}.dart"
+      UI.message("Building signed App Bundle for flavor: #{flavor}...")
+      sh("flutter", "pub", "get")
+      sh("flutter", "build", "appbundle", "--release", "--flavor", flavor, "-t", target_file, "--dart-define=FLAVOR=#{flavor}")
     end
 
     # Dynamic credential handling
     upload_params = {
+      package_name: package_name,
       track: "production",
       release_status: "completed",
-      aab: File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "originalRelease", "app-original-release.aab"),
+      aab: aab_path,
       skip_upload_apk: true,
       skip_upload_metadata: true,
       skip_upload_images: true,
-      skip_upload_screenshots: true
+      skip_upload_screenshots: true,
+      skip_upload_changelogs: true
     }
 
     if play_key
@@ -151,7 +169,9 @@ platform :android do
     end
 
     # Upload AAB only to production
+    UI.message("Uploading #{flavor} build (#{aab_path}) to Google Play production for #{package_name}...")
     upload_to_play_store(upload_params)
+    UI.success("Successfully uploaded #{flavor} build to Google Play production!")
   end
 
   desc "Full deploy to production: build + upload + content rating"
