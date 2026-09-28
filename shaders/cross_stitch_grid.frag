@@ -17,11 +17,6 @@ uniform sampler2D uFillAge;
 
 out vec4 fragColor;
 
-// Pseudo-random noise for subtle organic cloth variation
-float hash(vec2 p) {
-    return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
-}
-
 // Signed distance to a line segment from A to B
 float sdSegment(vec2 p, vec2 a, vec2 b) {
     vec2 pa = p - a;
@@ -56,23 +51,28 @@ void main() {
     vec4 cellColor = texture(uTexture, texUV);
 
     // ================================================================
-    // ARTWORK BACKGROUND (Clean pure white aida fabric)
+    // RESOLUTION-INDEPENDENT CRISP PIXEL MATH
+    // Uses uEffectiveCell (actual screen pixel size of each cell) so
+    // anti-aliasing edges are exactly 1 screen pixel wide — never blurry!
+    // ================================================================
+    float pixSize = 1.0 / max(uEffectiveCell, 8.0);
+    float aa = clamp(pixSize * 1.0, 0.0015, 0.015);
+
+    // ================================================================
+    // ARTWORK BACKGROUND (Clean pure white fabric with subtle weave)
     // ================================================================
     vec3 fabricBase = vec3(1.0, 1.0, 1.0);        // Pure clean white
-    vec3 fabricDark = vec3(0.975, 0.975, 0.975);  // Subtle weave texture
-
-    // Aida cloth weave pattern: horizontal and vertical thread crossings
+    vec3 fabricDark = vec3(0.980, 0.980, 0.980);  // Subtle clean weave
     float weaveX = sin(cellUV.x * 3.14159 * 4.0) * 0.5 + 0.5;
     float weaveY = sin(cellUV.y * 3.14159 * 4.0) * 0.5 + 0.5;
     float weave = weaveX * 0.5 + weaveY * 0.5;
-    float noise = hash(cellCoord) * 0.015;
-    vec3 fabric = mix(fabricDark, fabricBase, weave) + vec3(noise);
+    vec3 fabric = mix(fabricDark, fabricBase, weave);
 
     // Corner needle puncture holes (eyelets where threads enter cloth)
-    vec2 cTL = vec2(0.09, 0.09);
-    vec2 cTR = vec2(0.91, 0.09);
-    vec2 cBL = vec2(0.09, 0.91);
-    vec2 cBR = vec2(0.91, 0.91);
+    vec2 cTL = vec2(0.10, 0.10);
+    vec2 cTR = vec2(0.90, 0.10);
+    vec2 cBL = vec2(0.10, 0.90);
+    vec2 cBR = vec2(0.90, 0.90);
 
     float dHoleTL = length(cellUV - cTL);
     float dHoleTR = length(cellUV - cTR);
@@ -80,13 +80,12 @@ void main() {
     float dHoleBR = length(cellUV - cBR);
     float dHole = min(min(dHoleTL, dHoleTR), min(dHoleBL, dHoleBR));
 
-    float aa = 1.5 / max(cellSize.x, cellSize.y);
-    float holeRadius = 0.055;
-    float holeMask = 1.0 - smoothstep(holeRadius - aa, holeRadius + aa * 1.5, dHole);
-    vec3 emptyHoleColor = vec3(0.86, 0.86, 0.86); // Soft grey puncture on white cloth
+    float holeRadius = 0.040;
+    float holeMask = 1.0 - smoothstep(holeRadius - aa, holeRadius + aa, dHole);
+    vec3 emptyHoleColor = vec3(0.90, 0.90, 0.90); // Delicate eyelet on white cloth
     fabric = mix(fabric, emptyHoleColor, holeMask * 0.35);
 
-    // Hairline grid: subtle boundary between cells
+    // Hairline grid border between cells
     vec2 borderThresh = vec2(0.12 / cellSize.x, 0.12 / cellSize.y);
     bool isCellBorder = cellUV.x < borderThresh.x || cellUV.x > (1.0 - borderThresh.x) ||
                         cellUV.y < borderThresh.y || cellUV.y > (1.0 - borderThresh.y);
@@ -110,13 +109,13 @@ void main() {
             return;
         }
         float fade = clamp((uEffectiveCell - 7.0) / 6.0, 0.0, 1.0);
-        vec3 gridFabric = isCellBorder ? vec3(0.90, 0.90, 0.90) : fabric;
+        vec3 gridFabric = isCellBorder ? vec3(0.92, 0.92, 0.92) : fabric;
         fragColor = vec4(mix(preview, gridFabric, fade), 1.0);
         return;
     }
 
     // ================================================================
-    // FILLED CELL -> CROSS STITCH RENDERING
+    // FILLED CELL -> CRISP 3D CROSS STITCH RENDERING
     // ================================================================
 
     // Zoomed out LOD (< 7.0): Flat colored tile
@@ -128,57 +127,47 @@ void main() {
     // --- Fill-animation timeline ---
     float age = texture(uFillAge, texUV).r * 1.6 + uTime;
 
-    // Base thread colors
+    // Vibrant, rich thread colors
     vec3 threadColor = cellColor.rgb;
-    vec3 threadLight = min(threadColor * 1.18 + vec3(0.08), vec3(1.0));
-    vec3 threadDark = threadColor * 0.62;
-    vec3 sheenColor = min(threadColor * 1.32 + vec3(0.10), vec3(1.0));
+    vec3 threadLight = min(threadColor * 1.25 + vec3(0.06), vec3(1.0));
+    vec3 threadDark = threadColor * 0.58;
+    vec3 sheenColor = min(threadColor * 1.40 + vec3(0.15), vec3(1.0));
 
     // ================================================================
     // STITCH CELL BACKGROUND: Very light pastel tint of the stitch color
     // ================================================================
-    vec3 stitchCellBg = mix(fabric, threadColor, 0.14);
-    vec3 stitchHoleColor = mix(stitchCellBg * 0.76, vec3(0.65, 0.65, 0.65), 0.35);
-    stitchCellBg = mix(stitchCellBg, stitchHoleColor, holeMask * 0.35);
+    vec3 stitchCellBg = mix(fabric, threadColor, 0.10);
+    vec3 stitchHoleColor = mix(stitchCellBg * 0.80, vec3(0.70, 0.70, 0.70), 0.30);
+    stitchCellBg = mix(stitchCellBg, stitchHoleColor, holeMask * 0.30);
 
-    // ================================================================
-    // ASYMMETRIC CROSS STITCH GEOMETRY & LAYER ELEVATION
-    // Stroke 1: Bottom thread (\) runs from TL -> BR (tucked under)
-    // Stroke 2: Top thread (/) runs from BL -> TR (arches OVER)
-    // The top thread is elevated, continuous, and casts a shadow on BR!
-    // ================================================================
+    // Anchor endpoints (centered in corner eyelets)
     vec2 TL = cTL;
     vec2 BR = cBR;
     vec2 BL = cBL;
     vec2 TR = cTR;
 
-    // Thread thickness with organic center bulge for top thread
-    float baseThreadW = 0.138;
+    // Thread thickness with subtle center bulge for top thread
+    float baseThreadW = 0.135;
     float distToCenter = length(cellUV - vec2(0.5));
-    float centerElevation = clamp(1.0 - distToCenter / 0.38, 0.0, 1.0);
+    float centerElevation = clamp(1.0 - distToCenter / 0.35, 0.0, 1.0);
 
-    // Bottom thread stays grounded, top thread bulges slightly at crossover
     float threadW1 = baseThreadW;
-    float threadW2 = baseThreadW * (1.0 + 0.08 * centerElevation);
+    float threadW2 = baseThreadW * (1.0 + 0.06 * centerElevation);
 
-    // Distances to stroke segments
+    // Distance to diagonal line segments
     float d1 = sdSegment(cellUV, TL, BR);
     float d2 = sdSegment(cellUV, BL, TR);
 
     // ================================================================
-    // FAST SLEEK STITCHING ANIMATION (~260ms total)
+    // FAST REVEAL ANIMATION (~260ms total)
     // ================================================================
     float stroke1Progress = 1.0;
     float stroke2Progress = 1.0;
 
     if (age < 0.26) {
-        // Phase 1: reveal stroke 1 (TL->BR) in 120ms
         stroke1Progress = clamp(age / 0.12, 0.0, 1.0);
-
-        // Phase 2: reveal stroke 2 (BL->TR), starts at 60ms, finishes at 180ms
         stroke2Progress = clamp((age - 0.06) / 0.12, 0.0, 1.0);
 
-        // Crisp settle bounce as stitches tighten into fabric holes
         if (age > 0.16) {
             float st = clamp((age - 0.16) / 0.10, 0.0, 1.0);
             float bounce = 1.0 + 0.05 * sin(st * 3.14159);
@@ -187,139 +176,109 @@ void main() {
         }
     }
 
-    // Reveal progression along stroke 1 (TL -> BR)
+    // Razor-sharp stroke masks (1 screen pixel anti-aliasing)
     vec2 dir1 = BR - TL;
     float len1 = length(dir1);
-    vec2 udir1 = dir1 / len1;
-    float prog1 = dot(cellUV - TL, udir1) / len1;
-    float revealCut1 = smoothstep(stroke1Progress - 0.10, stroke1Progress, prog1);
+    float prog1 = dot(cellUV - TL, dir1 / len1) / len1;
+    float revealCut1 = smoothstep(stroke1Progress - 0.06, stroke1Progress, prog1);
     float stroke1 = (1.0 - smoothstep(threadW1 - aa, threadW1 + aa, d1)) * (1.0 - revealCut1);
 
-    // Reveal progression along stroke 2 (BL -> TR)
     vec2 dir2 = TR - BL;
     float len2 = length(dir2);
-    vec2 udir2 = dir2 / len2;
-    float prog2 = dot(cellUV - BL, udir2) / len2;
-    float revealCut2 = smoothstep(stroke2Progress - 0.10, stroke2Progress, prog2);
+    float prog2 = dot(cellUV - BL, dir2 / len2) / len2;
+    float revealCut2 = smoothstep(stroke2Progress - 0.06, stroke2Progress, prog2);
     float stroke2 = (1.0 - smoothstep(threadW2 - aa, threadW2 + aa, d2)) * (1.0 - revealCut2);
 
     float stitchMask = max(stroke1, stroke2);
 
     // ================================================================
-    // 2-PLY MOULINÉ EMBROIDERY FLOSS TWIST TEXTURE
-    // ================================================================
-    float twist1 = sin(prog1 * 26.0) * 0.5 + 0.5;
-    float twist2 = sin(prog2 * 26.0 + 1.4) * 0.5 + 0.5;
-
-    // ================================================================
-    // HOLE ENTRY DEPTH (Threads dip down into corner eyelets)
-    // ================================================================
-    float holeDip1 = min(smoothstep(0.0, 0.16, prog1), smoothstep(1.0, 0.84, prog1));
-    float holeDip2 = min(smoothstep(0.0, 0.16, prog2), smoothstep(1.0, 0.84, prog2));
-
-    // ================================================================
-    // CORE HIGHLIGHT SHEEN (Twisted silk thread highlight)
-    // ================================================================
-    float sheenW1 = threadW1 * 0.36;
-    float sheenW2 = threadW2 * 0.38;
-    float sheen1 = 1.0 - smoothstep(sheenW1 - aa, sheenW1 + aa, d1);
-    float sheen2 = 1.0 - smoothstep(sheenW2 - aa, sheenW2 + aa, d2);
-
-    // Top thread catches extra sheen at the center crossover apex
-    sheen2 *= (1.0 + 0.25 * centerElevation);
-
-    // ================================================================
-    // DIRECTIONAL TILT LIGHTING & ASYMMETRIC CROSSOVER SHADING
+    // TRUE 3D CYLINDRICAL THREAD SHADING & DIRECTIONAL LIGHT
     // ================================================================
     vec2 shift = vec2(-0.5 - uTilt.x * 0.3, -0.5 + uTilt.y * 0.3);
     shift = clamp(shift, vec2(-1.0), vec2(1.0));
     vec2 lightDir = normalize(-shift);
 
-    vec2 n1 = normalize(vec2(-(BR.y - TL.y), BR.x - TL.x));
-    vec2 n2 = normalize(vec2(-(TR.y - BL.y), TR.x - BL.x));
+    // --- Stroke 1 (Bottom thread \) ---
+    float r1 = clamp(d1 / max(threadW1, 0.001), 0.0, 1.0);
+    float dome1 = sqrt(max(0.0, 1.0 - r1 * r1)); // 3D cylinder dome
+    vec2 n1_flat = normalize(vec2(-(BR.y - TL.y), BR.x - TL.x));
+    vec2 p1_cross = (cellUV - TL) - dot(cellUV - TL, dir1 / len1) * (dir1 / len1);
+    float side1 = sign(dot(p1_cross, n1_flat));
+    float light1 = clamp(dot(n1_flat * (side1 * r1), lightDir) * 0.40 + dome1 * 0.60 + 0.15, 0.0, 1.0);
 
-    float light1 = dot(n1, lightDir) * 0.5 + 0.5;
-    float light2 = dot(n2, lightDir) * 0.5 + 0.5;
+    float twist1 = sin(prog1 * 28.0) * 0.5 + 0.5;
+    vec3 thread1Base = mix(threadDark, threadLight, light1) * (0.93 + 0.07 * twist1);
+    float sheen1 = pow(clamp(1.0 - d1 / (threadW1 * 0.45), 0.0, 1.0), 2.2);
 
-    // Apply ply twist texturing to thread color
-    vec3 thread1Color = mix(threadDark, threadLight, light1) * (0.92 + 0.08 * twist1);
-    vec3 thread2Color = mix(threadDark, threadLight, light2) * (0.91 + 0.09 * twist2);
+    // --- Stroke 2 (Top thread /) ---
+    float r2 = clamp(d2 / max(threadW2, 0.001), 0.0, 1.0);
+    float dome2 = sqrt(max(0.0, 1.0 - r2 * r2)); // 3D cylinder dome
+    vec2 n2_flat = normalize(vec2(-(TR.y - BL.y), TR.x - BL.x));
+    vec2 p2_cross = (cellUV - BL) - dot(cellUV - BL, dir2 / len2) * (dir2 / len2);
+    float side2 = sign(dot(p2_cross, n2_flat));
+    float light2 = clamp(dot(n2_flat * (side2 * r2), lightDir) * 0.40 + dome2 * 0.60 + 0.20, 0.0, 1.0);
 
-    // Darken threads as they sink into the fabric puncture holes
-    thread1Color *= mix(0.72, 1.0, holeDip1);
-    thread2Color *= mix(0.75, 1.0, holeDip2);
+    float twist2 = sin(prog2 * 28.0 + 1.4) * 0.5 + 0.5;
+    vec3 thread2Base = mix(threadDark, threadLight, light2) * (0.93 + 0.07 * twist2);
+    float sheen2 = pow(clamp(1.0 - d2 / (threadW2 * 0.45), 0.0, 1.0), 2.2);
+    sheen2 *= (1.0 + 0.30 * centerElevation);
+
+    // --- Asymmetric Crossover Contact Shadow on Bottom-Right segment ---
+    float crossoverContact = stroke2 * smoothstep(0.35, 0.65, prog1);
+    thread1Base = mix(thread1Base, threadDark * 0.55, crossoverContact * 0.70);
+
+    // --- Depth dipping into corner eyelets ---
+    float holeDip1 = min(smoothstep(0.0, 0.10, prog1), smoothstep(1.0, 0.90, prog1));
+    float holeDip2 = min(smoothstep(0.0, 0.10, prog2), smoothstep(1.0, 0.90, prog2));
+    thread1Base *= mix(0.78, 1.0, holeDip1);
+    thread2Base *= mix(0.80, 1.0, holeDip2);
 
     // ================================================================
-    // BREAKING TR vs BR SYMMETRY:
-    // Stroke 2 (top thread, BL->TR) completely crosses OVER Stroke 1.
-    // At the crossing, Stroke 2 casts a pronounced contact shadow onto
-    // the Bottom-Right segment of Stroke 1!
+    // CRISP TIGHT CONTACT DROP SHADOWS (2.5 screen pixels penumbra)
     // ================================================================
-    float brSegment = smoothstep(0.38, 0.62, prog1);
-    float crossoverShadow = stroke2 * brSegment;
-    thread1Color = mix(thread1Color, threadDark * 0.60, crossoverShadow * 0.70);
-
-    // ================================================================
-    // DROP SHADOWS
-    // ================================================================
-    vec2 shadowOffset = vec2(0.016, 0.022);
+    vec2 shadowOffset = vec2(0.010, 0.014);
     float sd1_shadow = sdSegment(cellUV - shadowOffset, TL, BR);
     float sd2_shadow = sdSegment(cellUV - shadowOffset, BL, TR);
-    float shadow1 = 1.0 - smoothstep(threadW1 - aa, threadW1 + aa * 2.2, sd1_shadow);
-    float shadow2 = 1.0 - smoothstep(threadW2 - aa, threadW2 + aa * 2.2, sd2_shadow);
+
+    float shadowPenumbra = aa * 2.5;
+    float shadow1 = 1.0 - smoothstep(threadW1, threadW1 + shadowPenumbra, sd1_shadow);
+    float shadow2 = 1.0 - smoothstep(threadW2, threadW2 + shadowPenumbra, sd2_shadow);
 
     // ================================================================
     // MULTI-LAYER COMPOSITING
-    // 1. Stitch cell background (very light pastel tint of stitch color)
-    // 2. Stroke 1 (bottom thread \) shadow onto cell background
-    // 3. Stroke 1 base with ply twist & hole entry depth
-    // 4. Stroke 1 core sheen
-    // 5. Stroke 2 (top thread /) shadow onto cell background AND bottom thread
-    // 6. Stroke 2 base with ply twist, center elevation & TR highlight
-    // 7. Stroke 2 elevated core sheen & crossover luster
+    // Clean vector layering without muddy halos
     // ================================================================
     vec3 result = stitchCellBg;
 
-    // 2. Bottom thread shadow
+    // 1. Bottom thread drop shadow (only outside the thread itself)
     float s1_active = stroke1Progress > 0.05 ? 1.0 : 0.0;
-    result = mix(result, result * 0.72, shadow1 * 0.38 * s1_active);
+    result = mix(result, result * 0.68, shadow1 * 0.40 * s1_active * (1.0 - stroke1));
 
-    // 3. Bottom thread (\)
-    result = mix(result, thread1Color, stroke1);
+    // 2. Bottom thread (\) solid 3D cylinder
+    result = mix(result, thread1Base, stroke1);
 
-    // 4. Bottom thread core sheen
-    result = mix(result, sheenColor * (0.85 + 0.15 * twist1), sheen1 * stroke1 * 0.50 * holeDip1);
+    // 3. Bottom thread core silk sheen
+    result = mix(result, sheenColor, sheen1 * stroke1 * 0.45 * holeDip1);
 
-    // 5. Top thread shadow (casts onto fabric and onto stroke 1 below it)
+    // 4. Top thread drop shadow (casts onto background and onto stroke 1)
     float s2_active = stroke2Progress > 0.05 ? 1.0 : 0.0;
-    result = mix(result, result * 0.65, shadow2 * 0.48 * s2_active);
+    result = mix(result, result * 0.62, shadow2 * 0.45 * s2_active * (1.0 - stroke2));
 
-    // 6. Top thread (/) - completely covers stroke 1 at the intersection
-    result = mix(result, thread2Color, stroke2);
+    // 5. Top thread (/) solid 3D cylinder (completely covers stroke 1 at crossing)
+    result = mix(result, thread2Base, stroke2);
 
-    // 7. Top thread core sheen - enhanced along the elevated arch to TR
-    result = mix(result, sheenColor * (0.88 + 0.12 * twist2), sheen2 * stroke2 * 0.70 * holeDip2);
-
-    // ================================================================
-    // THREAD FIBERS AT HIGH ZOOM (>= 18)
-    // ================================================================
-    if (uEffectiveCell >= 18.0 && stitchMask > 0.01) {
-        float fiber1 = sin(prog1 * cellSize.x * 2.8) * 0.5 + 0.5;
-        result = mix(result, result * (0.94 + 0.06 * fiber1), stroke1 * 0.5);
-
-        float fiber2 = sin(prog2 * cellSize.x * 2.8) * 0.5 + 0.5;
-        result = mix(result, result * (0.94 + 0.06 * fiber2), stroke2 * 0.5);
-    }
+    // 6. Top thread core silk sheen (vibrant all the way to TR)
+    result = mix(result, sheenColor, sheen2 * stroke2 * 0.55 * holeDip2);
 
     // ================================================================
-    // SILK SPECULAR HIGHLIGHT (Glancing light on top thread crown)
+    // GLANCING SPECULAR GLINT ON TOP THREAD CROWN
     // ================================================================
     if (stroke2 > 0.01) {
-        vec2 specPos = vec2(0.5) + shift * 0.10;
+        vec2 specPos = vec2(0.5) + shift * 0.08;
         float specDist = length(cellUV - specPos);
-        if (specDist < 0.20) {
-            float sheen = smoothstep(0.20, 0.0, specDist);
-            result = mix(result, vec3(1.0), sheen * 0.20 * stroke2);
+        if (specDist < 0.16) {
+            float glint = smoothstep(0.16, 0.0, specDist);
+            result = mix(result, vec3(1.0), glint * 0.22 * stroke2);
         }
     }
 
@@ -328,16 +287,16 @@ void main() {
     // ================================================================
     if (age < 0.28) {
         float glow = 1.0 - clamp(age / 0.24, 0.0, 1.0);
-        result = mix(result, vec3(1.0, 0.97, 0.90), glow * glow * 0.14 * stitchMask);
-        // Fast thread-pull glint streak sweeping across during 0.08–0.22s
+        result = mix(result, vec3(1.0, 0.98, 0.92), glow * glow * 0.15 * stitchMask);
+
         if (age > 0.08 && age < 0.22) {
             float gt = clamp((age - 0.08) / 0.14, 0.0, 1.0);
             float gpos = (cellUV.x + cellUV.y) * 0.5;
             float sweep = mix(-0.2, 1.2, gt);
             float d = abs(gpos - sweep);
-            if (d < 0.10) {
-                float streak = 1.0 - d / 0.10;
-                result = mix(result, vec3(1.0), streak * streak * 0.28 * (1.0 - gt) * stitchMask);
+            if (d < 0.08) {
+                float streak = 1.0 - d / 0.08;
+                result = mix(result, vec3(1.0), streak * streak * 0.30 * (1.0 - gt) * stitchMask);
             }
         }
     }
