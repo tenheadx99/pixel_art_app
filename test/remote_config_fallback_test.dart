@@ -48,5 +48,12 @@ void main() {
         'bible_show_ads',
       );
     });
+
+    test('resolves correct keys for stitch flavor', () {
+      expect(
+        FlavorConfig.getFlavorKey(AppFlavor.stitch, 'show_ads'),
+        'stitch_show_ads',
+      );
+    });
   });
 }

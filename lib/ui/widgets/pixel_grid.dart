@@ -1451,10 +1451,10 @@ class _PixelGridPainter extends CustomPainter {
       final recorder = ui.PictureRecorder();
       final recorderCanvas = Canvas(recorder);
 
-      // Fabric background
+      // Artwork background: clean white
       recorderCanvas.drawRRect(
         RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-        Paint()..color = const Color(0xFFF5EDE3),
+        Paint()..color = Colors.white,
       );
 
       final recPaint = Paint();
@@ -1475,7 +1475,7 @@ class _PixelGridPainter extends CustomPainter {
             final color =
                 filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
-            // CPU cross-stitch: draw an X-shaped stitch
+            // CPU cross-stitch: draw an X-shaped stitch matching reference
             _drawCrossStitchCPU(recorderCanvas, rect, color, recPaint, effectiveCell);
             if (colorblindMode) {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
@@ -1486,7 +1486,7 @@ class _PixelGridPainter extends CustomPainter {
               recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             } else {
               final borderPaint = Paint()
-                ..color = const Color(0xFFD8CFC4)
+                ..color = const Color(0xFFE5E5E5)
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 0.36;
               recorderCanvas.drawRect(rect, borderPaint);
@@ -1517,7 +1517,8 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   /// CPU fallback renderer for a single cross-stitch cell: draws two diagonal
-  /// lines forming an "X" with basic thread shading.
+  /// strokes forming an "X" with dual drop shadow and core highlight sheen,
+  /// matching the dev_81_cross_stitch stitch cell reference.
   void _drawCrossStitchCPU(
     Canvas canvas,
     Rect rect,
@@ -1526,54 +1527,101 @@ class _PixelGridPainter extends CustomPainter {
     double effectiveCell,
   ) {
     // Zoomed out: flat tile
-    if (effectiveCell < 10.0) {
+    if (effectiveCell < 7.0) {
       cellPaint
         ..shader = null
         ..style = PaintingStyle.fill
         ..color = base;
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
-        cellPaint,
-      );
+      canvas.drawRect(rect, cellPaint);
       return;
     }
 
-    // Fabric background for this cell
+    // Stitch cell background: very light pastel tint of the stitch color
+    final cellBg = Color.lerp(Colors.white, base, 0.14)!;
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
-      ..color = const Color(0xFFF5EDE3);
+      ..color = cellBg;
     canvas.drawRect(rect, cellPaint);
 
-    // Thread "X" strokes
+    final inset = rect.width * 0.10;
+    // Diagonal 1: Top-Left to Bottom-Right (\) - bottom thread
+    final p1 = Offset(rect.left + inset, rect.top + inset);
+    final p2 = Offset(rect.right - inset, rect.bottom - inset);
+
+    // Diagonal 2: Bottom-Left to Top-Right (/) - top thread
+    final p3 = Offset(rect.left + inset, rect.bottom - inset);
+    final p4 = Offset(rect.right - inset, rect.top + inset);
+
+    // Corner needle puncture holes (eyelets where threads enter fabric)
+    final holeRadius = (rect.width * 0.055).clamp(1.0, 3.2);
+    final holePaint = Paint()
+      ..color = Color.lerp(cellBg, Colors.black, 0.20)!
+      ..style = PaintingStyle.fill;
+    canvas.drawCircle(p1, holeRadius, holePaint);
+    canvas.drawCircle(p2, holeRadius, holePaint);
+    canvas.drawCircle(p3, holeRadius, holePaint);
+    canvas.drawCircle(p4, holeRadius, holePaint);
+
+    final threadWidth = (rect.width * 0.28).clamp(1.4, 8.0);
+    final sheenWidth = (threadWidth * 0.36).clamp(0.6, 2.8);
+    final sheenColor = _lighten(base, 0.30);
+    const shadowColor = Color(0x32000000);
+    const shadowOffset = Offset(0.4, 0.6);
+
     final threadPaint = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = max(1.5, rect.shortestSide * 0.14)
+      ..strokeWidth = threadWidth
       ..strokeCap = StrokeCap.round
-      ..color = base;
+      ..shader = null;
 
-    final m = rect.shortestSide * 0.10; // margin
-    // Stroke 1: top-left to bottom-right
-    canvas.drawLine(
-      Offset(rect.left + m, rect.top + m),
-      Offset(rect.right - m, rect.bottom - m),
-      threadPaint,
-    );
-    // Stroke 2: bottom-left to top-right
-    canvas.drawLine(
-      Offset(rect.left + m, rect.bottom - m),
-      Offset(rect.right - m, rect.top + m),
-      threadPaint,
-    );
+    final sheenPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sheenWidth
+      ..strokeCap = StrokeCap.round
+      ..shader = null
+      ..color = sheenColor;
 
-    // Highlight on top stroke
-    threadPaint.color = _lighten(base, 0.20);
-    threadPaint.strokeWidth = max(0.8, rect.shortestSide * 0.06);
-    canvas.drawLine(
-      Offset(rect.left + m, rect.bottom - m),
-      Offset(rect.right - m, rect.top + m),
-      threadPaint,
-    );
+    // 1. Bottom thread shadow
+    threadPaint.color = shadowColor;
+    canvas.drawLine(p1 + shadowOffset, p2 + shadowOffset, threadPaint);
+
+    // 2. Bottom thread (\)
+    threadPaint.color = base;
+    canvas.drawLine(p1, p2, threadPaint);
+
+    // 3. Bottom thread core highlight sheen
+    canvas.drawLine(p1, p2, sheenPaint);
+
+    // 4. Contact shadow from crossing top thread onto the bottom-right leg of stroke 1
+    final center = rect.center;
+    final crossoverShadowPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = threadWidth * 0.95
+      ..strokeCap = StrokeCap.round
+      ..color = const Color(0x3E000000);
+    canvas.drawLine(center, Offset.lerp(center, p2, 0.40)!, crossoverShadowPaint);
+
+    // 5. Top thread shadow (casts onto fabric and under-crossing bottom thread)
+    threadPaint.color = shadowColor;
+    canvas.drawLine(p3 + shadowOffset, p4 + shadowOffset, threadPaint);
+
+    // 6. Top thread (/) - arches completely OVER stroke 1
+    threadPaint.color = base;
+    canvas.drawLine(p3, p4, threadPaint);
+
+    // 7. Top thread core highlight sheen (elevated all the way to TR)
+    canvas.drawLine(p3, p4, sheenPaint);
+
+    // 8. Crossover apex highlight on the top thread
+    final apexPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = sheenWidth * 1.3
+      ..strokeCap = StrokeCap.round
+      ..color = _lighten(base, 0.45);
+    final pApexStart = Offset.lerp(p3, p4, 0.42)!;
+    final pApexEnd = Offset.lerp(p3, p4, 0.58)!;
+    canvas.drawLine(pApexStart, pApexEnd, apexPaint);
   }
 
   // Flat-path paints, reused across frames (see note in _paintFlatBase).

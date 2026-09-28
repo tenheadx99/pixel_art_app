@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Build flavors of the app. Selected at build time via
 /// `--dart-define=FLAVOR=<name>` (defaults to [AppFlavor.original]).
-// ignore: constant_identifier_names
-enum AppFlavor { original, devotional, anime ,pixelcalm, diamond, bible, cross_stitch }
+enum AppFlavor { original, devotional, anime ,pixelcalm, diamond, bible, stitch }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor;
@@ -28,8 +27,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.diamond;
     case 'bible':
       return AppFlavor.bible;
-    case 'cross_stitch':
-      return AppFlavor.cross_stitch;
+    case 'stitch':
+      return AppFlavor.stitch;
     case 'original':
     default:
       return AppFlavor.original;
@@ -175,7 +174,7 @@ class FlavorConfig {
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',
     ),
-    AppFlavor.cross_stitch: FlavorConfig(
+    AppFlavor.stitch: FlavorConfig(
       appName: 'Suit Stitch',
       splashTitle: 'Suit Stitch',
       splashTagline: 'Stitch by Number',
@@ -184,7 +183,7 @@ class FlavorConfig {
       secondary: Color(0xFFD4A574), // Warm Linen Gold
       accent: Color(0xFF5D4037),   // Thread Brown
       brandGradient: [Color(0xFFC2185B), Color(0xFFD4A574)],
-      manifestPath: 'assets/pixel_art_cross_stitch/manifest.json',
+      manifestPath: 'assets/pixel_art_stitch/manifest.json',
       adsEnabled: false,
       cellStyle: CellRenderStyle.crossStitch,
       paletteLabel: 'Select a Thread',
