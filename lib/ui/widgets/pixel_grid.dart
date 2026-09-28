@@ -1544,7 +1544,17 @@ class _PixelGridPainter extends CustomPainter {
       ..color = cellBg;
     canvas.drawRect(rect, cellPaint);
 
-    final inset = rect.width * 0.11;
+    final inset = rect.width * 0.05;
+    // Corner eyelet holes
+    final holePaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = const Color(0x28000000);
+    final holeRadius = (rect.width * 0.06).clamp(1.0, 3.0);
+    canvas.drawCircle(Offset(rect.left + inset, rect.top + inset), holeRadius, holePaint);
+    canvas.drawCircle(Offset(rect.right - inset, rect.top + inset), holeRadius, holePaint);
+    canvas.drawCircle(Offset(rect.left + inset, rect.bottom - inset), holeRadius, holePaint);
+    canvas.drawCircle(Offset(rect.right - inset, rect.bottom - inset), holeRadius, holePaint);
+
     // Diagonal 1: Top-Left to Bottom-Right (\) - top strand
     final pTL = Offset(rect.left + inset, rect.top + inset);
     final pBR = Offset(rect.right - inset, rect.bottom - inset);
@@ -1553,7 +1563,7 @@ class _PixelGridPainter extends CustomPainter {
     final pBL = Offset(rect.left + inset, rect.bottom - inset);
     final pTR = Offset(rect.right - inset, rect.top + inset);
 
-    final threadWidth = (rect.width * 0.35).clamp(2.5, 12.0);
+    final threadWidth = (rect.width * 0.36).clamp(2.5, 12.0);
     final sheenWidth = (threadWidth * 0.28).clamp(0.8, 3.0);
     final fiberWidth = (threadWidth * 0.18).clamp(0.6, 2.0);
     final sheenColor = _lighten(base, 0.32);
