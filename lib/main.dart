@@ -70,11 +70,13 @@ Future<void> bootstrapApp() async {
   AppConfig.disableFullScreenAds = !flavor.fullScreenAdsEnabled;
   AppConfig.disableBannerAds = !flavor.bannerAdsEnabled;
 
-  // Warm the gem fragment shader before any grid paints; without this the
-  // first gem frame falls back to a whole-grid CPU bake. Fire-and-forget —
+  // Warm the fragment shader before any grid paints; without this the
+  // first frame falls back to a whole-grid CPU bake. Fire-and-forget —
   // PixelGrid retries on its own if this hasn't finished (or failed).
   if (flavor.cellStyle == CellRenderStyle.gem) {
     PixelGrid.preloadGemShader();
+  } else if (flavor.cellStyle == CellRenderStyle.crossStitch) {
+    PixelGrid.preloadCrossStitchShader();
   }
 
   // Initialize Firebase early so Crashlytics can capture errors from the very

@@ -64,7 +64,9 @@ flutter:
     - assets/pixel_art_pixelcalm/
     - assets/pixel_art_diamond/
     - assets/pixel_art_bible/
+    - assets/pixel_art_cross_stitch/
     - assets/icons/
     - assets/audio/
   shaders:
     - shaders/gem_grid.frag
+    - shaders/cross_stitch_grid.frag

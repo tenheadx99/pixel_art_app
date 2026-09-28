@@ -463,7 +463,8 @@ class _FillEffectsPainter extends CustomPainter {
     double t,
     _FillEffect e,
   ) {
-    final isGem = FlavorConfig.current.cellStyle == CellRenderStyle.gem;
+    final isGem = FlavorConfig.current.cellStyle == CellRenderStyle.gem ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch;
     final tilt = tiltNotifier?.value ?? Offset.zero;
 
     final driftX = isGem ? -tilt.dx * cellPx * 2.2 * t * t : 0.0;

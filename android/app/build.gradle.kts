@@ -143,6 +143,15 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~3438969555"
         }
+        // "Suit Stitch" — cross-stitch craft flavor.
+        create("crossStitch") {
+            dimension = "app"
+            applicationId = "com.tenhead.crossstitch"
+            resValue("string", "app_name", "Suit Stitch")
+            // TODO: register com.tenhead.suitstitch in AdMob, put its app ID here.
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-9064606616675657~3438969555"
+        }
     }
 
     lint {

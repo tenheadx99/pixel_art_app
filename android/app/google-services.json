@@ -142,6 +142,35 @@
     },
     {
       "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:2f92562b893a54aa55af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.crossstitch"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
         "mobilesdk_app_id": "1:433057017992:android:d1f8d47bd6532e9055af3d",
         "android_client_info": {
           "package_name": "com.tenhead.divinepixels"

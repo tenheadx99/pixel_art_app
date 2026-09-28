@@ -171,10 +171,12 @@ class _ColoringScreenState extends State<ColoringScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    // Tilt only drives the gem/diamond flavor's specular highlight. On flat
-    // flavors the sensor stream would repaint the whole grid for no visible
-    // change, so only subscribe when a gem flavor is active.
-    if (FlavorConfig.current.cellStyle == CellRenderStyle.gem) {
+    // Tilt only drives the gem/diamond and cross-stitch flavor's specular
+    // highlight / thread shading. On flat flavors the sensor stream would
+    // repaint the whole grid for no visible change, so only subscribe when a
+    // shader-driven flavor is active.
+    if (FlavorConfig.current.cellStyle == CellRenderStyle.gem ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch) {
       try {
         _accelerometerSubscription = accelerometerEventStream(
           samplingPeriod: SensorInterval.uiInterval,

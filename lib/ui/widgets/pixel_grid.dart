@@ -76,6 +76,12 @@ class PixelGrid extends StatefulWidget {
   /// frame falls back to the (expensive) CPU whole-grid bake.
   static Future<void> preloadGemShader() => _PixelGridState.preloadGemShader();
 
+  /// Warms the cross-stitch fragment shader. Call from main() for the
+  /// cross_stitch flavor so the program is compiled before the first grid
+  /// frame; otherwise that frame falls back to the (expensive) CPU bake.
+  static Future<void> preloadCrossStitchShader() =>
+      _PixelGridState.preloadCrossStitchShader();
+
   @override
   State<PixelGrid> createState() => _PixelGridState();
 }
@@ -92,6 +98,9 @@ class _PixelGridState extends State<PixelGrid> {
   static ui.FragmentProgram? _gemShaderProgram;
   static Future<void>? _shaderLoad;
 
+  static ui.FragmentProgram? _crossStitchShaderProgram;
+  static Future<void>? _crossStitchShaderLoad;
+
   /// Loads the gem fragment shader once per process. Safe to call repeatedly;
   /// concurrent callers share one load, and a failed load allows a retry.
   static Future<void> preloadGemShader() {
@@ -105,6 +114,19 @@ class _PixelGridState extends State<PixelGrid> {
         });
   }
 
+  /// Loads the cross-stitch fragment shader once per process.
+  static Future<void> preloadCrossStitchShader() {
+    return _crossStitchShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/cross_stitch_grid.frag')
+            .then((program) {
+              _crossStitchShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading cross-stitch GLSL shader: $e');
+              _crossStitchShaderLoad = null;
+            });
+  }
+
   // Merged per-layer repaint listenables, built once here instead of inside
   // every painter construction — painters are recreated on each provider
   // notify, and allocating a fresh Listenable.merge each time churned
@@ -113,6 +135,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _flatOverlayRepaint;
   Listenable? _gemBaseRepaint;
   Listenable? _gemOverlayRepaint;
+  Listenable? _crossStitchBaseRepaint;
+  Listenable? _crossStitchOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -154,6 +178,20 @@ class _PixelGridState extends State<PixelGrid> {
       widget.fillGrow?.settled,
       widget.fillGrow?.newlyRevealed,
     ]);
+    _crossStitchBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
+      widget.sectionShimmer,
+    ]);
+    _crossStitchOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+    ]);
   }
 
   @override
@@ -165,6 +203,11 @@ class _PixelGridState extends State<PixelGrid> {
     if (_gemShaderProgram == null) {
       preloadGemShader().then((_) {
         if (mounted && _gemShaderProgram != null) setState(() {});
+      });
+    }
+    if (_crossStitchShaderProgram == null) {
+      preloadCrossStitchShader().then((_) {
+        if (mounted && _crossStitchShaderProgram != null) setState(() {});
       });
     }
   }
@@ -364,6 +407,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.flatOverlay => _flatOverlayRepaint,
         _GridLayer.gemBase => _gemBaseRepaint,
         _GridLayer.gemOverlay => _gemOverlayRepaint,
+        _GridLayer.crossStitchBase => _crossStitchBaseRepaint,
+        _GridLayer.crossStitchOverlay => _crossStitchOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -382,15 +427,18 @@ class _PixelGridState extends State<PixelGrid> {
       hoverRow: widget.readOnly ? null : _hoverRow,
       hoverCol: widget.readOnly ? null : _hoverCol,
       gemStyle: FlavorConfig.current.cellStyle == CellRenderStyle.gem,
+      crossStitchStyle: FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
+      crossStitchShaderProgram: _crossStitchShaderProgram,
       fillVersion: widget.provider.fillVersion,
       changesSince: widget.provider.changesSince,
     );
   }
 
   Widget _buildCanvas(dynamic art) {
-    if (FlavorConfig.current.cellStyle != CellRenderStyle.gem) {
+    final cellStyle = FlavorConfig.current.cellStyle;
+    if (cellStyle == CellRenderStyle.flat) {
       // Flat mode paints in two isolated layers, mirroring the gem split: the
       // base (all settled cells, previews, borders, labels) repaints only on
       // fill/selection/zoom changes and when a grow animation settles, while
@@ -411,6 +459,27 @@ class _PixelGridState extends State<PixelGrid> {
             child: CustomPaint(
               willChange: false,
               painter: _buildPainter(art, _GridLayer.flatOverlay),
+            ),
+          ),
+        ],
+      );
+    }
+    if (cellStyle == CellRenderStyle.crossStitch) {
+      // Cross-stitch mode: same two-layer architecture as gem.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.crossStitchBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.crossStitchOverlay),
             ),
           ),
         ],
@@ -461,7 +530,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -485,8 +554,12 @@ class _PixelGridPainter extends CustomPainter {
   /// When true, filled cells render as faceted gems (diamond-painting flavor)
   /// instead of flat squares. Resolved once from [FlavorConfig] in build().
   final bool gemStyle;
+
+  /// When true, filled cells render as cross stitches on fabric canvas.
+  final bool crossStitchStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
+  final ui.FragmentProgram? crossStitchShaderProgram;
 
   /// Monotonic counter from the provider that bumps on every fill (and on art
   /// load). Used as the cache key for the baked gem picture and the shader's
@@ -520,8 +593,10 @@ class _PixelGridPainter extends CustomPainter {
     this.hoverRow,
     this.hoverCol,
     this.gemStyle = false,
+    this.crossStitchStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
+    this.crossStitchShaderProgram,
     this.fillVersion = 0,
     this.changesSince,
     // `repaint` is pre-merged per layer by _PixelGridState (see
@@ -1152,7 +1227,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = gemStyle ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
     final detailStep = (detail * 4).round();
@@ -1166,6 +1241,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintGemBase(canvas, size);
       case _GridLayer.gemOverlay:
         _paintGemOverlay(canvas, size);
+      case _GridLayer.crossStitchBase:
+        _paintCrossStitchBase(canvas, size);
+      case _GridLayer.crossStitchOverlay:
+        _paintCrossStitchOverlay(canvas, size);
       case _GridLayer.flatBase:
         _paintFlatBase(canvas, size);
       case _GridLayer.flatOverlay:
@@ -1325,6 +1404,176 @@ class _PixelGridPainter extends CustomPainter {
         );
       }
     }
+  }
+
+  /// Cross-stitch art body: one fragment-shader draw on the GPU path, or the
+  /// baked whole-grid picture when the shader is unavailable.
+  void _paintCrossStitchBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (crossStitchShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = crossStitchShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
+
+    // CPU fallback: baked picture (identical strategy to gem CPU path).
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      // Fabric background
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        Paint()..color = const Color(0xFFF5EDE3),
+      );
+
+      final recPaint = Paint();
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            // CPU cross-stitch: draw an X-shaped stitch
+            _drawCrossStitchCPU(recorderCanvas, rect, color, recPaint, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (detailStep == 0) {
+              final previewColor = _previewColor(expectedNumber, 0);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            } else {
+              final borderPaint = Paint()
+                ..color = const Color(0xFFD8CFC4)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.36;
+              recorderCanvas.drawRect(rect, borderPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  /// Cross-stitch overlay: cached static picture (selection tints + number
+  /// labels). Mirrors the gem overlay path.
+  void _paintCrossStitchOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+  }
+
+  /// CPU fallback renderer for a single cross-stitch cell: draws two diagonal
+  /// lines forming an "X" with basic thread shading.
+  void _drawCrossStitchCPU(
+    Canvas canvas,
+    Rect rect,
+    Color base,
+    Paint cellPaint,
+    double effectiveCell,
+  ) {
+    // Zoomed out: flat tile
+    if (effectiveCell < 10.0) {
+      cellPaint
+        ..shader = null
+        ..style = PaintingStyle.fill
+        ..color = base;
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(rect, const Radius.circular(2)),
+        cellPaint,
+      );
+      return;
+    }
+
+    // Fabric background for this cell
+    cellPaint
+      ..shader = null
+      ..style = PaintingStyle.fill
+      ..color = const Color(0xFFF5EDE3);
+    canvas.drawRect(rect, cellPaint);
+
+    // Thread "X" strokes
+    final threadPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(1.5, rect.shortestSide * 0.14)
+      ..strokeCap = StrokeCap.round
+      ..color = base;
+
+    final m = rect.shortestSide * 0.10; // margin
+    // Stroke 1: top-left to bottom-right
+    canvas.drawLine(
+      Offset(rect.left + m, rect.top + m),
+      Offset(rect.right - m, rect.bottom - m),
+      threadPaint,
+    );
+    // Stroke 2: bottom-left to top-right
+    canvas.drawLine(
+      Offset(rect.left + m, rect.bottom - m),
+      Offset(rect.right - m, rect.top + m),
+      threadPaint,
+    );
+
+    // Highlight on top stroke
+    threadPaint.color = _lighten(base, 0.20);
+    threadPaint.strokeWidth = max(0.8, rect.shortestSide * 0.06);
+    canvas.drawLine(
+      Offset(rect.left + m, rect.bottom - m),
+      Offset(rect.right - m, rect.top + m),
+      threadPaint,
+    );
   }
 
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
@@ -1790,6 +2039,8 @@ class _PixelGridPainter extends CustomPainter {
       brushSize != old.brushSize ||
       colorblindMode != old.colorblindMode ||
       gemStyle != old.gemStyle ||
+      crossStitchStyle != old.crossStitchStyle ||
+      crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).
       (layer == _GridLayer.flatOverlay &&

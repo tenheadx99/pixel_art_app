@@ -129,6 +129,29 @@
             "flutterMode": "release",
             "program": "lib/main_bible.dart",
             "toolArgs": ["--flavor", "bible", "--dart-define=FLAVOR=bible"]
+        },
+        {
+            "name": "Suit Stitch (cross_stitch)",
+            "request": "launch",
+            "type": "dart",
+            "program": "lib/main_cross_stitch.dart",
+            "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=cross_stitch"]
+        },
+        {
+            "name": "Suit Stitch (cross_stitch, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_cross_stitch.dart",
+            "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=cross_stitch"]
+        },
+        {
+            "name": "Suit Stitch (cross_stitch, release)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "release",
+            "program": "lib/main_cross_stitch.dart",
+            "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=cross_stitch"]
         }
     ]
 }

@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Build flavors of the app. Selected at build time via
 /// `--dart-define=FLAVOR=<name>` (defaults to [AppFlavor.original]).
-enum AppFlavor { original, devotional, anime ,pixelcalm, diamond, bible }
+// ignore: constant_identifier_names
+enum AppFlavor { original, devotional, anime ,pixelcalm, diamond, bible, cross_stitch }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
-/// [gem] renders a faceted "drill" for the diamond-painting flavor.
-enum CellRenderStyle { flat, gem }
+/// [gem] renders a faceted "drill" for the diamond-painting flavor;
+/// [crossStitch] renders an X-shaped thread stitch on fabric for the cross-stitch flavor.
+enum CellRenderStyle { flat, gem, crossStitch }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -26,6 +28,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.diamond;
     case 'bible':
       return AppFlavor.bible;
+    case 'cross_stitch':
+      return AppFlavor.cross_stitch;
     case 'original':
     default:
       return AppFlavor.original;
@@ -170,6 +174,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.gem,
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',
+    ),
+    AppFlavor.cross_stitch: FlavorConfig(
+      appName: 'Suit Stitch',
+      splashTitle: 'Suit Stitch',
+      splashTagline: 'Stitch by Number',
+      appIconPath: 'assets/icons/cross_stitch.png',
+      primary: Color(0xFFC2185B),  // Rose Crimson
+      secondary: Color(0xFFD4A574), // Warm Linen Gold
+      accent: Color(0xFF5D4037),   // Thread Brown
+      brandGradient: [Color(0xFFC2185B), Color(0xFFD4A574)],
+      manifestPath: 'assets/pixel_art_cross_stitch/manifest.json',
+      adsEnabled: false,
+      cellStyle: CellRenderStyle.crossStitch,
+      paletteLabel: 'Select a Thread',
+      placeVerb: 'Stitch',
     ),
   };
 
