@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 /// Build flavors of the app. Selected at build time via
 /// `--dart-define=FLAVOR=<name>` (defaults to [AppFlavor.original]).
-enum AppFlavor { original, devotional, anime, pixelcalm, diamond, bible }
+enum AppFlavor { original, devotional, anime, pixelcalm, Eamond, bible }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor.
@@ -105,7 +105,7 @@ class FlavorConfig {
       accent: Color(0xFF00F0FF), // Cyber Cyan
       brandGradient: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.devotional: FlavorConfig(
       appName: 'Divine Pixels',
@@ -166,7 +166,7 @@ class FlavorConfig {
       accent: Color(0xFFF64F59), // Ruby
       brandGradient: [Color(0xFF12C2E9), Color(0xFFC471ED)],
       manifestPath: 'assets/pixel_art_diamond/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.gem,
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',
