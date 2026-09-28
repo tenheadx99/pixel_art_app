@@ -1537,37 +1537,29 @@ class _PixelGridPainter extends CustomPainter {
     }
 
     // Stitch cell background: very light pastel tint of the stitch color
-    final cellBg = Color.lerp(Colors.white, base, 0.14)!;
+    final cellBg = Color.lerp(Colors.white, base, 0.10)!;
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
       ..color = cellBg;
     canvas.drawRect(rect, cellPaint);
 
-    final inset = rect.width * 0.10;
-    // Diagonal 1: Top-Left to Bottom-Right (\) - bottom thread
-    final p1 = Offset(rect.left + inset, rect.top + inset);
-    final p2 = Offset(rect.right - inset, rect.bottom - inset);
+    final inset = rect.width * 0.11;
+    // Diagonal 1: Top-Left to Bottom-Right (\) - top strand
+    final pTL = Offset(rect.left + inset, rect.top + inset);
+    final pBR = Offset(rect.right - inset, rect.bottom - inset);
 
-    // Diagonal 2: Bottom-Left to Top-Right (/) - top thread
-    final p3 = Offset(rect.left + inset, rect.bottom - inset);
-    final p4 = Offset(rect.right - inset, rect.top + inset);
+    // Diagonal 2: Bottom-Left to Top-Right (/) - bottom strand
+    final pBL = Offset(rect.left + inset, rect.bottom - inset);
+    final pTR = Offset(rect.right - inset, rect.top + inset);
 
-    // Corner needle puncture holes (eyelets where threads enter fabric)
-    final holeRadius = (rect.width * 0.055).clamp(1.0, 3.2);
-    final holePaint = Paint()
-      ..color = Color.lerp(cellBg, Colors.black, 0.20)!
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(p1, holeRadius, holePaint);
-    canvas.drawCircle(p2, holeRadius, holePaint);
-    canvas.drawCircle(p3, holeRadius, holePaint);
-    canvas.drawCircle(p4, holeRadius, holePaint);
-
-    final threadWidth = (rect.width * 0.28).clamp(1.4, 8.0);
-    final sheenWidth = (threadWidth * 0.36).clamp(0.6, 2.8);
-    final sheenColor = _lighten(base, 0.30);
-    const shadowColor = Color(0x32000000);
-    const shadowOffset = Offset(0.4, 0.6);
+    final threadWidth = (rect.width * 0.35).clamp(2.5, 12.0);
+    final sheenWidth = (threadWidth * 0.28).clamp(0.8, 3.0);
+    final fiberWidth = (threadWidth * 0.18).clamp(0.6, 2.0);
+    final sheenColor = _lighten(base, 0.32);
+    final fiberLight = _lighten(base, 0.18);
+    const shadowColor = Color(0x38000000);
+    const shadowOffset = Offset(0.6, 0.9);
 
     final threadPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -1582,46 +1574,66 @@ class _PixelGridPainter extends CustomPainter {
       ..shader = null
       ..color = sheenColor;
 
-    // 1. Bottom thread shadow
+    final fiberPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = fiberWidth
+      ..strokeCap = StrokeCap.round
+      ..shader = null
+      ..color = fiberLight;
+
+    // --- 1. Bottom Strand (/, BL to TR) ---
+    // Shadow
     threadPaint.color = shadowColor;
-    canvas.drawLine(p1 + shadowOffset, p2 + shadowOffset, threadPaint);
+    canvas.drawLine(pBL + shadowOffset, pTR + shadowOffset, threadPaint);
 
-    // 2. Bottom thread (\)
+    // Base strand body
     threadPaint.color = base;
-    canvas.drawLine(p1, p2, threadPaint);
+    canvas.drawLine(pBL, pTR, threadPaint);
 
-    // 3. Bottom thread core highlight sheen
-    canvas.drawLine(p1, p2, sheenPaint);
+    // Parallel multi-fiber striations
+    final perp1 = Offset(-(pTR.dy - pBL.dy), pTR.dx - pBL.dx) / (pTR - pBL).distance * (threadWidth * 0.26);
+    canvas.drawLine(pBL - perp1, pTR - perp1, fiberPaint);
+    canvas.drawLine(pBL + perp1, pTR + perp1, fiberPaint);
+    canvas.drawLine(pBL, pTR, sheenPaint);
 
-    // 4. Contact shadow from crossing top thread onto the bottom-right leg of stroke 1
+    // --- 2. Crossover Contact Shadow on Bottom Strand ---
     final center = rect.center;
-    final crossoverShadowPaint = Paint()
+    final crossoverShadow = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = threadWidth * 0.95
       ..strokeCap = StrokeCap.round
-      ..color = const Color(0x3E000000);
-    canvas.drawLine(center, Offset.lerp(center, p2, 0.40)!, crossoverShadowPaint);
+      ..color = const Color(0x45000000);
+    canvas.drawLine(Offset.lerp(pBL, center, 0.65)!, Offset.lerp(center, pTR, 0.35)!, crossoverShadow);
 
-    // 5. Top thread shadow (casts onto fabric and under-crossing bottom thread)
+    // --- 3. Top Strand (\, TL to BR) - passes completely OVER bottom strand ---
+    // Shadow onto background and bottom strand
     threadPaint.color = shadowColor;
-    canvas.drawLine(p3 + shadowOffset, p4 + shadowOffset, threadPaint);
+    canvas.drawLine(pTL + shadowOffset, pBR + shadowOffset, threadPaint);
 
-    // 6. Top thread (/) - arches completely OVER stroke 1
+    // Top strand body
     threadPaint.color = base;
-    canvas.drawLine(p3, p4, threadPaint);
+    canvas.drawLine(pTL, pBR, threadPaint);
 
-    // 7. Top thread core highlight sheen (elevated all the way to TR)
-    canvas.drawLine(p3, p4, sheenPaint);
+    // Parallel multi-fiber striations along top strand
+    final perp2 = Offset(-(pBR.dy - pTL.dy), pBR.dx - pTL.dx) / (pBR - pTL).distance * (threadWidth * 0.26);
+    canvas.drawLine(pTL - perp2, pBR - perp2, fiberPaint);
+    canvas.drawLine(pTL + perp2, pBR + perp2, fiberPaint);
+    canvas.drawLine(pTL, pBR, sheenPaint);
 
-    // 8. Crossover apex highlight on the top thread
-    final apexPaint = Paint()
+    // Crossover crown highlight
+    final crownHighlight = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = sheenWidth * 1.3
       ..strokeCap = StrokeCap.round
       ..color = _lighten(base, 0.45);
-    final pApexStart = Offset.lerp(p3, p4, 0.42)!;
-    final pApexEnd = Offset.lerp(p3, p4, 0.58)!;
-    canvas.drawLine(pApexStart, pApexEnd, apexPaint);
+    canvas.drawLine(Offset.lerp(pTL, pBR, 0.40)!, Offset.lerp(pTL, pBR, 0.60)!, crownHighlight);
+
+    // --- 4. Cell Frame Border (matching reference screenshot square frame) ---
+    final borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.5
+      ..color = const Color(0x35000000);
+    canvas.drawRect(rect, borderPaint);
   }
 
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
