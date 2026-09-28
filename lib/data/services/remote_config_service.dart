@@ -24,12 +24,31 @@ class RemoteConfigService {
       ));
 
       // Listen for real-time Remote Config updates published from Firebase Console
-      _remoteConfig.onConfigUpdated.listen((event) async {
-        await _remoteConfig.activate();
-        AppConfig.showAds = showAds;
-        developer.log('Remote Config updated in real-time!', name: 'RemoteConfig');
-        _checkForceUpdateRealtime();
-      });
+      _remoteConfig.onConfigUpdated.listen(
+        (event) async {
+          try {
+            await _remoteConfig.activate();
+            AppConfig.showAds = showAds;
+            developer.log('Remote Config updated in real-time!', name: 'RemoteConfig');
+            _checkForceUpdateRealtime();
+          } catch (e, stackTrace) {
+            developer.log(
+              'Failed to activate real-time Remote Config update',
+              name: 'RemoteConfig',
+              error: e,
+              stackTrace: stackTrace,
+            );
+          }
+        },
+        onError: (error, stackTrace) {
+          developer.log(
+            'Remote Config real-time stream connection error (continuing offline)',
+            name: 'RemoteConfig',
+            error: error,
+            stackTrace: stackTrace,
+          );
+        },
+      );
 
       // Set defaults for Remote Config
       await _remoteConfig.setDefaults(<String, dynamic>{
