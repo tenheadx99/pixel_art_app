@@ -643,17 +643,22 @@ class _PixelGridPainter extends CustomPainter {
   static final Map<int, Color> _previewCache = {};
 
   Color _previewColor(int number, int detailStep) {
-    final target = filledColors[number];
-    if (target == null) return Colors.white;
+    final target =
+        filledColors[number] ??
+        art.colorForNumber(number) ??
+        AppStyle.numberToColor(number);
     final argb = target.toARGB32();
     return _previewCache.putIfAbsent(argb * 8 + detailStep, () {
+      if (detailStep <= 0) {
+        // At initial/zoomed-out stage: show very dim color of the artwork
+        return Color.lerp(const Color(0xFFF2F2F2), target, 0.35)!;
+      }
       final luminance =
           0.299 * (target.r * 255) +
           0.587 * (target.g * 255) +
           0.114 * (target.b * 255);
       final v = (150 + luminance * 0.41).round().clamp(0, 255);
       final gray = Color.fromARGB(255, v, v, v);
-      if (detailStep <= 0) return gray;
       return Color.lerp(gray, Colors.white, detailStep / 4)!;
     });
   }

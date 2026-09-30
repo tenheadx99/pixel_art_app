@@ -755,7 +755,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     }
     final current = _transformController.value.getMaxScaleOnAxis();
     final next = (current * factor)
-        .clamp(0.5, max(4.0, 28.0 / _cellSize))
+        .clamp(1.0, max(4.0, 28.0 / _cellSize))
         .toDouble();
     final center = Offset(_viewerSize.width / 2, _viewerSize.height / 2);
     final scene = _transformController.toScene(center);
@@ -2618,7 +2618,7 @@ class _ColoringScreenState extends State<ColoringScreen>
             return InteractiveViewer(
               transformationController: _transformController,
               panEnabled: panEnabled,
-              minScale: 0.5,
+              minScale: 1.0,
               // Large grids fit the screen with tiny cells; allow zooming until a
               // cell is ~28px so every artwork stays comfortably tappable.
               maxScale: max(4.0, 28.0 / _cellSize),
@@ -3159,10 +3159,11 @@ class _MiniMapPainter extends CustomPainter {
   Color _texelColor(int r, int c) {
     final val = art.grid[r][c];
     if (val <= 0) return const Color(0x00000000);
+    final artColor = art.colorForNumber(val) ?? AppStyle.numberToColor(val);
     final isFilled =
         r < filledGrid.length && c < filledGrid[r].length && filledGrid[r][c] > 0;
-    if (isFilled) return filledColors[val] ?? const Color(0x00000000);
-    return const Color(0xFFD6D6D6);
+    if (isFilled) return filledColors[val] ?? artColor;
+    return Color.lerp(const Color(0xFFEEEEEE), artColor, 0.45)!;
   }
 
   void _updateImageIfNeeded(int width, int height) {
