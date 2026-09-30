@@ -46,7 +46,7 @@ class ArtPreviewPainter extends CustomPainter {
 
     final paint = Paint()
       ..strokeCap = StrokeCap.square
-      ..strokeWidth = max(cw, ch);
+      ..strokeWidth = max(cw, ch) + 0.15;
     for (final entry in batches.entries) {
       paint.color = Color(entry.key);
       canvas.drawRawPoints(

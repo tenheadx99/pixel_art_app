@@ -2399,7 +2399,7 @@ class _PixelArtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = AppColors.gradientForIndex(index);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PressableScale(
       // Locked items must still be tappable so _openColoring can present the
@@ -2409,16 +2409,22 @@ class _PixelArtCard extends StatelessWidget {
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
           color: Theme.of(context).cardColor,
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withAlpha(15)
+                : Colors.black.withAlpha(10),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(40),
-              blurRadius: 10,
+              color: Colors.black.withAlpha(isDark ? 50 : 12),
+              blurRadius: 12,
               offset: const Offset(0, 4),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(19),
           child: Stack(
             children: [
               Column(
@@ -2428,28 +2434,30 @@ class _PixelArtCard extends StatelessWidget {
                     child: Container(
                       decoration: BoxDecoration(
                         gradient: LinearGradient(
-                          colors: [
-                            colors[0].withAlpha(60),
-                            colors[1].withAlpha(40),
-                          ],
+                          colors: isDark
+                              ? [const Color(0xFF222433), const Color(0xFF191A26)]
+                              : [const Color(0xFFF7F8FA), const Color(0xFFECEFF5)],
                           begin: Alignment.topLeft,
                           end: Alignment.bottomRight,
                         ),
                       ),
-                      child: Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: AspectRatio(
-                            aspectRatio: art.gridWidth / art.gridHeight,
-                            // Own layer: the card's entrance animation
-                            // must not re-rasterize the preview.
-                            child: Hero(
-                              tag: 'art_canvas_${art.id}',
-                              child: RepaintBoundary(
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(19),
+                        ),
+                        child: Hero(
+                          tag: 'art_canvas_${art.id}',
+                          child: RepaintBoundary(
+                            child: FittedBox(
+                              fit: BoxFit.cover,
+                              clipBehavior: Clip.hardEdge,
+                              child: SizedBox(
+                                width: art.gridWidth.toDouble(),
+                                height: art.gridHeight.toDouble(),
                                 child: CustomPaint(
                                   painter: ArtPreviewPainter(
                                     art: art,
-                                    isCompleted: isCompleted,
+                                    isCompleted: true,
                                   ),
                                 ),
                               ),
@@ -2460,7 +2468,7 @@ class _PixelArtCard extends StatelessWidget {
                     ),
                   ),
                   Padding(
-                    padding: const EdgeInsets.all(12),
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -2468,12 +2476,13 @@ class _PixelArtCard extends StatelessWidget {
                           art.name,
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 14,
+                            fontSize: 13.5,
+                            letterSpacing: -0.2,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        const SizedBox(height: 5),
                         Row(
                           children: [
                             ...List.generate(
@@ -2488,15 +2497,21 @@ class _PixelArtCard extends StatelessWidget {
                                 return Align(
                                   widthFactor: 0.7,
                                   child: Container(
-                                    width: 14,
-                                    height: 14,
+                                    width: 15,
+                                    height: 15,
                                     decoration: BoxDecoration(
                                       color: color,
                                       shape: BoxShape.circle,
                                       border: Border.all(
-                                        color: Colors.white,
+                                        color: Theme.of(context).cardColor,
                                         width: 1.5,
                                       ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withAlpha(20),
+                                          blurRadius: 2,
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 );
@@ -2504,11 +2519,11 @@ class _PixelArtCard extends StatelessWidget {
                             ),
                             if (art.colorCount > 4)
                               Padding(
-                                padding: const EdgeInsets.only(left: 4),
+                                padding: const EdgeInsets.only(left: 5),
                                 child: Text(
                                   '+${art.colorCount - 4}',
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: 11,
                                     color: Colors.grey.shade500,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -2516,15 +2531,16 @@ class _PixelArtCard extends StatelessWidget {
                               ),
                             const Spacer(),
                             Icon(
-                              Icons.grid_on,
-                              size: 12,
+                              Icons.grid_on_rounded,
+                              size: 13,
                               color: Colors.grey.shade400,
                             ),
                             const SizedBox(width: 3),
                             Text(
                               '${art.gridWidth}',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
                                 color: Colors.grey.shade500,
                               ),
                             ),
@@ -2664,9 +2680,16 @@ class _PixelArtCard extends StatelessWidget {
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
                       color: isFavorite
-                          ? Colors.red.withAlpha(30)
-                          : Colors.black.withAlpha(30),
+                          ? (isDark ? Colors.red.withAlpha(40) : const Color(0xFFFFECEC))
+                          : (isDark ? Colors.black.withAlpha(100) : Colors.white.withAlpha(220)),
                       shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(isDark ? 40 : 15),
+                          blurRadius: 4,
+                          offset: const Offset(0, 1),
+                        ),
+                      ],
                     ),
                     child: AnimatedSwitcher(
                       duration: const Duration(milliseconds: 250),
@@ -2674,9 +2697,9 @@ class _PixelArtCard extends StatelessWidget {
                       transitionBuilder: (child, anim) =>
                           ScaleTransition(scale: anim, child: child),
                       child: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                         key: ValueKey(isFavorite),
-                        color: isFavorite ? Colors.red : Colors.white,
+                        color: isFavorite ? const Color(0xFFFF4757) : (isDark ? Colors.white70 : Colors.black54),
                         size: 16,
                       ),
                     ),
