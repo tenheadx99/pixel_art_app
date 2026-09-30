@@ -62,6 +62,14 @@
             "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
         },
         {
+            "name": "Anime Pixels (anime, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_anime.dart",
+            "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
+        },
+        {
             "name": "Anime Pixels (anime, release)",
             "request": "launch",
             "type": "dart",
@@ -73,6 +81,14 @@
             "name": "PixelCalm (pixelcalm)",
             "request": "launch",
             "type": "dart",
+            "program": "lib/main_pixelcalm.dart",
+            "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
+        },
+        {
+            "name": "PixelCalm (pixelcalm, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
             "program": "lib/main_pixelcalm.dart",
             "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
         },

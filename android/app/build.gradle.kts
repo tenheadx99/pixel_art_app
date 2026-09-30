@@ -94,6 +94,8 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
+            versionCode = 21
+            versionName = "2.0.0"
             resValue("string", "app_name", "Pixely")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~3438969555"
@@ -102,6 +104,8 @@ android {
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
+            versionCode = 21
+            versionName = "2.0.0"
             resValue("string", "app_name", "Divine Pixels")
             // TODO: register com.tenhead.divinepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -111,6 +115,8 @@ android {
         create("anime") {
             dimension = "app"
             applicationId = "com.tenhead.animepixels"
+            versionCode = 9
+            versionName = "1.0.0"
             resValue("string", "app_name", "Anime Pixels")
             // TODO: register com.tenhead.animepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -120,6 +126,8 @@ android {
         create("pixelcalm") {
             dimension = "app"
             applicationId = "com.tenhead.pixelcalm"
+            versionCode = 21
+            versionName = "2.0.0"
             resValue("string", "app_name", "PixelCalm")
             // TODO: register com.tenhead.pixelcalm in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -129,6 +137,8 @@ android {
         create("diamond") {
             dimension = "app"
             applicationId = "com.tenhead.gemart"
+            versionCode = 21
+            versionName = "2.0.0"
             resValue("string", "app_name", "Gem Art")
             // TODO: register com.tenhead.gemart in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -138,6 +148,8 @@ android {
         create("bible") {
             dimension = "app"
             applicationId = "com.tenhead.biblepixels"
+            versionCode = 21
+            versionName = "2.0.0"
             resValue("string", "app_name", "Bible Pixels")
             // TODO: register com.tenhead.biblepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -147,6 +159,8 @@ android {
         create("crossStitch") {
             dimension = "app"
             applicationId = "com.tenhead.crossstitch"
+            versionCode = 21
+            versionName = "2.0.0"
             resValue("string", "app_name", "Suit Stitch")
             // TODO: register com.tenhead.suitstitch in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
