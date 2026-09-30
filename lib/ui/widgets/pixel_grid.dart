@@ -649,17 +649,18 @@ class _PixelGridPainter extends CustomPainter {
         AppStyle.numberToColor(number);
     final argb = target.toARGB32();
     return _previewCache.putIfAbsent(argb * 8 + detailStep, () {
-      if (detailStep <= 0) {
-        // At initial/zoomed-out stage: show very dim color of the artwork
-        return Color.lerp(const Color(0xFFF2F2F2), target, 0.35)!;
-      }
       final luminance =
           0.299 * (target.r * 255) +
           0.587 * (target.g * 255) +
           0.114 * (target.b * 255);
       final v = (150 + luminance * 0.41).round().clamp(0, 255);
       final gray = Color.fromARGB(255, v, v, v);
-      return Color.lerp(gray, Colors.white, detailStep / 4)!;
+      // Soft dim artwork color
+      final dimColor = Color.lerp(gray, target, 0.50)!;
+      // detailStep 0 = fully zoomed out: dim artwork color
+      // detailStep 4 = zoomed in: tonal gray-out (no white gap)
+      final t = (detailStep / 4.0).clamp(0.0, 1.0);
+      return Color.lerp(dimColor, gray, t)!;
     });
   }
 
@@ -739,7 +740,6 @@ class _PixelGridPainter extends CustomPainter {
     final recorder = ui.PictureRecorder();
     final c = Canvas(recorder);
     final highlightPaint = Paint()..color = const Color(0x336C63FF);
-    final darkPreviewPaint = Paint()..color = const Color(0xFF808080);
 
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     for (var row = 0; row < gridHeight; row++) {
@@ -761,10 +761,15 @@ class _PixelGridPainter extends CustomPainter {
           ch - cellGap * 2,
         );
 
-        if (isSelected) {
-          c.drawRect(rect, darkPreviewPaint);
-        } else if (isHighlighted) {
-          c.drawRect(rect, highlightPaint);
+        if (detailStep > 0) {
+          if (isSelected) {
+            c.drawRect(
+              rect,
+              Paint()..color = Color.fromARGB((255 * detailStep / 4).round(), 0x80, 0x80, 0x80),
+            );
+          } else if (isHighlighted) {
+            c.drawRect(rect, highlightPaint);
+          }
         }
         if (showNumbers && detailStep > 0) {
           final tp = _numberPainter(
@@ -1234,8 +1239,8 @@ class _PixelGridPainter extends CustomPainter {
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
     final cellGap = (gemStyle || crossStitchStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
-    final detail = ((effectiveCell - 14.0) / 8.0).clamp(0.0, 1.0);
-    final detailStep = (detail * 4).round();
+    final scaleProgress = ((viewerScale - 1.02) / 0.58).clamp(0.0, 1.0);
+    final detailStep = (scaleProgress * 4).round();
     return (cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
   }
 
@@ -1340,10 +1345,9 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (detailStep == 0) {
-              final previewColor = _previewColor(expectedNumber, 0);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            } else {
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            if (detailStep > 0) {
               final borderPaint = Paint()
                 ..color = const Color(0xFFE0E0E0)
                 ..style = PaintingStyle.stroke
@@ -1486,10 +1490,9 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (detailStep == 0) {
-              final previewColor = _previewColor(expectedNumber, 0);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            } else {
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            if (detailStep > 0) {
               final borderPaint = Paint()
                 ..color = const Color(0xFFE5E5E5)
                 ..style = PaintingStyle.stroke

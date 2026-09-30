@@ -70,19 +70,17 @@ void main() {
         return;
     }
 
-    // Unfilled numbered cell -> preview ghost, fading to white grid at zoom.
+    // Unfilled numbered cell -> direct transition from color to grey-out (no white gap)
     if (cellColor.a < 0.75) {
-        // Texture samples are premultiplied; recover the straight color.
-        vec3 preview = cellColor.rgb / max(cellColor.a, 0.001);
-        // Zoomed Out LOD (< 10.0): complete artwork ghost preview
-        if (uEffectiveCell < 10.0) {
-            fragColor = vec4(preview, 1.0);
-            return;
+        vec3 color = cellColor.rgb / max(cellColor.a, 0.001);
+        float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+        vec3 gray = vec3(clamp(0.62 + luminance * 0.32, 0.62, 0.94));
+        float t = clamp((uEffectiveCell - 8.0) / 8.0, 0.0, 1.0);
+        vec3 cellBody = mix(color, gray, t);
+        if (isCellBorder && t > 0.1) {
+            cellBody = mix(cellBody, vec3(0.80, 0.80, 0.80), t);
         }
-        // Zoomed In LOD (>= 10.0): fade to clean white with hairline grid
-        float fade = clamp((uEffectiveCell - 10.0) / 6.0, 0.0, 1.0);
-        vec3 bgWhite = isCellBorder ? vec3(0.82, 0.82, 0.82) : vec3(1.0, 1.0, 1.0);
-        fragColor = vec4(mix(preview, bgWhite, fade), 1.0);
+        fragColor = vec4(cellBody, 1.0);
         return;
     }
 

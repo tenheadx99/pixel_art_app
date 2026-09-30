@@ -75,17 +75,17 @@ void main() {
         return;
     }
 
-    // Unfilled numbered cell -> soft preview fading to clean white grid at zoom
+    // Unfilled numbered cell -> direct transition from color to grey-out (no white gap)
     if (cellColor.a < 0.75) {
-        vec3 preview = cellColor.rgb / max(cellColor.a, 0.001);
-        if (uEffectiveCell < 7.0) {
-            vec3 ghostOnFabric = mix(vec3(1.0), preview, 0.35);
-            fragColor = vec4(ghostOnFabric, 1.0);
-            return;
+        vec3 color = cellColor.rgb / max(cellColor.a, 0.001);
+        float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+        vec3 gray = vec3(clamp(0.62 + luminance * 0.32, 0.62, 0.94));
+        float t = clamp((uEffectiveCell - 7.0) / 7.0, 0.0, 1.0);
+        vec3 cellBody = mix(color, gray, t);
+        if (isCellBorder && t > 0.1) {
+            cellBody = mix(cellBody, vec3(0.82, 0.82, 0.82), t);
         }
-        float fade = clamp((uEffectiveCell - 7.0) / 6.0, 0.0, 1.0);
-        vec3 gridFabric = isCellBorder ? vec3(0.85, 0.85, 0.85) : fabric;
-        fragColor = vec4(mix(preview, gridFabric, fade), 1.0);
+        fragColor = vec4(cellBody, 1.0);
         return;
     }
 
