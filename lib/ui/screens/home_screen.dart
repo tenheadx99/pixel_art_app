@@ -2399,7 +2399,7 @@ class _PixelArtCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PressableScale(
       // Locked items must still be tappable so _openColoring can present the

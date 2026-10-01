@@ -87,79 +87,100 @@ class DiamondPackConfig {
 }
 
 class PaywallConfig {
-  final String monthlyProductId;
-  final String yearlyProductId;
+  final String plus1DayProductId;
+  final String plusWeeklyProductId;
+  final String plusMonthlyProductId;
+  final String plusYearlyProductId;
+  final String removeAdsProductId;
   final String lifetimeProductId;
-  final String yearlyBadge;
-  final String monthlyBadge;
-  final String offerText;
-  final String monthlyFallbackPrice;
-  final String yearlyFallbackPrice;
+
+  final String plus1DayFallbackPrice;
+  final String plusWeeklyFallbackPrice;
+  final String plusMonthlyFallbackPrice;
+  final String plusYearlyFallbackPrice;
+  final String removeAdsFallbackPrice;
   final String lifetimeFallbackPrice;
-  final List<String> features;
+
+  final String plus1DayOffer;
+  final String plusWeeklyOffer;
+  final String plusMonthlyOffer;
+  final String plusYearlyOffer;
+  final String removeAdsOffer;
+
+  // Backward-compatible getters
+  String get monthlyProductId => plusMonthlyProductId;
+  String get yearlyProductId => plusYearlyProductId;
 
   const PaywallConfig({
-    this.monthlyProductId = 'pixel_art_plus_monthly',
-    this.yearlyProductId = 'pixel_art_plus_yearly',
-    this.lifetimeProductId = 'pixel_art_pro_lifetime',
-    this.yearlyBadge = 'SAVE 50%',
-    this.monthlyBadge = '',
-    this.offerText = 'Color everything. No interruptions.',
-    this.monthlyFallbackPrice = '\$4.99/mo',
-    this.yearlyFallbackPrice = '\$29.99/yr',
-    this.lifetimeFallbackPrice = '\$49.99',
-    this.features = const [
-      'Every premium artwork unlocked',
-      'All ads removed',
-      '+50 diamonds every day',
-      'Support new artwork packs',
-    ],
+    this.plus1DayProductId = 'pixel_art_plus_1day',
+    this.plusWeeklyProductId = 'pixel_art_plus_weekly',
+    this.plusMonthlyProductId = 'pixel_art_plus_monthly',
+    this.plusYearlyProductId = 'pixel_art_plus_yearly',
+    this.removeAdsProductId = 'pixel_art_remove_ads',
+    this.lifetimeProductId = 'pixel_art_pro',
+    this.plus1DayFallbackPrice = '\$0.99 / day',
+    this.plusWeeklyFallbackPrice = '\$2.99 / wk',
+    this.plusMonthlyFallbackPrice = '\$7.99 / mo',
+    this.plusYearlyFallbackPrice = '\$29.99 / yr',
+    this.removeAdsFallbackPrice = '\$4.99',
+    this.lifetimeFallbackPrice = '\$19.99',
+    this.plus1DayOffer = '24-Hour Pass',
+    this.plusWeeklyOffer = '7 Days Free Trial',
+    this.plusMonthlyOffer = 'Most Popular',
+    this.plusYearlyOffer = 'Save 65% Best Value',
+    this.removeAdsOffer = 'One-Time Purchase',
   });
 
   factory PaywallConfig.fromMap(Map<String, dynamic> map) {
-    List<String> feats = const [
-      'Every premium artwork unlocked',
-      'All ads removed',
-      '+50 diamonds every day',
-      'Support new artwork packs',
-    ];
-    if (map['features'] is List) {
-      feats = (map['features'] as List).map((e) => e.toString()).toList();
+    final m = (map['paywall'] is Map<String, dynamic>)
+        ? map['paywall'] as Map<String, dynamic>
+        : map;
+
+    String g(String key, String fallback) {
+      final v = m[key] ?? map[key];
+      return (v is String && v.isNotEmpty) ? v : fallback;
     }
 
     return PaywallConfig(
-      monthlyProductId:
-          map['monthlyProductId'] as String? ?? 'pixel_art_plus_monthly',
-      yearlyProductId:
-          map['yearlyProductId'] as String? ?? 'pixel_art_plus_yearly',
-      lifetimeProductId:
-          map['lifetimeProductId'] as String? ?? 'pixel_art_pro_lifetime',
-      yearlyBadge: map['yearlyBadge'] as String? ?? 'SAVE 50%',
-      monthlyBadge: map['monthlyBadge'] as String? ?? '',
-      offerText: map['offerText'] as String? ??
-          'Color everything. No interruptions.',
-      monthlyFallbackPrice:
-          map['monthlyFallbackPrice'] as String? ?? '\$4.99/mo',
-      yearlyFallbackPrice:
-          map['yearlyFallbackPrice'] as String? ?? '\$29.99/yr',
-      lifetimeFallbackPrice:
-          map['lifetimeFallbackPrice'] as String? ?? '\$49.99',
-      features: feats,
+      plus1DayProductId: g('plus_1day_product_id', 'pixel_art_plus_1day'),
+      plusWeeklyProductId: g('plus_weekly_product_id', 'pixel_art_plus_weekly'),
+      plusMonthlyProductId: g('plus_monthly_product_id', 'pixel_art_plus_monthly'),
+      plusYearlyProductId: g('plus_yearly_product_id', 'pixel_art_plus_yearly'),
+      removeAdsProductId: g('remove_ads_product_id', 'pixel_art_remove_ads'),
+      lifetimeProductId: g('pro_product_id', 'pixel_art_pro'),
+      plus1DayFallbackPrice: g('plus_1day_price', '\$0.99 / day'),
+      plusWeeklyFallbackPrice: g('plus_weekly_price', '\$2.99 / wk'),
+      plusMonthlyFallbackPrice: g('plus_monthly_price', '\$7.99 / mo'),
+      plusYearlyFallbackPrice: g('plus_yearly_price', '\$29.99 / yr'),
+      removeAdsFallbackPrice: g('remove_ads_price', '\$4.99'),
+      lifetimeFallbackPrice: g('lifetime_pro_price', '\$19.99'),
+      plus1DayOffer: g('plus_1day_offer', '24-Hour Pass'),
+      plusWeeklyOffer: g('plus_weekly_offer', '7 Days Free Trial'),
+      plusMonthlyOffer: g('plus_monthly_offer', 'Most Popular'),
+      plusYearlyOffer: g('plus_yearly_offer', 'Save 65% Best Value'),
+      removeAdsOffer: g('remove_ads_offer', 'One-Time Purchase'),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'monthlyProductId': monthlyProductId,
-      'yearlyProductId': yearlyProductId,
-      'lifetimeProductId': lifetimeProductId,
-      'yearlyBadge': yearlyBadge,
-      'monthlyBadge': monthlyBadge,
-      'offerText': offerText,
-      'monthlyFallbackPrice': monthlyFallbackPrice,
-      'yearlyFallbackPrice': yearlyFallbackPrice,
-      'lifetimeFallbackPrice': lifetimeFallbackPrice,
-      'features': features,
+      'plus_1day_product_id': plus1DayProductId,
+      'plus_weekly_product_id': plusWeeklyProductId,
+      'plus_monthly_product_id': plusMonthlyProductId,
+      'plus_yearly_product_id': plusYearlyProductId,
+      'remove_ads_product_id': removeAdsProductId,
+      'pro_product_id': lifetimeProductId,
+      'plus_1day_price': plus1DayFallbackPrice,
+      'plus_weekly_price': plusWeeklyFallbackPrice,
+      'plus_monthly_price': plusMonthlyFallbackPrice,
+      'plus_yearly_price': plusYearlyFallbackPrice,
+      'remove_ads_price': removeAdsFallbackPrice,
+      'lifetime_pro_price': lifetimeFallbackPrice,
+      'plus_1day_offer': plus1DayOffer,
+      'plus_weekly_offer': plusWeeklyOffer,
+      'plus_monthly_offer': plusMonthlyOffer,
+      'plus_yearly_offer': plusYearlyOffer,
+      'remove_ads_offer': removeAdsOffer,
     };
   }
 }

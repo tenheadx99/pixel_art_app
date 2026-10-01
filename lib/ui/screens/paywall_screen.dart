@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -5,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../data/services/analytics_service.dart';
+import '../../data/services/economy_config_service.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../providers/app_settings_provider.dart';
@@ -63,21 +65,209 @@ class _PaywallScreenState extends State<PaywallScreen> {
     if (!mounted) return;
     final iap = context.read<IAPService>();
     final rc = RemoteConfigService();
-    final p1day = await iap.getPrice(rc.plus1DayProductId);
-    final pWeekly = await iap.getPrice(rc.plusWeeklyProductId);
-    final pMonthly = await iap.getPrice(rc.plusMonthlyProductId);
-    final pYearly = await iap.getPrice(rc.plusYearlyProductId);
-    final pRemoveAds = await iap.getPrice(rc.removeAdsProductId);
-    final lifetime = await iap.getPrice(AppConstants.proProductId);
+    final eco = EconomyConfigService().currentConfig.paywall;
+
+    final id1Day = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
+    final idWeekly = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
+    final idMonthly = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
+    final idYearly = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
+    final idRemoveAds = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
+    final idLifetime = eco.lifetimeProductId.isNotEmpty ? eco.lifetimeProductId : AppConstants.proProductId;
+
+    final p1day = await iap.getPrice(id1Day);
+    final pWeekly = await iap.getPrice(idWeekly);
+    final pMonthly = await iap.getPrice(idMonthly);
+    final pYearly = await iap.getPrice(idYearly);
+    final pRemoveAds = await iap.getPrice(idRemoveAds);
+    final lifetime = await iap.getPrice(idLifetime);
     if (!mounted) return;
     setState(() {
-      _oneDayPrice = p1day ?? rc.plus1DayFallbackPrice;
-      _weeklyPrice = pWeekly ?? rc.plusWeeklyFallbackPrice;
-      _monthlyPrice = pMonthly ?? rc.plusMonthlyFallbackPrice;
-      _yearlyPrice = pYearly ?? rc.plusYearlyFallbackPrice;
-      _removeAdsPrice = pRemoveAds ?? rc.removeAdsFallbackPrice;
-      _lifetimePrice = lifetime ?? rc.lifetimeProFallbackPrice;
+      _oneDayPrice = p1day ?? (eco.plus1DayFallbackPrice.isNotEmpty ? eco.plus1DayFallbackPrice : rc.plus1DayFallbackPrice);
+      _weeklyPrice = pWeekly ?? (eco.plusWeeklyFallbackPrice.isNotEmpty ? eco.plusWeeklyFallbackPrice : rc.plusWeeklyFallbackPrice);
+      _monthlyPrice = pMonthly ?? (eco.plusMonthlyFallbackPrice.isNotEmpty ? eco.plusMonthlyFallbackPrice : rc.plusMonthlyFallbackPrice);
+      _yearlyPrice = pYearly ?? (eco.plusYearlyFallbackPrice.isNotEmpty ? eco.plusYearlyFallbackPrice : rc.plusYearlyFallbackPrice);
+      _removeAdsPrice = pRemoveAds ?? (eco.removeAdsFallbackPrice.isNotEmpty ? eco.removeAdsFallbackPrice : rc.removeAdsFallbackPrice);
+      _lifetimePrice = lifetime ?? (eco.lifetimeFallbackPrice.isNotEmpty ? eco.lifetimeFallbackPrice : rc.lifetimeProFallbackPrice);
     });
+  }
+
+  bool _isProcessing = false;
+
+  Future<void> _handlePurchase(String productId) async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    HapticFeedback.mediumImpact();
+    AnalyticsService().logPaywallCtaTapped(
+      source: widget.source,
+      productId: productId,
+    );
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Connecting to Google Play Store…'),
+          ],
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    final launched =
+        await context.read<IAPService>().buySubscription(productId);
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      final iapService = context.read<IAPService>();
+      final isStoreAvailable = iapService.isStoreAvailable;
+      final settings = context.read<AppSettingsProvider>();
+      final rc = RemoteConfigService();
+      final eco = EconomyConfigService().currentConfig.paywall;
+
+      void activateTestEntitlement() {
+        if (productId == eco.removeAdsProductId ||
+            productId == rc.removeAdsProductId ||
+            productId == AppConstants.removeAdsProductId) {
+          settings.setRemoveAds(true);
+        } else if (productId == eco.plus1DayProductId ||
+            productId == rc.plus1DayProductId ||
+            productId == AppConstants.plus1DayProductId) {
+          settings.extendPlusEntitlement(AppConstants.plus1DayEntitlementDays);
+        } else if (productId == eco.plusWeeklyProductId ||
+            productId == rc.plusWeeklyProductId ||
+            productId == AppConstants.plusWeeklyProductId) {
+          settings.extendPlusEntitlement(AppConstants.plusWeeklyEntitlementDays);
+        } else if (productId == eco.plusMonthlyProductId ||
+            productId == rc.plusMonthlyProductId ||
+            productId == AppConstants.plusMonthlyProductId) {
+          settings.extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
+        } else {
+          settings.extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
+        }
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('VIP Pass Activated (Test Mode) 🎉'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      if (kDebugMode) {
+        activateTestEntitlement();
+      } else {
+        final errorMsg = !isStoreAvailable
+            ? 'Play Store is currently unavailable. Please verify Play Store login and connection.'
+            : 'Product ($productId) is not configured in Google Play Console yet for this app.';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 7),
+            action: SnackBarAction(
+              label: 'Activate Test',
+              textColor: Colors.white,
+              onPressed: activateTestEntitlement,
+            ),
+          ),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _handleBuyPro() async {
+    if (_isProcessing) return;
+    setState(() => _isProcessing = true);
+    HapticFeedback.lightImpact();
+    AnalyticsService().logPaywallCtaTapped(
+      source: widget.source,
+      productId: AppConstants.proProductId,
+      plan: 'lifetime',
+    );
+
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: const [
+            SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Connecting to Google Play Store…'),
+          ],
+        ),
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    final launched = await context.read<IAPService>().buyPro();
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      final iapService = context.read<IAPService>();
+      final isStoreAvailable = iapService.isStoreAvailable;
+      final settings = context.read<AppSettingsProvider>();
+
+      void activateProTest() {
+        settings.setProUser(true);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Lifetime Pro Activated (Test Mode) 🎉'),
+            backgroundColor: Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+
+      if (kDebugMode) {
+        activateProTest();
+      } else {
+        final errorMsg = !isStoreAvailable
+            ? 'Play Store is currently unavailable. Please verify Play Store login and connection.'
+            : 'Product (${AppConstants.proProductId}) is not configured in Google Play Console yet for this app.';
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMsg),
+            backgroundColor: const Color(0xFFEF4444),
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 7),
+            action: SnackBarAction(
+              label: 'Activate Test',
+              textColor: Colors.white,
+              onPressed: activateProTest,
+            ),
+          ),
+        );
+      }
+    }
+
+    if (mounted) {
+      setState(() => _isProcessing = false);
+    }
   }
 
   void _onSettingsChanged() {
@@ -106,6 +296,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   String _getButtonText(RemoteConfigService rc) {
+    if (_isProcessing) {
+      return 'Processing… ⏳';
+    }
     if (_selectedPlan == rc.removeAdsProductId) {
       return 'Remove Ads Now · ${_removeAdsPrice ?? rc.removeAdsFallbackPrice} 🚫';
     }
@@ -132,18 +325,26 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final subColor = isDark ? Colors.white70 : Colors.black54;
 
     final rc = RemoteConfigService();
-    final id1Day = rc.plus1DayProductId;
-    final idWeekly = rc.plusWeeklyProductId;
-    final idMonthly = rc.plusMonthlyProductId;
-    final idYearly = rc.plusYearlyProductId;
-    final idRemoveAds = rc.removeAdsProductId;
+    final eco = EconomyConfigService().currentConfig.paywall;
+
+    final id1Day = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
+    final idWeekly = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
+    final idMonthly = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
+    final idYearly = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
+    final idRemoveAds = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
+
+    final badge1Day = eco.plus1DayOffer.isNotEmpty ? eco.plus1DayOffer : rc.plus1DayOfferText;
+    final badgeWeekly = eco.plusWeeklyOffer.isNotEmpty ? eco.plusWeeklyOffer : rc.plusWeeklyOfferText;
+    final badgeMonthly = eco.plusMonthlyOffer.isNotEmpty ? eco.plusMonthlyOffer : rc.plusMonthlyOfferText;
+    final badgeYearly = eco.plusYearlyOffer.isNotEmpty ? eco.plusYearlyOffer : rc.plusYearlyOfferText;
+    final badgeRemoveAds = eco.removeAdsOffer.isNotEmpty ? eco.removeAdsOffer : rc.removeAdsOfferText;
 
     final plans = [
       _PlanData(
         id: idYearly,
         title: 'Yearly VIP',
-        badge: rc.plusYearlyOfferText,
-        price: _yearlyPrice ?? rc.plusYearlyFallbackPrice,
+        badge: badgeYearly,
+        price: _yearlyPrice ?? (eco.plusYearlyFallbackPrice.isNotEmpty ? eco.plusYearlyFallbackPrice : rc.plusYearlyFallbackPrice),
         perks: [
           '💎 1,000 Bonus Diamonds',
           '🪄 Unlimited Wands & 💣 Bombs',
@@ -155,8 +356,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _PlanData(
         id: idWeekly,
         title: 'Weekly VIP',
-        badge: rc.plusWeeklyOfferText,
-        price: _weeklyPrice ?? rc.plusWeeklyFallbackPrice,
+        badge: badgeWeekly,
+        price: _weeklyPrice ?? (eco.plusWeeklyFallbackPrice.isNotEmpty ? eco.plusWeeklyFallbackPrice : rc.plusWeeklyFallbackPrice),
         perks: [
           '💎 100 Bonus Diamonds',
           '🪄 5 Daily Wands & 💣 5 Daily Bombs',
@@ -166,8 +367,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _PlanData(
         id: idMonthly,
         title: 'Monthly VIP',
-        badge: rc.plusMonthlyOfferText,
-        price: _monthlyPrice ?? rc.plusMonthlyFallbackPrice,
+        badge: badgeMonthly,
+        price: _monthlyPrice ?? (eco.plusMonthlyFallbackPrice.isNotEmpty ? eco.plusMonthlyFallbackPrice : rc.plusMonthlyFallbackPrice),
         perks: [
           '💎 300 Bonus Diamonds',
           '🪄 10 Daily Wands & 💣 10 Daily Bombs',
@@ -178,8 +379,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _PlanData(
         id: id1Day,
         title: '24-Hour Pass',
-        badge: rc.plus1DayOfferText,
-        price: _oneDayPrice ?? rc.plus1DayFallbackPrice,
+        badge: badge1Day,
+        price: _oneDayPrice ?? (eco.plus1DayFallbackPrice.isNotEmpty ? eco.plus1DayFallbackPrice : rc.plus1DayFallbackPrice),
         perks: [
           '💎 25 Bonus Diamonds',
           '🪄 3 Free Wands & 💣 3 Free Bombs',
@@ -189,8 +390,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _PlanData(
         id: idRemoveAds,
         title: 'Remove Ads Only',
-        badge: rc.removeAdsOfferText,
-        price: _removeAdsPrice ?? rc.removeAdsFallbackPrice,
+        badge: badgeRemoveAds,
+        price: _removeAdsPrice ?? (eco.removeAdsFallbackPrice.isNotEmpty ? eco.removeAdsFallbackPrice : rc.removeAdsFallbackPrice),
         perks: [
           '🚫 Permanent Ad-Free Experience',
           '⚡ One-Time Purchase · No Subscription',
@@ -368,11 +569,16 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                   plan: plan,
                                   selected: isSelected,
                                   onTap: () {
-                                    _pageController.animateToPage(
-                                      index,
-                                      duration: const Duration(milliseconds: 300),
-                                      curve: Curves.easeInOut,
-                                    );
+                                    if (isSelected) {
+                                      // If already selected, tap immediately triggers purchase!
+                                      _handlePurchase(plan.id);
+                                    } else {
+                                      _pageController.animateToPage(
+                                        index,
+                                        duration: const Duration(milliseconds: 300),
+                                        curve: Curves.easeInOut,
+                                      );
+                                    }
                                   },
                                 ),
                               ),
@@ -428,16 +634,9 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         child: SizedBox(
                           width: double.infinity,
                           child: ElevatedButton(
-                            onPressed: () {
-                              HapticFeedback.mediumImpact();
-                              AnalyticsService().logPaywallCtaTapped(
-                                source: widget.source,
-                                productId: _selectedPlan,
-                              );
-                              context
-                                  .read<IAPService>()
-                                  .buySubscription(_selectedPlan);
-                            },
+                            onPressed: _isProcessing
+                                ? null
+                                : () => _handlePurchase(_selectedPlan),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: AppStyle.primary,
                               foregroundColor: Colors.white,
@@ -448,14 +647,24 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                 borderRadius: BorderRadius.circular(18),
                               ),
                             ),
-                            child: Text(
-                              _getButtonText(rc),
-                              style: const TextStyle(
-                                fontSize: 16.5,
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: 0.3,
-                              ),
-                            ),
+                            child: _isProcessing
+                                ? const SizedBox(
+                                    height: 20,
+                                    width: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                      valueColor:
+                                          AlwaysStoppedAnimation<Color>(Colors.white),
+                                    ),
+                                  )
+                                : Text(
+                                    _getButtonText(rc),
+                                    style: const TextStyle(
+                                      fontSize: 16.5,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.3,
+                                    ),
+                                  ),
                           ),
                         ),
                       ),
@@ -464,15 +673,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
                       // Lifetime Pro fallback link
                       TextButton(
-                        onPressed: () {
-                          HapticFeedback.lightImpact();
-                          AnalyticsService().logPaywallCtaTapped(
-                            source: widget.source,
-                            productId: AppConstants.proProductId,
-                            plan: 'lifetime',
-                          );
-                          context.read<IAPService>().buyPro();
-                        },
+                        onPressed: _isProcessing ? null : _handleBuyPro,
                         child: Text(
                           _lifetimePrice == null
                               ? 'Or unlock Lifetime Pro once'

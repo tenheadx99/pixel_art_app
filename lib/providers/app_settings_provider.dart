@@ -551,21 +551,24 @@ class AppSettingsProvider extends ChangeNotifier {
             setProUser(true);
             AnalyticsService().setPlayerProperties(isPro: true);
           } else if (pId == rc.removeAdsProductId ||
-              pId == AppConstants.removeAdsProductId) {
+              pId == AppConstants.removeAdsProductId ||
+              pId == paywallConfig.removeAdsProductId) {
             setRemoveAds(true);
           } else if (pId == rc.plus1DayProductId ||
-              pId == AppConstants.plus1DayProductId) {
+              pId == AppConstants.plus1DayProductId ||
+              pId == paywallConfig.plus1DayProductId) {
             extendPlusEntitlement(AppConstants.plus1DayEntitlementDays);
           } else if (pId == rc.plusWeeklyProductId ||
-              pId == AppConstants.plusWeeklyProductId) {
+              pId == AppConstants.plusWeeklyProductId ||
+              pId == paywallConfig.plusWeeklyProductId) {
             extendPlusEntitlement(AppConstants.plusWeeklyEntitlementDays);
           } else if (pId == rc.plusMonthlyProductId ||
               pId == AppConstants.plusMonthlyProductId ||
-              pId == paywallConfig.monthlyProductId) {
+              pId == paywallConfig.plusMonthlyProductId) {
             extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
           } else if (pId == rc.plusYearlyProductId ||
               pId == AppConstants.plusYearlyProductId ||
-              pId == paywallConfig.yearlyProductId) {
+              pId == paywallConfig.plusYearlyProductId) {
             extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
