@@ -64,6 +64,19 @@ class _InAppUpdateCardState extends State<InAppUpdateCard>
     });
   }
 
+  void _onUpdateNow(AppConfigService configService) {
+    if (_isDismissing) return;
+    AnalyticsService().logForceUpdateClicked(
+      updateUrl: configService.updateUrl,
+    );
+    AnalyticsService().logInAppUpdateCardClicked(
+      updateUrl: configService.updateUrl,
+    );
+    setState(() => _isDismissing = true);
+    configService.dismissForSession();
+    configService.launchStore();
+  }
+
   @override
   Widget build(BuildContext context) {
     final configService = AppConfigService();
@@ -396,15 +409,8 @@ class _InAppUpdateCardState extends State<InAppUpdateCard>
                                   child: Material(
                                     color: Colors.transparent,
                                     child: InkWell(
-                                      onTap: () {
-                                        AnalyticsService().logForceUpdateClicked(
-                                          updateUrl: configService.updateUrl,
-                                        );
-                                        AnalyticsService().logInAppUpdateCardClicked(
-                                          updateUrl: configService.updateUrl,
-                                        );
-                                        configService.launchStore();
-                                      },
+                                      key: const Key('in_app_update_card_update_btn'),
+                                      onTap: () => _onUpdateNow(configService),
                                       borderRadius: BorderRadius.circular(12),
                                       child: const Padding(
                                         padding: EdgeInsets.symmetric(

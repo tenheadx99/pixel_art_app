@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
+import 'package:pixel_art_app/data/services/app_config_service.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
 
 /// Manages Google Play In-App Updates (Flexible & Immediate) with smart fallback.
@@ -99,6 +100,7 @@ class AppUpdateService {
       final minVersion = RemoteConfigService().minRequiredVersion;
 
       if (_isVersionOlder(currentVersion, minVersion)) {
+        if (AppConfigService().isUpdateClickedFor(minVersion)) return;
         AnalyticsService().logForceUpdateShown(minVersion: minVersion);
         if (context.mounted) {
           _showFallbackUpdateDialog(context);
@@ -158,6 +160,8 @@ class AppUpdateService {
             onPressed: () async {
               Navigator.pop(ctx);
               AnalyticsService().logForceUpdateClicked(updateUrl: AppConstants.appStoreUrl);
+              AppConfigService().markUpdateClicked();
+              AppConfigService().dismissForSession();
               final marketUri = Uri.parse('market://details?id=${AppConstants.appStoreId}');
               final webUri = Uri.parse(AppConstants.appStoreUrl);
               try {

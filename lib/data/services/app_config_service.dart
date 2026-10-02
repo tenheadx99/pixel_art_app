@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/config/flavor.dart';
+import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// Manages dynamic in-app update prompts and remote app configuration,
@@ -13,6 +15,10 @@ class AppConfigService extends ChangeNotifier {
   static final AppConfigService _instance = AppConfigService._();
   factory AppConfigService() => _instance;
   AppConfigService._();
+
+  static const String _updateClickedVersionPrefKey = 'update_clicked_version';
+  LocalStorageService? _storage;
+  String? _updateClickedVersion;
 
   FirebaseFirestore get _db => FirebaseFirestore.instance;
 
@@ -35,15 +41,18 @@ class AppConfigService extends ChangeNotifier {
   String get currentAppVersion => _currentAppVersion;
   String get packageName => _packageName;
   bool get isDismissedThisSession => _isDismissedThisSession;
+  String? get updateClickedVersion => _updateClickedVersion;
 
   String get minVersion {
     if (_minVersion != null && _minVersion!.isNotEmpty) {
       return _minVersion!;
     }
-    final rcMin = RemoteConfigService().minRequiredVersion;
-    if (rcMin.isNotEmpty && rcMin != '1.0.0') {
-      return rcMin;
-    }
+    try {
+      final rcMin = RemoteConfigService().minRequiredVersion;
+      if (rcMin.isNotEmpty && rcMin != '1.0.0') {
+        return rcMin;
+      }
+    } catch (_) {}
     return '';
   }
 
@@ -69,10 +78,12 @@ class AppConfigService extends ChangeNotifier {
     if (_remoteUpdateUrl != null && _remoteUpdateUrl!.trim().isNotEmpty) {
       return _remoteUpdateUrl!.trim();
     }
-    final rcUrl = RemoteConfigService().forceUpdateUrl;
-    if (rcUrl.trim().isNotEmpty) {
-      return rcUrl.trim();
-    }
+    try {
+      final rcUrl = RemoteConfigService().forceUpdateUrl;
+      if (rcUrl.trim().isNotEmpty) {
+        return rcUrl.trim();
+      }
+    } catch (_) {}
     return 'https://play.google.com/store/apps/details?id=$_packageName';
   }
 
@@ -116,12 +127,35 @@ class AppConfigService extends ChangeNotifier {
     return isVersionOlder(_currentAppVersion, min);
   }
 
-  /// Whether the UI card should be rendered on the Home screen
+  /// Whether the UI card should be rendered on the Home screen.
+  /// Hides on click of update button (session dismissal), hides if app version
+  /// is updated (isUpdateAvailable == false), and is shown if app version is not updated.
   bool get shouldShowUpdateCard => isUpdateAvailable && !_isDismissedThisSession;
+
+  /// Attach the persistent [LocalStorageService] instance to retain dismissal and update choices.
+  void attachStorage(LocalStorageService storage) {
+    _storage = storage;
+    final saved = storage.getString(_updateClickedVersionPrefKey);
+    if (saved.isNotEmpty) {
+      _updateClickedVersion = saved;
+    }
+  }
 
   /// Initializes the service: reads app version, fetches Firestore config,
   /// attaches real-time snapshot listener, and checks Remote Config.
-  Future<void> initialize() async {
+  Future<void> initialize({LocalStorageService? storage}) async {
+    if (storage != null) {
+      attachStorage(storage);
+    } else {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final saved = prefs.getString(_updateClickedVersionPrefKey);
+        if (saved != null && saved.isNotEmpty) {
+          _updateClickedVersion = saved;
+        }
+      } catch (_) {}
+    }
+
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       _currentAppVersion = packageInfo.version;
@@ -197,6 +231,69 @@ class AppConfigService extends ChangeNotifier {
   /// It will reappear automatically on the next cold start / launch.
   void dismissForSession() {
     _isDismissedThisSession = true;
+    notifyListeners();
+  }
+
+  /// Refreshes the currently installed app version from the platform.
+  /// Call this when the app resumes from the background (e.g. after returning from Play Store).
+  Future<void> refreshVersion() async {
+    try {
+      final packageInfo = await PackageInfo.fromPlatform();
+      final oldVersion = _currentAppVersion;
+      _currentAppVersion = packageInfo.version;
+      _packageName = packageInfo.packageName;
+      if (oldVersion != _currentAppVersion) {
+        notifyListeners();
+      }
+    } catch (e) {
+      developer.log('AppConfigService: failed to refresh PackageInfo: $e');
+    }
+  }
+
+  /// Marks that the user has tapped to update the app for [version] (or [targetVersion]).
+  /// Persists this state so the update UI component does not prompt again for this version.
+  void markUpdateClicked([String? version]) {
+    final v = (version != null && version.isNotEmpty) ? version : targetVersion;
+    if (v.isNotEmpty) {
+      _updateClickedVersion = v;
+      _isDismissedThisSession = true;
+      try {
+        if (_storage != null) {
+          _storage!.setString(_updateClickedVersionPrefKey, v);
+        } else {
+          SharedPreferences.getInstance().then((prefs) {
+            prefs.setString(_updateClickedVersionPrefKey, v);
+          }).catchError((_) {});
+        }
+      } catch (e) {
+        developer.log('AppConfigService: failed to persist updateClickedVersion: $e');
+      }
+      notifyListeners();
+    }
+  }
+
+  /// Checks if the user has already initiated update for the specified version.
+  bool isUpdateClickedFor(String version) {
+    if (version.isEmpty) return false;
+    return _updateClickedVersion == version;
+  }
+
+  @visibleForTesting
+  void setCurrentAppVersionForTesting(String version) {
+    _currentAppVersion = version;
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void setTargetVersionForTesting(String? version) {
+    _targetVersion = version;
+    notifyListeners();
+  }
+
+  @visibleForTesting
+  void resetStateForTesting() {
+    _isDismissedThisSession = false;
+    _updateClickedVersion = null;
     notifyListeners();
   }
 

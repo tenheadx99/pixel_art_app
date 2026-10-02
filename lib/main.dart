@@ -154,6 +154,9 @@ class _AppBootstrapState extends State<AppBootstrap>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      AppConfigService().refreshVersion();
+    }
     // App-open ad on return from background (never on cold start); AdService
     // applies the pro/first-session/cooldown caps.
     if (state == AppLifecycleState.resumed && _ready) {
@@ -188,6 +191,7 @@ class _AppBootstrapState extends State<AppBootstrap>
 
     // AdService persists its per-day interstitial cap through this.
     AdService().attachStorage(localStorageService);
+    AppConfigService().attachStorage(localStorageService);
 
     // UMP consent + Mobile Ads SDK init needs neither Remote Config nor IAP
     // (ad unit IDs are read from RC at load time, after the await below), so
