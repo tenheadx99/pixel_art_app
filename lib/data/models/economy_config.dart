@@ -106,6 +106,16 @@ class PaywallConfig {
   final String plusMonthlyOffer;
   final String plusYearlyOffer;
   final String removeAdsOffer;
+  final String defaultPlan;
+  final bool show1DayPlan;
+  final bool showWeeklyPlan;
+  final bool showMonthlyPlan;
+  final bool showYearlyPlan;
+  final bool showRemoveAdsPlan;
+  final bool showLifetimePlan;
+  final bool showUrgencyTimer;
+  final int urgencyDurationHours;
+  final String urgencyHeadline;
 
   // Backward-compatible getters
   String get monthlyProductId => plusMonthlyProductId;
@@ -129,6 +139,16 @@ class PaywallConfig {
     this.plusMonthlyOffer = 'Most Popular',
     this.plusYearlyOffer = 'Save 65% Best Value',
     this.removeAdsOffer = 'One-Time Purchase',
+    this.defaultPlan = 'yearly',
+    this.show1DayPlan = true,
+    this.showWeeklyPlan = true,
+    this.showMonthlyPlan = true,
+    this.showYearlyPlan = true,
+    this.showRemoveAdsPlan = true,
+    this.showLifetimePlan = true,
+    this.showUrgencyTimer = true,
+    this.urgencyDurationHours = 24,
+    this.urgencyHeadline = 'Special Welcome Offer • 65% OFF',
   });
 
   factory PaywallConfig.fromMap(Map<String, dynamic> map) {
@@ -159,6 +179,16 @@ class PaywallConfig {
       plusMonthlyOffer: g('plus_monthly_offer', 'Most Popular'),
       plusYearlyOffer: g('plus_yearly_offer', 'Save 65% Best Value'),
       removeAdsOffer: g('remove_ads_offer', 'One-Time Purchase'),
+      defaultPlan: g('default_plan', 'yearly'),
+      show1DayPlan: m['show_1day_plan'] as bool? ?? true,
+      showWeeklyPlan: m['show_weekly_plan'] as bool? ?? true,
+      showMonthlyPlan: m['show_monthly_plan'] as bool? ?? true,
+      showYearlyPlan: m['show_yearly_plan'] as bool? ?? true,
+      showRemoveAdsPlan: m['show_remove_ads_plan'] as bool? ?? true,
+      showLifetimePlan: m['show_lifetime_plan'] as bool? ?? true,
+      showUrgencyTimer: m['show_urgency_timer'] as bool? ?? true,
+      urgencyDurationHours: (m['urgency_duration_hours'] as num?)?.toInt() ?? 24,
+      urgencyHeadline: g('urgency_headline', 'Special Welcome Offer • 65% OFF'),
     );
   }
 
@@ -181,6 +211,16 @@ class PaywallConfig {
       'plus_monthly_offer': plusMonthlyOffer,
       'plus_yearly_offer': plusYearlyOffer,
       'remove_ads_offer': removeAdsOffer,
+      'default_plan': defaultPlan,
+      'show_1day_plan': show1DayPlan,
+      'show_weekly_plan': showWeeklyPlan,
+      'show_monthly_plan': showMonthlyPlan,
+      'show_yearly_plan': showYearlyPlan,
+      'show_remove_ads_plan': showRemoveAdsPlan,
+      'show_lifetime_plan': showLifetimePlan,
+      'show_urgency_timer': showUrgencyTimer,
+      'urgency_duration_hours': urgencyDurationHours,
+      'urgency_headline': urgencyHeadline,
     };
   }
 }

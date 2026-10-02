@@ -7,6 +7,7 @@ import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../data/services/analytics_service.dart';
 import '../../data/services/economy_config_service.dart';
+import '../../data/models/economy_config.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../providers/app_settings_provider.dart';
@@ -38,13 +39,26 @@ class _PaywallScreenState extends State<PaywallScreen> {
   AppSettingsProvider? _settings;
   bool _wasEntitled = false;
   late final DateTime _paywallOpenedAt;
+  int _crownTapCount = 0;
 
   @override
   void initState() {
     super.initState();
     _paywallOpenedAt = DateTime.now();
     AnalyticsService().logPaywallShown(source: widget.source);
-    _selectedPlan = RemoteConfigService().plusYearlyProductId;
+    final eco = EconomyConfigService().currentConfig.paywall;
+    final rc = RemoteConfigService();
+    if (eco.defaultPlan == 'monthly') {
+      _selectedPlan = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
+    } else if (eco.defaultPlan == 'weekly') {
+      _selectedPlan = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
+    } else if (eco.defaultPlan == '1day') {
+      _selectedPlan = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
+    } else if (eco.defaultPlan == 'remove_ads') {
+      _selectedPlan = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
+    } else {
+      _selectedPlan = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
+    }
     _pageController = PageController(viewportFraction: 0.84, initialPage: 0);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadPrices();
@@ -89,6 +103,83 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _removeAdsPrice = pRemoveAds ?? (eco.removeAdsFallbackPrice.isNotEmpty ? eco.removeAdsFallbackPrice : rc.removeAdsFallbackPrice);
       _lifetimePrice = lifetime ?? (eco.lifetimeFallbackPrice.isNotEmpty ? eco.lifetimeFallbackPrice : rc.lifetimeProFallbackPrice);
     });
+  }
+
+
+  void _showDiagnosticsSheet() {
+    final flavor = FlavorConfig.current;
+    final eco = EconomyConfigService().currentConfig.paywall;
+    final rc = RemoteConfigService();
+    final iap = context.read<IAPService>();
+    final settings = context.read<AppSettingsProvider>();
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.bug_report_rounded, color: Colors.amber, size: 24),
+                      const SizedBox(width: 8),
+                      Text('IAP & Paywall Diagnostics', style: Theme.of(ctx).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                      const Spacer(),
+                      IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
+                    ],
+                  ),
+                  const Divider(),
+                  Text('Flavor: ${flavor.appName} (${currentFlavor.name})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text('Store Connection: ${iap.isStoreAvailable ? "Connected ✅" : "Disconnected ⚠️"}'),
+                  Text('Pro Status: ${settings.isProUser ? "ACTIVE 👑" : "Free User 🔒"}'),
+                  Text('No Ads Status: ${settings.isRemoveAds ? "ACTIVE 🚫" : "Inactive"}'),
+                  const SizedBox(height: 8),
+                  const Text('Active Dynamic SKUs:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text('• Yearly: ${eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId}'),
+                  Text('• Monthly: ${eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId}'),
+                  Text('• Weekly: ${eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId}'),
+                  Text('• 1-Day: ${eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId}'),
+                  Text('• Remove Ads: ${eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId}'),
+                  Text('• Lifetime: ${eco.lifetimeProductId.isNotEmpty ? eco.lifetimeProductId : AppConstants.proProductId}'),
+                  const SizedBox(height: 16),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 8,
+                    children: [
+                      FilledButton.tonalIcon(
+                        icon: const Icon(Icons.verified_rounded),
+                        label: const Text('Toggle VIP Entitlement'),
+                        onPressed: () {
+                          settings.setProUser(!settings.isProUser);
+                          setSheetState(() {});
+                        },
+                      ),
+                      OutlinedButton.icon(
+                        icon: const Icon(Icons.refresh_rounded),
+                        label: const Text('Re-fetch Prices'),
+                        onPressed: () {
+                          _loadPrices();
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   bool _isProcessing = false;
@@ -295,23 +386,30 @@ class _PaywallScreenState extends State<PaywallScreen> {
     launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
-  String _getButtonText(RemoteConfigService rc) {
+  String _getButtonText(RemoteConfigService rc, PaywallConfig eco) {
     if (_isProcessing) {
       return 'Processing… ⏳';
     }
-    if (_selectedPlan == rc.removeAdsProductId) {
-      return 'Remove Ads Now · ${_removeAdsPrice ?? rc.removeAdsFallbackPrice} 🚫';
+    final idRemoveAds = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
+    final idWeekly = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
+    final idYearly = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
+    final idMonthly = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
+    final id1Day = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
+
+    if (_selectedPlan == idRemoveAds) {
+      final p = _removeAdsPrice ?? (eco.removeAdsFallbackPrice.isNotEmpty ? eco.removeAdsFallbackPrice : rc.removeAdsFallbackPrice);
+      return 'Remove Ads Now · $p 🚫';
     }
-    if (_selectedPlan == rc.plusWeeklyProductId) {
+    if (_selectedPlan == idWeekly) {
       return 'Start 7 Days Free Trial 🎁';
     }
-    if (_selectedPlan == rc.plusYearlyProductId) {
+    if (_selectedPlan == idYearly) {
       return 'Get Yearly Pass (Save 65%) ✨';
     }
-    if (_selectedPlan == rc.plusMonthlyProductId) {
+    if (_selectedPlan == idMonthly) {
       return 'Get Monthly Pass 👑';
     }
-    if (_selectedPlan == rc.plus1DayProductId) {
+    if (_selectedPlan == id1Day) {
       return 'Get 24-Hour Pass ⚡';
     }
     return 'Continue ✨';
@@ -339,66 +437,93 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final badgeYearly = eco.plusYearlyOffer.isNotEmpty ? eco.plusYearlyOffer : rc.plusYearlyOfferText;
     final badgeRemoveAds = eco.removeAdsOffer.isNotEmpty ? eco.removeAdsOffer : rc.removeAdsOfferText;
 
-    final plans = [
+    final allPlans = [
+      if (eco.showYearlyPlan)
+        _PlanData(
+          id: idYearly,
+          title: 'Yearly VIP',
+          badge: badgeYearly,
+          price: _yearlyPrice ?? (eco.plusYearlyFallbackPrice.isNotEmpty ? eco.plusYearlyFallbackPrice : rc.plusYearlyFallbackPrice),
+          perks: [
+            '💎 1,000 Bonus Diamonds',
+            '🪄 Unlimited Wands & 💣 Bombs',
+            '🛡️ 1 Free Monthly Streak Freeze',
+            '🚫 Unlimited Access & No Ads',
+          ],
+          isBestValue: true,
+        ),
+      if (eco.showWeeklyPlan)
+        _PlanData(
+          id: idWeekly,
+          title: 'Weekly VIP',
+          badge: badgeWeekly,
+          price: _weeklyPrice ?? (eco.plusWeeklyFallbackPrice.isNotEmpty ? eco.plusWeeklyFallbackPrice : rc.plusWeeklyFallbackPrice),
+          perks: [
+            '💎 100 Bonus Diamonds',
+            '🪄 5 Daily Wands & 💣 5 Daily Bombs',
+            '🎁 7-Day Free Trial · Cancel Anytime',
+          ],
+        ),
+      if (eco.showMonthlyPlan)
+        _PlanData(
+          id: idMonthly,
+          title: 'Monthly VIP',
+          badge: badgeMonthly,
+          price: _monthlyPrice ?? (eco.plusMonthlyFallbackPrice.isNotEmpty ? eco.plusMonthlyFallbackPrice : rc.plusMonthlyFallbackPrice),
+          perks: [
+            '💎 300 Bonus Diamonds',
+            '🪄 10 Daily Wands & 💣 10 Daily Bombs',
+            '🛡️ 1 Free Monthly Streak Freeze',
+            '🚫 Unlimited Access & No Ads',
+          ],
+        ),
+      if (eco.show1DayPlan)
+        _PlanData(
+          id: id1Day,
+          title: '24-Hour Pass',
+          badge: badge1Day,
+          price: _oneDayPrice ?? (eco.plus1DayFallbackPrice.isNotEmpty ? eco.plus1DayFallbackPrice : rc.plus1DayFallbackPrice),
+          perks: [
+            '💎 25 Bonus Diamonds',
+            '🪄 3 Free Wands & 💣 3 Free Bombs',
+            '⚡ 24h Full Access & No Ads',
+          ],
+        ),
+      if (eco.showRemoveAdsPlan)
+        _PlanData(
+          id: idRemoveAds,
+          title: 'Remove Ads Only',
+          badge: badgeRemoveAds,
+          price: _removeAdsPrice ?? (eco.removeAdsFallbackPrice.isNotEmpty ? eco.removeAdsFallbackPrice : rc.removeAdsFallbackPrice),
+          perks: [
+            '🚫 Permanent Ad-Free Experience',
+            '⚡ One-Time Purchase · No Subscription',
+          ],
+          isNoAds: true,
+        ),
+    ];
+    final plans = allPlans.isNotEmpty ? allPlans : [
       _PlanData(
         id: idYearly,
         title: 'Yearly VIP',
         badge: badgeYearly,
-        price: _yearlyPrice ?? (eco.plusYearlyFallbackPrice.isNotEmpty ? eco.plusYearlyFallbackPrice : rc.plusYearlyFallbackPrice),
-        perks: [
-          '💎 1,000 Bonus Diamonds',
-          '🪄 Unlimited Wands & 💣 Bombs',
-          '🛡️ 1 Free Monthly Streak Freeze',
-          '🚫 Unlimited Access & No Ads',
-        ],
+        price: _yearlyPrice ?? rc.plusYearlyFallbackPrice,
+        perks: ['💎 1,000 Bonus Diamonds', '🚫 Unlimited Access & No Ads'],
         isBestValue: true,
       ),
-      _PlanData(
-        id: idWeekly,
-        title: 'Weekly VIP',
-        badge: badgeWeekly,
-        price: _weeklyPrice ?? (eco.plusWeeklyFallbackPrice.isNotEmpty ? eco.plusWeeklyFallbackPrice : rc.plusWeeklyFallbackPrice),
-        perks: [
-          '💎 100 Bonus Diamonds',
-          '🪄 5 Daily Wands & 💣 5 Daily Bombs',
-          '🎁 7-Day Free Trial · Cancel Anytime',
-        ],
-      ),
-      _PlanData(
-        id: idMonthly,
-        title: 'Monthly VIP',
-        badge: badgeMonthly,
-        price: _monthlyPrice ?? (eco.plusMonthlyFallbackPrice.isNotEmpty ? eco.plusMonthlyFallbackPrice : rc.plusMonthlyFallbackPrice),
-        perks: [
-          '💎 300 Bonus Diamonds',
-          '🪄 10 Daily Wands & 💣 10 Daily Bombs',
-          '🛡️ 1 Free Monthly Streak Freeze',
-          '🚫 Unlimited Access & No Ads',
-        ],
-      ),
-      _PlanData(
-        id: id1Day,
-        title: '24-Hour Pass',
-        badge: badge1Day,
-        price: _oneDayPrice ?? (eco.plus1DayFallbackPrice.isNotEmpty ? eco.plus1DayFallbackPrice : rc.plus1DayFallbackPrice),
-        perks: [
-          '💎 25 Bonus Diamonds',
-          '🪄 3 Free Wands & 💣 3 Free Bombs',
-          '⚡ 24h Full Access & No Ads',
-        ],
-      ),
-      _PlanData(
-        id: idRemoveAds,
-        title: 'Remove Ads Only',
-        badge: badgeRemoveAds,
-        price: _removeAdsPrice ?? (eco.removeAdsFallbackPrice.isNotEmpty ? eco.removeAdsFallbackPrice : rc.removeAdsFallbackPrice),
-        perks: [
-          '🚫 Permanent Ad-Free Experience',
-          '⚡ One-Time Purchase · No Subscription',
-        ],
-        isNoAds: true,
-      ),
     ];
+
+    // Ensure selected plan exists in active plans list
+    if (!plans.any((p) => p.id == _selectedPlan)) {
+      _selectedPlan = plans.first.id;
+      _currentPageIndex = 0;
+    } else {
+      final idx = plans.indexWhere((p) => p.id == _selectedPlan);
+      if (idx != -1 && idx != _currentPageIndex && !_pageController.hasClients) {
+        _currentPageIndex = idx;
+        _pageController = PageController(viewportFraction: 0.84, initialPage: idx);
+      }
+    }
 
     return Scaffold(
       body: Container(
@@ -427,28 +552,38 @@ class _PaywallScreenState extends State<PaywallScreen> {
                     children: [
                       const SizedBox(height: 4),
                       // Shimmering crown badge
-                      Container(
-                        width: 76,
-                        height: 76,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: flavor.brandGradient,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: AppStyle.primary.withAlpha(140),
-                              blurRadius: 28,
-                              offset: const Offset(0, 8),
+                      GestureDetector(
+                        onTap: () {
+                          _crownTapCount++;
+                          if (_crownTapCount >= 3) {
+                            _crownTapCount = 0;
+                            HapticFeedback.mediumImpact();
+                            _showDiagnosticsSheet();
+                          }
+                        },
+                        child: Container(
+                          width: 76,
+                          height: 76,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                              colors: flavor.brandGradient,
                             ),
-                          ],
-                        ),
-                        child: const Icon(
-                          Icons.workspace_premium_rounded,
-                          color: Colors.white,
-                          size: 42,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppStyle.primary.withAlpha(140),
+                                blurRadius: 28,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.workspace_premium_rounded,
+                            color: Colors.white,
+                            size: 42,
+                          ),
                         ),
                       ),
                       const SizedBox(height: 12),
@@ -500,6 +635,42 @@ class _PaywallScreenState extends State<PaywallScreen> {
                           ],
                         ),
                       ),
+                      if (eco.showUrgencyTimer) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 24),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFFEF4444), Color(0xFFF97316)],
+                            ),
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFFEF4444).withAlpha(80),
+                                blurRadius: 10,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.timer_rounded, size: 16, color: Colors.white),
+                              const SizedBox(width: 6),
+                              Text(
+                                '${eco.urgencyHeadline} • Ends Soon',
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 16),
 
                       // Global perks summary
@@ -658,7 +829,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
                                     ),
                                   )
                                 : Text(
-                                    _getButtonText(rc),
+                                    _getButtonText(rc, eco),
                                     style: const TextStyle(
                                       fontSize: 16.5,
                                       fontWeight: FontWeight.w800,
