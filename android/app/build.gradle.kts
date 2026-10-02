@@ -94,8 +94,8 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
-            versionCode = 21
-            versionName = "2.0.0"
+            versionCode = 22
+            versionName = "2.1.0"
             resValue("string", "app_name", "Pixely")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~3438969555"
