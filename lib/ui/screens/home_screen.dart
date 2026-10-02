@@ -98,6 +98,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // Check for Google Play Flexible in-app updates
       AppUpdateService().checkForUpdate(context: context);
       _maybePromptRating();
+      // Schedule streak-at-risk notification (7 PM if streak > 0 and not done today)
+      final gallery = context.read<GalleryProvider>();
+      NotificationService.instance.scheduleStreakAtRiskReminder(
+        currentStreak: gallery.dailyStreak,
+        todayCompleted: gallery.todayCompleted,
+      );
     });
   }
 
@@ -739,79 +745,363 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (ctx) {
         final streak = gallery.dailyStreak;
+        final bestStreak = gallery.bestStreak;
+        final activeDays = gallery.streakActiveDays;
+        final todayDone = gallery.todayCompleted;
+        final freezes = gallery.streakFreezes;
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final now = DateTime.now();
+
+        // Build 35-day calendar (5 weeks ending this week's Saturday)
+        final todayWeekday = now.weekday; // 1=Mon, 7=Sun
+        final startOfCalendar = now.subtract(Duration(days: todayWeekday - 1 + 28)); // 5 weeks ago, Monday
+        final dayLabels = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+        String dateKey(DateTime d) =>
+            '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
         final milestones = [
-          {'day': 3, 'reward': '+2 Wands 🪄'},
-          {'day': 7, 'reward': '+100 Diamonds 💎'},
-          {'day': 14, 'reward': '+5 Bombs 💣'},
-          {'day': 30, 'reward': 'Crown & +250 💎'},
+          {'day': 3, 'reward': '+2 Wands 🪄', 'icon': Icons.auto_fix_high_rounded},
+          {'day': 7, 'reward': '+100 💎', 'icon': Icons.diamond_rounded},
+          {'day': 14, 'reward': '+5 Bombs 💣', 'icon': Icons.flash_on_rounded},
+          {'day': 30, 'reward': 'Crown + 250 💎', 'icon': Icons.workspace_premium_rounded},
         ];
 
-        return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-          title: Row(
-            children: [
-              const Icon(Icons.local_fire_department, color: Colors.orange, size: 28),
-              const SizedBox(width: 8),
-              Text('$streak Day Streak!'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Color daily to keep your flame burning and unlock milestone gifts!',
-                style: TextStyle(fontSize: 13, height: 1.3),
-              ),
-              const SizedBox(height: 16),
-              ...milestones.map((m) {
-                final day = m['day'] as int;
-                final reward = m['reward'] as String;
-                final isReached = streak >= day;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+          backgroundColor: isDark ? const Color(0xFF1E1830) : Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Streak count header
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 52,
+                      height: 52,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: streak > 0
+                              ? [const Color(0xFFFF9D2E), const Color(0xFFFF4757)]
+                              : [Colors.grey.shade400, Colors.grey.shade600],
+                        ),
+                        boxShadow: streak > 0
+                            ? [
+                                BoxShadow(
+                                  color: const Color(0xFFFF4757).withAlpha(100),
+                                  blurRadius: 16,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: const Icon(
+                        Icons.local_fire_department_rounded,
+                        color: Colors.white,
+                        size: 30,
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '$streak',
+                          style: TextStyle(
+                            fontSize: 36,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                            color: isDark ? Colors.white : const Color(0xFF2A2440),
+                          ),
+                        ),
+                        Text(
+                          streak == 1 ? 'Day Streak' : 'Day Streak',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: isDark ? Colors.white60 : Colors.black54,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          'Best: $bestStreak',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDark ? const Color(0xFFFFD24C) : const Color(0xFFB76E00),
+                          ),
+                        ),
+                        if (freezes > 0)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.ac_unit_rounded, size: 12, color: Color(0xFF64B5F6)),
+                              const SizedBox(width: 3),
+                              Text(
+                                '$freezes freeze${freezes > 1 ? 's' : ''}',
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  color: Color(0xFF64B5F6),
+                                ),
+                              ),
+                            ],
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
+
+                // Streak at risk warning
+                if (!todayDone && streak > 0) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: isReached ? Colors.orange.withAlpha(25) : Colors.grey.withAlpha(15),
-                      borderRadius: BorderRadius.circular(14),
+                      color: const Color(0xFFFF4757).withAlpha(isDark ? 30 : 18),
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: isReached ? Colors.orange.withAlpha(120) : Colors.grey.withAlpha(40),
+                        color: const Color(0xFFFF4757).withAlpha(80),
                       ),
                     ),
                     child: Row(
                       children: [
-                        Icon(
-                          isReached ? Icons.check_circle_rounded : Icons.lock_clock_outlined,
-                          color: isReached ? Colors.orange : Colors.grey,
-                          size: 20,
+                        const Icon(
+                          Icons.warning_amber_rounded,
+                          color: Color(0xFFFF4757),
+                          size: 18,
                         ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Day $day',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                        ),
-                        const Spacer(),
-                        Text(
-                          reward,
-                          style: TextStyle(
-                            color: isReached ? Colors.orange : Colors.grey,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Complete any artwork today to keep your streak alive!',
+                            style: TextStyle(
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w600,
+                              color: isDark ? const Color(0xFFFF8A8A) : const Color(0xFFCC2233),
+                            ),
                           ),
                         ),
                       ],
                     ),
                   ),
-                );
-              }),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Awesome!'),
+                ],
+
+                const SizedBox(height: 16),
+
+                // Calendar grid
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: isDark ? Colors.white.withAlpha(8) : Colors.black.withAlpha(6),
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(8),
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      // Day labels row
+                      Row(
+                        children: dayLabels.map((label) => Expanded(
+                          child: Center(
+                            child: Text(
+                              label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w700,
+                                color: isDark ? Colors.white38 : Colors.black38,
+                              ),
+                            ),
+                          ),
+                        )).toList(),
+                      ),
+                      const SizedBox(height: 6),
+                      // 5 weeks of days
+                      ...List.generate(5, (week) {
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 2),
+                          child: Row(
+                            children: List.generate(7, (day) {
+                              final cellDate = startOfCalendar.add(Duration(days: week * 7 + day));
+                              final key = dateKey(cellDate);
+                              final isActive = activeDays.contains(key);
+                              final isToday = key == dateKey(now);
+                              final isFuture = cellDate.isAfter(now);
+
+                              return Expanded(
+                                child: AspectRatio(
+                                  aspectRatio: 1,
+                                  child: Container(
+                                    margin: const EdgeInsets.all(2),
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: isActive
+                                          ? const Color(0xFFFF9D2E).withAlpha(isDark ? 40 : 25)
+                                          : (isToday
+                                              ? AppStyle.primary.withAlpha(isDark ? 25 : 15)
+                                              : Colors.transparent),
+                                      border: isToday
+                                          ? Border.all(
+                                              color: isActive
+                                                  ? const Color(0xFFFF9D2E)
+                                                  : AppStyle.primary.withAlpha(120),
+                                              width: 2,
+                                            )
+                                          : null,
+                                    ),
+                                    child: Center(
+                                      child: isFuture
+                                          ? Text(
+                                              '${cellDate.day}',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                color: isDark ? Colors.white24 : Colors.black26,
+                                              ),
+                                            )
+                                          : isActive
+                                              ? const Icon(
+                                                  Icons.local_fire_department_rounded,
+                                                  color: Color(0xFFFF9D2E),
+                                                  size: 18,
+                                                )
+                                              : Text(
+                                                  '${cellDate.day}',
+                                                  style: TextStyle(
+                                                    fontSize: 10,
+                                                    fontWeight: FontWeight.w500,
+                                                    color: isDark ? Colors.white38 : Colors.black38,
+                                                  ),
+                                                ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ),
+                        );
+                      }),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+
+                // Milestone rewards
+                ...milestones.map((m) {
+                  final day = m['day'] as int;
+                  final reward = m['reward'] as String;
+                  final icon = m['icon'] as IconData;
+                  final isReached = streak >= day;
+                  final progress = (streak / day).clamp(0.0, 1.0);
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 3),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isReached
+                            ? const Color(0xFFFF9D2E).withAlpha(isDark ? 30 : 18)
+                            : (isDark ? Colors.white.withAlpha(8) : Colors.black.withAlpha(5)),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isReached
+                              ? const Color(0xFFFF9D2E).withAlpha(100)
+                              : (isDark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(10)),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            isReached ? Icons.check_circle_rounded : icon,
+                            color: isReached
+                                ? const Color(0xFFFF9D2E)
+                                : (isDark ? Colors.white38 : Colors.black38),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Day $day',
+                            style: TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 12,
+                              color: isDark ? Colors.white : Colors.black87,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          if (!isReached)
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(3),
+                                child: LinearProgressIndicator(
+                                  value: progress,
+                                  minHeight: 3,
+                                  backgroundColor: isDark
+                                      ? Colors.white.withAlpha(18)
+                                      : Colors.black.withAlpha(12),
+                                  valueColor: const AlwaysStoppedAnimation(Color(0xFFFF9D2E)),
+                                ),
+                              ),
+                            )
+                          else
+                            const Spacer(),
+                          const SizedBox(width: 10),
+                          Text(
+                            reward,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: isReached
+                                  ? const Color(0xFFFF9D2E)
+                                  : (isDark ? Colors.white54 : Colors.black45),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+
+                const SizedBox(height: 14),
+
+                // Close button
+                SizedBox(
+                  width: double.infinity,
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      backgroundColor: isDark
+                          ? Colors.white.withAlpha(10)
+                          : Colors.black.withAlpha(6),
+                    ),
+                    child: Text(
+                      todayDone ? 'Awesome! 🔥' : 'Keep Going!',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? Colors.white70 : Colors.black87,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
-          ],
+          ),
         );
       },
     );

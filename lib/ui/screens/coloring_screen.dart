@@ -44,6 +44,7 @@ import '../../ui/widgets/rolling_count.dart';
 import '../../ui/widgets/transitions.dart';
 import '../../ui/widgets/diamond_shop_sheet.dart';
 import '../../ui/widgets/rating_dialog.dart';
+import '../../ui/widgets/art_preview_painter.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -1728,27 +1729,29 @@ class _ColoringScreenState extends State<ColoringScreen>
                               ),
                             ],
                             const SizedBox(height: 12),
-                            // Next Artwork Button
+                            // Smart "Up Next" Recommendation Card
                             _hudReveal(
                               3,
-                              SizedBox(
-                                width: double.infinity,
-                                child: ElevatedButton.icon(
-                                  onPressed: _openNextArt,
-                                  icon: const Icon(Icons.skip_next_rounded, size: 22),
-                                  label: Text(_isPart ? 'Next Part' : 'Next Artwork'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppStyle.primary,
-                                    foregroundColor: Colors.white,
-                                    elevation: 3,
-                                    shadowColor: AppStyle.primary.withAlpha(120),
-                                    padding: const EdgeInsets.symmetric(vertical: 13),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(16),
-                                    ),
-                                  ),
-                                ),
-                              ),
+                              _isPart
+                                  ? SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton.icon(
+                                        onPressed: _openNextArt,
+                                        icon: const Icon(Icons.skip_next_rounded, size: 22),
+                                        label: const Text('Next Part'),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppStyle.primary,
+                                          foregroundColor: Colors.white,
+                                          elevation: 3,
+                                          shadowColor: AppStyle.primary.withAlpha(120),
+                                          padding: const EdgeInsets.symmetric(vertical: 13),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : _buildUpNextCard(isDark),
                             ),
                             const SizedBox(height: 12),
                             // Sleek Action Buttons (Replay, Share, Share GIF)
@@ -1891,6 +1894,226 @@ class _ColoringScreenState extends State<ColoringScreen>
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+  /// Rich "Up Next" recommendation card shown in the completion HUD. Uses the
+  /// smart recommendation engine to pick the best next artwork based on
+  /// category, difficulty, and in-progress state.
+  Widget _buildUpNextCard(bool isDark) {
+    final gallery = _galleryProvider ?? (mounted ? context.read<GalleryProvider>() : null);
+    final settings = _settings ?? (mounted ? context.read<AppSettingsProvider>() : null);
+    if (gallery == null || settings == null) {
+      return const SizedBox.shrink();
+    }
+    final recommended = gallery.recommendNextArt(widget.art, settings.isProUser);
+    if (recommended == null) {
+      // All artworks completed — show a congratulations fallback
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: isDark
+              ? const Color(0xFF2E2242).withAlpha(180)
+              : const Color(0xFFF3F0FF),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: AppStyle.primary.withAlpha(60),
+          ),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.emoji_events_rounded, color: AppStyle.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'You completed everything — amazing!',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.white70 : Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final progress = gallery.artProgressPercent(recommended);
+    final isResume = progress > 0 && progress < 100;
+    final difficulty = GalleryProvider.difficultyLabel(recommended);
+    final estMinutes = GalleryProvider.estimatedMinutes(recommended);
+    final titleColor = isDark ? Colors.white : const Color(0xFF2A2440);
+    final subColor = isDark ? Colors.white60 : Colors.black54;
+
+    return GestureDetector(
+      onTap: _openNextArt,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: isDark
+                ? [const Color(0xFF2E2242), const Color(0xFF1E1830)]
+                : [const Color(0xFFF8F5FF), const Color(0xFFEDE7FF)],
+          ),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: AppStyle.primary.withAlpha(isDark ? 80 : 50),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppStyle.primary.withAlpha(isDark ? 40 : 25),
+              blurRadius: 12,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header label
+            Row(
+              children: [
+                Icon(
+                  isResume ? Icons.play_circle_rounded : Icons.auto_awesome_rounded,
+                  color: AppStyle.primary,
+                  size: 14,
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  isResume ? 'CONTINUE WHERE YOU LEFT OFF' : 'UP NEXT FOR YOU',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 0.8,
+                    color: AppStyle.primary,
+                  ),
+                ),
+                const Spacer(),
+                Icon(
+                  Icons.arrow_forward_rounded,
+                  color: AppStyle.primary,
+                  size: 16,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            // Artwork preview row
+            Row(
+              children: [
+                // Mini preview thumbnail
+                Container(
+                  width: 60,
+                  height: 60,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withAlpha(isDark ? 60 : 20),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: CustomPaint(
+                      painter: ArtPreviewPainter(
+                        art: recommended,
+                        isCompleted: true,
+                      ),
+                      size: const Size(60, 60),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // Artwork details
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        recommended.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      // Category + metadata badges
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          _UpNextBadge(
+                            icon: Icons.palette_rounded,
+                            label: recommended.category,
+                            isDark: isDark,
+                          ),
+                          _UpNextBadge(
+                            icon: Icons.speed_rounded,
+                            label: difficulty,
+                            isDark: isDark,
+                          ),
+                          _UpNextBadge(
+                            icon: Icons.timer_outlined,
+                            label: '~$estMinutes min',
+                            isDark: isDark,
+                          ),
+                          _UpNextBadge(
+                            icon: Icons.color_lens_rounded,
+                            label: '${recommended.colorCount} colors',
+                            isDark: isDark,
+                          ),
+                        ],
+                      ),
+                      // Progress bar for in-progress artworks
+                      if (isResume) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(4),
+                                child: LinearProgressIndicator(
+                                  value: progress / 100,
+                                  minHeight: 4,
+                                  backgroundColor: isDark
+                                      ? Colors.white.withAlpha(25)
+                                      : Colors.black.withAlpha(15),
+                                  valueColor: AlwaysStoppedAnimation(AppStyle.primary),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '$progress%',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                color: subColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
@@ -3075,6 +3298,48 @@ class _HudAction extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Compact metadata badge used in the "Up Next" recommendation card.
+class _UpNextBadge extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isDark;
+
+  const _UpNextBadge({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: isDark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(8),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark ? Colors.white.withAlpha(18) : Colors.black.withAlpha(10),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: isDark ? Colors.white54 : Colors.black45),
+          const SizedBox(width: 3),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white60 : Colors.black54,
+            ),
+          ),
+        ],
       ),
     );
   }

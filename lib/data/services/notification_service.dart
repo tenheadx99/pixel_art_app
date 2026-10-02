@@ -274,4 +274,63 @@ class NotificationService {
       );
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Streak-at-Risk Notification
+  // ---------------------------------------------------------------------------
+
+  /// ID range for streak-at-risk reminders, distinct from morning/evening.
+  static const int _streakIdBase = 3000;
+
+  /// Hour (19:00 / 7 PM) when the streak-at-risk reminder fires.
+  static const int _streakRiskHour = 19;
+  static const int _streakRiskMinute = 0;
+
+  /// Streak-aware notification copy, rotated by day.
+  static const List<String> _streakRiskMessages = [
+    "Don't break your {streak}-day streak! Just one artwork to keep it alive. 🔥",
+    "Your {streak}-day streak is at risk! A quick color session saves it. 🎨",
+    "🔥 {streak} days strong — don't stop now! Complete any artwork today.",
+    "Almost there! Keep your {streak}-day streak going with a few pixels. ✨",
+    "Your streak flame needs you! Color one piece to save {streak} days of progress. 🕯️",
+  ];
+
+  /// Schedules a 7 PM "streak at risk" notification for today (and the next
+  /// [_daysAhead] days) if the user has an active streak. Call this on app
+  /// launch after [scheduleDailyReminders]. Pass [currentStreak] > 0 and
+  /// [todayCompleted] = false to schedule; otherwise this is a no-op.
+  ///
+  /// If the user opens the app and has already completed today, the streak
+  /// notification is not needed and will be skipped.
+  Future<void> scheduleStreakAtRiskReminder({
+    required int currentStreak,
+    required bool todayCompleted,
+  }) async {
+    if (!_initialized) await init();
+    if (currentStreak <= 0 || todayCompleted) {
+      // No active streak or already safe today — cancel any queued streak alerts
+      for (int day = 0; day < _daysAhead; day++) {
+        try {
+          await _plugin.cancel(id: _streakIdBase + day);
+        } catch (_) {}
+      }
+      return;
+    }
+
+    final details = _notificationDetails();
+    final now = tz.TZDateTime.now(tz.local);
+
+    for (int day = 0; day < _daysAhead; day++) {
+      final msg = _streakRiskMessages[
+              (now.add(Duration(days: day)).day) % _streakRiskMessages.length]
+          .replaceAll('{streak}', '$currentStreak');
+      await _scheduleOne(
+        id: _streakIdBase + day,
+        when: _instanceFor(now, _streakRiskHour, _streakRiskMinute, day),
+        title: '🔥 Your streak is at risk!',
+        body: msg,
+        details: details,
+      );
+    }
+  }
 }

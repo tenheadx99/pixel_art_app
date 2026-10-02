@@ -208,6 +208,7 @@ class GalleryProvider extends ChangeNotifier {
   static const String _streakBrokenAtPrefKey = 'streak_broken_at_ms';
   static const String _streakBrokenValuePrefKey = 'streak_broken_value';
   static const String _plusFreezeMonthPrefKey = 'plus_freeze_month';
+  static const String _streakDatesPrefKey = 'streak_active_dates';
 
   /// Date the daily artwork itself was completed. Drives the banner "done"
   /// state and the streak-bonus claim — distinct from [_streakDatePrefKey],
@@ -414,12 +415,57 @@ class GalleryProvider extends ChangeNotifier {
     _dailyStreak = last == yesterday ? _dailyStreak + 1 : 1;
     _storageService.setInt(_streakPrefKey, _dailyStreak);
     _storageService.setString(_streakDatePrefKey, today);
+    _recordStreakDate(today);
     AnalyticsService().logDailyRewardClaimed(dayStreak: _dailyStreak, coins: 0);
     if (_dailyStreak > _bestStreak) {
       _bestStreak = _dailyStreak;
       _storageService.setInt(_bestStreakPrefKey, _bestStreak);
     }
   }
+
+  /// Appends [dateKey] to the persistent streak dates history (capped at 90
+  /// days to limit storage). Used by the streak calendar UI.
+  void _recordStreakDate(String dateKey) {
+    final existing = _storageService.getString(_streakDatesPrefKey);
+    final dates = existing.isEmpty ? <String>{} : existing.split(',').toSet();
+    dates.add(dateKey);
+    // Trim to last 90 days to prevent unbounded growth
+    final cutoff = DateTime.now().subtract(const Duration(days: 90));
+    dates.removeWhere((d) {
+      final parsed = DateTime.tryParse(d);
+      return parsed != null && parsed.isBefore(cutoff);
+    });
+    _storageService.setString(_streakDatesPrefKey, dates.join(','));
+  }
+
+  /// Set of yyyy-MM-dd date keys where the user was active (completed at least
+  /// one artwork). Used by the streak calendar dialog.
+  Set<String> get streakActiveDays {
+    final raw = _storageService.getString(_streakDatesPrefKey);
+    if (raw.isEmpty) {
+      // Seed from the current streak: if user has a 5-day streak ending today,
+      // backfill the last 5 days so the calendar isn't empty on first upgrade.
+      final last = _storageService.getString(_streakDatePrefKey);
+      if (last.isNotEmpty && _dailyStreak > 0) {
+        final lastDate = DateTime.tryParse(last);
+        if (lastDate != null) {
+          final seeded = <String>{};
+          for (int i = 0; i < _dailyStreak; i++) {
+            seeded.add(_dateKey(lastDate.subtract(Duration(days: i))));
+          }
+          _storageService.setString(_streakDatesPrefKey, seeded.join(','));
+          return seeded;
+        }
+      }
+      return {};
+    }
+    return raw.split(',').toSet();
+  }
+
+  /// Whether the user has completed at least one artwork today (any artwork,
+  /// not just the daily). Used by the streak calendar and notifications.
+  bool get todayCompleted =>
+      _storageService.getString(_streakDatePrefKey) == _dateKey(DateTime.now());
 
   static String _dateKey(DateTime d) =>
       '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
@@ -623,5 +669,99 @@ class GalleryProvider extends ChangeNotifier {
     return isProUser ||
         _sessionUnlockedIds.contains(art.id) ||
         _diamondUnlockedIds.contains(art.id);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Smart "Up Next" Recommendation
+  // ---------------------------------------------------------------------------
+
+  /// Picks the best next artwork to recommend after completing [currentArt].
+  /// Priority: 1) in-progress same-category, 2) fresh same-category,
+  /// 3) similar difficulty (±30%), 4) any in-progress, 5) any unlocked incomplete.
+  /// Returns null only when the entire catalog is completed.
+  PixelArt? recommendNextArt(PixelArt currentArt, bool isProUser) {
+    final candidates = _catalog.where((a) =>
+        a.id != currentArt.id &&
+        !isCompleted(a.id) &&
+        isUnlocked(a, isProUser),
+    ).toList();
+    if (candidates.isEmpty) return null;
+
+    final currentSize = currentArt.gridWidth * currentArt.gridHeight;
+
+    // 1. In-progress artwork in the same category (resume momentum)
+    final inProgressSameCategory = candidates.where((a) =>
+        a.category == currentArt.category &&
+        artProgressPercent(a) > 0 &&
+        artProgressPercent(a) < 100,
+    ).toList();
+    if (inProgressSameCategory.isNotEmpty) {
+      // Pick the one closest to completion
+      inProgressSameCategory.sort((a, b) =>
+          artProgressPercent(b).compareTo(artProgressPercent(a)));
+      return inProgressSameCategory.first;
+    }
+
+    // 2. Fresh artwork in the same category
+    final freshSameCategory = candidates.where((a) =>
+        a.category == currentArt.category && artProgressPercent(a) == 0,
+    ).toList();
+    if (freshSameCategory.isNotEmpty) {
+      // Pick one with similar difficulty (closest grid size)
+      freshSameCategory.sort((a, b) {
+        final sizeA = a.gridWidth * a.gridHeight;
+        final sizeB = b.gridWidth * b.gridHeight;
+        return (sizeA - currentSize).abs().compareTo((sizeB - currentSize).abs());
+      });
+      return freshSameCategory.first;
+    }
+
+    // 3. Similar difficulty from any category (±30% grid size)
+    final similarDifficulty = candidates.where((a) {
+      final size = a.gridWidth * a.gridHeight;
+      return size >= currentSize * 0.7 && size <= currentSize * 1.3;
+    }).toList();
+    if (similarDifficulty.isNotEmpty) {
+      // Prefer in-progress, then fresh
+      final inProgress = similarDifficulty.where(
+        (a) => artProgressPercent(a) > 0 && artProgressPercent(a) < 100,
+      ).toList();
+      if (inProgress.isNotEmpty) {
+        inProgress.sort((a, b) =>
+            artProgressPercent(b).compareTo(artProgressPercent(a)));
+        return inProgress.first;
+      }
+      return similarDifficulty.first;
+    }
+
+    // 4. Any in-progress artwork (don't let users forget their work)
+    final anyInProgress = candidates.where(
+      (a) => artProgressPercent(a) > 0 && artProgressPercent(a) < 100,
+    ).toList();
+    if (anyInProgress.isNotEmpty) {
+      anyInProgress.sort((a, b) =>
+          artProgressTimestamp(b).compareTo(artProgressTimestamp(a)));
+      return anyInProgress.first;
+    }
+
+    // 5. Fallback: first available candidate
+    return candidates.first;
+  }
+
+  /// Human-readable difficulty label derived from fillable cell count.
+  static String difficultyLabel(PixelArt art) {
+    final cells = art.fillableCells;
+    if (cells <= 200) return 'Easy';
+    if (cells <= 600) return 'Medium';
+    if (cells <= 1200) return 'Hard';
+    return 'Expert';
+  }
+
+  /// Estimated coloring time in minutes, based on ~1.5 cells/second average
+  /// fill rate from typical user sessions.
+  static int estimatedMinutes(PixelArt art) {
+    final cells = art.fillableCells;
+    final minutes = (cells / 90).ceil(); // ~1.5 cells/sec = 90 cells/min
+    return minutes.clamp(1, 999);
   }
 }
