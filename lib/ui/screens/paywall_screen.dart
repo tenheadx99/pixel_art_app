@@ -256,27 +256,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
         );
       }
 
-      if (kDebugMode) {
-        activateTestEntitlement();
-      } else {
-        final errorMsg = !isStoreAvailable
-            ? 'Play Store is currently unavailable. Please verify Play Store login and connection.'
-            : 'Product ($productId) is not configured in Google Play Console yet for this app.';
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMsg),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 7),
-            action: SnackBarAction(
-              label: 'Activate Test',
-              textColor: Colors.white,
-              onPressed: activateTestEntitlement,
-            ),
-          ),
-        );
-      }
+      await _showStoreError(
+        productId: productId,
+        isStoreAvailable: isStoreAvailable,
+        onActivateTest: activateTestEntitlement,
+      );
     }
 
     if (mounted) {
@@ -334,31 +318,88 @@ class _PaywallScreenState extends State<PaywallScreen> {
         );
       }
 
-      if (kDebugMode) {
-        activateProTest();
-      } else {
-        final errorMsg = !isStoreAvailable
-            ? 'Play Store is currently unavailable. Please verify Play Store login and connection.'
-            : 'Product (${AppConstants.proProductId}) is not configured in Google Play Console yet for this app.';
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(errorMsg),
-            backgroundColor: const Color(0xFFEF4444),
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 7),
-            action: SnackBarAction(
-              label: 'Activate Test',
-              textColor: Colors.white,
-              onPressed: activateProTest,
-            ),
-          ),
-        );
-      }
+      await _showStoreError(
+        productId: AppConstants.proProductId,
+        isStoreAvailable: isStoreAvailable,
+        onActivateTest: activateProTest,
+      );
     }
 
     if (mounted) {
       setState(() => _isProcessing = false);
+    }
+  }
+
+  Future<void> _showStoreError({
+    required String productId,
+    required bool isStoreAvailable,
+    required VoidCallback onActivateTest,
+  }) async {
+    if (kDebugMode || kProfileMode) {
+      final errorMsg = !isStoreAvailable
+          ? 'Play Store is currently unavailable. Please verify Play Store login and connection.'
+          : 'Product ($productId) is not configured in Google Play Console yet for this app.';
+
+      await showDialog<void>(
+        context: context,
+        barrierDismissible: true,
+        builder: (dialogContext) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: Row(
+              children: const [
+                Icon(Icons.info_outline, color: Color(0xFFF59E0B)),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Store Notice',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              errorMsg,
+              style: const TextStyle(fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF10B981),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onPressed: () {
+                  Navigator.of(dialogContext).pop();
+                  onActivateTest();
+                },
+                child: const Text('Activate Test Mode'),
+              ),
+            ],
+          );
+        },
+      );
+    } else {
+      final errorMsg = !isStoreAvailable
+          ? 'Play Store is currently unavailable. Please verify Play Store login and connection.'
+          : 'Unable to complete purchase at this time. Please try again later.';
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMsg),
+          backgroundColor: const Color(0xFFEF4444),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 4),
+        ),
+      );
     }
   }
 
@@ -1151,9 +1192,6 @@ class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
   late final AnimationController _flameController;
   late final Animation<double> _flameScale;
 
-  Timer? _countdownTimer;
-  int _remainingSeconds = 14 * 60 + 59; // 14m 59s initial live countdown
-
   @override
   void initState() {
     super.initState();
@@ -1191,19 +1229,6 @@ class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
     _flameScale = Tween<double>(begin: 0.88, end: 1.15).animate(
       CurvedAnimation(parent: _flameController, curve: Curves.easeInOutBack),
     );
-
-    // Active live ticking countdown
-    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (mounted) {
-        setState(() {
-          if (_remainingSeconds > 0) {
-            _remainingSeconds--;
-          } else {
-            _remainingSeconds = 15 * 60; // Refresh cycle
-          }
-        });
-      }
-    });
   }
 
   @override
@@ -1211,7 +1236,6 @@ class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
     _pulseController.dispose();
     _shimmerController.dispose();
     _flameController.dispose();
-    _countdownTimer?.cancel();
     super.dispose();
   }
 
@@ -1233,8 +1257,7 @@ class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
       titleText = raw.toUpperCase();
     }
 
-    final minutes = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_remainingSeconds % 60).toString().padLeft(2, '0');
+
 
     return AnimatedBuilder(
       animation: _pulseController,
@@ -1396,71 +1419,11 @@ class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
                                 ],
                               ),
                             ),
-                            const SizedBox(width: 8),
-                            // Live Countdown Pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 8,
-                                vertical: 4,
-                              ),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF0F0612).withValues(
-                                  alpha: widget.isDark ? 0.75 : 0.88,
-                                ),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: const Color(0xFFFF2A54).withValues(
-                                    alpha: 0.5,
-                                  ),
-                                  width: 1,
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFFF2A54).withValues(
-                                      alpha: 0.2,
-                                    ),
-                                    blurRadius: 6,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(
-                                    Icons.timer_rounded,
-                                    size: 13,
-                                    color: Color(0xFFFF4D6D),
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    'ENDS IN ',
-                                    style: TextStyle(
-                                      fontSize: 9,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 0.5,
-                                      color: Colors.white.withValues(alpha: 0.7),
-                                    ),
-                                  ),
-                                  Text(
-                                    '$minutes:$seconds',
-                                    style: const TextStyle(
-                                      fontSize: 11.5,
-                                      fontWeight: FontWeight.w900,
-                                      color: Color(0xFFFFD166),
-                                      letterSpacing: 0.5,
-                                      fontFeatures: [
-                                        FontFeature.tabularFigures(),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+
                           ],
                         ),
                         const SizedBox(height: 10),
-                        // Offer highlight row: Discount + Perks hint + Claim CTA
+                        // Offer highlight row: Discount + Perks hint
                         Row(
                           children: [
                             Container(
@@ -1523,51 +1486,6 @@ class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
                                     ),
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            // Action Claim Pill
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 11,
-                                vertical: 6.5,
-                              ),
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFFFF2A54),
-                                    Color(0xFFFF7A00),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(20),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(0xFFFF2A54)
-                                        .withValues(alpha: 0.4),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: const Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'CLAIM',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w900,
-                                      letterSpacing: 0.5,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  SizedBox(width: 3),
-                                  Icon(
-                                    Icons.arrow_forward_ios_rounded,
-                                    size: 10,
-                                    color: Colors.white,
                                   ),
                                 ],
                               ),

@@ -11,7 +11,9 @@ class RemoteConfigService {
   factory RemoteConfigService() => _instance;
   RemoteConfigService._();
 
-  final FirebaseRemoteConfig _remoteConfig = FirebaseRemoteConfig.instance;
+  FirebaseRemoteConfig? _rcInstance;
+  FirebaseRemoteConfig get _remoteConfig =>
+      _rcInstance ??= FirebaseRemoteConfig.instance;
 
   void Function(String updateUrl)? onForceUpdateTriggered;
 
@@ -144,22 +146,30 @@ class RemoteConfigService {
   }
 
   String _getString(String baseKey) {
-    final flavorKey = _getFlavorKey(baseKey);
-    if (_remoteConfig.getAll().containsKey(flavorKey)) {
-      final value = _remoteConfig.getString(flavorKey);
-      if (value.isNotEmpty) return value;
+    try {
+      final flavorKey = _getFlavorKey(baseKey);
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        final value = _remoteConfig.getString(flavorKey);
+        if (value.isNotEmpty) return value;
+      }
+      return _remoteConfig.getString('pixelyart_$baseKey');
+    } catch (_) {
+      return '';
     }
-    return _remoteConfig.getString('pixelyart_$baseKey');
   }
 
   int _getInt(String baseKey, int fallback) {
-    final flavorKey = _getFlavorKey(baseKey);
-    if (_remoteConfig.getAll().containsKey(flavorKey)) {
-      final v = _remoteConfig.getInt(flavorKey);
-      if (v > 0) return v;
+    try {
+      final flavorKey = _getFlavorKey(baseKey);
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        final v = _remoteConfig.getInt(flavorKey);
+        if (v > 0) return v;
+      }
+      final defaultVal = _remoteConfig.getInt('pixelyart_$baseKey');
+      return defaultVal > 0 ? defaultVal : fallback;
+    } catch (_) {
+      return fallback;
     }
-    final defaultVal = _remoteConfig.getInt('pixelyart_$baseKey');
-    return defaultVal > 0 ? defaultVal : fallback;
   }
 
   // Getters for dynamic configurations

@@ -9,7 +9,8 @@ class EconomyConfigService {
   factory EconomyConfigService() => _instance;
   EconomyConfigService._();
 
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  FirebaseFirestore? _firestore;
+  FirebaseFirestore get _db => _firestore ??= FirebaseFirestore.instance;
 
   EconomyConfig _currentConfig = EconomyConfig.defaults;
   EconomyConfig get currentConfig => _currentConfig;

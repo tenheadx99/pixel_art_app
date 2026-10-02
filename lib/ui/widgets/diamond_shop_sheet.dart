@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:provider/provider.dart';
@@ -210,17 +211,21 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
       _showToast('Connecting to Store…');
     } else {
       // Fallback in dev/testing mode: Grant total diamonds (Base + Admin configured bonus)
-      settings.addDiamonds(pack.totalDiamonds);
-      if (pack.bonusWands > 0) {
-        settings.addWands(pack.bonusWands);
-      }
-      if (pack.bonusBombs > 0 && mounted) {
-        context.read<ColoringProvider>().addBombs(pack.bonusBombs);
-      }
-      if (pack.calculatedBonusDiamonds > 0) {
-        _showToast('Granted ${pack.amount} + ${pack.calculatedBonusDiamonds} Extra = ${pack.totalDiamonds} 💎 (Test Mode)');
+      if (kDebugMode || kProfileMode) {
+        settings.addDiamonds(pack.totalDiamonds);
+        if (pack.bonusWands > 0) {
+          settings.addWands(pack.bonusWands);
+        }
+        if (pack.bonusBombs > 0 && mounted) {
+          context.read<ColoringProvider>().addBombs(pack.bonusBombs);
+        }
+        if (pack.calculatedBonusDiamonds > 0) {
+          _showToast('Granted ${pack.amount} + ${pack.calculatedBonusDiamonds} Extra = ${pack.totalDiamonds} 💎 (Test Mode)');
+        } else {
+          _showToast('Granted ${pack.totalDiamonds} 💎 (Test Mode)');
+        }
       } else {
-        _showToast('Granted ${pack.totalDiamonds} 💎 (Test Mode)');
+        _showToast('Unable to complete purchase at this time. Please try again later.', isError: true);
       }
     }
 
