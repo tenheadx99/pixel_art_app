@@ -7,14 +7,17 @@ import 'package:pixel_art_app/ui/theme/app_style.dart';
 import 'package:pixel_art_app/config/flavor.dart';
 
 import 'package:pixel_art_app/data/services/analytics_service.dart';
+import 'package:pixel_art_app/data/services/app_config_service.dart';
 import 'package:pixel_art_app/data/services/remote_config_service.dart';
 
 class ForceUpdateScreen extends StatefulWidget {
   final String updateUrl;
+  final String? minVersion;
 
   const ForceUpdateScreen({
     super.key,
     required this.updateUrl,
+    this.minVersion,
   });
 
   @override
@@ -32,8 +35,11 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen>
   void initState() {
     super.initState();
     // Log analytics when force update screen is shown
-    final minVersion = RemoteConfigService().minRequiredVersion;
-    AnalyticsService().logForceUpdateShown(minVersion: minVersion);
+    final effectiveMin = widget.minVersion ??
+        (AppConfigService().minVersion.isNotEmpty
+            ? AppConfigService().minVersion
+            : RemoteConfigService().minRequiredVersion);
+    AnalyticsService().logForceUpdateShown(minVersion: effectiveMin);
 
     // Floating animation for the update icon
     _floatingController = AnimationController(
@@ -96,8 +102,10 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen>
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
 
-    return Scaffold(
-      body: Stack(
+    return PopScope(
+      canPop: false,
+      child: Scaffold(
+        body: Stack(
         children: [
           // Background Gradient
           Container(
@@ -249,7 +257,8 @@ class _ForceUpdateScreenState extends State<ForceUpdateScreen>
           ),
         ],
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildAnimatedBubble(int index) {

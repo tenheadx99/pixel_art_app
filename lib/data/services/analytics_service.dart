@@ -873,6 +873,51 @@ class AnalyticsService {
     }
   }
 
+  /// Logs when the in-app update card is displayed to the user.
+  Future<void> logInAppUpdateCardShown({required String version}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'in_app_update_card_shown',
+        parameters: {'target_version': version},
+      );
+    } catch (e) {
+      developer.log('Error logging logInAppUpdateCardShown: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs when the user clicks 'Update Now' on the in-app update card.
+  Future<void> logInAppUpdateCardClicked({required String updateUrl}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'in_app_update_card_clicked',
+        parameters: {'update_url': updateUrl},
+      );
+    } catch (e) {
+      developer.log('Error logging logInAppUpdateCardClicked: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
+  /// Logs when the user dismisses the in-app update card.
+  Future<void> logInAppUpdateCardDismissed({required String version}) async {
+    final a = _analytics;
+    if (a == null) return;
+    try {
+      await a.logEvent(
+        name: 'in_app_update_card_dismissed',
+        parameters: {'target_version': version},
+      );
+    } catch (e) {
+      developer.log('Error logging logInAppUpdateCardDismissed: $e',
+          name: 'AnalyticsService');
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Virtual Currency / Economy
   // ---------------------------------------------------------------------------

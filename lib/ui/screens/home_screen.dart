@@ -19,6 +19,7 @@ import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
 import '../widgets/reward_popup.dart';
 import '../widgets/diamond_shop_sheet.dart';
+import '../widgets/in_app_update_card.dart';
 import '../../data/services/economy_config_service.dart';
 import '../widgets/transitions.dart';
 import '../../data/services/ad_service.dart';
@@ -164,6 +165,9 @@ class _HomeScreenState extends State<HomeScreen> {
               controller: _scrollController,
               slivers: [
                 _buildHeader(context, gallery, settings),
+                const SliverToBoxAdapter(
+                  child: InAppUpdateCard(),
+                ),
                 if (gallery.dailyArt != null)
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),

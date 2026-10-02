@@ -160,7 +160,7 @@ android {
             dimension = "app"
             applicationId = "com.tenhead.crossstitch"
             versionCode = 21
-            versionName = "2.0.0"
+            versionName = "1.0.0"
             resValue("string", "app_name", "Suit Stitch")
             // TODO: register com.tenhead.suitstitch in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =

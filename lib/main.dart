@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 import 'l10n/app_localizations.dart';
 import 'config/app_constants.dart';
 import 'config/app_config.dart';
@@ -22,6 +21,7 @@ import 'data/services/remote_catalog_service.dart';
 import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
+import 'data/services/app_config_service.dart';
 import 'data/services/analytics_service.dart';
 import 'data/services/auth_service.dart';
 import 'data/models/pixel_art.dart';
@@ -34,14 +34,13 @@ import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
 import 'ui/screens/onboarding_screen.dart';
 import 'ui/screens/home_screen.dart';
-import 'ui/screens/force_update_screen.dart';
 import 'ui/theme/app_style.dart';
-
-import 'config/version_utils.dart';
 
 // Re-exported: isVersionOlder predates config/version_utils.dart and existing
 // callers/tests import it from here.
 export 'config/version_utils.dart' show isVersionOlder;
+
+final GlobalKey<NavigatorState> appNavigatorKey = GlobalKey<NavigatorState>();
 
 /// True once Firebase has been initialized in [bootstrapApp] so the per-app
 /// bootstrap can skip re-initializing it (a second init throws duplicate-app).
@@ -145,8 +144,6 @@ class _AppBootstrapState extends State<AppBootstrap>
   List<PixelArt> _preMadeArts = [];
   bool _ready = false;
   bool _bootstrapError = false;
-  bool _forceUpdateRequired = false;
-  String _updateUrl = '';
 
   @override
   void initState() {
@@ -197,31 +194,15 @@ class _AppBootstrapState extends State<AppBootstrap>
     // it runs concurrently with the rest of bootstrap instead of serially.
     final adInitFuture = AdService().initialize();
 
-    // Remote Config + force-update check. Firebase itself is initialized earlier
-    // in bootstrapApp(); these are non-critical, so failures fall back to
-    // defaults without blocking the app.
+    // Remote Config + dynamic app updates (via Firestore + RC fallback).
+    // Firebase itself is initialized earlier in bootstrapApp(); these are
+    // non-critical, so failures fall back to defaults without blocking the app.
     try {
       await AnalyticsService().init(flavorName: currentFlavor.name);
       final remoteConfig = RemoteConfigService();
-      remoteConfig.onForceUpdateTriggered = (url) {
-        if (mounted) {
-          setState(() {
-            _forceUpdateRequired = true;
-            _updateUrl = url;
-          });
-        }
-      };
       await remoteConfig.initialize();
       await EconomyConfigService().initialize();
-
-      final packageInfo = await PackageInfo.fromPlatform();
-      final currentVersion = packageInfo.version;
-      final minVersion = remoteConfig.minRequiredVersion;
-
-      if (isVersionOlder(currentVersion, minVersion)) {
-        _forceUpdateRequired = true;
-        _updateUrl = remoteConfig.forceUpdateUrl;
-      }
+      await AppConfigService().initialize();
     } catch (e) {
       // Remote Config/PackageInfo are non-critical; continue with defaults.
     }
@@ -296,12 +277,6 @@ class _AppBootstrapState extends State<AppBootstrap>
     if (!_ready || _dependencies == null) {
       return const _AppShell(
         child: SplashScreen(loadingMessage: 'Preparing Pixel Art...'),
-      );
-    }
-
-    if (_forceUpdateRequired) {
-      return _AppShell(
-        child: ForceUpdateScreen(updateUrl: _updateUrl),
       );
     }
 
@@ -446,6 +421,7 @@ class _AppShellWithDeps extends StatelessWidget {
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return MaterialApp(
+          navigatorKey: appNavigatorKey,
           title: FlavorConfig.current.appName,
           debugShowCheckedModeBanner: false,
           themeMode: settings.isDarkMode ? ThemeMode.dark : ThemeMode.light,
