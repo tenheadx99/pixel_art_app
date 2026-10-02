@@ -39,17 +39,12 @@ class ReviewService {
     return storage.getBool(_hasRatedKey, defaultValue: false);
   }
 
-  /// Whether the rating prompt should be shown on the home artwork listing screen.
-  /// Shows if user completed at least 1 artwork, hasn't rated yet, and hasn't
-  /// dismissed it in the current app session.
+  /// Disabled on artwork listing (Home) — rating is only shown upon artwork completion.
   bool shouldShowOnHome({
     required LocalStorageService storage,
     required int completedCount,
   }) {
-    if (hasRated(storage)) return false;
-    if (completedCount < 1) return false;
-    if (_dismissedOnHomeThisSession) return false;
-    return true;
+    return false;
   }
 
   /// Mark dismissed on Home for the current app session so it only reappears on next launch.

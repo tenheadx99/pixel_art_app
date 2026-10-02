@@ -61,37 +61,18 @@ void main() {
   });
 
   group('ReviewService - Home & Completion Rules', () {
-    test('shouldShowOnHome requires at least 1 completed artwork', () {
+    test('shouldShowOnHome is disabled on artwork listing', () {
       expect(
         reviewService.shouldShowOnHome(storage: storage, completedCount: 0),
         isFalse,
       );
       expect(
         reviewService.shouldShowOnHome(storage: storage, completedCount: 1),
-        isTrue,
+        isFalse,
       );
-    });
-
-    test('dismissOnHome suppresses prompt on home for the rest of current session', () {
-      expect(
-        reviewService.shouldShowOnHome(storage: storage, completedCount: 2),
-        isTrue,
-      );
-
-      // User dismisses on home
-      reviewService.dismissOnHome();
-
-      // Should not show on home again in this session
       expect(
         reviewService.shouldShowOnHome(storage: storage, completedCount: 2),
         isFalse,
-      );
-
-      // On next app session (reset), it shows again if not rated
-      reviewService.resetSessionForTesting();
-      expect(
-        reviewService.shouldShowOnHome(storage: storage, completedCount: 2),
-        isTrue,
       );
     });
 

@@ -31,9 +31,6 @@ import '../../ui/screens/gallery_screen.dart';
 import '../../ui/screens/paywall_screen.dart';
 import '../../ui/screens/profile_screen.dart';
 import '../../config/flavor.dart';
-import '../../data/services/local_storage_service.dart';
-import '../../data/services/review_service.dart';
-import '../widgets/rating_dialog.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -98,7 +95,11 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       // Check for Google Play Flexible in-app updates
       AppUpdateService().checkForUpdate(context: context);
-      _maybePromptRating();
+      // Sync reminders and request notification permission on artwork listing screen
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        settings.syncDailyReminders();
+      });
       // Schedule streak-at-risk notification (7 PM if streak > 0 and not done today)
       final gallery = context.read<GalleryProvider>();
       NotificationService.instance.scheduleStreakAtRiskReminder(
@@ -106,24 +107,6 @@ class _HomeScreenState extends State<HomeScreen> {
         todayCompleted: gallery.todayCompleted,
       );
     });
-  }
-
-  void _maybePromptRating() {
-    final storage = context.read<LocalStorageService>();
-    final gallery = context.read<GalleryProvider>();
-    if (ReviewService().shouldShowOnHome(
-      storage: storage,
-      completedCount: gallery.completedIds.length,
-    )) {
-      Future.delayed(const Duration(milliseconds: 1000), () {
-        if (!mounted) return;
-        showRatingDialog(
-          context,
-          storage: storage,
-          onDismissed: () => ReviewService().dismissOnHome(),
-        );
-      });
-    }
   }
 
   void _handleDailyArtRequest() {

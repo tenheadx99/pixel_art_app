@@ -297,8 +297,9 @@ class _AppBootstrapState extends State<AppBootstrap>
             final provider = AppSettingsProvider(
               _dependencies!.localStorageService,
             );
-            // Top up the on-device reminder schedule once settings are loaded.
-            provider.loadSettings().then((_) => provider.syncDailyReminders());
+            // Settings are loaded here; reminder sync / permission request
+            // is deferred to the artwork listing screen (HomeScreen).
+            provider.loadSettings();
             provider.listenToIAP(_dependencies!.iapService.purchaseStream);
             // Re-deliver past purchases (e.g. Pro after a reinstall); must
             // run after listenToIAP so the restored events are observed.

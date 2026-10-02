@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -636,38 +637,28 @@ class _PaywallScreenState extends State<PaywallScreen> {
                         ),
                       ),
                       if (eco.showUrgencyTimer) ...[
-                        const SizedBox(height: 10),
-                        Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 24),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFFEF4444), Color(0xFFF97316)],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFFEF4444).withAlpha(80),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.timer_rounded, size: 16, color: Colors.white),
-                              const SizedBox(width: 6),
-                              Text(
-                                '${eco.urgencyHeadline} • Ends Soon',
-                                style: const TextStyle(
-                                  fontSize: 12.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: Colors.white,
-                                  letterSpacing: 0.2,
-                                ),
-                              ),
-                            ],
+                        const SizedBox(height: 12),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 18),
+                          child: _SpecialWelcomeOfferBanner(
+                            headline: eco.urgencyHeadline,
+                            isDark: isDark,
+                            onTap: () {
+                              HapticFeedback.mediumImpact();
+                              final bestIdx = plans.indexWhere((p) => p.isBestValue);
+                              final targetIdx = bestIdx != -1 ? bestIdx : 0;
+                              if (_pageController.hasClients) {
+                                _pageController.animateToPage(
+                                  targetIdx,
+                                  duration: const Duration(milliseconds: 350),
+                                  curve: Curves.easeInOutCubic,
+                                );
+                              }
+                              setState(() {
+                                _currentPageIndex = targetIdx;
+                                _selectedPlan = plans[targetIdx].id;
+                              });
+                            },
                           ),
                         ),
                       ],
@@ -1128,4 +1119,496 @@ class _CarouselPlanCard extends StatelessWidget {
     );
   }
 }
+
+/// Animated, attention-grabbing Special Welcome Offer Banner for Paywall.
+/// Features breathing pulse, warm dual-glow shadows, metallic diagonal shimmer,
+/// dynamic fire pulse, ticking live countdown clock, and tap-to-focus on the best-value plan.
+class _SpecialWelcomeOfferBanner extends StatefulWidget {
+  final String headline;
+  final VoidCallback onTap;
+  final bool isDark;
+
+  const _SpecialWelcomeOfferBanner({
+    required this.headline,
+    required this.onTap,
+    this.isDark = true,
+  });
+
+  @override
+  State<_SpecialWelcomeOfferBanner> createState() =>
+      _SpecialWelcomeOfferBannerState();
+}
+
+class _SpecialWelcomeOfferBannerState extends State<_SpecialWelcomeOfferBanner>
+    with TickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  late final Animation<double> _pulseScale;
+  late final Animation<double> _glowAlpha;
+
+  late final AnimationController _shimmerController;
+  late final Animation<double> _shimmerAnim;
+
+  late final AnimationController _flameController;
+  late final Animation<double> _flameScale;
+
+  Timer? _countdownTimer;
+  int _remainingSeconds = 14 * 60 + 59; // 14m 59s initial live countdown
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Breathing pulse scale & glow
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1800),
+    )..repeat(reverse: true);
+
+    _pulseScale = Tween<double>(begin: 0.985, end: 1.018).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOutSine),
+    );
+
+    _glowAlpha = Tween<double>(begin: 0.35, end: 0.75).animate(
+      CurvedAnimation(parent: _pulseController, curve: Curves.easeInOutSine),
+    );
+
+    // Continuous diagonal light shimmer sheen
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2800),
+    )..repeat();
+
+    _shimmerAnim = Tween<double>(begin: -1.2, end: 2.2).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+    );
+
+    // Fire icon dynamic pulse
+    _flameController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 750),
+    )..repeat(reverse: true);
+
+    _flameScale = Tween<double>(begin: 0.88, end: 1.15).animate(
+      CurvedAnimation(parent: _flameController, curve: Curves.easeInOutBack),
+    );
+
+    // Active live ticking countdown
+    _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (mounted) {
+        setState(() {
+          if (_remainingSeconds > 0) {
+            _remainingSeconds--;
+          } else {
+            _remainingSeconds = 15 * 60; // Refresh cycle
+          }
+        });
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _shimmerController.dispose();
+    _flameController.dispose();
+    _countdownTimer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Parse headline dynamically (e.g. 'Special Welcome Offer • 65% OFF')
+    final raw = widget.headline.trim();
+    String titleText = 'SPECIAL WELCOME OFFER';
+    String badgeText = '65% OFF';
+    if (raw.contains('•')) {
+      final segments = raw.split('•').map((s) => s.trim()).toList();
+      if (segments.isNotEmpty && segments[0].isNotEmpty) {
+        titleText = segments[0].toUpperCase();
+      }
+      if (segments.length > 1 && segments[1].isNotEmpty) {
+        badgeText = segments[1].toUpperCase();
+      }
+    } else if (raw.isNotEmpty) {
+      titleText = raw.toUpperCase();
+    }
+
+    final minutes = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_remainingSeconds % 60).toString().padLeft(2, '0');
+
+    return AnimatedBuilder(
+      animation: _pulseController,
+      builder: (context, child) {
+        return Transform.scale(
+          scale: _pulseScale.value,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFFFF2A54)
+                      .withValues(alpha: _glowAlpha.value * 0.45),
+                  blurRadius: 16,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 4),
+                ),
+                BoxShadow(
+                  color: const Color(0xFFFF9F1C)
+                      .withValues(alpha: _glowAlpha.value * 0.28),
+                  blurRadius: 24,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+      },
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onTap,
+          borderRadius: BorderRadius.circular(18),
+          splashColor: const Color(0xFFFF9F1C).withAlpha(40),
+          highlightColor: const Color(0xFFFF2A54).withAlpha(30),
+          child: Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [
+                  Color(0xFFFF3366),
+                  Color(0xFFFF7A00),
+                  Color(0xFFFFD166),
+                ],
+              ),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            padding: const EdgeInsets.all(1.5),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(16.5),
+              child: Stack(
+                children: [
+                  // Main card content background
+                  Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                        colors: widget.isDark
+                            ? const [
+                                Color(0xFF280A1A),
+                                Color(0xFF1B0720),
+                                Color(0xFF130517),
+                              ]
+                            : const [
+                                Color(0xFFFFF0F3),
+                                Color(0xFFFFECE6),
+                                Color(0xFFFFF7ED),
+                              ],
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 12,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Header: Animated flame + Title + Live countdown
+                        Row(
+                          children: [
+                            ScaleTransition(
+                              scale: _flameScale,
+                              child: Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: const BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  gradient: LinearGradient(
+                                    colors: [
+                                      Color(0xFFFF2A54),
+                                      Color(0xFFFF9F1C),
+                                    ],
+                                  ),
+                                ),
+                                child: const Icon(
+                                  Icons.local_fire_department_rounded,
+                                  color: Colors.white,
+                                  size: 15,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      titleText,
+                                      style: TextStyle(
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 0.8,
+                                        color: widget.isDark
+                                            ? const Color(0xFFFFD166)
+                                            : const Color(0xFFB42318),
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 5,
+                                      vertical: 1.5,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFF2A54)
+                                          .withAlpha(50),
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: const Color(0xFFFF2A54)
+                                            .withAlpha(140),
+                                        width: 0.8,
+                                      ),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 2.2,
+                                          backgroundColor: Color(0xFFFF3366),
+                                        ),
+                                        SizedBox(width: 3.5),
+                                        Text(
+                                          'VIP',
+                                          style: TextStyle(
+                                            fontSize: 8.5,
+                                            fontWeight: FontWeight.w900,
+                                            color: Color(0xFFFF3366),
+                                            letterSpacing: 0.4,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Live Countdown Pill
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF0F0612).withValues(
+                                  alpha: widget.isDark ? 0.75 : 0.88,
+                                ),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFFFF2A54).withValues(
+                                    alpha: 0.5,
+                                  ),
+                                  width: 1,
+                                ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFF2A54).withValues(
+                                      alpha: 0.2,
+                                    ),
+                                    blurRadius: 6,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.timer_rounded,
+                                    size: 13,
+                                    color: Color(0xFFFF4D6D),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    'ENDS IN ',
+                                    style: TextStyle(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w800,
+                                      letterSpacing: 0.5,
+                                      color: Colors.white.withValues(alpha: 0.7),
+                                    ),
+                                  ),
+                                  Text(
+                                    '$minutes:$seconds',
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w900,
+                                      color: Color(0xFFFFD166),
+                                      letterSpacing: 0.5,
+                                      fontFeatures: [
+                                        FontFeature.tabularFigures(),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
+                        // Offer highlight row: Discount + Perks hint + Claim CTA
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 9,
+                                vertical: 4.5,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFFFB703),
+                                    Color(0xFFFB8500),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(9),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFB8500)
+                                        .withValues(alpha: 0.4),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Text(
+                                badgeText,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w900,
+                                  color: Color(0xFF1F0910),
+                                  letterSpacing: -0.2,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 9),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Best Value VIP Plan',
+                                    style: TextStyle(
+                                      fontSize: 12.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: widget.isDark
+                                          ? Colors.white
+                                          : const Color(0xFF1F0910),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    'Instant unlock • Unlimited power-ups',
+                                    style: TextStyle(
+                                      fontSize: 10.5,
+                                      fontWeight: FontWeight.w500,
+                                      color: widget.isDark
+                                          ? Colors.white.withValues(alpha: 0.7)
+                                          : const Color(0xFF6B2135),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            // Action Claim Pill
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 11,
+                                vertical: 6.5,
+                              ),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFFF2A54),
+                                    Color(0xFFFF7A00),
+                                  ],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFFFF2A54)
+                                        .withValues(alpha: 0.4),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 3),
+                                  ),
+                                ],
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'CLAIM',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w900,
+                                      letterSpacing: 0.5,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  SizedBox(width: 3),
+                                  Icon(
+                                    Icons.arrow_forward_ios_rounded,
+                                    size: 10,
+                                    color: Colors.white,
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  // Sweeping diagonal metallic light sheen
+                  Positioned.fill(
+                    child: IgnorePointer(
+                      child: AnimatedBuilder(
+                        animation: _shimmerAnim,
+                        builder: (context, _) {
+                          return DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment(_shimmerAnim.value - 1.0, -0.6),
+                                end: Alignment(_shimmerAnim.value + 0.5, 0.6),
+                                colors: [
+                                  Colors.white.withValues(alpha: 0.0),
+                                  Colors.white.withValues(alpha: 0.16),
+                                  Colors.white.withValues(alpha: 0.0),
+                                ],
+                                stops: const [0.0, 0.5, 1.0],
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
