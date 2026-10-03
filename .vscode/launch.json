@@ -9,34 +9,12 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Pixely (original)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main.dart",
-            "toolArgs": ["--flavor", "original", "--dart-define=FLAVOR=original"]
-        },
-        {
             "name": "Pixely (original, profile)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile",
             "program": "lib/main.dart",
             "toolArgs": ["--flavor", "original", "--dart-define=FLAVOR=original"]
-        },
-        {
-            "name": "Pixely (original, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
-            "program": "lib/main.dart",
-            "toolArgs": ["--flavor", "original", "--dart-define=FLAVOR=original"]
-        },
-        {
-            "name": "Divine Pixels (devotional)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main_devotional.dart",
-            "toolArgs": ["--flavor", "devotional", "--dart-define=FLAVOR=devotional"]
         },
         {
             "name": "Divine Pixels (devotional, profile)",
@@ -47,42 +25,12 @@
             "toolArgs": ["--flavor", "devotional", "--dart-define=FLAVOR=devotional"]
         },
         {
-            "name": "Divine Pixels (devotional, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
-            "program": "lib/main_devotional.dart",
-            "toolArgs": ["--flavor", "devotional", "--dart-define=FLAVOR=devotional"]
-        },
-        {
-            "name": "Anime Pixels (anime)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main_anime.dart",
-            "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
-        },
-        {
             "name": "Anime Pixels (anime, profile)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile",
             "program": "lib/main_anime.dart",
             "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
-        },
-        {
-            "name": "Anime Pixels (anime, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
-            "program": "lib/main_anime.dart",
-            "toolArgs": ["--flavor", "anime", "--dart-define=FLAVOR=anime"]
-        },
-        {
-            "name": "PixelCalm (pixelcalm)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main_pixelcalm.dart",
-            "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
         },
         {
             "name": "PixelCalm (pixelcalm, profile)",
@@ -93,42 +41,12 @@
             "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
         },
         {
-            "name": "PixelCalm (pixelcalm, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
-            "program": "lib/main_pixelcalm.dart",
-            "toolArgs": ["--flavor", "pixelcalm", "--dart-define=FLAVOR=pixelcalm"]
-        },
-        {
-            "name": "Gem Art (diamond)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main_diamond.dart",
-            "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
-        },
-        {
             "name": "Gem Art (diamond, profile)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile",
             "program": "lib/main_diamond.dart",
             "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
-        },
-        {
-            "name": "Gem Art (diamond, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
-            "program": "lib/main_diamond.dart",
-            "toolArgs": ["--flavor", "diamond", "--dart-define=FLAVOR=diamond"]
-        },
-        {
-            "name": "Bible Pixels (bible)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main_bible.dart",
-            "toolArgs": ["--flavor", "bible", "--dart-define=FLAVOR=bible"]
         },
         {
             "name": "Bible Pixels (bible, profile)",
@@ -139,33 +57,10 @@
             "toolArgs": ["--flavor", "bible", "--dart-define=FLAVOR=bible"]
         },
         {
-            "name": "Bible Pixels (bible, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
-            "program": "lib/main_bible.dart",
-            "toolArgs": ["--flavor", "bible", "--dart-define=FLAVOR=bible"]
-        },
-        {
-            "name": "Suit Stitch (cross_stitch)",
-            "request": "launch",
-            "type": "dart",
-            "program": "lib/main_cross_stitch.dart",
-            "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=stitch"]
-        },
-        {
             "name": "Suit Stitch (cross_stitch, profile)",
             "request": "launch",
             "type": "dart",
             "flutterMode": "profile",
-            "program": "lib/main_cross_stitch.dart",
-            "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=stitch"]
-        },
-        {
-            "name": "Suit Stitch (cross_stitch, release)",
-            "request": "launch",
-            "type": "dart",
-            "flutterMode": "release",
             "program": "lib/main_cross_stitch.dart",
             "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=stitch"]
         }
