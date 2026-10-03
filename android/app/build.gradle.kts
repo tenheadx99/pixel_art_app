@@ -109,7 +109,7 @@ android {
             resValue("string", "app_name", "Divine Pixels")
             // TODO: register com.tenhead.divinepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-9064606616675657~9233209291"
         }
         // "Anime Pixels" — anime/manga fan flavor.
         create("anime") {
@@ -120,7 +120,7 @@ android {
             resValue("string", "app_name", "Anime Pixels")
             // TODO: register com.tenhead.animepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-9064606616675657~5045543118"
         }
         // "PixelCalm" — mindfulness / stress-relief flavor.
         create("pixelcalm") {
@@ -131,7 +131,7 @@ android {
             resValue("string", "app_name", "PixelCalm")
             // TODO: register com.tenhead.pixelcalm in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-9064606616675657~1632911716"
         }
         // "Gem Art" — diamond-painting flavor (gem-rendered cells).
         create("diamond") {
@@ -153,18 +153,18 @@ android {
             resValue("string", "app_name", "Bible Pixels")
             // TODO: register com.tenhead.biblepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-9064606616675657~6565759916"
         }
-        // "Suit Stitch" — cross-stitch craft flavor.
+        // "Cross Stitch" — cross-stitch craft flavor.
         create("crossStitch") {
             dimension = "app"
             applicationId = "com.tenhead.crossstitch"
             versionCode = 21
             versionName = "1.0.0"
-            resValue("string", "app_name", "Suit Stitch")
-            // TODO: register com.tenhead.suitstitch in AdMob, put its app ID here.
+            resValue("string", "app_name", "Cross Stitch")
+            // TODO: register com.tenhead.crossstitch in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-9064606616675657~1019677357"
         }
     }
 

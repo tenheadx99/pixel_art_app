@@ -1,4 +1,4 @@
-// Entrypoint for the "Suit Stitch" cross-stitch flavor.
+// Entrypoint for the "Cross Stitch" flavor.
 //
 //   flutter run   --flavor crossStitch -t lib/main_cross_stitch.dart --dart-define=FLAVOR=stitch
 //   flutter build apk --flavor crossStitch -t lib/main_cross_stitch.dart --dart-define=FLAVOR=stitch

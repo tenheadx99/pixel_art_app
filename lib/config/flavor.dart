@@ -176,8 +176,8 @@ class FlavorConfig {
       placeVerb: 'Place',
     ),
     AppFlavor.stitch: FlavorConfig(
-      appName: 'Suit Stitch',
-      splashTitle: 'Suit Stitch',
+      appName: 'Cross Stitch',
+      splashTitle: 'Cross Stitch',
       splashTagline: 'Stitch by Number',
       appIconPath: 'assets/icons/cross_stitch.png',
       primary: Color(0xFFC2185B),  // Rose Crimson
