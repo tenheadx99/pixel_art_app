@@ -6,6 +6,6 @@
 #include "Generated.xcconfig"
 
 PRODUCT_BUNDLE_IDENTIFIER = com.tenhead.divinepixels
-APP_DISPLAY_NAME = Divine Pixels
+APP_DISPLAY_NAME = Bhakti Rang: Color by Number
 APP_ICON_NAME = AppIcon-devotional
 

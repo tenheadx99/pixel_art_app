@@ -100,13 +100,13 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~3438969555"
         }
-        // "Divine Pixels" — Indian god & goddess devotional flavor.
+        // "Bhakti Rang" — Indian god & goddess devotional flavor.
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
             versionCode = 9
             versionName = "1.0.0"
-            resValue("string", "app_name", "Divine Pixels")
+            resValue("string", "app_name", "Bhakti Rang: Color by Number")
             // TODO: register com.tenhead.divinepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~9233209291"

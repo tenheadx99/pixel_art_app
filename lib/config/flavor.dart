@@ -111,9 +111,9 @@ class FlavorConfig {
       adsEnabled: true,
     ),
     AppFlavor.devotional: FlavorConfig(
-      appName: 'Divine Pixels',
-      splashTitle: 'Divine Pixels',
-      splashTagline: 'Color the Divine',
+      appName: 'Bhakti Rang: Color by Number',
+      splashTitle: 'Bhakti Rang',
+      splashTagline: 'Color by Number',
       appIconPath: 'assets/icons/devotional.png',
       primary: Color(0xFFFF6D00), // Saffron
       secondary: Color(0xFFFFC107), // Temple Gold
