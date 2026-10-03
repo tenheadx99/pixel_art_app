@@ -107,6 +107,12 @@ class _HomeScreenState extends State<HomeScreen> {
         todayCompleted: gallery.todayCompleted,
       );
     });
+    // Listen to economy config updates (e.g. admin toggling shop status)
+    EconomyConfigService().addListener(_onEconomyConfigChanged);
+  }
+
+  void _onEconomyConfigChanged() {
+    if (mounted) setState(() {});
   }
 
   void _handleDailyArtRequest() {
@@ -119,6 +125,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    EconomyConfigService().removeListener(_onEconomyConfigChanged);
     NotificationService.instance.dailyArtRequested.removeListener(
       _handleDailyArtRequest,
     );
@@ -662,6 +669,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   DiamondShopSheet.show(context);
                 } else if (canEarn) {
                   _watchAdForDiamonds('home_free_diamonds');
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Diamond Shop is currently disabled by administrator.'),
+                      behavior: SnackBarBehavior.floating,
+                    ),
+                  );
                 }
               },
               child: AnimatedScale(

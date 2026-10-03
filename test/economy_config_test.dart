@@ -29,4 +29,20 @@ void main() {
     final config = EconomyConfig.fromMap(firestoreDoc);
     expect(config.paywall.isVipSubscriptionEnabled, isTrue);
   });
+
+  test('EconomyConfig parses isShopEnabled when set to false', () {
+    final Map<String, dynamic> firestoreDoc = {
+      'isShopEnabled': false,
+    };
+
+    final config = EconomyConfig.fromMap(firestoreDoc);
+    expect(config.isShopEnabled, isFalse);
+  });
+
+  test('EconomyConfig defaults isShopEnabled to true if not specified', () {
+    final Map<String, dynamic> firestoreDoc = {};
+
+    final config = EconomyConfig.fromMap(firestoreDoc);
+    expect(config.isShopEnabled, isTrue);
+  });
 }

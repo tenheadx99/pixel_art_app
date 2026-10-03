@@ -224,19 +224,20 @@ class NumberToolbar extends StatelessWidget {
             },
           ),
 
-          // 5. Diamond Shop Button
-          _ToolCircleButton(
-            icon: Icon(
-              Icons.diamond_rounded,
-              color: Colors.cyanAccent.shade400,
-              size: 24,
+          // 5. Diamond Shop Button (hidden if disabled by admin)
+          if (EconomyConfigService().isShopEnabled)
+            _ToolCircleButton(
+              icon: Icon(
+                Icons.diamond_rounded,
+                color: Colors.cyanAccent.shade400,
+                size: 24,
+              ),
+              badgeValue: 'Shop',
+              isActive: false,
+              onTap: () {
+                DiamondShopSheet.show(context);
+              },
             ),
-            badgeValue: 'Shop',
-            isActive: false,
-            onTap: () {
-              DiamondShopSheet.show(context);
-            },
-          ),
         ],
       ),
     );
@@ -1146,38 +1147,40 @@ class _OutOfBombsDialog extends StatelessWidget {
                         ),
                       ],
 
-                      const SizedBox(height: 12),
-                      // Diamond Shop & Booster Packs Link
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          DiamondShopSheet.show(context);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.storefront_rounded,
-                                size: 15,
-                                color: isDark ? Colors.white60 : Colors.black45,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Diamond Shop & Booster Packs 💎',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white70 : const Color(0xFF455A64),
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: isDark ? Colors.white30 : Colors.black26,
+                      if (EconomyConfigService().isShopEnabled) ...[
+                        const SizedBox(height: 12),
+                        // Diamond Shop & Booster Packs Link
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            DiamondShopSheet.show(context);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.storefront_rounded,
+                                  size: 15,
+                                  color: isDark ? Colors.white60 : Colors.black45,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Diamond Shop & Booster Packs 💎',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white70 : const Color(0xFF455A64),
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: isDark ? Colors.white30 : Colors.black26,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -1611,37 +1614,39 @@ class _OutOfWandsDialog extends StatelessWidget {
                           },
                         ),
                       ],
-                      const SizedBox(height: 12),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          DiamondShopSheet.show(context);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.storefront_rounded,
-                                size: 15,
-                                color: isDark ? Colors.white60 : Colors.black45,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Diamond Shop & Booster Packs 💎',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white70 : const Color(0xFF455A64),
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: isDark ? Colors.white30 : Colors.black26,
+                      if (EconomyConfigService().isShopEnabled) ...[
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            DiamondShopSheet.show(context);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.storefront_rounded,
+                                  size: 15,
+                                  color: isDark ? Colors.white60 : Colors.black45,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Diamond Shop & Booster Packs 💎',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white70 : const Color(0xFF455A64),
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: isDark ? Colors.white30 : Colors.black26,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -1929,37 +1934,39 @@ class _OutOfHintsDialog extends StatelessWidget {
                           },
                         ),
                       ],
-                      const SizedBox(height: 12),
-                      GestureDetector(
-                        onTap: () {
-                          Navigator.of(context).pop();
-                          DiamondShopSheet.show(context);
-                        },
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 4),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.storefront_rounded,
-                                size: 15,
-                                color: isDark ? Colors.white60 : Colors.black45,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Diamond Shop & Booster Packs 💎',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: isDark ? Colors.white70 : const Color(0xFF455A64),
-                                  decoration: TextDecoration.underline,
-                                  decorationColor: isDark ? Colors.white30 : Colors.black26,
+                      if (EconomyConfigService().isShopEnabled) ...[
+                        const SizedBox(height: 12),
+                        GestureDetector(
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            DiamondShopSheet.show(context);
+                          },
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 4),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.storefront_rounded,
+                                  size: 15,
+                                  color: isDark ? Colors.white60 : Colors.black45,
                                 ),
-                              ),
-                            ],
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Diamond Shop & Booster Packs 💎',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white70 : const Color(0xFF455A64),
+                                    decoration: TextDecoration.underline,
+                                    decorationColor: isDark ? Colors.white30 : Colors.black26,
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/flavor.dart';
+import '../../data/services/economy_config_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/app_settings_provider.dart';
@@ -148,10 +149,16 @@ class _ProfileScreenState extends State<ProfileScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1400),
     );
+    EconomyConfigService().addListener(_onEconomyConfigChanged);
+  }
+
+  void _onEconomyConfigChanged() {
+    if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    EconomyConfigService().removeListener(_onEconomyConfigChanged);
     _confettiController.dispose();
     super.dispose();
   }
@@ -222,7 +229,16 @@ class _ProfileScreenState extends State<ProfileScreen>
           PressableScale(
             onTap: () {
               HapticFeedback.lightImpact();
-              DiamondShopSheet.show(context);
+              if (EconomyConfigService().isShopEnabled) {
+                DiamondShopSheet.show(context);
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('Diamond Shop is currently disabled by administrator.'),
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
             },
             scale: 0.95,
             child: Container(
@@ -329,14 +345,15 @@ class _ProfileScreenState extends State<ProfileScreen>
 
               const SizedBox(height: 14),
 
-              // Prominent Diamond Shop Action Banner
-              StaggeredEntrance(
-                slot: 1,
-                child: PressableScale(
-                  onTap: () {
-                    HapticFeedback.lightImpact();
-                    DiamondShopSheet.show(context);
-                  },
+              // Prominent Diamond Shop Action Banner (hidden when disabled by admin)
+              if (EconomyConfigService().isShopEnabled)
+                StaggeredEntrance(
+                  slot: 1,
+                  child: PressableScale(
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      DiamondShopSheet.show(context);
+                    },
                   scale: 0.98,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
@@ -586,11 +603,13 @@ class _ProfileScreenState extends State<ProfileScreen>
                           'Use diamonds to unlock premium artworks, hints, bombs, and magical paint tools.',
                       icon: Icons.diamond_rounded,
                       color: const Color(0xFFFF9F43),
-                      actionLabel: 'Open Diamond Shop',
-                      onAction: () {
-                        Navigator.of(context).pop();
-                        DiamondShopSheet.show(context);
-                      },
+                      actionLabel: EconomyConfigService().isShopEnabled ? 'Open Diamond Shop' : null,
+                      onAction: EconomyConfigService().isShopEnabled
+                          ? () {
+                              Navigator.of(context).pop();
+                              DiamondShopSheet.show(context);
+                            }
+                          : null,
                     ),
                   ),
                   _StatTileData(
