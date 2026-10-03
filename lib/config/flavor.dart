@@ -108,7 +108,7 @@ class FlavorConfig {
       accent: Color(0xFF00F0FF), // Cyber Cyan
       brandGradient: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.devotional: FlavorConfig(
       appName: 'Bhakti Rang: Color by Number',

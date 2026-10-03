@@ -982,6 +982,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                       filledColors: provider.filledColors,
                       fillVersion: provider.fillVersion,
                       changesSince: provider.changesSince,
+                      isStroking: provider.isStroking,
                     ),
                   ),
                 ),
@@ -2662,7 +2663,10 @@ class _ColoringScreenState extends State<ColoringScreen>
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: _ProgressGiftsBar(progress: provider.progress),
+                    child: _ProgressGiftsBar(
+                      progress: provider.progress,
+                      isStroking: provider.isStroking,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   GestureDetector(
@@ -3397,12 +3401,16 @@ class _MiniMapPainter extends CustomPainter {
   /// the changed texels instead of re-rasterizing the whole grid per fill.
   final List<(int, int)>? Function(int sinceVersion)? changesSince;
 
+  /// Whether the user is actively dragging/stroking across cells.
+  final bool isStroking;
+
   _MiniMapPainter({
     required this.art,
     required this.filledGrid,
     required this.filledColors,
     required this.fillVersion,
     this.changesSince,
+    this.isStroking = false,
   });
 
   // One texel per cell, baked once and patched incrementally — repainting all
@@ -3412,6 +3420,7 @@ class _MiniMapPainter extends CustomPainter {
   static ui.Image? _cachedImage;
   static String _cachedArtId = '';
   static int _cachedFillVersion = -1;
+  static int _lastStrokeBakeMs = 0;
 
   /// Frees the baked map; called from the coloring screen's dispose.
   static void releaseCache() {
@@ -3419,6 +3428,7 @@ class _MiniMapPainter extends CustomPainter {
     _cachedImage = null;
     _cachedArtId = '';
     _cachedFillVersion = -1;
+    _lastStrokeBakeMs = 0;
   }
 
   Color _texelColor(int r, int c) {
@@ -3437,6 +3447,16 @@ class _MiniMapPainter extends CustomPainter {
         _cachedFillVersion == fillVersion) {
       return;
     }
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (isStroking && _cachedImage != null && _cachedArtId == art.id) {
+      // Throttle texture rasterization during active drag strokes to at most once per 350ms,
+      // saving dozens of synchronous toImageSync calls per second.
+      if (now - _lastStrokeBakeMs < 350) {
+        return;
+      }
+    }
+    _lastStrokeBakeMs = now;
+
     // Texels must stay exact — BlendMode.src replaces (an erase clears back
     // to the unfilled gray), and cell state is read fresh from the grid so
     // journal duplicates/ordering don't matter.
@@ -3515,7 +3535,14 @@ class _MiniMapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _MiniMapPainter oldDelegate) {
-    return oldDelegate.art != art || oldDelegate.fillVersion != fillVersion;
+    if (oldDelegate.art != art) return true;
+    if (oldDelegate.isStroking != isStroking) return true;
+    if (oldDelegate.fillVersion == fillVersion) return false;
+    if (isStroking && _cachedImage != null) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      if (now - _lastStrokeBakeMs < 350) return false;
+    }
+    return true;
   }
 }
 
@@ -3524,20 +3551,20 @@ class _MiniMapViewportPainter extends CustomPainter {
 
   _MiniMapViewportPainter({required this.viewportRect});
 
+  static final Paint _vpPaint = Paint()
+    ..color = Colors.cyan
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5;
+
   @override
   void paint(Canvas canvas, Size size) {
-    final vpPaint = Paint()
-      ..color = Colors.cyan
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.5;
-
     final vpRect = Rect.fromLTRB(
       viewportRect.left * size.width,
       viewportRect.top * size.height,
       viewportRect.right * size.width,
       viewportRect.bottom * size.height,
     );
-    canvas.drawRect(vpRect, vpPaint);
+    canvas.drawRect(vpRect, _vpPaint);
   }
 
   @override
@@ -3545,10 +3572,53 @@ class _MiniMapViewportPainter extends CustomPainter {
       oldDelegate.viewportRect != viewportRect;
 }
 
-class _ProgressGiftsBar extends StatelessWidget {
+class _ProgressBarTrackPainter extends CustomPainter {
   final double progress;
 
-  const _ProgressGiftsBar({required this.progress});
+  static final Paint _bgPaint = Paint()..color = Colors.grey.shade200;
+  static final Paint _barPaint = Paint();
+  static const List<Color> _gradientColors = [
+    Color(0xFF81C784),
+    Color(0xFF4CAF50),
+  ];
+
+  _ProgressBarTrackPainter({required this.progress});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (size.width <= 0 || size.height <= 0) return;
+    final r = Radius.circular(size.height / 2);
+    final trackRRect = RRect.fromRectAndRadius(Offset.zero & size, r);
+    canvas.drawRRect(trackRRect, _bgPaint);
+
+    final fillWidth = size.width * progress.clamp(0.0, 1.0);
+    if (fillWidth > 0) {
+      final fillRect = Rect.fromLTWH(0, 0, fillWidth, size.height);
+      _barPaint.shader = ui.Gradient.linear(
+        Offset.zero,
+        Offset(size.width, 0),
+        _gradientColors,
+      );
+      canvas.save();
+      canvas.clipRRect(trackRRect);
+      canvas.drawRect(fillRect, _barPaint);
+      canvas.restore();
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProgressBarTrackPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+class _ProgressGiftsBar extends StatelessWidget {
+  final double progress;
+  final bool isStroking;
+
+  const _ProgressGiftsBar({
+    required this.progress,
+    this.isStroking = false,
+  });
 
   Widget _buildGiftIcon(BuildContext context, int giftIndex, bool isUnlocked) {
     final Color color;
@@ -3575,16 +3645,19 @@ class _ProgressGiftsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // The tween re-targets whenever progress changes, so every fill eases the
-    // bar (and counts the % up) instead of snapping.
-    return TweenAnimationBuilder<double>(
-      tween: Tween(end: progress.clamp(0.0, 1.0)),
-      duration: const Duration(milliseconds: 400),
-      curve: Curves.easeOutCubic,
-      builder: (context, animated, _) {
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final trackWidth = constraints.maxWidth - 52;
+    // Moving LayoutBuilder outside the animation builder prevents layout passes
+    // on every animation frame. When isStroking is true, duration is zero to
+    // eliminate continuous ticker rebuilds during rapid swipe fills.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final trackWidth = max(0.0, constraints.maxWidth - 52);
+        return TweenAnimationBuilder<double>(
+          tween: Tween(end: progress.clamp(0.0, 1.0)),
+          duration: isStroking
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+          builder: (context, animated, _) {
             return Row(
               children: [
                 Expanded(
@@ -3594,22 +3667,14 @@ class _ProgressGiftsBar extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       clipBehavior: Clip.none,
                       children: [
-                        Container(
+                        Positioned(
+                          left: 0,
+                          right: 0,
+                          top: 8,
                           height: 8,
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade200,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                        ),
-                        FractionallySizedBox(
-                          widthFactor: animated,
-                          child: Container(
-                            height: 8,
-                            decoration: BoxDecoration(
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFF81C784), Color(0xFF4CAF50)],
-                              ),
-                              borderRadius: BorderRadius.circular(4),
+                          child: RepaintBoundary(
+                            child: CustomPaint(
+                              painter: _ProgressBarTrackPainter(progress: animated),
                             ),
                           ),
                         ),
@@ -3630,12 +3695,16 @@ class _ProgressGiftsBar extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text(
-                  '${(animated * 100).toStringAsFixed(1)}%',
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
+                SizedBox(
+                  width: 44,
+                  child: Text(
+                    '${(animated * 100).toStringAsFixed(1)}%',
+                    textAlign: TextAlign.right,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.black87,
+                    ),
                   ),
                 ),
               ],
