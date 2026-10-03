@@ -87,6 +87,7 @@ class DiamondPackConfig {
 }
 
 class PaywallConfig {
+  final bool isVipSubscriptionEnabled;
   final String plus1DayProductId;
   final String plusWeeklyProductId;
   final String plusMonthlyProductId;
@@ -122,6 +123,7 @@ class PaywallConfig {
   String get yearlyProductId => plusYearlyProductId;
 
   const PaywallConfig({
+    this.isVipSubscriptionEnabled = true,
     this.plus1DayProductId = 'pixel_art_plus_1day',
     this.plusWeeklyProductId = 'pixel_art_plus_weekly',
     this.plusMonthlyProductId = 'pixel_art_plus_monthly',
@@ -151,9 +153,10 @@ class PaywallConfig {
     this.urgencyHeadline = 'Special Welcome Offer • 65% OFF',
   });
 
-  factory PaywallConfig.fromMap(Map<String, dynamic> map) {
-    final m = (map['paywall'] is Map<String, dynamic>)
-        ? map['paywall'] as Map<String, dynamic>
+  factory PaywallConfig.fromMap(Map<dynamic, dynamic> rawMap) {
+    final map = Map<String, dynamic>.from(rawMap);
+    final m = (map['paywall'] is Map)
+        ? Map<String, dynamic>.from(map['paywall'] as Map)
         : map;
 
     String g(String key, String fallback) {
@@ -161,7 +164,15 @@ class PaywallConfig {
       return (v is String && v.isNotEmpty) ? v : fallback;
     }
 
+    final bool isVipSubscriptionEnabled = m['is_vip_subscription_enabled'] as bool? ??
+        m['isVipSubscriptionEnabled'] as bool? ??
+        map['is_vip_subscription_enabled'] as bool? ??
+        map['isVipSubscriptionEnabled'] as bool? ??
+        map['premiumArtworksEnabled'] as bool? ??
+        true;
+
     return PaywallConfig(
+      isVipSubscriptionEnabled: isVipSubscriptionEnabled,
       plus1DayProductId: g('plus_1day_product_id', 'pixel_art_plus_1day'),
       plusWeeklyProductId: g('plus_weekly_product_id', 'pixel_art_plus_weekly'),
       plusMonthlyProductId: g('plus_monthly_product_id', 'pixel_art_plus_monthly'),
@@ -194,6 +205,8 @@ class PaywallConfig {
 
   Map<String, dynamic> toMap() {
     return {
+      'is_vip_subscription_enabled': isVipSubscriptionEnabled,
+      'isVipSubscriptionEnabled': isVipSubscriptionEnabled,
       'plus_1day_product_id': plus1DayProductId,
       'plus_weekly_product_id': plusWeeklyProductId,
       'plus_monthly_product_id': plusMonthlyProductId,
@@ -334,8 +347,8 @@ class EconomyConfig {
     if (map['diamondPacks'] is List) {
       final rawList = map['diamondPacks'] as List;
       final parsed = rawList
-          .whereType<Map<String, dynamic>>()
-          .map((e) => DiamondPackConfig.fromMap(e))
+          .whereType<Map>()
+          .map((e) => DiamondPackConfig.fromMap(Map<String, dynamic>.from(e)))
           .where((p) => p.productId.isNotEmpty && p.amount > 0)
           .toList();
       if (parsed.isNotEmpty) {
@@ -344,8 +357,10 @@ class EconomyConfig {
     }
 
     PaywallConfig paywall = d.paywall;
-    if (map['paywall'] is Map<String, dynamic>) {
-      paywall = PaywallConfig.fromMap(map['paywall'] as Map<String, dynamic>);
+    if (map['paywall'] is Map) {
+      paywall = PaywallConfig.fromMap(Map<String, dynamic>.from(map['paywall'] as Map));
+    } else {
+      paywall = PaywallConfig.fromMap(map);
     }
 
     final bool isShopEnabled = map['isShopEnabled'] as bool? ??

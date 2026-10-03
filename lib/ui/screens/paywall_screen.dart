@@ -592,6 +592,28 @@ class _PaywallScreenState extends State<PaywallScreen> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
+                      if (!EconomyConfigService().isVipSubscriptionEnabled)
+                        Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withAlpha(35),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.red.withAlpha(120)),
+                          ),
+                          child: Row(
+                            children: const [
+                              Icon(Icons.info_outline_rounded, color: Colors.redAccent),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'VIP & Subscriptions are currently disabled by administrator.',
+                                  style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       const SizedBox(height: 4),
                       // Shimmering crown badge
                       GestureDetector(

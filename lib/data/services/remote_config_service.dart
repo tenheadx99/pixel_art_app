@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:pixel_art_app/data/services/economy_config_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/config/flavor.dart';
@@ -271,8 +272,8 @@ class RemoteConfigService {
 
   // --- Dynamic Premium Artworks & Subscription Product IDs ---
 
-  /// Global toggle to enable/disable premium artwork enforcement dynamically from Admin/Remote Config.
-  bool get premiumArtworksEnabled => _getBool('premium_artworks_enabled');
+  /// Global toggle to enable/disable premium artwork & VIP subscriptions dynamically from Admin Firestore config.
+  bool get premiumArtworksEnabled => EconomyConfigService().isVipSubscriptionEnabled;
 
   String get plus1DayProductId {
     final id = _getString('plus_1day_product_id');

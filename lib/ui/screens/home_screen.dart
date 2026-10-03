@@ -1476,23 +1476,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 14, color: subColor),
                     ),
-                    const SizedBox(height: 18),
-                    _ProBenefit(
-                      icon: Icons.palette_outlined,
-                      text: 'Unlock every premium artwork',
-                      color: titleColor,
-                    ),
-                    _ProBenefit(
-                      icon: Icons.block,
-                      text: 'Remove all ads',
-                      color: titleColor,
-                    ),
-                    _ProBenefit(
-                      icon: Icons.favorite_outline,
-                      text: 'Support future artwork packs',
-                      color: titleColor,
-                    ),
-                    const SizedBox(height: 18),
+                    if (RemoteConfigService().premiumArtworksEnabled) ...[
+                      _ProBenefit(
+                        icon: Icons.palette_outlined,
+                        text: 'Unlock every premium artwork',
+                        color: titleColor,
+                      ),
+                      _ProBenefit(
+                        icon: Icons.block,
+                        text: 'Remove all ads',
+                        color: titleColor,
+                      ),
+                      _ProBenefit(
+                        icon: Icons.favorite_outline,
+                        text: 'Support future artwork packs',
+                        color: titleColor,
+                      ),
+                      const SizedBox(height: 18),
+                    ],
                     // Spend diamonds to unlock just this artwork, forever.
                     SizedBox(
                       width: double.infinity,

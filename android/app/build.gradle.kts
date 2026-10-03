@@ -94,8 +94,8 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
-            versionCode = 22
-            versionName = "2.1.0"
+            versionCode = 23
+            versionName = "2.0.1"
             resValue("string", "app_name", "Pixely")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~3438969555"
@@ -115,8 +115,8 @@ android {
         create("anime") {
             dimension = "app"
             applicationId = "com.tenhead.animepixels"
-            versionCode = 9
-            versionName = "1.0.0"
+            versionCode = 10
+            versionName = "1.0.1"
             resValue("string", "app_name", "Anime Pixels")
             // TODO: register com.tenhead.animepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -137,8 +137,8 @@ android {
         create("diamond") {
             dimension = "app"
             applicationId = "com.tenhead.gemart"
-            versionCode = 22
-            versionName = "2.1.0"
+            versionCode = 23
+            versionName = "2.0.1"
             resValue("string", "app_name", "Gem Art")
             // TODO: register com.tenhead.gemart in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -149,7 +149,7 @@ android {
             dimension = "app"
             applicationId = "com.tenhead.biblepixels"
             versionCode = 21
-            versionName = "2.0.0"
+            versionName = "2.0.1"
             resValue("string", "app_name", "Bible Pixels")
             // TODO: register com.tenhead.biblepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
