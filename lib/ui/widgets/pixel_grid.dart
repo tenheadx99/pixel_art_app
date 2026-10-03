@@ -655,8 +655,8 @@ class _PixelGridPainter extends CustomPainter {
           0.114 * (target.b * 255);
       final v = (150 + luminance * 0.41).round().clamp(0, 255);
       final gray = Color.fromARGB(255, v, v, v);
-      // Soft dim artwork color
-      final dimColor = Color.lerp(gray, target, 0.50)!;
+      // Soft dim artwork color (dulled starting point so unfilled guide colors are more muted)
+      final dimColor = Color.lerp(gray, target, 0.20)!;
       // detailStep 0 = fully zoomed out: dim artwork color
       // detailStep 4 = zoomed in: tonal gray-out (no white gap)
       final t = (detailStep / 4.0).clamp(0.0, 1.0);
