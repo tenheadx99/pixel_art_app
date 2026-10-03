@@ -137,8 +137,8 @@ android {
         create("diamond") {
             dimension = "app"
             applicationId = "com.tenhead.gemart"
-            versionCode = 21
-            versionName = "2.0.0"
+            versionCode = 22
+            versionName = "2.1.0"
             resValue("string", "app_name", "Gem Art")
             // TODO: register com.tenhead.gemart in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
