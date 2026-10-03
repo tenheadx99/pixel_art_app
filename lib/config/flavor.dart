@@ -127,7 +127,7 @@ class FlavorConfig {
       splashTitle: 'Anime Pixels',
       splashTagline: 'Color Your Heroes',
       appIconPath: 'assets/icons/anime.png',
-      primary: Color(0xFFFF4FA3), // Hot Pink
+      primary: Color.fromARGB(255, 27, 21, 24), // Hot Pink
       secondary: Color(0xFF5AC8FA), // Sky Blue
       accent: Color(0xFFB14EFF), // Electric Violet
       brandGradient: [Color(0xFFFF4FA3), Color(0xFFB14EFF)],
