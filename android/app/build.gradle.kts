@@ -104,8 +104,8 @@ android {
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
-            versionCode = 21
-            versionName = "2.0.0"
+            versionCode = 9
+            versionName = "1.0.0"
             resValue("string", "app_name", "Divine Pixels")
             // TODO: register com.tenhead.divinepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =

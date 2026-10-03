@@ -120,6 +120,7 @@ class FlavorConfig {
       accent: Color(0xFF8E0000), // Deep Maroon
       brandGradient: [Color(0xFFFF6D00), Color(0xFF8E0000)],
       manifestPath: 'assets/pixel_art_devotional/manifest.json',
+      adsEnabled: false,
     ),
     AppFlavor.anime: FlavorConfig(
       appName: 'Anime Pixels',
