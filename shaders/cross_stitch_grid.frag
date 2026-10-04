@@ -113,8 +113,8 @@ void main() {
     vec3 threadDark = threadColor * 0.48;
     vec3 sheenColor = min(threadColor * 1.38 + vec3(0.14), vec3(1.0));
 
-    // Stitch cell background: very light pastel tint of the stitch color
-    vec3 stitchCellBg = mix(fabric, threadColor, 0.10);
+    // Stitch cell background: darker color of the thread
+    vec3 stitchCellBg = threadDark;
 
     // ================================================================
     // ================================================================

@@ -1544,8 +1544,8 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
-    // Stitch cell background: very light pastel tint of the stitch color
-    final cellBg = Color.lerp(Colors.white, base, 0.10)!;
+    // Stitch cell background: darker color of the thread
+    final cellBg = Color.lerp(Colors.black, base, 0.48)!;
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
