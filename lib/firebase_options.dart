@@ -71,10 +71,10 @@ class DefaultFirebaseOptions {
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.stitch:
-        // Registered for com.tenhead.crossstitch
+        // Registered for com.tenhead.craftcolor
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:86b1269780a00cd455af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
