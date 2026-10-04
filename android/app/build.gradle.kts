@@ -104,8 +104,8 @@ android {
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
-            versionCode = 9
-            versionName = "1.0.0"
+            versionCode = 10
+            versionName = "1.0.1"
             resValue("string", "app_name", "Bhakti Rang: Color by Number")
             // TODO: register com.tenhead.divinepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -158,8 +158,8 @@ android {
         // "Cross Stitch" — cross-stitch craft flavor.
         create("crossStitch") {
             dimension = "app"
-            applicationId = "com.tenhead.crossstitch"
-            versionCode = 21
+            applicationId = "com.tenhead.craftcolor"
+            versionCode = 1
             versionName = "1.0.0"
             resValue("string", "app_name", "Cross Stitch")
             // TODO: register com.tenhead.crossstitch in AdMob, put its app ID here.
