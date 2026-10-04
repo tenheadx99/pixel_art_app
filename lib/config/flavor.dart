@@ -185,7 +185,7 @@ class FlavorConfig {
       accent: Color(0xFF5D4037),   // Thread Brown
       brandGradient: [Color(0xFFC2185B), Color(0xFFD4A574)],
       manifestPath: 'assets/pixel_art_stitch/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.crossStitch,
       paletteLabel: 'Select a Thread',
       placeVerb: 'Stitch',

@@ -42,9 +42,7 @@ class AppConstants {
     16: Color(0xFF888888),
   };
 
-  // Production AdMob unit IDs — used as local fallback when Remote Config
-  // has not yet fetched / has no value. These must match the defaults set in
-  // remote_config_service.dart so both paths serve real (non-test) ads.
+  // Production AdMob unit IDs (Pixely / original flavor fallback)
   static const String bannerAdUnitId =
       'ca-app-pub-9064606616675657/7511066180';
   static const String interstitialAdUnitId =
@@ -53,6 +51,34 @@ class AppConstants {
       'ca-app-pub-9064606616675657/4884902843';
   static const String appOpenAdUnitId =
       'ca-app-pub-9064606616675657/4258216888';
+
+  // Official Google AdMob test ad unit IDs (Android & iOS).
+  // Used safely during development and as fallback for other flavors without dedicated real ad units.
+  static const String testBannerAdUnitIdAndroid =
+      'ca-app-pub-3940256099942544/6300978111';
+  static const String testInterstitialAdUnitIdAndroid =
+      'ca-app-pub-3940256099942544/1033173712';
+  static const String testRewardedAdUnitIdAndroid =
+      'ca-app-pub-3940256099942544/5224354917';
+  static const String testAppOpenAdUnitIdAndroid =
+      'ca-app-pub-3940256099942544/9257395921';
+  static const String testRewardedInterstitialAdUnitIdAndroid =
+      'ca-app-pub-3940256099942544/5354046379';
+  static const String testNativeAdUnitIdAndroid =
+      'ca-app-pub-3940256099942544/2247696110';
+
+  static const String testBannerAdUnitIdIos =
+      'ca-app-pub-3940256099942544/2934735716';
+  static const String testInterstitialAdUnitIdIos =
+      'ca-app-pub-3940256099942544/4411468910';
+  static const String testRewardedAdUnitIdIos =
+      'ca-app-pub-3940256099942544/1712485313';
+  static const String testAppOpenAdUnitIdIos =
+      'ca-app-pub-3940256099942544/5575463023';
+  static const String testRewardedInterstitialAdUnitIdIos =
+      'ca-app-pub-3940256099942544/6978759866';
+  static const String testNativeAdUnitIdIos =
+      'ca-app-pub-3940256099942544/3986624511';
 
   static const String proProductId = 'pixel_art_pro';
   static const String hintProductId = 'pixel_art_hints_5';

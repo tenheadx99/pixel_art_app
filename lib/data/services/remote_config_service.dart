@@ -1,5 +1,6 @@
+import 'dart:io' show Platform;
 import 'dart:developer' as developer;
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
@@ -183,27 +184,77 @@ class RemoteConfigService {
 
   String get forceUpdateUrl => _getString('force_update_url');
 
-  // Ad unit IDs: resolved from Remote Config, with the production unit as
-  // local fallback when Remote Config has not yet fetched or has no value.
-  String get bannerAdUnitId {
-    final id = _getString('banner_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/7511066180';
-  }
+  /// Resolves an ad unit ID with strict flavor isolation:
+  /// - [AppFlavor.original]: checks Remote Config `pixelyart_<key>`, falling back to production unit.
+  /// - Other flavors (e.g. stitch, devotional, anime): checks Remote Config `<flavor>_<key>`.
+  ///   If the flavor has its own real ID configured (not matching the original app's ID), it is used.
+  ///   NEVER falls back to Pixely's production real ad unit IDs! If unconfigured, safely returns
+  ///   the official Google AdMob test ad unit ID.
+  String _getAdUnitId({
+    required String baseKey,
+    required String productionFallback,
+    required String testUnitIdAndroid,
+    required String testUnitIdIos,
+  }) {
+    final isIos = !kIsWeb && Platform.isIOS;
+    final testUnitId = isIos ? testUnitIdIos : testUnitIdAndroid;
 
-  String get interstitialAdUnitId {
-    final id = _getString('interstitial_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/6197984517';
-  }
+    try {
+      if (currentFlavor == AppFlavor.original) {
+        final flavorKey = _getFlavorKey(baseKey);
+        if (_remoteConfig.getAll().containsKey(flavorKey)) {
+          final val = _remoteConfig.getString(flavorKey);
+          if (val.isNotEmpty) return val;
+        }
+        final defaultVal = _remoteConfig.getString('pixelyart_$baseKey');
+        if (defaultVal.isNotEmpty) return defaultVal;
+        return productionFallback;
+      }
 
-  String get rewardedAdUnitId {
-    final id = _getString('rewarded_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/4884902843';
-  }
+      // Non-original flavors (stitch, devotional, anime, pixelcalm, diamond, bible):
+      final flavorKey = _getFlavorKey(baseKey);
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        final val = _remoteConfig.getString(flavorKey);
+        // Only use the flavor's ID if non-empty and not accidentally pointing to Pixely's ID
+        if (val.isNotEmpty && val != productionFallback) {
+          return val;
+        }
+      }
 
-  String get appOpenAdUnitId {
-    final id = _getString('app_open_ad_unit_id');
-    return id.isNotEmpty ? id : 'ca-app-pub-9064606616675657/4258216888';
+      // Safe fallback: never use Pixely real ad IDs on other flavors!
+      return testUnitId;
+    } catch (_) {
+      return currentFlavor == AppFlavor.original ? productionFallback : testUnitId;
+    }
   }
+  
+  String get bannerAdUnitId => _getAdUnitId(
+        baseKey: 'banner_ad_unit_id',
+        productionFallback: AppConstants.bannerAdUnitId,
+        testUnitIdAndroid: AppConstants.testBannerAdUnitIdAndroid,
+        testUnitIdIos: AppConstants.testBannerAdUnitIdIos,
+      );
+
+  String get interstitialAdUnitId => _getAdUnitId(
+        baseKey: 'interstitial_ad_unit_id',
+        productionFallback: AppConstants.interstitialAdUnitId,
+        testUnitIdAndroid: AppConstants.testInterstitialAdUnitIdAndroid,
+        testUnitIdIos: AppConstants.testInterstitialAdUnitIdIos,
+      );
+
+  String get rewardedAdUnitId => _getAdUnitId(
+        baseKey: 'rewarded_ad_unit_id',
+        productionFallback: AppConstants.rewardedAdUnitId,
+        testUnitIdAndroid: AppConstants.testRewardedAdUnitIdAndroid,
+        testUnitIdIos: AppConstants.testRewardedAdUnitIdIos,
+      );
+
+  String get appOpenAdUnitId => _getAdUnitId(
+        baseKey: 'app_open_ad_unit_id',
+        productionFallback: AppConstants.appOpenAdUnitId,
+        testUnitIdAndroid: AppConstants.testAppOpenAdUnitIdAndroid,
+        testUnitIdIos: AppConstants.testAppOpenAdUnitIdIos,
+      );
 
   /// Minimum gap between two interstitials.
   int get interstitialCooldownSeconds =>
@@ -239,17 +290,46 @@ class RemoteConfigService {
   /// Whether banners request the collapsible-bottom variant.
   bool get bannerCollapsibleEnabled => _getBool('banner_collapsible');
 
-  /// Rewarded-interstitial unit for the "next artwork" moment. Empty (the
-  /// default) disables the placement and falls back to the exit interstitial.
-  String get rewardedInterstitialAdUnitId =>
-      _getString('rewarded_interstitial_ad_unit_id');
+  /// Rewarded-interstitial unit for the "next artwork" moment.
+  /// Non-original flavors only use their own explicit unit; they never inherit Pixely's unit.
+  /// Empty (the default) disables the placement and falls back to the exit interstitial.
+  String get rewardedInterstitialAdUnitId {
+    try {
+      final flavorKey = _getFlavorKey('rewarded_interstitial_ad_unit_id');
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        final val = _remoteConfig.getString(flavorKey);
+        if (val.isNotEmpty) return val;
+      }
+      if (currentFlavor == AppFlavor.original) {
+        return _remoteConfig.getString('pixelyart_rewarded_interstitial_ad_unit_id');
+      }
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
 
   /// Diamonds granted for watching the "next artwork" rewarded interstitial.
   int get nextArtRewardDiamonds => _getInt('next_art_reward_diamonds', 20);
 
-  /// Native-advanced unit for the home grid. Empty (the default) disables
-  /// native ads entirely.
-  String get nativeAdUnitId => _getString('native_ad_unit_id');
+  /// Native-advanced unit for the home grid.
+  /// Non-original flavors only use their own explicit unit; they never inherit Pixely's unit.
+  /// Empty (the default) disables native ads entirely.
+  String get nativeAdUnitId {
+    try {
+      final flavorKey = _getFlavorKey('native_ad_unit_id');
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        final val = _remoteConfig.getString(flavorKey);
+        if (val.isNotEmpty) return val;
+      }
+      if (currentFlavor == AppFlavor.original) {
+        return _remoteConfig.getString('pixelyart_native_ad_unit_id');
+      }
+      return '';
+    } catch (_) {
+      return '';
+    }
+  }
 
   /// Kill switch for home-grid native ads (unit id must also be set).
   bool get homeNativeAdsEnabled => _getBool('home_native_ads_enabled');
