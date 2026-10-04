@@ -192,6 +192,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     // AdService persists its per-day interstitial cap through this.
     AdService().attachStorage(localStorageService);
     AppConfigService().attachStorage(localStorageService);
+    RemoteConfigService().attachStorage(localStorageService);
 
     // UMP consent + Mobile Ads SDK init needs neither Remote Config nor IAP
     // (ad unit IDs are read from RC at load time, after the await below), so

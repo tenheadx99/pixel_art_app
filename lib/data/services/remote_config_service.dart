@@ -1,9 +1,13 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:developer' as developer;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
+import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
 import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/config/flavor.dart';
@@ -17,9 +21,100 @@ class RemoteConfigService {
   FirebaseRemoteConfig get _remoteConfig =>
       _rcInstance ??= FirebaseRemoteConfig.instance;
 
+  FirebaseFirestore? _firestoreInstance;
+  FirebaseFirestore get _firestore =>
+      _firestoreInstance ??= FirebaseFirestore.instance;
+
+  LocalStorageService? _storage;
+  Map<String, dynamic> _firestoreAdsConfig = {};
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _firestoreAdsSubscription;
+
+  void attachStorage(LocalStorageService storage) {
+    _storage = storage;
+    _loadCachedFirestoreConfig();
+  }
+
+  void _loadCachedFirestoreConfig() {
+    try {
+      final flavorId = currentFlavor.name;
+      final cachedJson = _storage?.getString('cached_ads_config_$flavorId');
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        final decoded = jsonDecode(cachedJson);
+        if (decoded is Map<String, dynamic>) {
+          _firestoreAdsConfig = Map<String, dynamic>.from(decoded);
+          developer.log('Loaded cached admin ads config for $flavorId', name: 'AdsConfig');
+        }
+      }
+    } catch (e) {
+      developer.log('Error reading cached admin ads config', name: 'AdsConfig', error: e);
+    }
+  }
+
+  void _saveCachedFirestoreConfig() {
+    try {
+      final flavorId = currentFlavor.name;
+      final jsonStr = jsonEncode(_firestoreAdsConfig);
+      _storage?.setString('cached_ads_config_$flavorId', jsonStr);
+    } catch (_) {}
+  }
+
+  Future<void> _syncFirestoreAdsConfig() async {
+    final flavorId = currentFlavor.name;
+    final docPath = 'pixel_art/$flavorId/config/ads';
+
+    // 1. Initial one-time fetch
+    try {
+      final snap = await _firestore.doc(docPath).get();
+      if (snap.exists && snap.data() != null) {
+        _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
+        _saveCachedFirestoreConfig();
+        AppConfig.showAds = showAds;
+        developer.log(
+          'Admin Firestore ads config synced for $flavorId (banner: ${_firestoreAdsConfig['bannerAdUnitId']}, showAds: ${_firestoreAdsConfig['showAds']})',
+          name: 'AdsConfig',
+        );
+      } else {
+        developer.log('No admin ads config doc found at $docPath, using defaults', name: 'AdsConfig');
+      }
+    } catch (e) {
+      developer.log('Failed to fetch admin ads config from Firestore ($docPath)', error: e, name: 'AdsConfig');
+    }
+
+    // 2. Real-time stream listener (so admin app saves reflect immediately)
+    try {
+      await _firestoreAdsSubscription?.cancel();
+      _firestoreAdsSubscription = _firestore
+          .doc(docPath)
+          .snapshots()
+          .listen((snap) {
+        if (snap.exists && snap.data() != null) {
+          _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
+          _saveCachedFirestoreConfig();
+          AppConfig.showAds = showAds;
+          developer.log('Realtime admin ads config updated for $flavorId', name: 'AdsConfig');
+        }
+      }, onError: (e) {
+        developer.log('Admin ads config realtime stream error', error: e, name: 'AdsConfig');
+      });
+    } catch (e) {
+      developer.log('Failed to attach admin ads config realtime stream', error: e, name: 'AdsConfig');
+    }
+  }
+
+  String? _getFirestoreString(String key) {
+    final val = _firestoreAdsConfig[key];
+    if (val is String && val.trim().isNotEmpty) {
+      return val.trim();
+    }
+    return null;
+  }
+
   void Function(String updateUrl)? onForceUpdateTriggered;
 
   Future<void> initialize() async {
+    // 1. Sync ads configuration from Admin App (Firestore: pixel_art/{flavor}/config/ads)
+    await _syncFirestoreAdsConfig();
+
     try {
       // Set Remote Config settings (0s in debug for instant testing, 5m in production)
       await _remoteConfig.setConfigSettings(RemoteConfigSettings(
@@ -174,8 +269,12 @@ class RemoteConfigService {
     }
   }
 
-  // Getters for dynamic configurations
-  bool get showAds => _getBool('show_ads');
+  // Getters for dynamic configurations: Admin App (Firestore) -> Remote Config -> Local defaults
+  bool get showAds {
+    final fsShow = _firestoreAdsConfig['showAds'];
+    if (fsShow is bool) return fsShow;
+    return _getBool('show_ads');
+  }
   
   String get minRequiredVersion {
     final version = _getString('min_version');
@@ -228,41 +327,67 @@ class RemoteConfigService {
     }
   }
   
-  String get bannerAdUnitId => _getAdUnitId(
-        baseKey: 'banner_ad_unit_id',
-        productionFallback: AppConstants.bannerAdUnitId,
-        testUnitIdAndroid: AppConstants.testBannerAdUnitIdAndroid,
-        testUnitIdIos: AppConstants.testBannerAdUnitIdIos,
-      );
+  String get bannerAdUnitId {
+    final fsId = _getFirestoreString('bannerAdUnitId');
+    if (fsId != null) return fsId;
 
-  String get interstitialAdUnitId => _getAdUnitId(
-        baseKey: 'interstitial_ad_unit_id',
-        productionFallback: AppConstants.interstitialAdUnitId,
-        testUnitIdAndroid: AppConstants.testInterstitialAdUnitIdAndroid,
-        testUnitIdIos: AppConstants.testInterstitialAdUnitIdIos,
-      );
+    return _getAdUnitId(
+      baseKey: 'banner_ad_unit_id',
+      productionFallback: AppConstants.bannerAdUnitId,
+      testUnitIdAndroid: AppConstants.testBannerAdUnitIdAndroid,
+      testUnitIdIos: AppConstants.testBannerAdUnitIdIos,
+    );
+  }
 
-  String get rewardedAdUnitId => _getAdUnitId(
-        baseKey: 'rewarded_ad_unit_id',
-        productionFallback: AppConstants.rewardedAdUnitId,
-        testUnitIdAndroid: AppConstants.testRewardedAdUnitIdAndroid,
-        testUnitIdIos: AppConstants.testRewardedAdUnitIdIos,
-      );
+  String get interstitialAdUnitId {
+    final fsId = _getFirestoreString('interstitialAdUnitId');
+    if (fsId != null) return fsId;
 
-  String get appOpenAdUnitId => _getAdUnitId(
-        baseKey: 'app_open_ad_unit_id',
-        productionFallback: AppConstants.appOpenAdUnitId,
-        testUnitIdAndroid: AppConstants.testAppOpenAdUnitIdAndroid,
-        testUnitIdIos: AppConstants.testAppOpenAdUnitIdIos,
-      );
+    return _getAdUnitId(
+      baseKey: 'interstitial_ad_unit_id',
+      productionFallback: AppConstants.interstitialAdUnitId,
+      testUnitIdAndroid: AppConstants.testInterstitialAdUnitIdAndroid,
+      testUnitIdIos: AppConstants.testInterstitialAdUnitIdIos,
+    );
+  }
+
+  String get rewardedAdUnitId {
+    final fsId = _getFirestoreString('rewardedAdUnitId');
+    if (fsId != null) return fsId;
+
+    return _getAdUnitId(
+      baseKey: 'rewarded_ad_unit_id',
+      productionFallback: AppConstants.rewardedAdUnitId,
+      testUnitIdAndroid: AppConstants.testRewardedAdUnitIdAndroid,
+      testUnitIdIos: AppConstants.testRewardedAdUnitIdIos,
+    );
+  }
+
+  String get appOpenAdUnitId {
+    final fsId = _getFirestoreString('appOpenAdUnitId');
+    if (fsId != null) return fsId;
+
+    return _getAdUnitId(
+      baseKey: 'app_open_ad_unit_id',
+      productionFallback: AppConstants.appOpenAdUnitId,
+      testUnitIdAndroid: AppConstants.testAppOpenAdUnitIdAndroid,
+      testUnitIdIos: AppConstants.testAppOpenAdUnitIdIos,
+    );
+  }
 
   /// Minimum gap between two interstitials.
-  int get interstitialCooldownSeconds =>
-      _getInt('interstitial_cooldown_s', 90);
+  int get interstitialCooldownSeconds {
+    final fsVal = _firestoreAdsConfig['interstitialCooldownS'];
+    if (fsVal is int && fsVal > 0) return fsVal;
+    return _getInt('interstitial_cooldown_s', 90);
+  }
 
   /// Coloring sessions shorter than this never trigger an exit interstitial.
-  int get interstitialMinSessionSeconds =>
-      _getInt('interstitial_min_session_s', 120);
+  int get interstitialMinSessionSeconds {
+    final fsVal = _firestoreAdsConfig['interstitialMinSessionS'];
+    if (fsVal is int && fsVal > 0) return fsVal;
+    return _getInt('interstitial_min_session_s', 120);
+  }
 
   /// Hard ceiling on interstitials in one app session. The cooldown alone
   /// lets a long session serve 20+; this caps the total.
@@ -284,16 +409,21 @@ class RemoteConfigService {
       _getInt('interstitial_min_progress_pct', 25);
 
   /// Minimum gap between two app-open ads.
-  int get appOpenCooldownSeconds =>
-      _getInt('app_open_cooldown_s', 14400);
+  int get appOpenCooldownSeconds {
+    final fsVal = _firestoreAdsConfig['appOpenCooldownS'];
+    if (fsVal is int && fsVal > 0) return fsVal;
+    return _getInt('app_open_cooldown_s', 14400);
+  }
 
   /// Whether banners request the collapsible-bottom variant.
   bool get bannerCollapsibleEnabled => _getBool('banner_collapsible');
 
   /// Rewarded-interstitial unit for the "next artwork" moment.
-  /// Non-original flavors only use their own explicit unit; they never inherit Pixely's unit.
-  /// Empty (the default) disables the placement and falls back to the exit interstitial.
+  /// Priority: Admin App (Firestore) -> Flavor-specific Remote Config -> Pixely (original only) -> Empty
   String get rewardedInterstitialAdUnitId {
+    final fsId = _getFirestoreString('rewardedInterstitialAdUnitId');
+    if (fsId != null) return fsId;
+
     try {
       final flavorKey = _getFlavorKey('rewarded_interstitial_ad_unit_id');
       if (_remoteConfig.getAll().containsKey(flavorKey)) {
@@ -313,9 +443,11 @@ class RemoteConfigService {
   int get nextArtRewardDiamonds => _getInt('next_art_reward_diamonds', 20);
 
   /// Native-advanced unit for the home grid.
-  /// Non-original flavors only use their own explicit unit; they never inherit Pixely's unit.
-  /// Empty (the default) disables native ads entirely.
+  /// Priority: Admin App (Firestore) -> Flavor-specific Remote Config -> Pixely (original only) -> Empty
   String get nativeAdUnitId {
+    final fsId = _getFirestoreString('nativeAdUnitId');
+    if (fsId != null) return fsId;
+
     try {
       final flavorKey = _getFlavorKey('native_ad_unit_id');
       if (_remoteConfig.getAll().containsKey(flavorKey)) {
