@@ -159,7 +159,7 @@ android {
         create("crossStitch") {
             dimension = "app"
             applicationId = "com.tenhead.craftcolor"
-            versionCode = 1
+            versionCode = 2
             versionName = "1.0.0"
             resValue("string", "app_name", "Cross Stitch")
             // TODO: register com.tenhead.crossstitch in AdMob, put its app ID here.

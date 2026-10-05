@@ -118,13 +118,33 @@ platform :android do
   desc "Upload build to production only (skip metadata and screenshots)"
   lane :upload_only do |options|
     flavor = options[:flavor] || "original"
+
+    gradle_flavor = case flavor
+                    when "stitch", "crossStitch", "cross_stitch" then "crossStitch"
+                    else flavor
+                    end
+
+    dart_flavor = case flavor
+                  when "crossStitch", "cross_stitch", "stitch" then "stitch"
+                  else flavor
+                  end
+
+    target_file = case flavor
+                  when "original" then "lib/main.dart"
+                  when "crossStitch", "cross_stitch", "stitch" then "lib/main_cross_stitch.dart"
+                  else "lib/main_#{flavor}.dart"
+                  end
+
     package_names = {
       "original" => "com.tenhead.pixelyart",
       "devotional" => "com.tenhead.divinepixels",
       "anime" => "com.tenhead.animepixels",
       "pixelcalm" => "com.tenhead.pixelcalm",
       "diamond" => "com.tenhead.gemart",
-      "bible" => "com.tenhead.biblepixels"
+      "bible" => "com.tenhead.biblepixels",
+      "crossStitch" => "com.tenhead.craftcolor",
+      "cross_stitch" => "com.tenhead.craftcolor",
+      "stitch" => "com.tenhead.craftcolor"
     }
 
     package_name = package_names[flavor]
@@ -137,14 +157,13 @@ platform :android do
     end
 
     # Build the signed release AAB if it does not exist
-    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{gradle_flavor}Release", "app-#{gradle_flavor}-release.aab")
     if File.exist?(aab_path) && (options[:rebuild] != true && options[:rebuild] != "true")
       UI.message("Signed App Bundle (.aab) already exists at #{aab_path}. Skipping rebuild!")
     else
-      target_file = flavor == "original" ? "lib/main.dart" : "lib/main_#{flavor}.dart"
       UI.message("Building signed App Bundle for flavor: #{flavor}...")
       sh("flutter", "pub", "get")
-      sh("flutter", "build", "appbundle", "--release", "--flavor", flavor, "-t", target_file, "--dart-define=FLAVOR=#{flavor}")
+      sh("flutter", "build", "appbundle", "--release", "--flavor", gradle_flavor, "-t", target_file, "--dart-define=FLAVOR=#{dart_flavor}")
     end
 
     # Dynamic credential handling
@@ -311,7 +330,7 @@ platform :android do
     upload_to_play_store(params)
   end
 
-  desc "Deploy a specific flavor (devotional, anime, pixelcalm, diamond) to Google Play"
+  desc "Deploy a specific flavor (devotional, anime, pixelcalm, diamond, bible, crossStitch) to Google Play"
   lane :deploy_flavor do |options|
     flavor = options[:flavor]
     build_only = options[:build_only] == true || options[:build_only] == "true"
@@ -319,13 +338,32 @@ platform :android do
     bundle_only = options[:bundle_only] == true || options[:bundle_only] == "true"
     UI.user_error!("Please specify a flavor (e.g. fastlane android deploy_flavor flavor:devotional)") unless flavor
 
+    gradle_flavor = case flavor
+                    when "stitch", "crossStitch", "cross_stitch" then "crossStitch"
+                    else flavor
+                    end
+
+    dart_flavor = case flavor
+                  when "crossStitch", "cross_stitch", "stitch" then "stitch"
+                  else flavor
+                  end
+
+    target_file = case flavor
+                  when "original" then "lib/main.dart"
+                  when "crossStitch", "cross_stitch", "stitch" then "lib/main_cross_stitch.dart"
+                  else "lib/main_#{flavor}.dart"
+                  end
+
     package_names = {
       "original" => "com.tenhead.pixelyart",
       "devotional" => "com.tenhead.divinepixels",
       "anime" => "com.tenhead.animepixels",
       "pixelcalm" => "com.tenhead.pixelcalm",
       "diamond" => "com.tenhead.gemart",
-      "bible" => "com.tenhead.biblepixels"
+      "bible" => "com.tenhead.biblepixels",
+      "crossStitch" => "com.tenhead.craftcolor",
+      "cross_stitch" => "com.tenhead.craftcolor",
+      "stitch" => "com.tenhead.craftcolor"
     }
 
     package_name = package_names[flavor]
@@ -368,10 +406,9 @@ platform :android do
 
     # 2. Build the signed release AAB (unless metadata_only)
     unless metadata_only
-      target_file = flavor == "original" ? "lib/main.dart" : "lib/main_#{flavor}.dart"
       UI.message("Building signed App Bundle for flavor: #{flavor}...")
       sh("flutter", "pub", "get")
-      sh("flutter", "build", "appbundle", "--release", "--flavor", flavor, "-t", target_file, "--dart-define=FLAVOR=#{flavor}")
+      sh("flutter", "build", "appbundle", "--release", "--flavor", gradle_flavor, "-t", target_file, "--dart-define=FLAVOR=#{dart_flavor}")
     end
 
     # 3. Upload to Google Play
@@ -390,7 +427,7 @@ platform :android do
     }
 
     unless metadata_only
-      upload_params[:aab] = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+      upload_params[:aab] = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{gradle_flavor}Release", "app-#{gradle_flavor}-release.aab")
     end
 
     if play_key
@@ -409,7 +446,11 @@ platform :android do
   desc "Upload AAB to Google Play Internal App Sharing"
   lane :upload_internal_sharing do |options|
     flavor = options[:flavor] || "original"
-    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+    gradle_flavor = case flavor
+                    when "stitch", "crossStitch", "cross_stitch" then "crossStitch"
+                    else flavor
+                    end
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{gradle_flavor}Release", "app-#{gradle_flavor}-release.aab")
 
     unless File.exist?(aab_path)
       UI.user_error!("AAB not found at #{aab_path}. Please build it first.")
@@ -421,10 +462,12 @@ platform :android do
     end
 
     package_name = case flavor
+                   when "crossStitch", "cross_stitch", "stitch" then "com.tenhead.craftcolor"
                    when "devotional" then "com.tenhead.divinepixels"
                    when "anime"      then "com.tenhead.animepixels"
                    when "pixelcalm"  then "com.tenhead.pixelcalm"
                    when "diamond"    then "com.tenhead.gemart"
+                   when "bible"      then "com.tenhead.biblepixels"
                    else                   "com.tenhead.pixelyart"
                    end
 
@@ -448,7 +491,11 @@ platform :android do
   desc "Upload AAB to Google Play Internal Testing track"
   lane :upload_internal_track do |options|
     flavor = options[:flavor] || "original"
-    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{flavor}Release", "app-#{flavor}-release.aab")
+    gradle_flavor = case flavor
+                    when "stitch", "crossStitch", "cross_stitch" then "crossStitch"
+                    else flavor
+                    end
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{gradle_flavor}Release", "app-#{gradle_flavor}-release.aab")
 
     unless File.exist?(aab_path)
       UI.user_error!("AAB not found at #{aab_path}. Please build it first.")
@@ -460,10 +507,12 @@ platform :android do
     end
 
     package_name = case flavor
+                   when "crossStitch", "cross_stitch", "stitch" then "com.tenhead.craftcolor"
                    when "devotional" then "com.tenhead.divinepixels"
                    when "anime"      then "com.tenhead.animepixels"
                    when "pixelcalm"  then "com.tenhead.pixelcalm"
                    when "diamond"    then "com.tenhead.gemart"
+                   when "bible"      then "com.tenhead.biblepixels"
                    else                   "com.tenhead.pixelyart"
                    end
 
