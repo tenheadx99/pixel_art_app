@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account and Data Deletion - Pixely: Relaxing Pixel Art</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --card-bg: #ffffff;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --primary: #4f46e5;
+            --primary-hover: #4338ca;
+            --danger: #ef4444;
+            --border: #e2e8f0;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.7;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 40px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+        }
+
+        h1 {
+            font-size: 2.1rem;
+            font-weight: 700;
+            color: var(--text-main);
+            margin-top: 0;
+            margin-bottom: 0.5rem;
+        }
+
+        .subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+            font-size: 1.05rem;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 1rem;
+        }
+
+        h2 {
+            font-size: 1.35rem;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-top: 2rem;
+            margin-bottom: 0.75rem;
+        }
+
+        p, li {
+            color: var(--text-main);
+            font-size: 1rem;
+        }
+
+        ul, ol {
+            padding-left: 24px;
+            margin-bottom: 1.25rem;
+        }
+
+        li {
+            margin-bottom: 0.5rem;
+        }
+
+        .step-box {
+            background-color: #f1f5f9;
+            border-left: 4px solid var(--primary);
+            padding: 16px 20px;
+            border-radius: 0 12px 12px 0;
+            margin: 1.5rem 0;
+        }
+
+        .warning-box {
+            background-color: #fef2f2;
+            border-left: 4px solid var(--danger);
+            padding: 16px 20px;
+            border-radius: 0 12px 12px 0;
+            margin: 1.5rem 0;
+        }
+
+        .contact-card {
+            background: #eef2ff;
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 1.5rem;
+        }
+
+        a {
+            color: var(--primary);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        a:hover {
+            color: var(--primary-hover);
+            text-decoration: underline;
+        }
+
+        .footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.875rem;
+            color: var(--text-muted);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="card">
+            <h1>Account & Data Deletion Request</h1>
+            <div class="subtitle">
+                <strong>App:</strong> Pixely: Relaxing Pixel Art &bull; <strong>Developer:</strong> Ramesh Kumar
+            </div>
+
+            <p>At <strong>Pixely: Relaxing Pixel Art</strong>, we value your privacy and data autonomy. In full compliance with Google Play’s Account Deletion requirements, users have the right to request permanent deletion of their account and all associated personal data at any time.</p>
+
+            <h2>Method 1: Instant In-App Deletion (Recommended)</h2>
+            <p>If you currently have the app installed on your device, you can permanently delete your account directly inside the app with zero waiting time:</p>
+            <div class="step-box">
+                <ol>
+                    <li>Open <strong>Pixely: Relaxing Pixel Art</strong> on your Android device.</li>
+                    <li>Tap the <strong>Settings</strong> icon (gear icon) in the top bar.</li>
+                    <li>Scroll down to the <strong>Account</strong> section.</li>
+                    <li>Tap <strong>Delete Account</strong>.</li>
+                    <li>Confirm the confirmation prompt. Your account and cloud records will be deleted immediately.</li>
+                </ol>
+            </div>
+
+            <h2>Method 2: Web Deletion Request (If app is not installed)</h2>
+            <p>If you uninstalled the app or cannot access your device, you can request manual deletion of your account and data via email:</p>
+            <div class="contact-card">
+                <p>Send an email to our support team at: <a href="mailto:info.tenhead@gmail.com?subject=Account%20and%20Data%20Deletion%20Request%20-%20Pixely"><strong>info.tenhead@gmail.com</strong></a></p>
+                <p><strong>Please include:</strong></p>
+                <ul>
+                    <li><strong>Subject:</strong> Account and Data Deletion Request - Pixely</li>
+                    <li><strong>Registered Email:</strong> The email address or Google account linked to your Pixely account.</li>
+                </ul>
+                <p><em>Requests are processed within <strong>48 to 72 hours</strong>, and you will receive a confirmation once deletion is complete.</em></p>
+            </div>
+
+            <h2>What Data Is Deleted?</h2>
+            <p>When your account deletion request is processed, the following data is permanently wiped from our systems:</p>
+            <ul>
+                <li><strong>Authentication credentials & User ID:</strong> Firebase Auth records, email, display name, and unique user identifiers.</li>
+                <li><strong>Cloud backups & Progress:</strong> Any cloud-synced coloring progress, unlocked achievements, and in-game statistics.</li>
+            </ul>
+
+            <div class="warning-box">
+                <p><strong>Please Note:</strong> Account deletion is permanent and cannot be reversed. Any in-game progress or rewards associated with the deleted account will be permanently lost.</p>
+            </div>
+
+            <h2>What Data Is Retained?</h2>
+            <p>We do not retain personal identifying data following account deletion. The only data that may be temporarily retained includes:</p>
+            <ul>
+                <li>Financial transaction records kept by Google Play Store Billing for tax, accounting, and anti-fraud statutory compliance (as mandated by Google Play policy and law).</li>
+                <li>Anonymous, aggregated telemetry crash logs that cannot be linked back to any identifiable user.</li>
+            </ul>
+
+            <div class="footer">
+                <p>&copy; 2026 Pixely: Relaxing Pixel Art. All rights reserved.</p>
+                <p><a href="privacy_policy.html">Privacy Policy</a></p>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

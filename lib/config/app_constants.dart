@@ -7,9 +7,11 @@ class AppConstants {
   static const String appStoreUrl =
       'https://play.google.com/store/apps/details?id=com.tenhead.pixelyart';
   static const String privacyPolicyUrl =
-      'https://pixelcolorapps.web.app/privacy-policy.html';
+      'https://om108-5c015.web.app/privacy-policy.html';
+  static const String deleteAccountUrl =
+      'https://om108-5c015.web.app/delete-account.html';
   static const String termsUrl =
-      'https://pixelcolorapps.web.app/terms-of-service.html';
+      'https://om108-5c015.web.app/terms-of-service.html';
 
   static const List<int> supportedGridSizes = [16, 24, 32, 48, 64];
 

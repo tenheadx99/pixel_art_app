@@ -8,6 +8,7 @@
       * Anime (com.tenhead.animepixels)
       * PixelCalm (com.tenhead.pixelcalm)
       * Diamond (com.tenhead.gemart)
+      * Cross Stitch (com.tenhead.craftcolor)
     - Go to "Release > Production", select the uploaded Draft Release, and click "Rollout to Production" to submit for review.
 
 [x] 2. CONFIGURE IN-APP REVIEWS PROMPTS  (DONE in code — ships with next release)

@@ -109,7 +109,7 @@ Upload only store metadata and screenshots to Play Store (skip AAB build)
 [bundle exec] fastlane android deploy_flavor
 ```
 
-Deploy a specific flavor (devotional, anime, pixelcalm, diamond) to Google Play
+Deploy a specific flavor (devotional, anime, pixelcalm, diamond, bible, crossStitch) to Google Play
 
 ### android upload_internal_sharing
 

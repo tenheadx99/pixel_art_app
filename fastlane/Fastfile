@@ -170,7 +170,7 @@ platform :android do
     upload_params = {
       package_name: package_name,
       track: "production",
-      release_status: "completed",
+      release_status: options[:release_status] || "completed",
       aab: aab_path,
       skip_upload_apk: true,
       skip_upload_metadata: true,
@@ -354,6 +354,11 @@ platform :android do
                   else "lib/main_#{flavor}.dart"
                   end
 
+    meta_flavor = case flavor
+                  when "stitch", "crossStitch", "cross_stitch" then "crossStitch"
+                  else flavor
+                  end
+
     package_names = {
       "original" => "com.tenhead.pixelyart",
       "devotional" => "com.tenhead.divinepixels",
@@ -376,7 +381,7 @@ platform :android do
     end
 
     # 1. Sync metadata from Metadata.<flavor>.json (skip if build_only or bundle_only)
-    metadata_filename = flavor == "original" ? "Metadata.json" : "Metadata.#{flavor}.json"
+    metadata_filename = meta_flavor == "original" ? "Metadata.json" : "Metadata.#{meta_flavor}.json"
     metadata_file = File.join(PROJECT_ROOT, "fastlane", metadata_filename)
     
     if !build_only && !bundle_only && File.exist?(metadata_file)
@@ -384,7 +389,7 @@ platform :android do
       metadata = JSON.parse(File.read(metadata_file))
       
       metadata.each do |locale, data|
-        flavor_meta_subpath = flavor == "original" ? "android" : File.join(flavor, "android")
+        flavor_meta_subpath = meta_flavor == "original" ? "android" : File.join(meta_flavor, "android")
         locale_dir = File.join(PROJECT_ROOT, "fastlane", "metadata", flavor_meta_subpath, locale)
         FileUtils.mkdir_p(locale_dir)
 
@@ -405,29 +410,39 @@ platform :android do
     end
 
     # 2. Build the signed release AAB (unless metadata_only)
+    aab_path = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{gradle_flavor}Release", "app-#{gradle_flavor}-release.aab")
     unless metadata_only
-      UI.message("Building signed App Bundle for flavor: #{flavor}...")
-      sh("flutter", "pub", "get")
-      sh("flutter", "build", "appbundle", "--release", "--flavor", gradle_flavor, "-t", target_file, "--dart-define=FLAVOR=#{dart_flavor}")
+      if File.exist?(aab_path) && (options[:rebuild] != true && options[:rebuild] != "true")
+        UI.message("Signed App Bundle (.aab) already exists at #{aab_path}. Skipping rebuild!")
+      else
+        UI.message("Building signed App Bundle for flavor: #{flavor}...")
+        sh("flutter", "pub", "get")
+        sh("flutter", "build", "appbundle", "--release", "--flavor", gradle_flavor, "-t", target_file, "--dart-define=FLAVOR=#{dart_flavor}")
+      end
     end
 
     # 3. Upload to Google Play
-    flavor_meta_dir = flavor == "original" ? "android" : File.join(flavor, "android")
+    flavor_meta_dir = meta_flavor == "original" ? "android" : File.join(meta_flavor, "android")
+    has_screenshots = Dir.glob(File.join(PROJECT_ROOT, "fastlane", "metadata", flavor_meta_dir, "*", "images", "phoneScreenshots", "*")).any?
+    skip_screenshots = options.key?(:skip_screenshots) ? (options[:skip_screenshots] == true || options[:skip_screenshots] == "true") : !has_screenshots
+
+    release_status = options[:release_status] || "draft"
+
     upload_params = {
       package_name: package_name,
       track: "production",
-      release_status: "completed",
+      release_status: release_status,
       skip_upload_apk: true,
       skip_upload_aab: metadata_only,
       skip_upload_metadata: build_only || bundle_only,
       skip_upload_images: build_only || bundle_only,
-      skip_upload_screenshots: build_only || bundle_only,
+      skip_upload_screenshots: build_only || bundle_only || skip_screenshots,
       skip_upload_changelogs: metadata_only || bundle_only,
       metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata", flavor_meta_dir)
     }
 
     unless metadata_only
-      upload_params[:aab] = File.join(PROJECT_ROOT, "build", "app", "outputs", "bundle", "#{gradle_flavor}Release", "app-#{gradle_flavor}-release.aab")
+      upload_params[:aab] = aab_path
     end
 
     if play_key
