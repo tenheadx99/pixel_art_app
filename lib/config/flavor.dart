@@ -132,6 +132,7 @@ class FlavorConfig {
       accent: Color(0xFFB14EFF), // Electric Violet
       brandGradient: [Color(0xFFFF4FA3), Color(0xFFB14EFF)],
       manifestPath: 'assets/pixel_art_anime/manifest.json',
+      adsEnabled: false,
     ),
     AppFlavor.pixelcalm: FlavorConfig(
       appName: 'PixelCalm',
@@ -148,6 +149,7 @@ class FlavorConfig {
       // interstitial/app-open.
       fullScreenAdsEnabled: false,
       bannerAdsEnabled: false,
+      adsEnabled: false,
     ),
     AppFlavor.bible: FlavorConfig(
       appName: 'Bible Pixels',

@@ -12,3 +12,6 @@ google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0
 
 # Amine pixels
 google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0
+
+# Cross stitch : color by number 
+google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0

@@ -15,3 +15,10 @@ A few resources to get you started if this is your first Flutter project:
 For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
+
+
+firebase deploy --only hosting
+or 
+firebase deploy --only hosting --project om108-5c015
+
+
