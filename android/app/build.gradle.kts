@@ -162,7 +162,7 @@ android {
             versionCode = 3
             versionName = "1.0.0"
             resValue("string", "app_name", "Cross Stitch")
-            // TODO: register com.tenhead.crossstitch in AdMob, put its app ID here.
+            // com.tenhead.craftcolor AdMob app ID
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~1019677357"
         }
