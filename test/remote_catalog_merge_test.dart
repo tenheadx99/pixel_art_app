@@ -1,6 +1,7 @@
 import 'dart:ui' show Color;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:pixel_art_app/config/flavor.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/remote_catalog_service.dart';
 
@@ -291,6 +292,22 @@ void main() {
         currentAppVersion: '1.1.0',
       );
       expect(ids(newer), contains('rmt_gated'));
+    });
+
+    test('legacy 1.0.12 gate does not exclude split art on newer flavors like stitch', () {
+      setFlavorForTesting(AppFlavor.stitch);
+      addTearDown(() => setFlavorForTesting(null));
+
+      final docs = [
+        {...remoteDoc('rmt_split'), 'minAppVersion': '1.0.12'},
+      ];
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        docs,
+        {},
+        currentAppVersion: '1.0.0',
+      );
+      expect(ids(merged), contains('rmt_split'));
     });
   });
 

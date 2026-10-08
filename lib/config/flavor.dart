@@ -15,7 +15,15 @@ const String _flavorName = String.fromEnvironment(
   defaultValue: 'original',
 );
 
+AppFlavor? _overrideFlavorForTesting;
+
+@visibleForTesting
+void setFlavorForTesting(AppFlavor? flavor) {
+  _overrideFlavorForTesting = flavor;
+}
+
 AppFlavor get currentFlavor {
+  if (_overrideFlavorForTesting != null) return _overrideFlavorForTesting!;
   switch (_flavorName) {
     case 'devotional':
       return AppFlavor.devotional;

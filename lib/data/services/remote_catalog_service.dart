@@ -167,6 +167,18 @@ class RemoteCatalogService {
 
   /// Whether a remote doc will actually be visible to this build after
   /// [mergeCatalog]'s gates, judged from scalar fields only (no grid parse).
+  static bool _isGatedByVersion(String? minVersion, String? currentAppVersion) {
+    if (minVersion == null || currentAppVersion == null) return false;
+    // The '1.0.12' threshold was specific to the original Pixely flavor, where
+    // split artworks were introduced in 1.0.12. Other flavors (e.g. stitch/crossStitch)
+    // were created with split artwork support from their initial release (1.0.0+),
+    // and should not be gated out by the legacy 1.0.12 Pixely version.
+    if (currentFlavor != AppFlavor.original && minVersion == '1.0.12') {
+      return false;
+    }
+    return isVersionOlder(currentAppVersion, minVersion);
+  }
+
   /// Mirrors the `visible` / `minAppVersion` / availability-window drops in
   /// [mergeCatalog] — keep the two in sync. A replacement that fails these
   /// gates must NOT count as handed off, or the hidden original would be
@@ -178,9 +190,7 @@ class RemoteCatalogService {
   ) {
     if (data['visible'] == false) return false;
     final minVersion = data['minAppVersion'] as String?;
-    if (minVersion != null &&
-        currentAppVersion != null &&
-        isVersionOlder(currentAppVersion, minVersion)) {
+    if (_isGatedByVersion(minVersion, currentAppVersion)) {
       return false;
     }
     final now = DateTime.now();
@@ -469,9 +479,7 @@ class RemoteCatalogService {
     for (final data in artworkDocs) {
       if (data['visible'] == false) continue;
       final minVersion = data['minAppVersion'] as String?;
-      if (minVersion != null &&
-          currentAppVersion != null &&
-          isVersionOlder(currentAppVersion, minVersion)) {
+      if (_isGatedByVersion(minVersion, currentAppVersion)) {
         continue;
       }
       final PixelArt art;
