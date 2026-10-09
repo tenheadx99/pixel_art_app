@@ -141,7 +141,7 @@ platform :android do
       "anime" => "com.tenhead.animepixels",
       "pixelcalm" => "com.tenhead.pixelcalm",
       "diamond" => "com.tenhead.gemart",
-      "bible" => "com.tenhead.biblepixels",
+      "bible" => "com.tenhead.bible",
       "crossStitch" => "com.tenhead.craftcolor",
       "cross_stitch" => "com.tenhead.craftcolor",
       "stitch" => "com.tenhead.craftcolor"
@@ -365,7 +365,7 @@ platform :android do
       "anime" => "com.tenhead.animepixels",
       "pixelcalm" => "com.tenhead.pixelcalm",
       "diamond" => "com.tenhead.gemart",
-      "bible" => "com.tenhead.biblepixels",
+      "bible" => "com.tenhead.bible",
       "crossStitch" => "com.tenhead.craftcolor",
       "cross_stitch" => "com.tenhead.craftcolor",
       "stitch" => "com.tenhead.craftcolor"
@@ -482,7 +482,7 @@ platform :android do
                    when "anime"      then "com.tenhead.animepixels"
                    when "pixelcalm"  then "com.tenhead.pixelcalm"
                    when "diamond"    then "com.tenhead.gemart"
-                   when "bible"      then "com.tenhead.biblepixels"
+                   when "bible"      then "com.tenhead.bible"
                    else                   "com.tenhead.pixelyart"
                    end
 
@@ -527,7 +527,7 @@ platform :android do
                    when "anime"      then "com.tenhead.animepixels"
                    when "pixelcalm"  then "com.tenhead.pixelcalm"
                    when "diamond"    then "com.tenhead.gemart"
-                   when "bible"      then "com.tenhead.biblepixels"
+                   when "bible"      then "com.tenhead.bible"
                    else                   "com.tenhead.pixelyart"
                    end
 

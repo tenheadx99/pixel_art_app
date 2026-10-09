@@ -169,6 +169,7 @@ class FlavorConfig {
       accent: Color(0xFF7B4FBF), // Violet
       brandGradient: [Color(0xFF1A3FA8), Color(0xFF7B4FBF)],
       manifestPath: 'assets/pixel_art_bible/manifest.json',
+      adsEnabled: false,
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',

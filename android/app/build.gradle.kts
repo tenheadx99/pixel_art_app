@@ -147,11 +147,11 @@ android {
         // "Bible Pixels" — Bible & Christian art flavor.
         create("bible") {
             dimension = "app"
-            applicationId = "com.tenhead.biblepixels"
+            applicationId = "com.tenhead.bible"
             versionCode = 21
             versionName = "2.0.1"
             resValue("string", "app_name", "Bible Pixels")
-            // TODO: register com.tenhead.biblepixels in AdMob, put its app ID here.
+            // TODO: register com.tenhead.bible in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~6565759916"
         }

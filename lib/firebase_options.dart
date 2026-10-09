@@ -61,11 +61,10 @@ class DefaultFirebaseOptions {
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.bible:
-        // TODO: replace appId after registering com.tenhead.biblepixels in
-        // the Firebase console (using the original app's id until then).
+        // Registered for com.tenhead.bible
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:33d6da3044830fca55af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
