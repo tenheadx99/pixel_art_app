@@ -160,9 +160,9 @@ class FlavorConfig {
       adsEnabled: false,
     ),
     AppFlavor.bible: FlavorConfig(
-      appName: 'Bible Pixels',
-      splashTitle: 'Bible Pixels',
-      splashTagline: 'Color the Word',
+      appName: 'Daily Bible',
+      splashTitle: 'Daily Bible',
+      splashTagline: 'Color by Number',
       appIconPath: 'assets/icons/bible.png',
       primary: Color(0xFF1A3FA8), // Royal Blue (stained glass)
       secondary: Color(0xFFE8B923), // Gold

@@ -150,7 +150,7 @@ android {
             applicationId = "com.tenhead.bible"
             versionCode = 21
             versionName = "2.0.1"
-            resValue("string", "app_name", "Bible Pixels")
+            resValue("string", "app_name", "Daily Bible")
             // TODO: register com.tenhead.bible in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-9064606616675657~6565759916"
