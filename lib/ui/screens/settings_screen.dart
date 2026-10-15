@@ -15,6 +15,7 @@ import '../../providers/gallery_provider.dart';
 import '../theme/app_style.dart';
 import '../widgets/transitions.dart';
 import '../widgets/email_auth_sheet.dart';
+import 'more_apps_screen.dart';
 import 'onboarding_screen.dart';
 
 /// Full-screen Settings screen.
@@ -303,6 +304,50 @@ class SettingsScreen extends StatelessWidget {
                     subtitle: Text(_getLanguageName(settings.appLocale, l10n), style: const TextStyle(fontSize: 12)),
                     trailing: const Icon(Icons.chevron_right_rounded),
                     onTap: () => _showLanguagePicker(context, settings, l10n),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Section 4.5: More Games & Apps
+              _buildSectionHeader('MORE GAMES & APPS', isDark, flavor.primary),
+              _buildCard(
+                isDark: isDark,
+                children: [
+                  ListTile(
+                    leading: _buildIconCircle(Icons.grid_view_rounded, const Color(0xFFFF5252), isDark),
+                    title: Row(
+                      children: [
+                        const Text('Discover Other Apps', style: TextStyle(fontWeight: FontWeight.w600)),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
+                            ),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text(
+                            'NEW',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    subtitle: const Text('Explore our relaxing coloring & puzzle apps', style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const MoreAppsScreen()),
+                      );
+                    },
                   ),
                 ],
               ),

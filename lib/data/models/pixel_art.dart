@@ -13,6 +13,10 @@ class PixelArt {
   final int difficulty;
   final bool isPremium;
 
+  /// Optional display badge (e.g. 'NEW', 'POPULAR', 'HOT', 'TRENDING'),
+  /// configured via admin panel in Firestore.
+  final String? tag;
+
   /// Per-artwork diamond cost configured by admin (null = default 100).
   final int? diamondCost;
 
@@ -42,6 +46,7 @@ class PixelArt {
     this.category = 'General',
     this.difficulty = 1,
     this.isPremium = false,
+    this.tag,
     this.diamondCost,
     this.availableFrom,
     this.availableUntil,
@@ -98,6 +103,7 @@ class PixelArt {
       'category': category,
       'difficulty': difficulty,
       'isPremium': isPremium,
+      if (tag != null && tag!.isNotEmpty) 'tag': tag,
       if (diamondCost != null && diamondCost! > 0) 'diamondCost': diamondCost,
       if (availableFrom != null)
         'availableFrom': availableFrom!.toIso8601String(),
@@ -108,7 +114,12 @@ class PixelArt {
   }
 
   /// Copy with admin-overridden metadata (grid data is never overridden).
-  PixelArt copyWith({String? category, bool? isPremium, int? diamondCost}) {
+  PixelArt copyWith({
+    String? category,
+    bool? isPremium,
+    int? diamondCost,
+    String? tag,
+  }) {
     return PixelArt(
       id: id,
       name: name,
@@ -120,6 +131,7 @@ class PixelArt {
       category: category ?? this.category,
       difficulty: difficulty,
       isPremium: isPremium ?? this.isPremium,
+      tag: tag ?? this.tag,
       diamondCost: diamondCost ?? this.diamondCost,
       availableFrom: availableFrom,
       availableUntil: availableUntil,
@@ -164,6 +176,7 @@ class PixelArt {
       category: json['category'] as String? ?? 'General',
       difficulty: (json['difficulty'] as num?)?.toInt() ?? 1,
       isPremium: json['isPremium'] as bool? ?? false,
+      tag: json['tag'] as String?,
       diamondCost: (json['diamondCost'] as num?)?.toInt(),
       availableFrom: DateTime.tryParse(json['availableFrom'] as String? ?? ''),
       availableUntil: DateTime.tryParse(json['availableUntil'] as String? ?? ''),

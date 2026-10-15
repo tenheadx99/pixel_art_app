@@ -460,15 +460,17 @@ class RemoteCatalogService {
       final premium = o?['isPremium'] as bool?;
       final rawCategory = o?['category'] as String?;
       final diamondCost = (o?['diamondCost'] as num?)?.toInt();
+      final tag = o?['tag'] as String?;
       final category =
           (rawCategory == null || rawCategory.isEmpty) ? null : rawCategory;
       entries.add((
-        (premium == null && category == null && diamondCost == null)
+        (premium == null && category == null && diamondCost == null && tag == null)
             ? art
             : art.copyWith(
                 isPremium: premium,
                 category: category,
                 diamondCost: diamondCost,
+                tag: tag,
               ),
         (o?['sortOrder'] as num?)?.toInt() ?? i,
         entries.length,

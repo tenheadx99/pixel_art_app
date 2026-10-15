@@ -94,7 +94,8 @@ class GalleryProvider extends ChangeNotifier {
           .where(
             (a) =>
                 a.name.toLowerCase().contains(q) ||
-                a.category.toLowerCase().contains(q),
+                a.category.toLowerCase().contains(q) ||
+                (a.tag != null && a.tag!.toLowerCase().contains(q)),
           )
           .toList();
     }

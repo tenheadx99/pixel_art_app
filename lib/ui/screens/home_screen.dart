@@ -2961,6 +2961,8 @@ class _PixelArtCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (art.tag != null && art.tag!.trim().isNotEmpty)
+                _buildTagBadge(context),
               Positioned(
                 top: 8,
                 right: 8,
@@ -3000,6 +3002,77 @@ class _PixelArtCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTagBadge(BuildContext context) {
+    final rawTag = art.tag!.trim();
+    final tagUpper = rawTag.toUpperCase();
+
+    final (List<Color> gradient, IconData icon) = switch (tagUpper) {
+      'NEW' => (
+          [const Color(0xFF00C6FF), const Color(0xFF0072FF)],
+          Icons.auto_awesome_rounded,
+        ),
+      'POPULAR' => (
+          [const Color(0xFFFF416C), const Color(0xFFFF4B2B)],
+          Icons.local_fire_department_rounded,
+        ),
+      'HOT' => (
+          [const Color(0xFFFF0844), const Color(0xFFFFB199)],
+          Icons.whatshot_rounded,
+        ),
+      'TRENDING' => (
+          [const Color(0xFF8A2387), const Color(0xFFE94057)],
+          Icons.trending_up_rounded,
+        ),
+      _ => (
+          [const Color(0xFF6C5CE7), const Color(0xFFA29BFE)],
+          Icons.label_rounded,
+        ),
+    };
+
+    final double leftOffset = !isUnlocked
+        ? 32.0
+        : (_inProgress || isCompleted ? 36.0 : 8.0);
+
+    return Positioned(
+      top: 8,
+      left: leftOffset,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 3.5),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: gradient,
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: gradient.first.withAlpha(100),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 10, color: Colors.white),
+            const SizedBox(width: 3),
+            Text(
+              tagUpper,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9.5,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.4,
+              ),
+            ),
+          ],
         ),
       ),
     );

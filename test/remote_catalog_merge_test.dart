@@ -72,6 +72,22 @@ void main() {
       expect(merged2.firstWhere((x) => x.id == 'a').category, 'General');
     });
 
+    test('overrides and remote docs carry dynamic tag', () {
+      final merged = RemoteCatalogService.mergeCatalog(
+        bundled,
+        [
+          {...remoteDoc('rmt_x'), 'tag': 'NEW'},
+        ],
+        {
+          'a': {'tag': 'POPULAR'},
+        },
+      );
+      final a = merged.firstWhere((x) => x.id == 'a');
+      final rmt = merged.firstWhere((x) => x.id == 'rmt_x');
+      expect(a.tag, 'POPULAR');
+      expect(rmt.tag, 'NEW');
+    });
+
     test('sortOrder from overrides and remote docs interleaves the list', () {
       final merged = RemoteCatalogService.mergeCatalog(
         bundled,
