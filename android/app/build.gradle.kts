@@ -94,33 +94,31 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
-            versionCode = 23
-            versionName = "2.0.1"
+            versionCode = 24
+            versionName = "2.0.2"
             resValue("string", "app_name", "Pixely")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~3438969555"
+                "ca-app-pub-7469053965996793~6638258557"
         }
         // "Bhakti Rang" — Indian god & goddess devotional flavor.
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
-            versionCode = 10
-            versionName = "1.0.1"
+            versionCode = 11
+            versionName = "1.0.2"
             resValue("string", "app_name", "Bhakti Rang: Color by Number")
-            // TODO: register com.tenhead.divinepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~9233209291"
+                "ca-app-pub-7469053965996793~3225607674"
         }
         // "Anime Pixels" — anime/manga fan flavor.
         create("anime") {
             dimension = "app"
             applicationId = "com.tenhead.animepixels"
-            versionCode = 10
-            versionName = "1.0.1"
+            versionCode = 11
+            versionName = "1.0.2"
             resValue("string", "app_name", "Anime Pixels")
-            // TODO: register com.tenhead.animepixels in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~5045543118"
+                "ca-app-pub-7469053965996793~9417209994"
         }
         // "PixelCalm" — mindfulness / stress-relief flavor.
         create("pixelcalm") {
@@ -137,34 +135,31 @@ android {
         create("diamond") {
             dimension = "app"
             applicationId = "com.tenhead.gemart"
-            versionCode = 23
-            versionName = "2.0.1"
+            versionCode = 24
+            versionName = "2.0.2"
             resValue("string", "app_name", "Gem Art")
-            // TODO: register com.tenhead.gemart in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~1283967516"
+                "ca-app-pub-7469053965996793~7951340229"
         }
         // "Bible Pixels" — Bible & Christian art flavor.
         create("bible") {
             dimension = "app"
             applicationId = "com.tenhead.bible"
-            versionCode = 21
-            versionName = "2.0.1"
+            versionCode = 22
+            versionName = "2.0.2"
             resValue("string", "app_name", "Daily Bible")
-            // TODO: register com.tenhead.bible in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~6565759916"
+                "ca-app-pub-7469053965996793~1329082397"
         }
         // "Cross Stitch" — cross-stitch craft flavor.
         create("crossStitch") {
             dimension = "app"
             applicationId = "com.tenhead.craftcolor"
-            versionCode = 3
-            versionName = "1.0.0"
+            versionCode = 4
+            versionName = "1.0.1"
             resValue("string", "app_name", "Cross Stitch")
-            // com.tenhead.craftcolor AdMob app ID
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-9064606616675657~1019677357"
+                "ca-app-pub-7469053965996793~3461430873"
         }
     }
 

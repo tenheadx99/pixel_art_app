@@ -305,15 +305,19 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
   }
 
   Widget _buildAppIcon(String pathOrUrl) {
-    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+    final trimmed = pathOrUrl.trim();
+    if (trimmed.isEmpty) {
+      return _buildFallbackIcon();
+    }
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return Image.network(
-        pathOrUrl,
+        trimmed,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(),
       );
     }
     return Image.asset(
-      pathOrUrl,
+      trimmed,
       fit: BoxFit.cover,
       errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(),
     );
@@ -365,25 +369,40 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
   }
 
   Widget _buildEmptyState(bool isDark) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            Icons.explore_off_rounded,
-            size: 48,
-            color: isDark ? Colors.white30 : Colors.black26,
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(height: MediaQuery.of(context).size.height * 0.25),
+        Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.explore_off_rounded,
+                size: 48,
+                color: isDark ? Colors.white30 : Colors.black26,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No promoted games found',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white70 : Colors.black45,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Pull down to refresh',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDark ? Colors.white38 : Colors.black38,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            'Check back soon for new games!',
-            style: TextStyle(
-              fontSize: 14,
-              color: isDark ? Colors.white60 : Colors.black45,
-            ),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

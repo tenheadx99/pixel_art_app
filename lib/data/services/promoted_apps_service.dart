@@ -19,30 +19,41 @@ class PromotedAppsService {
   Future<List<PromotedApp>> getPromotedApps() async {
     final currentFlavorName = currentFlavor.name;
 
-    // 1. Try to fetch from Firestore
+    // 1. Try to fetch from Firestore with a short timeout so app never hangs
     try {
       final db = FirebaseFirestore.instance;
       final snap = await db
           .collection(_collectionPath)
           .where('enabled', isEqualTo: true)
-          .get(const GetOptions(source: Source.serverAndCache));
+          .get(const GetOptions(source: Source.serverAndCache))
+          .timeout(const Duration(seconds: 4));
 
       if (snap.docs.isNotEmpty) {
-        final docsData = snap.docs.map((d) {
+        final docsData = <Map<String, dynamic>>[];
+        for (final d in snap.docs) {
           final data = d.data();
           if (!data.containsKey('id') || (data['id'] as String).isEmpty) {
             data['id'] = d.id;
           }
-          return data;
-        }).toList();
+          docsData.add(data);
+        }
 
         // Cache for offline resilience
         try {
           _storage.setString(_cacheKey, jsonEncode(docsData));
         } catch (_) {}
 
-        final apps = docsData.map((d) => PromotedApp.fromJson(d)).toList();
-        return _filterAndSort(apps, currentFlavorName);
+        final apps = <PromotedApp>[];
+        for (final item in docsData) {
+          try {
+            apps.add(PromotedApp.fromJson(item));
+          } catch (e) {
+            debugPrint('PromotedAppsService: error parsing app: $e');
+          }
+        }
+        if (apps.isNotEmpty) {
+          return _filterAndSort(apps, currentFlavorName);
+        }
       }
     } catch (e) {
       debugPrint('PromotedAppsService: Firestore fetch failed ($e), checking cache...');
@@ -53,10 +64,13 @@ class PromotedAppsService {
     if (cached.isNotEmpty) {
       try {
         final list = jsonDecode(cached) as List<dynamic>;
-        final apps = list
-            .map((item) => PromotedApp.fromJson(item as Map<String, dynamic>))
-            .where((app) => app.enabled)
-            .toList();
+        final apps = <PromotedApp>[];
+        for (final item in list) {
+          try {
+            final app = PromotedApp.fromJson(item as Map<String, dynamic>);
+            if (app.enabled) apps.add(app);
+          } catch (_) {}
+        }
         if (apps.isNotEmpty) {
           return _filterAndSort(apps, currentFlavorName);
         }
@@ -71,8 +85,7 @@ class PromotedAppsService {
   List<PromotedApp> _filterAndSort(List<PromotedApp> apps, String activeFlavor) {
     final filtered = apps.where((app) {
       // Never promote the app the user is already inside
-      if (app.id.toLowerCase() == activeFlavor.toLowerCase() ||
-          app.packageName.endsWith('.$activeFlavor')) {
+      if (app.id.toLowerCase() == activeFlavor.toLowerCase()) {
         return false;
       }
 
@@ -102,12 +115,22 @@ class PromotedAppsService {
       if (flavor == AppFlavor.anime || flavor == AppFlavor.diamond) badge = 'HOT';
       if (flavor == AppFlavor.devotional) badge = 'POPULAR';
 
+      final packageName = switch (flavor) {
+        AppFlavor.original => 'com.tenhead.pixelyart',
+        AppFlavor.devotional => 'com.tenhead.divinepixels',
+        AppFlavor.anime => 'com.tenhead.animepixels',
+        AppFlavor.pixelcalm => 'com.tenhead.pixelcalm',
+        AppFlavor.diamond => 'com.tenhead.gemart',
+        AppFlavor.bible => 'com.tenhead.bible',
+        AppFlavor.stitch => 'com.tenhead.craftcolor',
+      };
+
       list.add(
         PromotedApp(
           id: flavor.name,
           title: cfg.appName,
           tagline: cfg.splashTagline,
-          packageName: 'com.tenhead.pixelart.${flavor.name}',
+          packageName: packageName,
           iconUrl: cfg.appIconPath,
           badge: badge,
           rating: 4.8,

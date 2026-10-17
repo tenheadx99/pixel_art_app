@@ -1,0 +1,52 @@
+cross stitch : 
+app-ads.txt : google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
+app id : ca-app-pub-7469053965996793~3461430873
+banner_ad: ca-app-pub-7469053965996793/7432465476
+Interstitial_ad : ca-app-pub-7469053965996793/5561725467
+Rewarded_interstitial:ca-app-pub-7469053965996793/6119383808
+Rewarded_video ; ca-app-pub-7469053965996793/1211416910
+naive_ad :ca-app-pub-7469053965996793/7668269198
+open_ad : ca-app-pub-7469053965996793/6337866499
+
+
+appname: GemART
+app-ads.txt :google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0 
+app id : ca-app-pub-7469053965996793~7951340229
+banner_ad: ca-app-pub-7469053965996793/7042328094
+Interstitial_ad:ca-app-pub-7469053965996793/1622480459
+Rewarded_interstitial:ca-app-pub-7469053965996793/5763151427
+Rewarded_video:ca-app-pub-7469053965996793/9309398789
+naive_ad:ca-app-pub-7469053965996793/2398621486
+open_ad:ca-app-pub-7469053965996793/1254814799
+
+appname: pixely
+app-ads.txt : google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
+app id : ca-app-pub-7469053965996793~6638258557
+banner_ad: ca-app-pub-7469053965996793/5927812118
+Interstitial_ad:ca-app-pub-7469053965996793/1102860845
+Rewarded_interstitial:ca-app-pub-7469053965996793/6759257064
+Rewarded_video:ca-app-pub-7469053965996793/4133093722
+naive_ad:ca-app-pub-7469053965996793/4614730448
+open_ad:ca-app-pub-7469053965996793/7585253572
+
+appname: anime color 
+app-ads.txt : google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
+app id : ca-app-pub-7469053965996793~9417209994
+banner_ad: ca-app-pub-7469053965996793/9827528678
+Interstitial_ad:ca-app-pub-7469053965996793/1862153607
+Rewarded_interstitial:ca-app-pub-7469053965996793/9292342051
+Rewarded_video:ca-app-pub-7469053965996793/2184753081
+naive_ad:ca-app-pub-7469053965996793/5324167726
+open_ad:ca-app-pub-7469053965996793/5888283667
+
+
+appname: Daily bible
+app-ads.txt : 
+app id : ca-app-pub-7469053965996793~1329082397
+banner_ad: ca-app-pub-7469053965996793/3502538332
+Interstitial_ad:ca-app-pub-7469053965996793/1649655754
+Rewarded_interstitial:ca-app-pub-7469053965996793/3484472449
+Rewarded_video:ca-app-pub-7469053965996793/9636701846
+naive_ad:ca-app-pub-7469053965996793/2792091897
+open_ad:ca-app-pub-7469053965996793/1757466962
+

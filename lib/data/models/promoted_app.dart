@@ -32,6 +32,38 @@ class PromotedApp {
   });
 
   factory PromotedApp.fromJson(Map<String, dynamic> json) {
+    double parsedRating = 4.8;
+    final r = json['rating'];
+    if (r is num) {
+      parsedRating = r.toDouble();
+    } else if (r is String) {
+      parsedRating = double.tryParse(r) ?? 4.8;
+    }
+
+    int parsedSortOrder = 0;
+    final so = json['sortOrder'];
+    if (so is num) {
+      parsedSortOrder = so.toInt();
+    } else if (so is String) {
+      parsedSortOrder = int.tryParse(so) ?? 0;
+    }
+
+    bool parsedEnabled = true;
+    final en = json['enabled'];
+    if (en is bool) {
+      parsedEnabled = en;
+    } else if (en is String) {
+      parsedEnabled = en.toLowerCase() != 'false';
+    }
+
+    List<String> parsedTargets = const ['all'];
+    final tf = json['targetFlavors'];
+    if (tf is List) {
+      parsedTargets = tf.map((e) => e.toString()).toList();
+    } else if (tf is String) {
+      parsedTargets = [tf];
+    }
+
     return PromotedApp(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -41,15 +73,12 @@ class PromotedApp {
       appStoreUrl: json['appStoreUrl'] as String?,
       iconUrl: json['iconUrl'] as String? ?? '',
       bannerUrl: json['bannerUrl'] as String?,
-      rating: (json['rating'] as num?)?.toDouble() ?? 4.8,
-      downloadCount: json['downloadCount'] as String? ?? '100K+',
+      rating: parsedRating,
+      downloadCount: json['downloadCount'] as String? ?? '50K+',
       badge: json['badge'] as String?,
-      sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
-      enabled: json['enabled'] as bool? ?? true,
-      targetFlavors: (json['targetFlavors'] as List<dynamic>?)
-              ?.map((e) => e.toString())
-              .toList() ??
-          const ['all'],
+      sortOrder: parsedSortOrder,
+      enabled: parsedEnabled,
+      targetFlavors: parsedTargets,
     );
   }
 

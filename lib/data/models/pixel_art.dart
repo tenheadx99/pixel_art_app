@@ -166,8 +166,21 @@ class PixelArt {
       (k, v) => MapEntry(int.parse(k), Color(int.parse(v.toString()))),
     );
 
+    final id = json['id'] as String;
+    final rawTag = json['tag'] as String?;
+    final String? tag;
+    if (rawTag != null && rawTag.trim().isNotEmpty) {
+      final t = rawTag.trim().toUpperCase();
+      tag = (t == 'NONE' || t == 'CLEAR') ? null : rawTag.trim();
+    } else if (id.startsWith('rmt_')) {
+      // Remote artworks published from admin automatically carry "NEW" tag by default
+      tag = 'NEW';
+    } else {
+      tag = null;
+    }
+
     return PixelArt(
-      id: json['id'] as String,
+      id: id,
       name: json['name'] as String,
       gridWidth: width,
       gridHeight: height,
@@ -176,7 +189,7 @@ class PixelArt {
       category: json['category'] as String? ?? 'General',
       difficulty: (json['difficulty'] as num?)?.toInt() ?? 1,
       isPremium: json['isPremium'] as bool? ?? false,
-      tag: json['tag'] as String?,
+      tag: tag,
       diamondCost: (json['diamondCost'] as num?)?.toInt(),
       availableFrom: DateTime.tryParse(json['availableFrom'] as String? ?? ''),
       availableUntil: DateTime.tryParse(json['availableUntil'] as String? ?? ''),
