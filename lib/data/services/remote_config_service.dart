@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io' show Platform;
 import 'dart:developer' as developer;
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
+import 'package:flutter/foundation.dart' show VoidCallback, kDebugMode, kIsWeb;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
@@ -27,7 +27,32 @@ class RemoteConfigService {
 
   LocalStorageService? _storage;
   Map<String, dynamic> _firestoreAdsConfig = {};
-  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _firestoreAdsSubscription;
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>?
+  _firestoreAdsSubscription;
+
+  final List<VoidCallback> _adsListeners = [];
+
+  void addAdsListener(VoidCallback listener) {
+    _adsListeners.add(listener);
+  }
+
+  void removeAdsListener(VoidCallback listener) {
+    _adsListeners.remove(listener);
+  }
+
+  void _notifyAdsListeners() {
+    for (final listener in List.of(_adsListeners)) {
+      try {
+        listener();
+      } catch (e) {
+        developer.log(
+          'Error notifying ads config listener',
+          name: 'AdsConfig',
+          error: e,
+        );
+      }
+    }
+  }
 
   void attachStorage(LocalStorageService storage) {
     _storage = storage;
@@ -42,11 +67,18 @@ class RemoteConfigService {
         final decoded = jsonDecode(cachedJson);
         if (decoded is Map<String, dynamic>) {
           _firestoreAdsConfig = Map<String, dynamic>.from(decoded);
-          developer.log('Loaded cached admin ads config for $flavorId', name: 'AdsConfig');
+          developer.log(
+            'Loaded cached admin ads config for $flavorId',
+            name: 'AdsConfig',
+          );
         }
       }
     } catch (e) {
-      developer.log('Error reading cached admin ads config', name: 'AdsConfig', error: e);
+      developer.log(
+        'Error reading cached admin ads config',
+        name: 'AdsConfig',
+        error: e,
+      );
     }
   }
 
@@ -73,11 +105,19 @@ class RemoteConfigService {
           'Admin Firestore ads config synced for $flavorId (banner: ${_firestoreAdsConfig['bannerAdUnitId']}, showAds: ${_firestoreAdsConfig['showAds']})',
           name: 'AdsConfig',
         );
+        _notifyAdsListeners();
       } else {
-        developer.log('No admin ads config doc found at $docPath, using defaults', name: 'AdsConfig');
+        developer.log(
+          'No admin ads config doc found at $docPath, using defaults',
+          name: 'AdsConfig',
+        );
       }
     } catch (e) {
-      developer.log('Failed to fetch admin ads config from Firestore ($docPath)', error: e, name: 'AdsConfig');
+      developer.log(
+        'Failed to fetch admin ads config from Firestore ($docPath)',
+        error: e,
+        name: 'AdsConfig',
+      );
     }
 
     // 2. Real-time stream listener (so admin app saves reflect immediately)
@@ -86,27 +126,73 @@ class RemoteConfigService {
       _firestoreAdsSubscription = _firestore
           .doc(docPath)
           .snapshots()
-          .listen((snap) {
-        if (snap.exists && snap.data() != null) {
-          _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
-          _saveCachedFirestoreConfig();
-          AppConfig.showAds = showAds;
-          developer.log('Realtime admin ads config updated for $flavorId', name: 'AdsConfig');
-        }
-      }, onError: (e) {
-        developer.log('Admin ads config realtime stream error', error: e, name: 'AdsConfig');
-      });
+          .listen(
+            (snap) {
+              if (snap.exists && snap.data() != null) {
+                _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
+                _saveCachedFirestoreConfig();
+                AppConfig.showAds = showAds;
+                developer.log(
+                  'Realtime admin ads config updated for $flavorId',
+                  name: 'AdsConfig',
+                );
+                _notifyAdsListeners();
+                logAdsDiagnostics();
+              }
+            },
+            onError: (e) {
+              developer.log(
+                'Admin ads config realtime stream error',
+                error: e,
+                name: 'AdsConfig',
+              );
+            },
+          );
     } catch (e) {
-      developer.log('Failed to attach admin ads config realtime stream', error: e, name: 'AdsConfig');
+      developer.log(
+        'Failed to attach admin ads config realtime stream',
+        error: e,
+        name: 'AdsConfig',
+      );
     }
   }
 
+  static final RegExp _adUnitIdRegex = RegExp(r'^ca-app-pub-\d+/\d+$');
+
   String? _getFirestoreString(String key) {
     final val = _firestoreAdsConfig[key];
-    if (val is String && val.trim().isNotEmpty) {
-      return val.trim();
+    if (val is! String) return null;
+
+    // Sanitize whitespace, wrapping quotes, trailing punctuation
+    var cleaned = val.trim().replaceAll('"', '').replaceAll("'", '');
+    if (cleaned.endsWith(';') || cleaned.endsWith(',')) {
+      cleaned = cleaned.substring(0, cleaned.length - 1).trim();
     }
-    return null;
+
+    if (cleaned.isEmpty) return null;
+
+    // Guard against accidental AdMob App ID (contains ~ instead of /)
+    if (cleaned.contains('~')) {
+      developer.log(
+        'Invalid Ad Unit ID in Firestore for "$key": "$cleaned". '
+        'Contains "~" which indicates an AdMob App ID instead of an Ad Unit ID. Ignoring and falling back.',
+        name: 'AdsConfig',
+      );
+      return null;
+    }
+
+    // Verify format matches ca-app-pub-XXXX/YYYY
+    if (!_adUnitIdRegex.hasMatch(cleaned)) {
+      developer.log(
+        'Warning: Ad Unit ID in Firestore for "$key": "$cleaned" does not match standard pattern (ca-app-pub-XXXX/YYYY).',
+        name: 'AdsConfig',
+      );
+      if (!cleaned.startsWith('ca-app-pub-') || !cleaned.contains('/')) {
+        return null;
+      }
+    }
+
+    return cleaned;
   }
 
   void Function(String updateUrl)? onForceUpdateTriggered;
@@ -114,13 +200,18 @@ class RemoteConfigService {
   Future<void> initialize() async {
     // 1. Sync ads configuration from Admin App (Firestore: pixel_art/{flavor}/config/ads)
     await _syncFirestoreAdsConfig();
+    logAdsDiagnostics();
 
     try {
       // Set Remote Config settings (0s in debug for instant testing, 5m in production)
-      await _remoteConfig.setConfigSettings(RemoteConfigSettings(
-        fetchTimeout: const Duration(seconds: 10),
-        minimumFetchInterval: kDebugMode ? Duration.zero : const Duration(minutes: 5),
-      ));
+      await _remoteConfig.setConfigSettings(
+        RemoteConfigSettings(
+          fetchTimeout: const Duration(seconds: 10),
+          minimumFetchInterval: kDebugMode
+              ? Duration.zero
+              : const Duration(minutes: 5),
+        ),
+      );
 
       // Listen for real-time Remote Config updates published from Firebase Console
       _remoteConfig.onConfigUpdated.listen(
@@ -128,7 +219,10 @@ class RemoteConfigService {
           try {
             await _remoteConfig.activate();
             AppConfig.showAds = showAds;
-            developer.log('Remote Config updated in real-time!', name: 'RemoteConfig');
+            developer.log(
+              'Remote Config updated in real-time!',
+              name: 'RemoteConfig',
+            );
             _checkForceUpdateRealtime();
           } catch (e, stackTrace) {
             developer.log(
@@ -153,9 +247,12 @@ class RemoteConfigService {
       await _remoteConfig.setDefaults(<String, dynamic>{
         'pixelyart_show_ads': true,
         'pixelyart_banner_ad_unit_id': 'ca-app-pub-9064606616675657/7511066180',
-        'pixelyart_interstitial_ad_unit_id': 'ca-app-pub-9064606616675657/6197984517',
-        'pixelyart_rewarded_ad_unit_id': 'ca-app-pub-9064606616675657/4884902843',
-        'pixelyart_app_open_ad_unit_id': 'ca-app-pub-9064606616675657/4258216888',
+        'pixelyart_interstitial_ad_unit_id':
+            'ca-app-pub-9064606616675657/6197984517',
+        'pixelyart_rewarded_ad_unit_id':
+            'ca-app-pub-9064606616675657/4884902843',
+        'pixelyart_app_open_ad_unit_id':
+            'ca-app-pub-9064606616675657/4258216888',
         'pixelyart_min_version': '1.0.0',
         'pixelyart_force_update_url': '',
         // Ad pacing — tune from the console without a release.
@@ -218,13 +315,21 @@ class RemoteConfigService {
 
       // Fetch and activate config parameters
       bool updated = await _remoteConfig.fetchAndActivate();
-      developer.log('Remote Config fetchAndActivate completed. Status updated: $updated');
+      developer.log(
+        'Remote Config fetchAndActivate completed. Status updated: $updated',
+      );
 
       // Update AppConfig with remote config values
       AppConfig.showAds = showAds;
-      developer.log('Remote Config values: showAds = $showAds, banner = $bannerAdUnitId');
+      developer.log(
+        'Remote Config values: showAds = $showAds, banner = $bannerAdUnitId',
+      );
     } catch (e, stackTrace) {
-      developer.log('Failed to initialize/fetch Remote Config. Using defaults.', error: e, stackTrace: stackTrace);
+      developer.log(
+        'Failed to initialize/fetch Remote Config. Using defaults.',
+        error: e,
+        stackTrace: stackTrace,
+      );
       // Fallback
       AppConfig.showAds = showAds;
     }
@@ -234,12 +339,16 @@ class RemoteConfigService {
     return FlavorConfig.getFlavorKey(currentFlavor, baseKey);
   }
 
-  bool _getBool(String baseKey) {
-    final flavorKey = _getFlavorKey(baseKey);
-    if (_remoteConfig.getAll().containsKey(flavorKey)) {
-      return _remoteConfig.getBool(flavorKey);
+  bool _getBool(String baseKey, {bool fallback = true}) {
+    try {
+      final flavorKey = _getFlavorKey(baseKey);
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        return _remoteConfig.getBool(flavorKey);
+      }
+      return _remoteConfig.getBool('pixelyart_$baseKey');
+    } catch (_) {
+      return fallback;
     }
-    return _remoteConfig.getBool('pixelyart_$baseKey');
   }
 
   String _getString(String baseKey) {
@@ -275,7 +384,7 @@ class RemoteConfigService {
     if (fsShow is bool) return fsShow;
     return _getBool('show_ads');
   }
-  
+
   String get minRequiredVersion {
     final version = _getString('min_version');
     return version.isNotEmpty ? version : '1.0.0';
@@ -323,10 +432,12 @@ class RemoteConfigService {
       // Safe fallback: never use Pixely real ad IDs on other flavors!
       return testUnitId;
     } catch (_) {
-      return currentFlavor == AppFlavor.original ? productionFallback : testUnitId;
+      return currentFlavor == AppFlavor.original
+          ? productionFallback
+          : testUnitId;
     }
   }
-  
+
   String get bannerAdUnitId {
     final fsId = _getFirestoreString('bannerAdUnitId');
     if (fsId != null) return fsId;
@@ -431,7 +542,9 @@ class RemoteConfigService {
         if (val.isNotEmpty) return val;
       }
       if (currentFlavor == AppFlavor.original) {
-        return _remoteConfig.getString('pixelyart_rewarded_interstitial_ad_unit_id');
+        return _remoteConfig.getString(
+          'pixelyart_rewarded_interstitial_ad_unit_id',
+        );
       }
       return '';
     } catch (_) {
@@ -476,8 +589,7 @@ class RemoteConfigService {
   int get rewardedDiamondsAmount => _getInt('rewarded_diamonds_amount', 25);
 
   /// Shared daily cap across the shop tile and home pill.
-  int get rewardedDiamondsDailyCap =>
-      _getInt('rewarded_diamonds_daily_cap', 5);
+  int get rewardedDiamondsDailyCap => _getInt('rewarded_diamonds_daily_cap', 5);
 
   /// Diamonds for the once-a-day streak bonus claim on the daily banner.
   int get dailyStreakAdBonus => _getInt('daily_streak_ad_bonus', 30);
@@ -485,7 +597,8 @@ class RemoteConfigService {
   // --- Dynamic Premium Artworks & Subscription Product IDs ---
 
   /// Global toggle to enable/disable premium artwork & VIP subscriptions dynamically from Admin Firestore config.
-  bool get premiumArtworksEnabled => EconomyConfigService().isVipSubscriptionEnabled;
+  bool get premiumArtworksEnabled =>
+      EconomyConfigService().isVipSubscriptionEnabled;
 
   String get plus1DayProductId {
     final id = _getString('plus_1day_product_id');
@@ -590,8 +703,14 @@ class RemoteConfigService {
     final currentClean = current.split('+')[0];
     final requiredClean = required.split('+')[0];
 
-    final currentParts = currentClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
-    final requiredParts = requiredClean.split('.').map((e) => int.tryParse(e) ?? 0).toList();
+    final currentParts = currentClean
+        .split('.')
+        .map((e) => int.tryParse(e) ?? 0)
+        .toList();
+    final requiredParts = requiredClean
+        .split('.')
+        .map((e) => int.tryParse(e) ?? 0)
+        .toList();
 
     while (currentParts.length < 3) {
       currentParts.add(0);
@@ -605,5 +724,66 @@ class RemoteConfigService {
       if (currentParts[i] > requiredParts[i]) return false;
     }
     return false;
+  }
+
+  String _getAdUnitSource(String key, String baseKey) {
+    if (_getFirestoreString(key) != null) return 'Firestore';
+    final flavorKey = _getFlavorKey(baseKey);
+    try {
+      if (_remoteConfig.getAll().containsKey(flavorKey)) {
+        final val = _remoteConfig.getString(flavorKey);
+        if (val.isNotEmpty) return 'RemoteConfig ($flavorKey)';
+      }
+      if (currentFlavor == AppFlavor.original) {
+        final val = _remoteConfig.getString('pixelyart_$baseKey');
+        if (val.isNotEmpty) return 'RemoteConfig (pixelyart_$baseKey)';
+      }
+    } catch (_) {}
+    return 'Fallback';
+  }
+
+  Map<String, dynamic> getAdsDiagnostics() {
+    final flavorId = currentFlavor.name;
+    final fsShow = _firestoreAdsConfig['showAds'];
+    final showSource = fsShow is bool ? 'Firestore' : 'RemoteConfig/Default';
+
+    return {
+      'flavor': flavorId,
+      'showAds': showAds,
+      'showAdsSource': showSource,
+      'bannerAdUnitId': bannerAdUnitId,
+      'bannerSource': _getAdUnitSource('bannerAdUnitId', 'banner_ad_unit_id'),
+      'interstitialAdUnitId': interstitialAdUnitId,
+      'interstitialSource': _getAdUnitSource('interstitialAdUnitId', 'interstitial_ad_unit_id'),
+      'rewardedAdUnitId': rewardedAdUnitId,
+      'rewardedSource': _getAdUnitSource('rewardedAdUnitId', 'rewarded_ad_unit_id'),
+      'appOpenAdUnitId': appOpenAdUnitId,
+      'appOpenSource': _getAdUnitSource('appOpenAdUnitId', 'app_open_ad_unit_id'),
+      'rewardedInterstitialAdUnitId': rewardedInterstitialAdUnitId,
+      'rewardedInterstitialSource': _getFirestoreString('rewardedInterstitialAdUnitId') != null ? 'Firestore' : 'RemoteConfig/None',
+      'nativeAdUnitId': nativeAdUnitId,
+      'nativeSource': _getFirestoreString('nativeAdUnitId') != null ? 'Firestore' : 'RemoteConfig/None',
+      'interstitialCooldownS': interstitialCooldownSeconds,
+      'interstitialMinSessionS': interstitialMinSessionSeconds,
+      'appOpenCooldownS': appOpenCooldownSeconds,
+    };
+  }
+
+  void logAdsDiagnostics() {
+    final diag = getAdsDiagnostics();
+    developer.log(
+      '========== ADS DIAGNOSTICS ==========\n'
+      'Flavor: ${diag['flavor']}\n'
+      'Show Ads: ${diag['showAds']} [Source: ${diag['showAdsSource']}]\n'
+      'Banner: ${diag['bannerAdUnitId']} [${diag['bannerSource']}]\n'
+      'Interstitial: ${diag['interstitialAdUnitId']} [${diag['interstitialSource']}]\n'
+      'Rewarded: ${diag['rewardedAdUnitId']} [${diag['rewardedSource']}]\n'
+      'App Open: ${diag['appOpenAdUnitId']} [${diag['appOpenSource']}]\n'
+      'Rewarded Interstitial: ${diag['rewardedInterstitialAdUnitId']} [${diag['rewardedInterstitialSource']}]\n'
+      'Native: ${diag['nativeAdUnitId']} [${diag['nativeSource']}]\n'
+      'Pacing: Cooldown=${diag['interstitialCooldownS']}s, MinSession=${diag['interstitialMinSessionS']}s, AppOpenCooldown=${diag['appOpenCooldownS']}s\n'
+      '======================================',
+      name: 'AdsDiagnostics',
+    );
   }
 }

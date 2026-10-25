@@ -20,6 +20,43 @@ class _AdBannerState extends State<AdBanner> {
   AnchoredAdaptiveBannerAdSize? _adSize;
 
   @override
+  void initState() {
+    super.initState();
+    RemoteConfigService().addAdsListener(_onAdsConfigChanged);
+  }
+
+  void _onAdsConfigChanged() {
+    if (!mounted) return;
+    final shouldShow = !AppConfig.disableAds &&
+        !AppConfig.disableBannerAds &&
+        AppConfig.showAds;
+
+    if (!shouldShow) {
+      if (_ad != null || _loaded) {
+        setState(() {
+          _ad?.dispose();
+          _ad = null;
+          _loaded = false;
+        });
+      }
+    } else {
+      final currentAdUnitId = RemoteConfigService().bannerAdUnitId;
+      if (_ad == null) {
+        if (_adSize == null) {
+          _loadAdaptiveAdSize();
+        } else {
+          _load();
+        }
+      } else if (_ad != null && _ad!.adUnitId != currentAdUnitId) {
+        _ad?.dispose();
+        _ad = null;
+        setState(() => _loaded = false);
+        _load();
+      }
+    }
+  }
+
+  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_adSize == null) {
@@ -79,6 +116,7 @@ class _AdBannerState extends State<AdBanner> {
 
   @override
   void dispose() {
+    RemoteConfigService().removeAdsListener(_onAdsConfigChanged);
     final ad = _ad;
     if (ad != null) {
       _ad = null;

@@ -45,8 +45,7 @@ class AppConstants {
   };
 
   // Production AdMob unit IDs (Pixely / original flavor fallback)
-  static const String bannerAdUnitId =
-      'ca-app-pub-9064606616675657/7511066180';
+  static const String bannerAdUnitId = 'ca-app-pub-9064606616675657/7511066180';
   static const String interstitialAdUnitId =
       'ca-app-pub-9064606616675657/6197984517';
   static const String rewardedAdUnitId =

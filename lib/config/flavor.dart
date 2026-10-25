@@ -2,7 +2,15 @@ import 'package:flutter/material.dart';
 
 /// Build flavors of the app. Selected at build time via
 /// `--dart-define=FLAVOR=<name>` (defaults to [AppFlavor.original]).
-enum AppFlavor { original, devotional, anime ,pixelcalm, diamond, bible, stitch }
+enum AppFlavor {
+  original,
+  devotional,
+  anime,
+  pixelcalm,
+  diamond,
+  bible,
+  stitch,
+}
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor;
@@ -140,7 +148,7 @@ class FlavorConfig {
       accent: Color(0xFFB14EFF), // Electric Violet
       brandGradient: [Color(0xFFFF4FA3), Color(0xFFB14EFF)],
       manifestPath: 'assets/pixel_art_anime/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.pixelcalm: FlavorConfig(
       appName: 'PixelCalm',
@@ -157,7 +165,7 @@ class FlavorConfig {
       // interstitial/app-open.
       fullScreenAdsEnabled: false,
       bannerAdsEnabled: false,
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.bible: FlavorConfig(
       appName: 'Daily Bible',
@@ -169,7 +177,7 @@ class FlavorConfig {
       accent: Color(0xFF7B4FBF), // Violet
       brandGradient: [Color(0xFF1A3FA8), Color(0xFF7B4FBF)],
       manifestPath: 'assets/pixel_art_bible/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',
@@ -181,7 +189,7 @@ class FlavorConfig {
       accent: Color(0xFFF64F59), // Ruby
       brandGradient: [Color(0xFF12C2E9), Color(0xFFC471ED)],
       manifestPath: 'assets/pixel_art_diamond/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.gem,
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',
@@ -191,12 +199,12 @@ class FlavorConfig {
       splashTitle: 'Cross Stitch',
       splashTagline: 'Stitch by Number',
       appIconPath: 'assets/icons/cross_stitch.png',
-      primary: Color(0xFFC2185B),  // Rose Crimson
+      primary: Color(0xFFC2185B), // Rose Crimson
       secondary: Color(0xFFD4A574), // Warm Linen Gold
-      accent: Color(0xFF5D4037),   // Thread Brown
+      accent: Color(0xFF5D4037), // Thread Brown
       brandGradient: [Color(0xFFC2185B), Color(0xFFD4A574)],
       manifestPath: 'assets/pixel_art_stitch/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.crossStitch,
       paletteLabel: 'Select a Thread',
       placeVerb: 'Stitch',
@@ -205,8 +213,8 @@ class FlavorConfig {
 
   static FlavorConfig of(AppFlavor flavor) => _configs[flavor]!;
 
-    /// Convenience accessor for the active flavor's config.
-/// Convenience accessor for the active flavor's config.
+  /// Convenience accessor for the active flavor's config.
+  /// Convenience accessor for the active flavor's config.
   static FlavorConfig get current => of(currentFlavor);
 
   /// Returns the RemoteConfig key for a given flavor and base key.

@@ -1,6 +1,3 @@
-# Google AdMob Publisher Accounts
-google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
-google.com, pub-9064606616675657, DIRECT, f08c47fec0942fa0
 
 # Cross Stitch : color by number
 google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
@@ -17,5 +14,5 @@ google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
 # Daily Bible
 google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
 
-# Bhakti Rang / Divine Pixels
+# Bhakti Rang 
 google.com, pub-7469053965996793, DIRECT, f08c47fec0942fa0
