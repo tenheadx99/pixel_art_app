@@ -5,15 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import 'package:pixel_art_app/config/flavor.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/ad_service.dart';
 import 'package:pixel_art_app/data/services/daily_pixel_service.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
-import 'package:pixel_art_app/data/services/iap_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/remote_catalog_service.dart';
-import 'package:pixel_art_app/data/services/screenshot_service.dart';
 import 'package:pixel_art_app/data/services/sound_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';

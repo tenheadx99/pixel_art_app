@@ -43,6 +43,7 @@ import '../../ui/widgets/fill_grow_controller.dart';
 import '../../ui/widgets/rolling_count.dart';
 import '../../ui/widgets/transitions.dart';
 import '../../ui/widgets/diamond_shop_sheet.dart';
+import '../widgets/story_card_sheet.dart';
 import '../../ui/widgets/rating_dialog.dart';
 import '../../ui/widgets/art_preview_painter.dart';
 
@@ -1755,7 +1756,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                                   : _buildUpNextCard(isDark),
                             ),
                             const SizedBox(height: 12),
-                            // Sleek Action Buttons (Replay, Share, Share GIF)
+                            // Sleek Action Buttons (Replay, Story Card, Share, Share GIF)
                             _hudReveal(
                               4,
                               Row(
@@ -1767,7 +1768,15 @@ class _ColoringScreenState extends State<ColoringScreen>
                                       onTap: () => _startTimeLapse(provider),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: _HudAction(
+                                      icon: Icons.auto_awesome_rounded,
+                                      label: 'Story Card',
+                                      onTap: () => _openStoryCardSheet(provider),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: _HudAction(
                                       icon: Icons.image_rounded,
@@ -1775,7 +1784,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                                       onTap: () => _sharePng(provider),
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
+                                  const SizedBox(width: 6),
                                   Expanded(
                                     child: _HudAction(
                                       icon: Icons.movie_rounded,
@@ -2176,6 +2185,27 @@ class _ColoringScreenState extends State<ColoringScreen>
     final mins = DateTime.now().difference(_sessionStart).inMinutes;
     final timePart = mins < 1 ? 'under a min' : '$mins min';
     return '$cells cells · $colors colors · $timePart';
+  }
+
+  /// Opens the 9:16 vertical Story & WhatsApp Status Card preview sheet.
+  Future<void> _openStoryCardSheet(ColoringProvider provider) async {
+    try {
+      final storageService = context.read<LocalStorageService>();
+      final screenshotService = ScreenshotService(storageService);
+      final pngBytes = await screenshotService.captureAsPng(_repaintKey);
+      if (pngBytes == null || !mounted) return;
+
+      final duration = DateTime.now().difference(_sessionStart);
+      await StoryCardSheet.show(
+        context,
+        art: widget.art,
+        artworkPngBytes: pngBytes,
+        completionDuration: duration,
+        completionDate: DateTime.now(),
+      );
+    } catch (_) {
+      _showInfoSnack('Could not prepare story card.');
+    }
   }
 
   Future<void> _sharePng(ColoringProvider provider) async {
@@ -3281,21 +3311,23 @@ class _HudAction extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 2),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, color: fg, size: 22),
+                Icon(icon, color: fg, size: 21),
                 const SizedBox(height: 4),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    color: fg,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: fg,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
