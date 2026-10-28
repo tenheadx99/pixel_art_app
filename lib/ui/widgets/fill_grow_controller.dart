@@ -65,11 +65,19 @@ class FillGrowController extends ChangeNotifier {
   /// Registers a freshly-filled cell to animate in from [nowMs].
   void add(int row, int col, int nowMs) {
     if (_startMs.length >= AppConstants.fillGrowMaxCells) {
-      // Drop the oldest so an unbounded burst can't grow indefinitely.
-      final oldestKey = _startMs.entries
-          .reduce((a, b) => a.value <= b.value ? a : b)
-          .key;
-      _startMs.remove(oldestKey);
+      // Evict expired entries in one pass instead of an O(N) scan for the
+      // single oldest entry on every add — critical when Magic Wand / Bomb
+      // register hundreds of cells in a tight loop.
+      _startMs.removeWhere((_, start) => nowMs - start >= _retentionMs);
+      if (_startMs.length >= AppConstants.fillGrowMaxCells) {
+        // Still over cap: bulk-drop the oldest half.
+        final sorted = _startMs.entries.toList()
+          ..sort((a, b) => a.value.compareTo(b.value));
+        final cutoff = sorted.length ~/ 2;
+        for (var i = 0; i < cutoff; i++) {
+          _startMs.remove(sorted[i].key);
+        }
+      }
     }
     _startMs[_key(row, col)] = nowMs;
   }

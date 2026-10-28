@@ -325,7 +325,9 @@ class _ColoringScreenState extends State<ColoringScreen>
               soundService.playLightClick();
             }
           }
-          _scheduleAutoMoveToNextHintedCell();
+          if (!provider.isStroking) {
+            _scheduleAutoMoveToNextHintedCell();
+          }
         }
         ..onSectionCompleted = () {
           if (_settings?.hapticsEnabled ?? true) {

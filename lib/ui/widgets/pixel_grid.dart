@@ -721,6 +721,11 @@ class _PixelGridPainter extends CustomPainter {
     double cellGap,
     int detailStep,
   ) {
+    // During active wave animations, defer the expensive full-grid rebuild —
+    // the overlay layer draws animating cells on top anyway, and the wave's
+    // per-ring reveals will keep invalidating the cache until the wave settles.
+    if (fillGrow != null && fillGrow!.isWaveActive) return;
+
     final highlightKey = highlightedNumber ?? -1;
     if (_overlayStaticPicture != null &&
         _overlayArtId == art.id &&

@@ -648,7 +648,7 @@ class ColoringProvider extends ChangeNotifier {
     final prev = _filledGrid[row][col];
     _pendingUndo?.add((row, col, prev));
     _filledGrid[row][col] = value;
-    _fillVersion++;
+    if (!_batchFill) _fillVersion++;
     _journalChange(row, col);
     // Keep progress counters in sync incrementally: a full-grid rescan per
     // fill (the old _calculateProgress-on-every-tap) was O(W×H) and the main
@@ -707,12 +707,17 @@ class ColoringProvider extends ChangeNotifier {
   int _fillVersion = 0;
   int get fillVersion => _fillVersion;
 
+  /// When true, [_setCell] defers the fillVersion bump — the caller is
+  /// responsible for a single bump after the batch completes. Avoids N
+  /// painter-invalidating bumps during Magic Wand / Bomb / fill-all.
+  bool _batchFill = false;
+
   // --- Dirty-cell journal ---
   // Records which cells changed at which fillVersion so painters can patch a
   // cached image/texture incrementally instead of re-rasterizing the whole
   // grid. Bounded; wholesale grid changes (load/undo/reset/restore) clear it,
   // forcing consumers onto their full-rebuild fallback.
-  static const int _dirtyJournalCap = 4096;
+  static const int _dirtyJournalCap = 8192;
   final List<(int, int, int)> _dirtyCells = []; // (version, row, col)
   int _journalStartVersion = 0;
 
@@ -1205,6 +1210,7 @@ class ColoringProvider extends ChangeNotifier {
     final previouslyCompleted = _getCompletedNumbers();
     bool changed = false;
     _beginUndo();
+    _batchFill = true;
     for (var row = 0; row < _currentArt!.gridHeight; row++) {
       for (var col = 0; col < _currentArt!.gridWidth; col++) {
         if (_currentArt!.grid[row][col] == _selectedNumber &&
@@ -1212,15 +1218,18 @@ class ColoringProvider extends ChangeNotifier {
           _setCell(row, col, _selectedNumber);
           _recordTimeLapse(row, col);
           changed = true;
-          onCellFilledCorrectly?.call();
         }
       }
     }
+    _batchFill = false;
     if (!changed) {
       _abortUndo();
       return;
     }
+    _fillVersion++; // single bump for the whole bulk fill
     _commitUndo();
+    // Fire once for the whole bulk fill instead of per cell.
+    onCellFilledCorrectly?.call();
     {
       _checkCompletion();
       _checkAchievements();
@@ -1448,6 +1457,7 @@ class ColoringProvider extends ChangeNotifier {
     if (cellIndices == null || cellIndices.isEmpty) return false;
 
     _beginUndo();
+    _batchFill = true;
 
     final width = _currentArt!.gridWidth;
     final Map<int, List<(int, int)>> depthMap = {};
@@ -1461,7 +1471,6 @@ class ColoringProvider extends ChangeNotifier {
         _setCell(r, c, targetNum);
         _recordTimeLapse(r, c);
         changed = true;
-        onCellFilledCorrectly?.call();
 
         final dr = r - row;
         final dc = c - col;
@@ -1471,6 +1480,8 @@ class ColoringProvider extends ChangeNotifier {
     }
 
     if (changed) {
+      _batchFill = false;
+      _fillVersion++; // single bump for the whole bulk fill
       final sortedDepths = depthMap.keys.toList()..sort();
       final maxDepth = sortedDepths.isEmpty ? 0 : sortedDepths.last;
       final groupSize = maxDepth > 12 ? (maxDepth / 10).ceil() : 1;
@@ -1487,6 +1498,8 @@ class ColoringProvider extends ChangeNotifier {
       _isMagicWandMode = false;
       _totalFillCount++;
       _selectedNumber = targetNum;
+      // Fire once for the whole bulk fill instead of per cell.
+      onCellFilledCorrectly?.call();
       AnalyticsService().logBoosterUsed(
         type: 'magic_wand',
         remaining: _magicWandsCount,
@@ -1502,6 +1515,7 @@ class ColoringProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } else {
+      _batchFill = false;
       _abortUndo();
       return false;
     }
@@ -1515,6 +1529,7 @@ class ColoringProvider extends ChangeNotifier {
     }
 
     _beginUndo();
+    _batchFill = true;
 
     bool changed = false;
     final Map<int, List<(int, int)>> ringMap = {};
@@ -1539,7 +1554,6 @@ class ColoringProvider extends ChangeNotifier {
         final dist = math.sqrt(dSq);
         final ringIndex = dist.floor();
         ringMap.putIfAbsent(ringIndex, () => []).add((r, c));
-        onCellFilledCorrectly?.call();
       }
     }
 
@@ -1570,7 +1584,6 @@ class ColoringProvider extends ChangeNotifier {
             changed = true;
             filledInFallback++;
             ringMap.putIfAbsent(dist, () => []).add((r, c));
-            onCellFilledCorrectly?.call();
 
             if (filledInFallback >= targetMaxFills) break;
           }
@@ -1581,6 +1594,8 @@ class ColoringProvider extends ChangeNotifier {
     }
 
     if (changed) {
+      _batchFill = false;
+      _fillVersion++; // single bump for the whole bulk fill
       final sortedKeys = ringMap.keys.toList()..sort();
       final waveRings = sortedKeys.map((k) => ringMap[k]!).toList();
 
@@ -1588,6 +1603,8 @@ class ColoringProvider extends ChangeNotifier {
       _bombsCount--;
       _isBombMode = false;
       _totalFillCount++;
+      // Fire once for the whole bulk fill instead of per cell.
+      onCellFilledCorrectly?.call();
       AnalyticsService().logBoosterUsed(
         type: 'bomb',
         remaining: _bombsCount,
@@ -1604,6 +1621,7 @@ class ColoringProvider extends ChangeNotifier {
       notifyListeners();
       return true;
     } else {
+      _batchFill = false;
       _abortUndo();
       return false;
     }
