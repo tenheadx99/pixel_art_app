@@ -116,13 +116,13 @@ class FillGrowController extends ChangeNotifier {
     return nowMs >= start;
   }
 
-  /// Intensity of the subtle wavefront crest (fading to 0.0 over 110ms).
+  /// Intensity of the wavefront crest (fading to 0.0 over 160ms).
   double crestGlow(int row, int col, int nowMs) {
     final start = _startMs[_key(row, col)];
     if (start == null) return 0.0;
     final age = nowMs - start;
-    if (age < 0 || age >= 110) return 0.0;
-    final t = age / 110.0;
+    if (age < 0 || age >= 160) return 0.0;
+    final t = age / 160.0;
     return (1.0 - t) * (1.0 - t);
   }
 
@@ -189,9 +189,13 @@ class FillGrowController extends ChangeNotifier {
         break;
       }
     }
+    final wasWaveActive = activeWaveType != null || _pendingRings.isNotEmpty;
     _startMs.removeWhere((_, start) => nowMs - start >= _retentionMs);
     if (_startMs.isEmpty && _pendingRings.isEmpty) {
       activeWaveType = null;
+      if (wasWaveActive) {
+        anySettled = true;
+      }
     }
     if (anySettled) _settled.fire();
     notifyListeners();

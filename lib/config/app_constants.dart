@@ -169,7 +169,7 @@ class AppConstants {
 
   // --- Joyful fill effects (overlay above the grid) ---
   static const int fillEffectLifetimeMs = 600; // how long one effect lives
-  static const int fillEffectMaxConcurrent = 28; // hard cap (perf guard)
+  static const int fillEffectMaxConcurrent = 64; // hard cap (allows juicy explosions & wave bursts)
   static const int fillEffectStrokeThrottleMs = 45; // full effect rate on swipe
   // Combo "xN" callouts at these consecutive-fill counts.
   static const List<int> comboThresholds = [5, 10, 20, 35, 50];

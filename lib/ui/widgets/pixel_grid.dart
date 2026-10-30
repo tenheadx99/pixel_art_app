@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart' show kTouchSlop;
 import 'package:flutter/material.dart';
+import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../providers/coloring_provider.dart';
 import '../theme/app_style.dart';
@@ -721,11 +722,6 @@ class _PixelGridPainter extends CustomPainter {
     double cellGap,
     int detailStep,
   ) {
-    // During active wave animations, defer the expensive full-grid rebuild —
-    // the overlay layer draws animating cells on top anyway, and the wave's
-    // per-ring reveals will keep invalidating the cache until the wave settles.
-    if (fillGrow != null && fillGrow!.isWaveActive) return;
-
     final highlightKey = highlightedNumber ?? -1;
     if (_overlayStaticPicture != null &&
         _overlayArtId == art.id &&
@@ -803,6 +799,174 @@ class _PixelGridPainter extends CustomPainter {
     _overlayShowNumbers = showNumbers;
     _overlayWidth = size.width;
     _overlayHeight = size.height;
+  }
+
+  static ui.Picture? _flatOverlayStaticPicture;
+  static String _flatOverlayArtId = '';
+  static int _flatOverlayFillVersion = -1;
+  static int _flatOverlayDetailStep = -1;
+  static int _flatOverlaySelected = -1;
+  static int _flatOverlayHighlighted = -2;
+  static bool _flatOverlayShowNumbers = false;
+  static bool _flatOverlayIsEraseMode = false;
+  static double _flatOverlayWidth = 0.0;
+  static double _flatOverlayHeight = 0.0;
+
+  /// Records static content for flat mode — selection glow/borders, highlight
+  /// tints, and number labels for every unfilled cell — into a [ui.Picture] once
+  /// per (fill, selection, LOD-bucket) state. Replaying this picture per frame
+  /// replaces thousands of TextPainter.paint and rect calls during pans and swipes.
+  void _ensureFlatOverlayStatics(
+    Size size,
+    double cw,
+    double ch,
+    double cellGap,
+    int detailStep,
+    double fontSize,
+  ) {
+    final highlightKey = highlightedNumber ?? -1;
+    if (_flatOverlayStaticPicture != null &&
+        _flatOverlayArtId == art.id &&
+        _flatOverlayFillVersion == fillVersion &&
+        _flatOverlayDetailStep == detailStep &&
+        _flatOverlaySelected == selectedNumber &&
+        _flatOverlayHighlighted == highlightKey &&
+        _flatOverlayShowNumbers == showNumbers &&
+        _flatOverlayIsEraseMode == isEraseMode &&
+        _flatOverlayWidth == size.width &&
+        _flatOverlayHeight == size.height) {
+      return;
+    }
+
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final recorder = ui.PictureRecorder();
+    final c = Canvas(recorder);
+
+    final highlightPaint = _highlightTintPaint;
+    final selectedBorderPaint = _selectedBorderPaint
+      ..color = isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
+    final glowPaint = _glowPaint
+      ..color = (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
+          .withAlpha(36);
+
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+    for (var row = 0; row < gridHeight; row++) {
+      for (var col = 0; col < gridWidth; col++) {
+        final expectedNumber = art.grid[row][col] as int;
+        if (expectedNumber <= 0) continue;
+
+        final isRevealed =
+            fillGrow == null || fillGrow!.isRevealed(row, col, nowMs);
+        if (filledGrid[row][col] > 0 && isRevealed) {
+          continue;
+        }
+
+        final isSelected = expectedNumber == selectedNumber;
+        final isHighlighted =
+            highlightedNumber != null && expectedNumber == highlightedNumber;
+
+        final rect = Rect.fromLTWH(
+          col * cw + cellGap,
+          row * ch + cellGap,
+          cw - cellGap * 2,
+          ch - cellGap * 2,
+        );
+
+        if (isHighlighted) {
+          c.drawRect(rect, highlightPaint);
+        }
+
+        if (isSelected) {
+          c.drawRect(rect.deflate(1), selectedBorderPaint);
+          c.drawRect(rect.deflate(1), glowPaint);
+        }
+
+        if (showNumbers && detailStep > 0) {
+          final tp = _numberPainter(
+            expectedNumber,
+            fontSize,
+            detailStep,
+            isContrast: isSelected || isHighlighted,
+          );
+          tp.paint(
+            c,
+            Offset(
+              col * cw + (cw - tp.width) / 2,
+              row * ch + (ch - tp.height) / 2,
+            ),
+          );
+        }
+      }
+    }
+
+    _flatOverlayStaticPicture?.dispose();
+    _flatOverlayStaticPicture = recorder.endRecording();
+    _flatOverlayArtId = art.id as String;
+    _flatOverlayFillVersion = fillVersion;
+    _flatOverlayDetailStep = detailStep;
+    _flatOverlaySelected = selectedNumber;
+    _flatOverlayHighlighted = highlightKey;
+    _flatOverlayShowNumbers = showNumbers;
+    _flatOverlayIsEraseMode = isEraseMode;
+    _flatOverlayWidth = size.width;
+    _flatOverlayHeight = size.height;
+  }
+
+  static Float32List? _gridLinesStaging;
+
+  /// Batched grid line renderer: replaces thousands of individual rect strokes
+  /// with a single drawRawPoints lines pass across visible cells.
+  void _paintGridLines(
+    Canvas canvas,
+    double cw,
+    double ch,
+    int firstRow,
+    int lastRow,
+    int firstCol,
+    int lastCol,
+    Paint borderPaint,
+  ) {
+    if (borderPaint.color.a == 0) return;
+
+    final xMin = firstCol * cw;
+    final xMax = (lastCol + 1) * cw;
+    final yMin = firstRow * ch;
+    final yMax = (lastRow + 1) * ch;
+
+    final numH = (lastRow - firstRow + 2);
+    final numV = (lastCol - firstCol + 2);
+    final totalLines = numH + numV;
+    final totalFloats = totalLines * 4;
+
+    var staging = _gridLinesStaging;
+    if (staging == null || staging.length < totalFloats) {
+      staging = _gridLinesStaging = Float32List(totalFloats);
+    }
+
+    var idx = 0;
+    // Horizontal lines
+    for (var r = firstRow; r <= lastRow + 1; r++) {
+      final y = r * ch;
+      staging[idx++] = xMin;
+      staging[idx++] = y;
+      staging[idx++] = xMax;
+      staging[idx++] = y;
+    }
+    // Vertical lines
+    for (var c = firstCol; c <= lastCol + 1; c++) {
+      final x = c * cw;
+      staging[idx++] = x;
+      staging[idx++] = yMin;
+      staging[idx++] = x;
+      staging[idx++] = yMax;
+    }
+
+    canvas.drawRawPoints(
+      ui.PointMode.lines,
+      Float32List.sublistView(staging, 0, idx),
+      borderPaint,
+    );
   }
 
   // Gem rendering tuning — kept as named constants for quick visual iteration.
@@ -1244,7 +1408,10 @@ class _PixelGridPainter extends CustomPainter {
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
     final cellGap = (gemStyle || crossStitchStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
-    final scaleProgress = ((viewerScale - 1.02) / 0.58).clamp(0.0, 1.0);
+    // Scale LOD threshold by screen-space cell size rather than raw zoom:
+    // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
+    // with no unreadable micro-labels until zoomed in enough to comfortably tap.
+    final scaleProgress = ((effectiveCell - 11.0) / 7.0).clamp(0.0, 1.0);
     final detailStep = (scaleProgress * 4).round();
     return (cw, ch, cellGap, effectiveCell, detailStep, gridLineOpacity);
   }
@@ -1699,21 +1866,12 @@ class _PixelGridPainter extends CustomPainter {
     final borderPaint = _borderPaint
       ..color = Color.fromARGB((0x22 * gridLineOpacity).round(), 0, 0, 0);
 
-    final highlightPaint = _highlightTintPaint;
-
-    final selectedBorderPaint = _selectedBorderPaint
-      ..color = isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
-
     // Reused per-cell paints; _drawGemBase toggles shader/style, so reset.
     final cellPaint = _cellPaint
       ..shader = null
       ..style = PaintingStyle.fill;
     final glossPaint = _glossPaint
       ..color = Colors.white.withAlpha((30 * gridLineOpacity).round());
-    final glowPaint = _glowPaint
-      ..color =
-          (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
-              .withAlpha(36);
 
     final textScale = min(1.0, cw / 28);
     final xlGrid = max(gridWidth, gridHeight) >= 96;
@@ -1737,9 +1895,6 @@ class _PixelGridPainter extends CustomPainter {
       for (var col = firstCol; col <= lastCol; col++) {
         final expectedNumber = art.grid[row][col] as int;
         final isFilled = filledGrid[row][col] > 0;
-        final isSelected = expectedNumber == selectedNumber;
-        final isHighlighted =
-            highlightedNumber != null && expectedNumber == highlightedNumber;
 
         final rect = Rect.fromLTWH(
           col * cw + cellGap,
@@ -1748,7 +1903,10 @@ class _PixelGridPainter extends CustomPainter {
           ch - cellGap * 2,
         );
 
-        if (isFilled) {
+        final isRevealed =
+            fillGrow == null || fillGrow!.isRevealed(row, col, nowMs);
+
+        if (isFilled && isRevealed) {
           final grow = fillGrow == null
               ? 1.0
               : fillGrow!.factor(row, col, nowMs);
@@ -1759,6 +1917,9 @@ class _PixelGridPainter extends CustomPainter {
             // the grow completes.
             cellPaint.color = _previewColor(expectedNumber, detailStep);
             canvas.drawRect(rect, cellPaint);
+            if (colorblindMode) {
+              _drawPattern(canvas, rect, expectedNumber, cw, ch);
+            }
           } else {
             cellPaint.color = filledColors[expectedNumber] ?? Colors.grey;
             canvas.drawRect(rect, cellPaint);
@@ -1781,37 +1942,32 @@ class _PixelGridPainter extends CustomPainter {
             _drawPattern(canvas, rect, expectedNumber, cw, ch);
           }
         }
-
-        final isVisuallyFilled =
-            isFilled &&
-            (fillGrow == null || fillGrow!.isRevealed(row, col, nowMs));
-
-        if (isHighlighted && !isVisuallyFilled && expectedNumber > 0) {
-          canvas.drawRect(rect, highlightPaint);
-        }
-
-        canvas.drawRect(rect, borderPaint);
-
-        if (isSelected && !isVisuallyFilled && expectedNumber > 0) {
-          canvas.drawRect(rect.deflate(1), selectedBorderPaint);
-          canvas.drawRect(rect.deflate(1), glowPaint);
-        }
-
-        if (showNumbers &&
-            !isVisuallyFilled &&
-            expectedNumber > 0 &&
-            detailStep > 0) {
-          final tp = _numberPainter(expectedNumber, fontSize, detailStep);
-          tp.paint(
-            canvas,
-            Offset(
-              col * cw + (cw - tp.width) / 2,
-              row * ch + (ch - tp.height) / 2,
-            ),
-          );
-        }
       }
     }
+
+    // 1. Batched grid lines mesh (1 draw call instead of W*H individual rect strokes)
+    _paintGridLines(
+      canvas,
+      cw,
+      ch,
+      firstRow,
+      lastRow,
+      firstCol,
+      lastCol,
+      borderPaint,
+    );
+
+    // 2. Cached static overlay picture (selection highlight, border glow & number labels)
+    _ensureFlatOverlayStatics(
+      size,
+      cw,
+      ch,
+      cellGap,
+      detailStep,
+      fontSize,
+    );
+    final statics = _flatOverlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
   }
 
   /// Flat-flavor animated overlay: growing cells, afterglow, the
@@ -1861,19 +2017,21 @@ class _PixelGridPainter extends CustomPainter {
         );
         final grow = fillGrow!.factor(row, col, nowMs);
         final crest = fillGrow!.crestGlow(row, col, nowMs);
-        final drawRect = grow < 1.0
+        final age = nowMs - startMs;
+        final isGrowing = age >= 0 && age < AppConstants.fillGrowMs;
+        final drawRect = isGrowing
             ? Rect.fromCenter(
                 center: rect.center,
                 width: rect.width * (0.12 + 0.88 * grow),
                 height: rect.height * (0.12 + 0.88 * grow),
               )
             : rect;
-        if (grow < 1.0 || crest > 0.0) {
+        if (isGrowing || crest > 0.0) {
           Color cellColor = filledColors[expectedNumber] ?? Colors.grey;
           if (crest > 0.0) {
             final isBomb = fillGrow!.activeWaveType == WaveFillType.bomb;
-            final crestTint = isBomb ? const Color(0xFFFFE082) : Colors.white;
-            cellColor = Color.lerp(cellColor, crestTint, crest * 0.08)!;
+            final crestTint = isBomb ? const Color(0xFFFFD54F) : const Color(0xFFE1F5FE);
+            cellColor = Color.lerp(cellColor, crestTint, crest * 0.28)!;
           }
           cellPaint.color = cellColor;
           canvas.drawRect(drawRect, cellPaint);
@@ -1894,8 +2052,8 @@ class _PixelGridPainter extends CustomPainter {
           if (crest > 0.0) {
             final crestRim = _glossPaint
               ..style = PaintingStyle.stroke
-              ..strokeWidth = (0.7 * crest).clamp(0.4, 1.0)
-              ..color = Colors.white.withAlpha((24 * crest).round());
+              ..strokeWidth = (1.2 * crest).clamp(0.6, 2.0)
+              ..color = Colors.white.withAlpha((90 * crest).round());
             canvas.drawRect(drawRect.deflate(0.5), crestRim);
             _glossPaint.style = PaintingStyle.fill;
           }
@@ -1906,9 +2064,9 @@ class _PixelGridPainter extends CustomPainter {
         final isWave = fillGrow?.isWaveActive ?? false;
         final maxGlowAlpha = isWave ? 12 : 24;
         final glowDuration = isWave ? 0.30 : 0.36;
-        final age = (nowMs - startMs) / 1000.0;
-        if (age >= 0 && age < glowDuration) {
-          final glow = 1.0 - age / glowDuration;
+        final glowAge = (nowMs - startMs) / 1000.0;
+        if (glowAge >= 0 && glowAge < glowDuration) {
+          final glow = 1.0 - glowAge / glowDuration;
           cellPaint.color = const Color(
             0xFFFFF3D6,
           ).withAlpha((maxGlowAlpha * glow * glow).round());
@@ -2011,11 +2169,15 @@ class _PixelGridPainter extends CustomPainter {
     final batches = _batchPool;
     final highlightPoints = _highlightPool..clear();
 
+    final nowMs = fillGrow == null ? 0 : DateTime.now().millisecondsSinceEpoch;
     for (var row = firstRow; row <= lastRow; row++) {
       for (var col = firstCol; col <= lastCol; col++) {
         final expectedNumber = art.grid[row][col] as int;
         final int colorValue;
-        if (filledGrid[row][col] > 0) {
+        final isFilled = filledGrid[row][col] > 0;
+        final isRevealed =
+            fillGrow == null || fillGrow!.isRevealed(row, col, nowMs);
+        if (isFilled && isRevealed) {
           colorValue = (filledColors[expectedNumber] ?? Colors.grey).toARGB32();
         } else if (expectedNumber == 0) {
           colorValue = 0xFFE8E8E8;
@@ -2081,6 +2243,11 @@ class _PixelGridPainter extends CustomPainter {
     _overlayStaticPicture = null;
     _overlayArtId = '';
     _overlayFillVersion = -1;
+    _flatOverlayStaticPicture?.dispose();
+    _flatOverlayStaticPicture = null;
+    _flatOverlayArtId = '';
+    _flatOverlayFillVersion = -1;
+    _gridLinesStaging = null;
     _bakedBasePicture?.dispose();
     _bakedBasePicture = null;
     _bakedArtId = '';
@@ -2107,6 +2274,7 @@ class _PixelGridPainter extends CustomPainter {
   static void markWaveDirty() {
     _cachedImageFillVersion = -1;
     _overlayFillVersion = -1;
+    _flatOverlayFillVersion = -1;
     _bakedFillVersion = -1;
   }
 

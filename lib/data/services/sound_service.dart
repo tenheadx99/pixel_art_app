@@ -90,10 +90,11 @@ class SoundService {
   }) async {
     if (!_initialized || _players.isEmpty) return;
 
-    // Throttling: prevent playing sound more than once every 15ms
+    // Throttling: prevent playing sound more than once every 38ms (~26 clicks/sec max)
+    // to avoid saturating platform channels and native audio buffers during fast continuous drags.
     if (throttled) {
       final now = DateTime.now();
-      if (now.difference(_lastSoundTime).inMilliseconds < 15) return;
+      if (now.difference(_lastSoundTime).inMilliseconds < 38) return;
       _lastSoundTime = now;
     }
 

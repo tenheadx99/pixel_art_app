@@ -84,6 +84,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   // Idles at 1.0 (fully shown); forward(from: 0) plays the entrance.
   late AnimationController _hudController;
   late AnimationController _pulseController;
+  late AnimationController _bombShakeController;
   Matrix4Tween? _zoomTween;
   List<(int, int)> _replayActions = [];
   int _replayIndex = 0;
@@ -128,6 +129,13 @@ class _ColoringScreenState extends State<ColoringScreen>
   final DateTime _sessionStart = DateTime.now();
   int? _lastSelectedNumber;
   Timer? _autoMoveTimer;
+
+  // Cached during active drag strokes to prevent rebuilding the entire
+  // top bar and palette dozens of times per second mid-swipe.
+  Widget? _cachedTopBar;
+  int _lastTopBarBuildMs = 0;
+  Widget? _cachedBottomSection;
+  int _lastBottomSectionBuildMs = 0;
 
   // Coin bursts fly to the top bar's diamond chip, which pulses on arrival.
   final GlobalKey _diamondChipKey = GlobalKey();
@@ -234,6 +242,10 @@ class _ColoringScreenState extends State<ColoringScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+    _bombShakeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 220),
+    );
     _replayController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 5),
@@ -254,17 +266,38 @@ class _ColoringScreenState extends State<ColoringScreen>
       });
     _growController.onRingRevealed = (ringIndex, cells, totalRings) {
       if (!mounted) return;
+      final isBomb = _growController.activeWaveType == WaveFillType.bomb;
+
+      // 1. Sparkle flourishes on newly revealed ring cells
+      if (_settings?.fillEffectsEnabled ?? true) {
+        final sampleColor = cells.isNotEmpty
+            ? (_coloringProvider?.cellFillColor(cells.first.$1, cells.first.$2) ?? AppStyle.primary)
+            : AppStyle.primary;
+        _fxKey.currentState?.spawnRingSparkles(cells, sampleColor, maxSparkles: isBomb ? 2 : 3);
+      }
+
+      // 2. Ascending melodic chime as the wave expands
       if (_settings?.soundsEnabled ?? true) {
         final shouldPlaySound = totalRings <= 6 || ringIndex % 2 == 0 || ringIndex == totalRings - 1;
         if (shouldPlaySound) {
           final ratio = totalRings > 1 ? (ringIndex / (totalRings - 1)) : 0.0;
-          final chimeRate = 0.92 + ratio * 0.45;
+          final chimeRate = (isBomb ? 0.82 : 0.94) + ratio * 0.48;
           final soundService = _soundService ?? (mounted ? context.read<SoundService>() : null);
           soundService?.playComboChime(rate: chimeRate);
         }
       }
+
+      // 3. Tactile haptic feedback on wave progression
       if (_settings?.hapticsEnabled ?? true) {
-        HapticFeedback.selectionClick();
+        if (ringIndex == 0) {
+          if (isBomb) {
+            _coloringProvider?.bombHaptic();
+          } else {
+            HapticFeedback.mediumImpact();
+          }
+        } else {
+          HapticFeedback.selectionClick();
+        }
       }
     };
     _gridFadeController = AnimationController(
@@ -449,8 +482,18 @@ class _ColoringScreenState extends State<ColoringScreen>
           (isBomb ? const Color(0xFFFF5252) : AppStyle.primary);
       if (isBomb) {
         _fxKey.currentState?.spawnBombExplosion(centerRow, centerCol, color);
+        _bombShakeController.forward(from: 0.0);
       } else {
-        _fxKey.currentState?.spawnFloodWave(rings, color, delayMs: delay);
+        _fxKey.currentState?.spawnRingSparkles(rings.first, color, maxSparkles: 4);
+      }
+    }
+
+    if (_settings?.soundsEnabled ?? true) {
+      final soundService = _soundService ?? (mounted ? context.read<SoundService>() : null);
+      if (isBomb) {
+        soundService?.playComboChime(rate: 0.76);
+      } else {
+        soundService?.playBubblePop();
       }
     }
   }
@@ -715,6 +758,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _shimmerController.dispose();
     _hudController.dispose();
     _pulseController.dispose();
+    _bombShakeController.dispose();
     _growTicker.dispose();
     _growController.dispose();
     _canvasPanNotifier.dispose();
@@ -873,7 +917,15 @@ class _ColoringScreenState extends State<ColoringScreen>
                     final isComplete =
                         provider.currentArt?.id == widget.art.id &&
                             provider.isComplete;
-                    return _buildTopBar(context, provider, isComplete);
+                    final now = DateTime.now().millisecondsSinceEpoch;
+                    if (provider.isStroking &&
+                        _cachedTopBar != null &&
+                        now - _lastTopBarBuildMs < 250) {
+                      return _cachedTopBar!;
+                    }
+                    _lastTopBarBuildMs = now;
+                    _cachedTopBar = _buildTopBar(context, provider, isComplete);
+                    return _cachedTopBar!;
                   },
                 ),
               ),
@@ -922,12 +974,20 @@ class _ColoringScreenState extends State<ColoringScreen>
                     return _buildReplayControls();
                   }
                   if (!isComplete) {
-                    return Positioned(
+                    final now = DateTime.now().millisecondsSinceEpoch;
+                    if (provider.isStroking &&
+                        _cachedBottomSection != null &&
+                        now - _lastBottomSectionBuildMs < 250) {
+                      return _cachedBottomSection!;
+                    }
+                    _lastBottomSectionBuildMs = now;
+                    _cachedBottomSection = Positioned(
                       bottom: 0,
                       left: 0,
                       right: 0,
                       child: _buildBottomSection(context, provider, settings),
                     );
+                    return _cachedBottomSection!;
                   }
                   if (_confettiController.isAnimating) {
                     return const SizedBox.shrink();
@@ -2888,12 +2948,21 @@ class _ColoringScreenState extends State<ColoringScreen>
             );
           },
           child: Center(
-            // The boundary wraps only the grid so PNG exports are cropped to
-            // the artwork, not the whole viewport. Only this subtree listens
-            // to the provider — a fill rebuilds the canvas widget, not the
-            // viewer shell around it.
-            child: RepaintBoundary(
-              key: _repaintKey,
+            child: AnimatedBuilder(
+              animation: _bombShakeController,
+              builder: (context, child) {
+                final t = _bombShakeController.value;
+                if (t <= 0.0 || t >= 1.0) return child!;
+                final decay = 1.0 - t;
+                final dx = sin(t * pi * 8) * 4.5 * decay;
+                final dy = cos(t * pi * 6) * 3.5 * decay;
+                return Transform.translate(
+                  offset: Offset(dx, dy),
+                  child: child,
+                );
+              },
+              child: RepaintBoundary(
+                key: _repaintKey,
               child: ListenableBuilder(
                 listenable: provider,
                 builder: (context, _) {
@@ -2962,10 +3031,11 @@ class _ColoringScreenState extends State<ColoringScreen>
               ),
             ),
           ),
-        );
-      },
-    );
-  }
+        ),
+      );
+    },
+  );
+}
 
   void _showColorPreview(
     BuildContext context,

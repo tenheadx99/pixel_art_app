@@ -233,13 +233,15 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
       startMs: now,
     ));
 
-    // 2. High-density exploding embers (12 flying particles for subtle blast)
-    for (var i = 0; i < 12; i++) {
+    // 2. High-density exploding embers (20 flying sparks with dynamic speeds and fiery hues)
+    for (var i = 0; i < 20; i++) {
       final angle = _rnd.nextDouble() * math.pi * 2;
-      final speed = 2.4 + _rnd.nextDouble() * 3.5;
-      final emberColor = i % 3 == 0
-          ? const Color(0xFFFFD700)
-          : (i % 3 == 1 ? const Color(0xFFFF4500) : const Color(0xFFFF8C00));
+      final speed = 3.0 + _rnd.nextDouble() * 4.5;
+      final emberColor = i % 4 == 0
+          ? const Color(0xFFFFFFFF) // White hot core spark
+          : (i % 4 == 1
+              ? const Color(0xFFFFD700) // Golden star
+              : (i % 4 == 2 ? const Color(0xFFFF3D00) : const Color(0xFFFF9100)));
 
       _add(_FillEffect(
         kind: _EffectKind.bombEmber,
@@ -250,6 +252,30 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
         seed: _rnd.nextDouble() * math.pi * 2,
         velocityX: math.cos(angle) * speed,
         velocityY: math.sin(angle) * speed,
+      ));
+    }
+  }
+
+  /// Spawns real-time sparkles as a wave ring unlocks.
+  void spawnRingSparkles(
+    List<(int r, int c)> cells,
+    Color color, {
+    int maxSparkles = 3,
+  }) {
+    if (cells.isEmpty) return;
+    final now = _nowMs;
+    final count = math.min(maxSparkles, cells.length);
+    final stride = (cells.length / count).floor().clamp(1, cells.length);
+    for (var i = 0; i < cells.length && count > 0; i += stride) {
+      final (r, c) = cells[i];
+      _add(_FillEffect(
+        kind: _EffectKind.sparkle,
+        row: r,
+        col: c,
+        color: color,
+        startMs: now,
+        sparkleCount: 3,
+        seed: _rnd.nextDouble() * math.pi * 2,
       ));
     }
   }
@@ -719,10 +745,10 @@ class _FillEffectsPainter extends CustomPainter {
     final maxRadius = cellPx * 5.5;
 
     // A. Expanding Fiery Core Flash with hardware-accelerated radial gradient (zero blur overhead)
-    final flashProgress = (t / 0.5).clamp(0.0, 1.0);
+    final flashProgress = (t / 0.45).clamp(0.0, 1.0);
     final flashScale = Curves.easeOutCubic.transform(flashProgress);
-    final flashRadius = maxRadius * 0.75 * flashScale;
-    final flashAlpha = ((1.0 - t) * 0.28).clamp(0.0, 1.0);
+    final flashRadius = maxRadius * 0.72 * flashScale;
+    final flashAlpha = (1.0 - flashProgress).clamp(0.0, 1.0);
 
     if (flashRadius > 0.5 && flashAlpha > 0.01) {
       paint
@@ -731,37 +757,37 @@ class _FillEffectsPainter extends CustomPainter {
           c,
           math.max(1.0, flashRadius),
           [
-            const Color(0xFFFFFFFF).withValues(alpha: flashAlpha * 0.35),
-            const Color(0xFFFFD700).withValues(alpha: flashAlpha * 0.22),
-            const Color(0xFFFF4500).withValues(alpha: flashAlpha * 0.10),
-            const Color(0x00FF4500),
+            Colors.white.withValues(alpha: flashAlpha * 0.88),
+            const Color(0xFFFFD700).withValues(alpha: flashAlpha * 0.75),
+            const Color(0xFFFF3D00).withValues(alpha: flashAlpha * 0.45),
+            const Color(0x00FF3D00),
           ],
-          const [0.0, 0.22, 0.68, 1.0],
+          const [0.0, 0.25, 0.65, 1.0],
         );
       canvas.drawCircle(c, flashRadius, paint);
       paint.shader = null;
     }
 
     // B. Primary Expanding Outer Shockwave Ring
-    final shockRadius = maxRadius * Curves.decelerate.transform(t);
-    final shockAlpha = ((1.0 - t) * 0.40).clamp(0.0, 1.0);
+    final shockRadius = maxRadius * Curves.easeOutCubic.transform(t);
+    final shockAlpha = (1.0 - t).clamp(0.0, 1.0);
     paint
       ..style = PaintingStyle.stroke
-      ..strokeWidth = (cellPx * 0.22 * (1.0 - t)).clamp(1.0, 4.0)
-      ..color = const Color(0xFFFF5722).withValues(alpha: shockAlpha * 0.55);
+      ..strokeWidth = (cellPx * 0.32 * (1.0 - t)).clamp(1.5, 5.5)
+      ..color = const Color(0xFFFF3D00).withValues(alpha: shockAlpha * 0.85);
     canvas.drawCircle(c, shockRadius, paint);
 
-    // Subtle white rim at leading edge
+    // Brilliant white leading rim at shockwave edge
     paint
-      ..strokeWidth = (cellPx * 0.08 * (1.0 - t)).clamp(0.8, 1.8)
-      ..color = Colors.white.withValues(alpha: shockAlpha * 0.40);
+      ..strokeWidth = (cellPx * 0.12 * (1.0 - t)).clamp(1.0, 2.5)
+      ..color = Colors.white.withValues(alpha: shockAlpha * 0.80);
     canvas.drawCircle(c, shockRadius, paint);
 
     // C. Inner Secondary Golden Harmonic Ring
-    final innerRadius = maxRadius * 0.68 * Curves.easeOutQuad.transform(t);
+    final innerRadius = maxRadius * 0.70 * Curves.easeOutQuad.transform(t);
     paint
-      ..strokeWidth = (cellPx * 0.14 * (1.0 - t)).clamp(0.8, 2.5)
-      ..color = const Color(0xFFFFD700).withValues(alpha: shockAlpha * 0.35);
+      ..strokeWidth = (cellPx * 0.18 * (1.0 - t)).clamp(1.0, 3.2)
+      ..color = const Color(0xFFFFD700).withValues(alpha: shockAlpha * 0.70);
     canvas.drawCircle(c, innerRadius, paint);
     paint.style = PaintingStyle.fill;
   }
@@ -774,22 +800,23 @@ class _FillEffectsPainter extends CustomPainter {
     double t,
     _FillEffect e,
   ) {
-    // Ember position travels outward along velocity vector
-    final dist = cellPx * (1.0 + t * 4.8);
+    // Ember position travels outward along velocity vector with smooth deceleration
+    final travelProgress = Curves.easeOutCubic.transform(t);
+    final dist = cellPx * (1.0 + travelProgress * 5.2);
     final offset = Offset(
-      c.dx + e.velocityX * dist * 0.4,
-      c.dy + e.velocityY * dist * 0.4,
+      c.dx + e.velocityX * dist * 0.42,
+      c.dy + e.velocityY * dist * 0.42,
     );
 
     final alpha = (1.0 - t).clamp(0.0, 1.0);
-    final size = cellPx * 0.35 * (1.0 - t * 0.7);
+    final size = cellPx * 0.42 * (1.0 - t * 0.65);
     if (size <= 0.3) return;
 
     paint
       ..style = PaintingStyle.fill
       ..color = e.color.withValues(alpha: alpha);
 
-    final rotation = e.seed + t * math.pi * 4;
+    final rotation = e.seed + t * math.pi * 5;
     _drawDiamond(canvas, paint, offset, size, rotation);
   }
 
