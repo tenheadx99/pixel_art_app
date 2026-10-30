@@ -762,15 +762,13 @@ class _PixelGridPainter extends CustomPainter {
           ch - cellGap * 2,
         );
 
-        if (detailStep > 0) {
-          if (isSelected) {
-            c.drawRect(
-              rect,
-              Paint()..color = Color.fromARGB((255 * detailStep / 4).round(), 0x80, 0x80, 0x80),
-            );
-          } else if (isHighlighted) {
-            c.drawRect(rect, highlightPaint);
-          }
+        if (isSelected && !isEraseMode && selectedNumber > 0) {
+          c.drawRect(
+            rect,
+            Paint()..color = const Color(0xFF808080),
+          );
+        } else if (isHighlighted && detailStep > 0) {
+          c.drawRect(rect, highlightPaint);
         }
         if (showNumbers && detailStep > 0) {
           final tp = _numberPainter(
@@ -1517,8 +1515,12 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            final previewColor = _previewColor(expectedNumber, detailStep);
-            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
             if (detailStep > 0) {
               final borderPaint = Paint()
                 ..color = const Color(0xFFE0E0E0)
@@ -1662,8 +1664,12 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            final previewColor = _previewColor(expectedNumber, detailStep);
-            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
             if (detailStep > 0) {
               final borderPaint = Paint()
                 ..color = const Color(0xFFE5E5E5)
@@ -1935,6 +1941,12 @@ class _PixelGridPainter extends CustomPainter {
         } else if (expectedNumber == 0) {
           cellPaint.color = const Color(0xFFE8E8E8);
           canvas.drawRect(rect, cellPaint);
+        } else if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+          cellPaint.color = const Color(0xFF808080);
+          canvas.drawRect(rect, cellPaint);
+          if (colorblindMode) {
+            _drawPattern(canvas, rect, expectedNumber, cw, ch);
+          }
         } else {
           cellPaint.color = _previewColor(expectedNumber, detailStep);
           canvas.drawRect(rect, cellPaint);
@@ -2181,14 +2193,18 @@ class _PixelGridPainter extends CustomPainter {
           colorValue = (filledColors[expectedNumber] ?? Colors.grey).toARGB32();
         } else if (expectedNumber == 0) {
           colorValue = 0xFFE8E8E8;
+        } else if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+          colorValue = 0xFF808080;
         } else {
           colorValue = _previewColor(expectedNumber, 0).toARGB32();
-          if (highlightedNumber != null &&
-              expectedNumber == highlightedNumber) {
-            highlightPoints
-              ..add(col * cw + cw / 2)
-              ..add(row * ch + ch / 2);
-          }
+        }
+
+        if (!isFilled &&
+            highlightedNumber != null &&
+            expectedNumber == highlightedNumber) {
+          highlightPoints
+            ..add(col * cw + cw / 2)
+            ..add(row * ch + ch / 2);
         }
         batches.putIfAbsent(colorValue, () => <double>[])
           ..add(col * cw + cw / 2)
