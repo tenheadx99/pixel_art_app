@@ -44,17 +44,8 @@ class AppConstants {
     16: Color(0xFF888888),
   };
 
-  // Production AdMob unit IDs (Pixely / original flavor fallback)
-  static const String bannerAdUnitId = 'ca-app-pub-9064606616675657/7511066180';
-  static const String interstitialAdUnitId =
-      'ca-app-pub-9064606616675657/6197984517';
-  static const String rewardedAdUnitId =
-      'ca-app-pub-9064606616675657/4884902843';
-  static const String appOpenAdUnitId =
-      'ca-app-pub-9064606616675657/4258216888';
-
   // Official Google AdMob test ad unit IDs (Android & iOS).
-  // Used safely during development and as fallback for other flavors without dedicated real ad units.
+  // Used safely during development and as fallback when ad units are not configured in Firestore/RemoteConfig.
   static const String testBannerAdUnitIdAndroid =
       'ca-app-pub-3940256099942544/6300978111';
   static const String testInterstitialAdUnitIdAndroid =

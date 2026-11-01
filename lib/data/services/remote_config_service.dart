@@ -92,11 +92,20 @@ class RemoteConfigService {
 
   Future<void> _syncFirestoreAdsConfig() async {
     final flavorId = currentFlavor.name;
-    final docPath = 'pixel_art/$flavorId/config/ads';
+    var docPath = 'pixel_art/$flavorId/config/ads';
 
     // 1. Initial one-time fetch
     try {
-      final snap = await _firestore.doc(docPath).get();
+      var snap = await _firestore.doc(docPath).get();
+      if ((!snap.exists || snap.data() == null) &&
+          currentFlavor == AppFlavor.original) {
+        final altDoc = 'pixel_art/pixelyart/config/ads';
+        final altSnap = await _firestore.doc(altDoc).get();
+        if (altSnap.exists && altSnap.data() != null) {
+          snap = altSnap;
+          docPath = altDoc;
+        }
+      }
       if (snap.exists && snap.data() != null) {
         _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
         _saveCachedFirestoreConfig();
@@ -246,13 +255,10 @@ class RemoteConfigService {
       // Set defaults for Remote Config
       await _remoteConfig.setDefaults(<String, dynamic>{
         'pixelyart_show_ads': true,
-        'pixelyart_banner_ad_unit_id': 'ca-app-pub-9064606616675657/7511066180',
-        'pixelyart_interstitial_ad_unit_id':
-            'ca-app-pub-9064606616675657/6197984517',
-        'pixelyart_rewarded_ad_unit_id':
-            'ca-app-pub-9064606616675657/4884902843',
-        'pixelyart_app_open_ad_unit_id':
-            'ca-app-pub-9064606616675657/4258216888',
+        'pixelyart_banner_ad_unit_id': '',
+        'pixelyart_interstitial_ad_unit_id': '',
+        'pixelyart_rewarded_ad_unit_id': '',
+        'pixelyart_app_open_ad_unit_id': '',
         'pixelyart_min_version': '1.0.0',
         'pixelyart_force_update_url': '',
         // Ad pacing — tune from the console without a release.
@@ -392,15 +398,10 @@ class RemoteConfigService {
 
   String get forceUpdateUrl => _getString('force_update_url');
 
-  /// Resolves an ad unit ID with strict flavor isolation:
-  /// - [AppFlavor.original]: checks Remote Config `pixelyart_<key>`, falling back to production unit.
-  /// - Other flavors (e.g. stitch, devotional, anime): checks Remote Config `<flavor>_<key>`.
-  ///   If the flavor has its own real ID configured (not matching the original app's ID), it is used.
-  ///   NEVER falls back to Pixely's production real ad unit IDs! If unconfigured, safely returns
-  ///   the official Google AdMob test ad unit ID.
+  /// Resolves an ad unit ID:
+  /// - Priority: Firestore -> Remote Config (<flavor>_<key> or pixelyart_<key>) -> Test Unit ID fallback.
   String _getAdUnitId({
     required String baseKey,
-    required String productionFallback,
     required String testUnitIdAndroid,
     required String testUnitIdIos,
   }) {
@@ -416,25 +417,22 @@ class RemoteConfigService {
         }
         final defaultVal = _remoteConfig.getString('pixelyart_$baseKey');
         if (defaultVal.isNotEmpty) return defaultVal;
-        return productionFallback;
+        return testUnitId;
       }
 
       // Non-original flavors (stitch, devotional, anime, pixelcalm, diamond, bible):
       final flavorKey = _getFlavorKey(baseKey);
       if (_remoteConfig.getAll().containsKey(flavorKey)) {
         final val = _remoteConfig.getString(flavorKey);
-        // Only use the flavor's ID if non-empty and not accidentally pointing to Pixely's ID
-        if (val.isNotEmpty && val != productionFallback) {
+        if (val.isNotEmpty) {
           return val;
         }
       }
 
-      // Safe fallback: never use Pixely real ad IDs on other flavors!
+      // Safe fallback when unconfigured:
       return testUnitId;
     } catch (_) {
-      return currentFlavor == AppFlavor.original
-          ? productionFallback
-          : testUnitId;
+      return testUnitId;
     }
   }
 
@@ -444,7 +442,6 @@ class RemoteConfigService {
 
     return _getAdUnitId(
       baseKey: 'banner_ad_unit_id',
-      productionFallback: AppConstants.bannerAdUnitId,
       testUnitIdAndroid: AppConstants.testBannerAdUnitIdAndroid,
       testUnitIdIos: AppConstants.testBannerAdUnitIdIos,
     );
@@ -456,7 +453,6 @@ class RemoteConfigService {
 
     return _getAdUnitId(
       baseKey: 'interstitial_ad_unit_id',
-      productionFallback: AppConstants.interstitialAdUnitId,
       testUnitIdAndroid: AppConstants.testInterstitialAdUnitIdAndroid,
       testUnitIdIos: AppConstants.testInterstitialAdUnitIdIos,
     );
@@ -468,7 +464,6 @@ class RemoteConfigService {
 
     return _getAdUnitId(
       baseKey: 'rewarded_ad_unit_id',
-      productionFallback: AppConstants.rewardedAdUnitId,
       testUnitIdAndroid: AppConstants.testRewardedAdUnitIdAndroid,
       testUnitIdIos: AppConstants.testRewardedAdUnitIdIos,
     );
@@ -480,7 +475,6 @@ class RemoteConfigService {
 
     return _getAdUnitId(
       baseKey: 'app_open_ad_unit_id',
-      productionFallback: AppConstants.appOpenAdUnitId,
       testUnitIdAndroid: AppConstants.testAppOpenAdUnitIdAndroid,
       testUnitIdIos: AppConstants.testAppOpenAdUnitIdIos,
     );

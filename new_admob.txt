@@ -50,3 +50,4 @@ Rewarded_video:ca-app-pub-7469053965996793/9636701846
 naive_ad:ca-app-pub-7469053965996793/2792091897
 open_ad:ca-app-pub-7469053965996793/1757466962
 
+app name : pixelcalm 
