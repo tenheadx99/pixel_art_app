@@ -11,13 +11,15 @@ enum AppFlavor {
   bible,
   stitch,
   bead,
+  brick,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor;
 /// [crossStitch] renders an X-shaped thread stitch on fabric for the cross-stitch flavor;
-/// [bead] renders a 3D cylindrical fuse bead (Perler/Hama style) with a center peg hole.
-enum CellRenderStyle { flat, gem, crossStitch, bead }
+/// [bead] renders a 3D cylindrical fuse bead (Perler/Hama style) with a center peg hole;
+/// [brick] renders a 3D building brick with a raised circular top stud.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -49,6 +51,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.stitch;
     case 'bead':
       return AppFlavor.bead;
+    case 'brick':
+      return AppFlavor.brick;
     case 'original':
     default:
       return AppFlavor.original;
@@ -227,6 +231,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.bead,
       paletteLabel: 'Select a Bead',
       placeVerb: 'Place',
+    ),
+    AppFlavor.brick: FlavorConfig(
+      appName: 'Brick Art: Build by Number',
+      splashTitle: 'Brick Art',
+      splashTagline: 'Build by Number',
+      appIconPath: 'assets/icons/brick.png',
+      primary: Color(0xFFE53935), // Toy Brick Red
+      secondary: Color(0xFF1E88E5), // Brick Blue
+      accent: Color(0xFFFFD600), // Brick Yellow
+      brandGradient: [Color(0xFFE53935), Color(0xFFFFD600)],
+      manifestPath: 'assets/pixel_art_brick/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.brick,
+      paletteLabel: 'Select a Brick',
+      placeVerb: 'Snap',
     ),
   };
 

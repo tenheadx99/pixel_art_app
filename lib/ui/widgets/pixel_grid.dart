@@ -140,6 +140,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _crossStitchOverlayRepaint;
   Listenable? _beadBaseRepaint;
   Listenable? _beadOverlayRepaint;
+  Listenable? _brickBaseRepaint;
+  Listenable? _brickOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -203,6 +205,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.sectionShimmer,
     ]);
     _beadOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _brickBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _brickOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
@@ -427,6 +442,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.crossStitchOverlay => _crossStitchOverlayRepaint,
         _GridLayer.beadBase => _beadBaseRepaint,
         _GridLayer.beadOverlay => _beadOverlayRepaint,
+        _GridLayer.brickBase => _brickBaseRepaint,
+        _GridLayer.brickOverlay => _brickOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -447,6 +464,7 @@ class _PixelGridState extends State<PixelGrid> {
       gemStyle: FlavorConfig.current.cellStyle == CellRenderStyle.gem,
       crossStitchStyle: FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch,
       beadStyle: FlavorConfig.current.cellStyle == CellRenderStyle.bead,
+      brickStyle: FlavorConfig.current.cellStyle == CellRenderStyle.brick,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -525,6 +543,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.brick) {
+      // Brick art mode: plastic baseplate + 3D studded building bricks.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.brickBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.brickOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -570,7 +609,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -600,6 +639,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as 3D cylindrical fuse beads on a pegboard.
   final bool beadStyle;
+
+  /// When true, filled cells render as 3D plastic building bricks with top studs.
+  final bool brickStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -638,6 +680,7 @@ class _PixelGridPainter extends CustomPainter {
     this.gemStyle = false,
     this.crossStitchStyle = false,
     this.beadStyle = false,
+    this.brickStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1447,7 +1490,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1476,6 +1519,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintBeadBase(canvas, size);
       case _GridLayer.beadOverlay:
         _paintBeadOverlay(canvas, size);
+      case _GridLayer.brickBase:
+        _paintBrickBase(canvas, size);
+      case _GridLayer.brickOverlay:
+        _paintBrickOverlay(canvas, size);
     }
   }
 
@@ -2101,6 +2148,241 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
+  // Brick-path static paints for high-speed rendering
+  static final Paint _brickBaseplateBgPaint = Paint()..color = const Color(0xFF1E222B);
+  static final Paint _brickPegPinPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = const Color(0x35FFFFFF);
+  static final Paint _brickBodyPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _brickStudShadowPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = const Color(0x38000000);
+  static final Paint _brickHighlightPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _brickShadowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  void _drawBrickCell(
+    Canvas canvas,
+    Rect rect,
+    Color base,
+    double effectiveCell,
+  ) {
+    if (effectiveCell < 6.0) {
+      _brickBodyPaint.color = base;
+      canvas.drawRect(rect, _brickBodyPaint);
+      return;
+    }
+
+    final inset = (rect.width * 0.04).clamp(0.5, 1.5);
+    final brickRect = rect.deflate(inset);
+
+    // 1. Brick square body
+    _brickBodyPaint.color = base;
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(brickRect, Radius.circular((rect.width * 0.08).clamp(1.0, 3.5))),
+      _brickBodyPaint,
+    );
+
+    // 2. 3D Bevel Highlight & Shadow on brick block
+    final strokeW = (rect.width * 0.06).clamp(0.6, 2.2);
+    _brickHighlightPaint
+      ..strokeWidth = strokeW
+      ..color = _lighten(base, 0.32);
+    canvas.drawLine(
+      Offset(brickRect.left, brickRect.top + strokeW * 0.5),
+      Offset(brickRect.right, brickRect.top + strokeW * 0.5),
+      _brickHighlightPaint,
+    );
+    canvas.drawLine(
+      Offset(brickRect.left + strokeW * 0.5, brickRect.top),
+      Offset(brickRect.left + strokeW * 0.5, brickRect.bottom),
+      _brickHighlightPaint,
+    );
+
+    _brickShadowPaint
+      ..strokeWidth = strokeW
+      ..color = _darken(base, 0.28);
+    canvas.drawLine(
+      Offset(brickRect.left, brickRect.bottom - strokeW * 0.5),
+      Offset(brickRect.right, brickRect.bottom - strokeW * 0.5),
+      _brickShadowPaint,
+    );
+    canvas.drawLine(
+      Offset(brickRect.right - strokeW * 0.5, brickRect.top),
+      Offset(brickRect.right - strokeW * 0.5, brickRect.bottom),
+      _brickShadowPaint,
+    );
+
+    // 3. Center Raised Stud
+    final center = rect.center;
+    final studRadius = (rect.width * 0.26).clamp(1.5, rect.width * 0.42);
+
+    // Stud drop shadow
+    canvas.drawCircle(
+      center + const Offset(0.4, 0.8),
+      studRadius,
+      _brickStudShadowPaint,
+    );
+
+    // Stud top face
+    canvas.drawCircle(center, studRadius, _brickBodyPaint);
+
+    // Stud rim highlight (top-left arc)
+    final studArcW = (rect.width * 0.06).clamp(0.6, 2.0);
+    _brickHighlightPaint
+      ..strokeWidth = studArcW
+      ..color = _lighten(base, 0.38);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: studRadius - studArcW * 0.5),
+      -2.6,
+      1.8,
+      false,
+      _brickHighlightPaint,
+    );
+
+    // Stud rim shadow (bottom-right arc)
+    _brickShadowPaint
+      ..strokeWidth = studArcW
+      ..color = _darken(base, 0.25);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: studRadius - studArcW * 0.5),
+      0.5,
+      1.8,
+      false,
+      _brickShadowPaint,
+    );
+  }
+
+  void _paintBrickBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      // Baseplate background: dark slate building baseplate
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _brickBaseplateBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawBrickCell(recorderCanvas, rect, color, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              // Unfilled stud pin on baseplate
+              final studRadius = (rect.width * 0.18).clamp(1.0, 3.5);
+              recorderCanvas.drawCircle(rect.center, studRadius, _brickPegPinPaint);
+              final borderPaint = Paint()
+                ..color = const Color(0x28000000)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.35;
+              recorderCanvas.drawRect(rect, borderPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintBrickOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    // Growing bricks during animated fills
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawBrickCell(canvas, scaledRect, color, effectiveCell);
+      });
+    }
+
+    // Section complete shimmer effect across bricks
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch),
+            shimmerPaint,
+          );
+        }
+      }
+    }
+  }
+
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
   static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
   static final Paint _borderPaint = Paint()
@@ -2577,6 +2859,7 @@ class _PixelGridPainter extends CustomPainter {
       gemStyle != old.gemStyle ||
       crossStitchStyle != old.crossStitchStyle ||
       beadStyle != old.beadStyle ||
+      brickStyle != old.brickStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).

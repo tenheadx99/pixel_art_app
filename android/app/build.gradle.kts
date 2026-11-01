@@ -171,6 +171,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Brick Art" — plastic brick building craft flavor.
+        create("brick") {
+            dimension = "app"
+            applicationId = "com.tenhead.brickart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Brick Art: Build by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

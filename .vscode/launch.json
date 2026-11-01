@@ -71,6 +71,14 @@
             "flutterMode": "profile",
             "program": "lib/main_bead.dart",
             "toolArgs": ["--flavor", "bead", "--dart-define=FLAVOR=bead"]
+        },
+        {
+            "name": "Brick Art (brick, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_brick.dart",
+            "toolArgs": ["--flavor", "brick", "--dart-define=FLAVOR=brick"]
         }
     ]
 }
