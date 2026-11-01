@@ -181,6 +181,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Knit Art" — cozy yarn knitting craft flavor.
+        create("knit") {
+            dimension = "app"
+            applicationId = "com.tenhead.knitart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Knit Art: Stitch by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

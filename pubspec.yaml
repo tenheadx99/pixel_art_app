@@ -68,6 +68,7 @@ flutter:
     - assets/pixel_art_stitch/
     - assets/pixel_art_bead/
     - assets/pixel_art_brick/
+    - assets/pixel_art_knit/
     - assets/icons/
     - assets/audio/
   shaders:

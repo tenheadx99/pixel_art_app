@@ -142,6 +142,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _beadOverlayRepaint;
   Listenable? _brickBaseRepaint;
   Listenable? _brickOverlayRepaint;
+  Listenable? _knitBaseRepaint;
+  Listenable? _knitOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -218,6 +220,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.sectionShimmer,
     ]);
     _brickOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _knitBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _knitOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
@@ -444,6 +459,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.beadOverlay => _beadOverlayRepaint,
         _GridLayer.brickBase => _brickBaseRepaint,
         _GridLayer.brickOverlay => _brickOverlayRepaint,
+        _GridLayer.knitBase => _knitBaseRepaint,
+        _GridLayer.knitOverlay => _knitOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -465,6 +482,7 @@ class _PixelGridState extends State<PixelGrid> {
       crossStitchStyle: FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch,
       beadStyle: FlavorConfig.current.cellStyle == CellRenderStyle.bead,
       brickStyle: FlavorConfig.current.cellStyle == CellRenderStyle.brick,
+      knitStyle: FlavorConfig.current.cellStyle == CellRenderStyle.knit,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -564,6 +582,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.knit) {
+      // Knit art mode: cozy oatmeal fabric + V-loop yarn stitches.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.knitBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.knitOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -609,7 +648,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -642,6 +681,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as 3D plastic building bricks with top studs.
   final bool brickStyle;
+
+  /// When true, filled cells render as cozy interlocking V-stitch woolen yarn.
+  final bool knitStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -681,6 +723,7 @@ class _PixelGridPainter extends CustomPainter {
     this.crossStitchStyle = false,
     this.beadStyle = false,
     this.brickStyle = false,
+    this.knitStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1490,7 +1533,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1523,6 +1566,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintBrickBase(canvas, size);
       case _GridLayer.brickOverlay:
         _paintBrickOverlay(canvas, size);
+      case _GridLayer.knitBase:
+        _paintKnitBase(canvas, size);
+      case _GridLayer.knitOverlay:
+        _paintKnitOverlay(canvas, size);
     }
   }
 
@@ -2383,6 +2430,209 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
+  // Knit-path static paints for high-speed rendering
+  static final Paint _knitOatmealBgPaint = Paint()..color = const Color(0xFFF7F3EE);
+  static final Paint _knitLoopShadowPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _knitStrandPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _knitFiberSheenPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  void _drawKnitCell(
+    Canvas canvas,
+    Rect rect,
+    Color base,
+    double effectiveCell,
+  ) {
+    if (effectiveCell < 6.0) {
+      canvas.drawRect(rect, Paint()..color = base);
+      return;
+    }
+
+    final inset = rect.width * 0.08;
+    final w = rect.width;
+
+    // Knit cell background (slightly darker base for depth)
+    final bgYarn = Color.lerp(Colors.black, base, 0.45)!;
+    canvas.drawRect(rect, Paint()..color = bgYarn);
+
+    // Points for interlocking "V" knit stitch:
+    // Left strand: top-left -> bottom-center
+    // Right strand: bottom-center -> top-right
+    final pTL = Offset(rect.left + inset, rect.top + inset);
+    final pTR = Offset(rect.right - inset, rect.top + inset);
+    final pBC = Offset(rect.center.dx, rect.bottom - inset);
+
+    final strandWidth = (w * 0.34).clamp(2.5, 11.0);
+    final sheenWidth = (strandWidth * 0.28).clamp(0.8, 3.0);
+    final sheenColor = _lighten(base, 0.32);
+    const shadowOffset = Offset(0.5, 0.8);
+    const shadowColor = Color(0x35000000);
+
+    // 1. Left loop strand shadow + body
+    _knitLoopShadowPaint
+      ..strokeWidth = strandWidth
+      ..color = shadowColor;
+    canvas.drawLine(pTL + shadowOffset, pBC + shadowOffset, _knitLoopShadowPaint);
+
+    _knitStrandPaint
+      ..strokeWidth = strandWidth
+      ..color = base;
+    canvas.drawLine(pTL, pBC, _knitStrandPaint);
+
+    // 2. Right loop strand shadow + body (passes slightly over at bottom V-point)
+    canvas.drawLine(pBC + shadowOffset, pTR + shadowOffset, _knitLoopShadowPaint);
+    canvas.drawLine(pBC, pTR, _knitStrandPaint);
+
+    // 3. Yarn fiber sheen along both strands
+    _knitFiberSheenPaint
+      ..strokeWidth = sheenWidth
+      ..color = sheenColor;
+    canvas.drawLine(pTL, pBC, _knitFiberSheenPaint);
+    canvas.drawLine(pBC, pTR, _knitFiberSheenPaint);
+
+    // 4. Subtle crossover stitch knot highlight at the V point
+    canvas.drawCircle(pBC, (strandWidth * 0.3).clamp(1.0, 3.0), Paint()..color = _lighten(base, 0.42));
+
+    // 5. Delicate knit row cell seam
+    canvas.drawRect(
+      rect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.4
+        ..color = const Color(0x22000000),
+    );
+  }
+
+  void _paintKnitBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      // Knit fabric background: oatmeal/cream
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _knitOatmealBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawKnitCell(recorderCanvas, rect, color, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              // Subtle knit guide loop
+              final loopPaint = Paint()
+                ..color = const Color(0x25000000)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.35;
+              recorderCanvas.drawRect(rect, loopPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintKnitOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    // Growing stitches during animated fills
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawKnitCell(canvas, scaledRect, color, effectiveCell);
+      });
+    }
+
+    // Section complete shimmer effect across knits
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch),
+            shimmerPaint,
+          );
+        }
+      }
+    }
+  }
+
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
   static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
   static final Paint _borderPaint = Paint()
@@ -2860,6 +3110,7 @@ class _PixelGridPainter extends CustomPainter {
       crossStitchStyle != old.crossStitchStyle ||
       beadStyle != old.beadStyle ||
       brickStyle != old.brickStyle ||
+      knitStyle != old.knitStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).

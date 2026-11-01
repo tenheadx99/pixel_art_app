@@ -79,6 +79,14 @@
             "flutterMode": "profile",
             "program": "lib/main_brick.dart",
             "toolArgs": ["--flavor", "brick", "--dart-define=FLAVOR=brick"]
+        },
+        {
+            "name": "Knit Art (knit, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_knit.dart",
+            "toolArgs": ["--flavor", "knit", "--dart-define=FLAVOR=knit"]
         }
     ]
 }

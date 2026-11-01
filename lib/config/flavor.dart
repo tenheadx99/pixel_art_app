@@ -12,14 +12,16 @@ enum AppFlavor {
   stitch,
   bead,
   brick,
+  knit,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor;
 /// [crossStitch] renders an X-shaped thread stitch on fabric for the cross-stitch flavor;
 /// [bead] renders a 3D cylindrical fuse bead (Perler/Hama style) with a center peg hole;
-/// [brick] renders a 3D building brick with a raised circular top stud.
-enum CellRenderStyle { flat, gem, crossStitch, bead, brick }
+/// [brick] renders a 3D building brick with a raised circular top stud;
+/// [knit] renders an interlocking V-stitch woolen yarn loop.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -53,6 +55,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.bead;
     case 'brick':
       return AppFlavor.brick;
+    case 'knit':
+      return AppFlavor.knit;
     case 'original':
     default:
       return AppFlavor.original;
@@ -246,6 +250,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.brick,
       paletteLabel: 'Select a Brick',
       placeVerb: 'Snap',
+    ),
+    AppFlavor.knit: FlavorConfig(
+      appName: 'Knit Art: Stitch by Number',
+      splashTitle: 'Knit Art',
+      splashTagline: 'Cozy Yarn by Number',
+      appIconPath: 'assets/icons/knit.png',
+      primary: Color(0xFFD81B60), // Warm Berry Rose
+      secondary: Color(0xFFF5EBE0), // Oatmeal Cream
+      accent: Color(0xFF8D99AE), // Sage Wool
+      brandGradient: [Color(0xFFD81B60), Color(0xFFF48FB1)],
+      manifestPath: 'assets/pixel_art_knit/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.knit,
+      paletteLabel: 'Select a Yarn',
+      placeVerb: 'Knit',
     ),
   };
 
