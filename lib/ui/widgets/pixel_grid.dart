@@ -138,6 +138,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _gemOverlayRepaint;
   Listenable? _crossStitchBaseRepaint;
   Listenable? _crossStitchOverlayRepaint;
+  Listenable? _beadBaseRepaint;
+  Listenable? _beadOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -192,6 +194,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.transform,
       widget.fillGrow?.settled,
       widget.fillGrow?.newlyRevealed,
+    ]);
+    _beadBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _beadOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
     ]);
   }
 
@@ -410,6 +425,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.gemOverlay => _gemOverlayRepaint,
         _GridLayer.crossStitchBase => _crossStitchBaseRepaint,
         _GridLayer.crossStitchOverlay => _crossStitchOverlayRepaint,
+        _GridLayer.beadBase => _beadBaseRepaint,
+        _GridLayer.beadOverlay => _beadOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -429,6 +446,7 @@ class _PixelGridState extends State<PixelGrid> {
       hoverCol: widget.readOnly ? null : _hoverCol,
       gemStyle: FlavorConfig.current.cellStyle == CellRenderStyle.gem,
       crossStitchStyle: FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch,
+      beadStyle: FlavorConfig.current.cellStyle == CellRenderStyle.bead,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -486,6 +504,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.bead) {
+      // Bead art mode: pegboard background + 3D fuse beads.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.beadBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.beadOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -531,7 +570,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -558,6 +597,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as cross stitches on fabric canvas.
   final bool crossStitchStyle;
+
+  /// When true, filled cells render as 3D cylindrical fuse beads on a pegboard.
+  final bool beadStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -595,6 +637,7 @@ class _PixelGridPainter extends CustomPainter {
     this.hoverCol,
     this.gemStyle = false,
     this.crossStitchStyle = false,
+    this.beadStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1404,7 +1447,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1429,6 +1472,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintFlatBase(canvas, size);
       case _GridLayer.flatOverlay:
         _paintFlatOverlay(canvas, size);
+      case _GridLayer.beadBase:
+        _paintBeadBase(canvas, size);
+      case _GridLayer.beadOverlay:
+        _paintBeadOverlay(canvas, size);
     }
   }
 
@@ -1830,6 +1877,228 @@ class _PixelGridPainter extends CustomPainter {
       ..strokeWidth = 0.5
       ..color = const Color(0x35000000);
     canvas.drawRect(rect, borderPaint);
+  }
+
+  // Bead-path static paints for high-speed rendering
+  static final Paint _beadPegBgPaint = Paint()..color = const Color(0xFFF1F3F5);
+  static final Paint _beadPegPinPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = const Color(0x35000000);
+  static final Paint _beadShadowPaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = const Color(0x2E000000);
+  static final Paint _beadBodyPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _beadHighlightPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _beadShadedEdgePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _beadHolePaint = Paint()
+    ..style = PaintingStyle.fill
+    ..color = const Color(0x66000000);
+  static final Paint _beadInnerLightPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+
+  void _drawBeadCell(
+    Canvas canvas,
+    Rect rect,
+    Color base,
+    double effectiveCell,
+  ) {
+    if (effectiveCell < 6.0) {
+      _beadBodyPaint.color = base;
+      canvas.drawCircle(rect.center, rect.width * 0.48, _beadBodyPaint);
+      return;
+    }
+
+    final center = rect.center;
+    final outerRadius = rect.width * 0.46;
+    final holeRadius = (rect.width * 0.17).clamp(1.0, outerRadius * 0.55);
+
+    // 1. Subtle drop shadow
+    canvas.drawCircle(
+      center + const Offset(0.5, 0.8),
+      outerRadius,
+      _beadShadowPaint,
+    );
+
+    // 2. Plastic cylinder bead body
+    _beadBodyPaint.color = base;
+    canvas.drawCircle(center, outerRadius, _beadBodyPaint);
+
+    // 3. Top-Left Rim Bevel Highlight (plastic glossy sheen)
+    final strokeW = (rect.width * 0.08).clamp(0.8, 3.2);
+    _beadHighlightPaint
+      ..strokeWidth = strokeW
+      ..color = _lighten(base, 0.38);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: outerRadius - strokeW * 0.5),
+      -2.6,
+      1.8,
+      false,
+      _beadHighlightPaint,
+    );
+
+    // 4. Bottom-Right Rim Bevel Shadow
+    final shadowW = (rect.width * 0.07).clamp(0.7, 2.8);
+    _beadShadedEdgePaint
+      ..strokeWidth = shadowW
+      ..color = _darken(base, 0.28);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: outerRadius - shadowW * 0.5),
+      0.5,
+      1.8,
+      false,
+      _beadShadedEdgePaint,
+    );
+
+    // 5. Center Hole (reveals peg pin & dark interior)
+    canvas.drawCircle(center, holeRadius, _beadHolePaint);
+
+    // 6. Inner Hole far-wall light catching bottom-right interior wall
+    final innerStrokeW = (rect.width * 0.04).clamp(0.5, 1.6);
+    _beadInnerLightPaint
+      ..strokeWidth = innerStrokeW
+      ..color = _lighten(base, 0.25);
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: (holeRadius - 0.4).clamp(0.5, double.infinity)),
+      0.4,
+      1.6,
+      false,
+      _beadInnerLightPaint,
+    );
+  }
+
+  void _paintBeadBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      // Pegboard background: clean pegboard light slate
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _beadPegBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawBeadCell(recorderCanvas, rect, color, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              // Pegboard pin dot in center of unfilled cell
+              final pinRadius = (rect.width * 0.11).clamp(0.8, 2.5);
+              recorderCanvas.drawCircle(rect.center, pinRadius, _beadPegPinPaint);
+              final borderPaint = Paint()
+                ..color = const Color(0x1F000000)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.35;
+              recorderCanvas.drawRect(rect, borderPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintBeadOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    // Growing beads during animated fills
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawBeadCell(canvas, scaledRect, color, effectiveCell);
+      });
+    }
+
+    // Section complete shimmer effect across beads
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final gridWidth = art.gridWidth as int;
+      final gridHeight = art.gridHeight as int;
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawCircle(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch).center,
+            cw * 0.46,
+            shimmerPaint,
+          );
+        }
+      }
+    }
   }
 
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
@@ -2307,6 +2576,7 @@ class _PixelGridPainter extends CustomPainter {
       colorblindMode != old.colorblindMode ||
       gemStyle != old.gemStyle ||
       crossStitchStyle != old.crossStitchStyle ||
+      beadStyle != old.beadStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).

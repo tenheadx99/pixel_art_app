@@ -10,12 +10,14 @@ enum AppFlavor {
   diamond,
   bible,
   stitch,
+  bead,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
 /// [gem] renders a faceted "drill" for the diamond-painting flavor;
-/// [crossStitch] renders an X-shaped thread stitch on fabric for the cross-stitch flavor.
-enum CellRenderStyle { flat, gem, crossStitch }
+/// [crossStitch] renders an X-shaped thread stitch on fabric for the cross-stitch flavor;
+/// [bead] renders a 3D cylindrical fuse bead (Perler/Hama style) with a center peg hole.
+enum CellRenderStyle { flat, gem, crossStitch, bead }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -45,6 +47,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.bible;
     case 'stitch':
       return AppFlavor.stitch;
+    case 'bead':
+      return AppFlavor.bead;
     case 'original':
     default:
       return AppFlavor.original;
@@ -208,6 +212,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.crossStitch,
       paletteLabel: 'Select a Thread',
       placeVerb: 'Stitch',
+    ),
+    AppFlavor.bead: FlavorConfig(
+      appName: 'Bead Art: Color by Number',
+      splashTitle: 'Bead Art',
+      splashTagline: 'Fuse Beads by Number',
+      appIconPath: 'assets/icons/bead.png',
+      primary: Color(0xFF00B4D8), // Vibrant Craft Cyan
+      secondary: Color(0xFFFF70A6), // Candy Pink
+      accent: Color(0xFFFFD166), // Marigold Yellow
+      brandGradient: [Color(0xFF00B4D8), Color(0xFFFF70A6)],
+      manifestPath: 'assets/pixel_art_bead/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.bead,
+      paletteLabel: 'Select a Bead',
+      placeVerb: 'Place',
     ),
   };
 

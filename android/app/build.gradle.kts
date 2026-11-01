@@ -161,6 +161,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~3461430873"
         }
+        // "Bead Art" — fuse bead craft flavor.
+        create("bead") {
+            dimension = "app"
+            applicationId = "com.tenhead.beadart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Bead Art: Color by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

@@ -111,6 +111,7 @@ class PromotedAppsService {
       final cfg = FlavorConfig.of(flavor);
 
       String? badge;
+      if (flavor == AppFlavor.bead) badge = 'NEW';
       if (flavor == AppFlavor.stitch) badge = 'NEW';
       if (flavor == AppFlavor.anime || flavor == AppFlavor.diamond) badge = 'HOT';
       if (flavor == AppFlavor.devotional) badge = 'POPULAR';
@@ -123,6 +124,7 @@ class PromotedAppsService {
         AppFlavor.diamond => 'com.tenhead.gemart',
         AppFlavor.bible => 'com.tenhead.bible',
         AppFlavor.stitch => 'com.tenhead.craftcolor',
+        AppFlavor.bead => 'com.tenhead.beadart',
       };
 
       list.add(

@@ -63,6 +63,14 @@
             "flutterMode": "profile",
             "program": "lib/main_cross_stitch.dart",
             "toolArgs": ["--flavor", "crossStitch", "--dart-define=FLAVOR=stitch"]
+        },
+        {
+            "name": "Bead Art (bead, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_bead.dart",
+            "toolArgs": ["--flavor", "bead", "--dart-define=FLAVOR=bead"]
         }
     ]
 }
