@@ -3533,91 +3533,108 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
-  static final Paint _voxelBoardBgPaint = Paint()..color = const Color(0xFF1E2430);
-  static final Paint _voxelShadowPaint = Paint()..color = const Color(0x35000000);
-  static final Paint _voxelTopPaint = Paint()..style = PaintingStyle.fill;
-  static final Paint _voxelLeftPaint = Paint()..style = PaintingStyle.fill;
-  static final Paint _voxelRightPaint = Paint()..style = PaintingStyle.fill;
-  static final Paint _voxelEdgeHighlightPaint = Paint()
+  static final Paint _voxelBoardBgPaint = Paint()..color = const Color(0xFF222834);
+  static final Paint _voxelTopFacetPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelLeftFacetPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelRightFacetPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelBottomFacetPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelCenterFacePaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelHighlightEdgePaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
-    ..color = const Color(0x50FFFFFF);
-  static final Paint _voxelRidgePaint = Paint()
+    ..color = const Color(0x60FFFFFF);
+  static final Paint _voxelShadowEdgePaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
-    ..color = const Color(0x28000000);
+    ..color = const Color(0x35000000);
+  static final Paint _voxelMiterLightPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.6
+    ..color = const Color(0x40FFFFFF);
+  static final Paint _voxelMiterDarkPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.6
+    ..color = const Color(0x35000000);
 
   void _drawVoxelCell(Canvas canvas, Rect rect, Color base, [double grow = 1.0]) {
-    final cx = rect.center.dx;
-    final cy = rect.center.dy;
-    final w = rect.width;
-    final h = rect.height;
+    final blockRect = rect.deflate(0.5);
+    final bw = blockRect.width;
+    final bh = blockRect.height;
+    final bevel = (min(bw, bh) * 0.20 * grow.clamp(0.2, 1.0)).clamp(1.5, 6.0);
+    final innerRect = blockRect.deflate(bevel);
 
-    final halfW = w * 0.47;
-    final halfH = h * 0.26;
-    final depth = (h * 0.36) * grow.clamp(0.08, 1.0);
+    // 1. Top Bevel Facet (illuminated from above)
+    final topFacet = Path()
+      ..moveTo(blockRect.left, blockRect.top)
+      ..lineTo(blockRect.right, blockRect.top)
+      ..lineTo(innerRect.right, innerRect.top)
+      ..lineTo(innerRect.left, innerRect.top)
+      ..close();
+    _voxelTopFacetPaint.color = _lighten(base, 0.28);
+    canvas.drawPath(topFacet, _voxelTopFacetPaint);
 
-    // 1. Ground contact drop shadow beneath the 3D block
-    final shadowY = cy + depth * 0.38 + halfH * 0.5;
-    final shadowRect = Rect.fromCenter(
-      center: Offset(cx, shadowY),
-      width: halfW * 1.95,
-      height: halfH * 1.5,
+    // 2. Left Bevel Facet (ambient light from left)
+    final leftFacet = Path()
+      ..moveTo(blockRect.left, blockRect.bottom)
+      ..lineTo(blockRect.left, blockRect.top)
+      ..lineTo(innerRect.left, innerRect.top)
+      ..lineTo(innerRect.left, innerRect.bottom)
+      ..close();
+    _voxelLeftFacetPaint.color = _lighten(base, 0.12);
+    canvas.drawPath(leftFacet, _voxelLeftFacetPaint);
+
+    // 3. Right Bevel Facet (shadow facet)
+    final rightFacet = Path()
+      ..moveTo(blockRect.right, blockRect.top)
+      ..lineTo(blockRect.right, blockRect.bottom)
+      ..lineTo(innerRect.right, innerRect.bottom)
+      ..lineTo(innerRect.right, innerRect.top)
+      ..close();
+    _voxelRightFacetPaint.color = _darken(base, 0.18);
+    canvas.drawPath(rightFacet, _voxelRightFacetPaint);
+
+    // 4. Bottom Bevel Facet (deep cast shadow)
+    final bottomFacet = Path()
+      ..moveTo(innerRect.left, innerRect.bottom)
+      ..lineTo(innerRect.right, innerRect.bottom)
+      ..lineTo(blockRect.right, blockRect.bottom)
+      ..lineTo(blockRect.left, blockRect.bottom)
+      ..close();
+    _voxelBottomFacetPaint.color = _darken(base, 0.32);
+    canvas.drawPath(bottomFacet, _voxelBottomFacetPaint);
+
+    // 5. Raised Center Face
+    _voxelCenterFacePaint.color = _lighten(base, 0.04);
+    canvas.drawRect(innerRect, _voxelCenterFacePaint);
+
+    // 6. Corner 45-degree miter seams
+    canvas.drawLine(blockRect.topLeft, innerRect.topLeft, _voxelMiterLightPaint);
+    canvas.drawLine(blockRect.bottomRight, innerRect.bottomRight, _voxelMiterDarkPaint);
+
+    // 7. Specular highlight line along top and left ridges
+    _voxelHighlightEdgePaint.strokeWidth = (bevel * 0.22).clamp(0.6, 1.4);
+    final lightRidge = Path()
+      ..moveTo(blockRect.left, blockRect.bottom)
+      ..lineTo(blockRect.left, blockRect.top)
+      ..lineTo(blockRect.right, blockRect.top);
+    canvas.drawPath(lightRidge, _voxelHighlightEdgePaint);
+
+    // 8. Seam shadow groove along right and bottom ridges
+    _voxelShadowEdgePaint.strokeWidth = (bevel * 0.22).clamp(0.6, 1.4);
+    final darkRidge = Path()
+      ..moveTo(blockRect.right, blockRect.top)
+      ..lineTo(blockRect.right, blockRect.bottom)
+      ..lineTo(blockRect.left, blockRect.bottom);
+    canvas.drawPath(darkRidge, _voxelShadowEdgePaint);
+
+    // 9. Crisp specular highlight glint inside top-left corner
+    final glintW = (innerRect.width * 0.35).clamp(1.0, 5.0);
+    final glintH = (innerRect.height * 0.28).clamp(1.0, 4.0);
+    final glintRect = Rect.fromLTWH(innerRect.left + 0.6, innerRect.top + 0.6, glintW, glintH);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(glintRect, const Radius.circular(0.8)),
+      Paint()..color = const Color(0x40FFFFFF),
     );
-    canvas.drawOval(shadowRect, _voxelShadowPaint);
-
-    // Cube vertices in isometric projection
-    final topY = cy - depth * 0.5;
-    final pNorth = Offset(cx, topY - halfH);
-    final pEast = Offset(cx + halfW, topY);
-    final pSouth = Offset(cx, topY + halfH);
-    final pWest = Offset(cx - halfW, topY);
-
-    final pWestBottom = Offset(cx - halfW, topY + depth);
-    final pSouthBottom = Offset(cx, topY + halfH + depth);
-    final pEastBottom = Offset(cx + halfW, topY + depth);
-
-    // 2. Left side face (ambient light, medium shading)
-    final leftPath = Path()
-      ..moveTo(pWest.dx, pWest.dy)
-      ..lineTo(pSouth.dx, pSouth.dy)
-      ..lineTo(pSouthBottom.dx, pSouthBottom.dy)
-      ..lineTo(pWestBottom.dx, pWestBottom.dy)
-      ..close();
-    _voxelLeftPaint.color = _darken(base, 0.12);
-    canvas.drawPath(leftPath, _voxelLeftPaint);
-
-    // 3. Right side face (shadow facet, deeper shading)
-    final rightPath = Path()
-      ..moveTo(pSouth.dx, pSouth.dy)
-      ..lineTo(pEast.dx, pEast.dy)
-      ..lineTo(pEastBottom.dx, pEastBottom.dy)
-      ..lineTo(pSouthBottom.dx, pSouthBottom.dy)
-      ..close();
-    _voxelRightPaint.color = _darken(base, 0.28);
-    canvas.drawPath(rightPath, _voxelRightPaint);
-
-    // 4. Center front vertical seam/ridge
-    _voxelRidgePaint.strokeWidth = (w * 0.05).clamp(0.5, 1.4);
-    canvas.drawLine(pSouth, pSouthBottom, _voxelRidgePaint);
-
-    // 5. Top face (overhead illuminated diamond)
-    final topPath = Path()
-      ..moveTo(pNorth.dx, pNorth.dy)
-      ..lineTo(pEast.dx, pEast.dy)
-      ..lineTo(pSouth.dx, pSouth.dy)
-      ..lineTo(pWest.dx, pWest.dy)
-      ..close();
-    _voxelTopPaint.color = _lighten(base, 0.20);
-    canvas.drawPath(topPath, _voxelTopPaint);
-
-    // 6. Crisp specular edge highlight along lit top ridges (North-West & North-East)
-    _voxelEdgeHighlightPaint.strokeWidth = (w * 0.06).clamp(0.6, 1.6);
-    final lightEdges = Path()
-      ..moveTo(pWest.dx, pWest.dy)
-      ..lineTo(pNorth.dx, pNorth.dy)
-      ..lineTo(pEast.dx, pEast.dy);
-    canvas.drawPath(lightEdges, _voxelEdgeHighlightPaint);
   }
 
   void _paintVoxelBase(Canvas canvas, Size size) {
@@ -3662,24 +3679,48 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+
             if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF2C3446));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+              // Active selected number: luminous cyan/mint selection outline
+              recorderCanvas.drawRect(
+                rect,
+                Paint()..color = const Color(0x2500BFA5),
+              );
+              recorderCanvas.drawRect(
+                rect.deflate(0.5),
+                Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 1.2
+                  ..color = const Color(0xFF00BFA5),
+              );
             }
+
             if (detailStep > 0) {
-              final floorDiamond = Path()
-                ..moveTo(rect.center.dx, rect.top + rect.height * 0.15)
-                ..lineTo(rect.right - rect.width * 0.1, rect.center.dy)
-                ..lineTo(rect.center.dx, rect.bottom - rect.height * 0.15)
-                ..lineTo(rect.left + rect.width * 0.1, rect.center.dy)
-                ..close();
-              final isoGridPaint = Paint()
-                ..color = const Color(0x20FFFFFF)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.5;
-              recorderCanvas.drawPath(floorDiamond, isoGridPaint);
+              // Recessed 2.5D voxel socket groove
+              final socketShadow = Path()
+                ..moveTo(rect.left, rect.bottom)
+                ..lineTo(rect.left, rect.top)
+                ..lineTo(rect.right, rect.top);
+              recorderCanvas.drawPath(
+                socketShadow,
+                Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 0.6
+                  ..color = const Color(0x22000000),
+              );
+              final socketRim = Path()
+                ..moveTo(rect.right, rect.top)
+                ..lineTo(rect.right, rect.bottom)
+                ..lineTo(rect.left, rect.bottom);
+              recorderCanvas.drawPath(
+                socketRim,
+                Paint()
+                  ..style = PaintingStyle.stroke
+                  ..strokeWidth = 0.6
+                  ..color = const Color(0x18FFFFFF),
+              );
             }
           }
         }
@@ -3716,7 +3757,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
-        _drawVoxelCell(canvas, baseRect, color, grow);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawVoxelCell(canvas, scaledRect, color, grow);
       });
     }
 
