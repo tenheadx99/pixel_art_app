@@ -88,55 +88,55 @@ class DefaultFirebaseOptions {
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.brick:
-        // Registered for com.tenhead.brickart (falls back to default Firebase project)
+        // Registered for com.tenhead.brickart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:a1bcd72cbd14d07355af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.knit:
-        // Registered for com.tenhead.knitart (falls back to default Firebase project)
+        // Registered for com.tenhead.knitart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:ef35871f9e1bac9355af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.mosaic:
-        // Registered for com.tenhead.mosaicart (falls back to default Firebase project)
+        // Registered for com.tenhead.mosaicart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:c016e4ed937e416555af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.glow:
-        // Registered for com.tenhead.glowart (falls back to default Firebase project)
+        // Registered for com.tenhead.glowart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:55139d66468ee19a55af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.sticker:
-        // Registered for com.tenhead.stickerart (falls back to default Firebase project)
+        // Registered for com.tenhead.stickerart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:90cb9706ab649a8755af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.quilt:
-        // Registered for com.tenhead.quiltart (falls back to default Firebase project)
+        // Registered for com.tenhead.quiltart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:d9351cea068d19ea55af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
