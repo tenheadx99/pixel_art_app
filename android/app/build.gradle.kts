@@ -221,6 +221,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Quilt Art" — patchwork fabric & quilting flavor.
+        create("quilt") {
+            dimension = "app"
+            applicationId = "com.tenhead.quiltart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Quilt Art: Sew by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

@@ -150,6 +150,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _glowOverlayRepaint;
   Listenable? _stickerBaseRepaint;
   Listenable? _stickerOverlayRepaint;
+  Listenable? _quiltBaseRepaint;
+  Listenable? _quiltOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -278,6 +280,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.sectionShimmer,
     ]);
     _stickerOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _quiltBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _quiltOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
@@ -512,6 +527,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.glowOverlay => _glowOverlayRepaint,
         _GridLayer.stickerBase => _stickerBaseRepaint,
         _GridLayer.stickerOverlay => _stickerOverlayRepaint,
+        _GridLayer.quiltBase => _quiltBaseRepaint,
+        _GridLayer.quiltOverlay => _quiltOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -537,6 +554,7 @@ class _PixelGridState extends State<PixelGrid> {
       mosaicStyle: FlavorConfig.current.cellStyle == CellRenderStyle.mosaic,
       glowStyle: FlavorConfig.current.cellStyle == CellRenderStyle.glow,
       stickerStyle: FlavorConfig.current.cellStyle == CellRenderStyle.sticker,
+      quiltStyle: FlavorConfig.current.cellStyle == CellRenderStyle.quilt,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -720,6 +738,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.quilt) {
+      // Quilt art mode: linen fabric backing + stitched patchwork fabric swatches.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.quiltBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.quiltOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -765,7 +804,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay, glowBase, glowOverlay, stickerBase, stickerOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay, glowBase, glowOverlay, stickerBase, stickerOverlay, quiltBase, quiltOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -810,6 +849,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as glossy vinyl die-cut sticker tiles with crisp white border.
   final bool stickerStyle;
+
+  /// When true, filled cells render as textured patchwork fabric swatches with running stitch seams.
+  final bool quiltStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -853,6 +895,7 @@ class _PixelGridPainter extends CustomPainter {
     this.mosaicStyle = false,
     this.glowStyle = false,
     this.stickerStyle = false,
+    this.quiltStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1662,7 +1705,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle || quiltStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1711,6 +1754,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintStickerBase(canvas, size);
       case _GridLayer.stickerOverlay:
         _paintStickerOverlay(canvas, size);
+      case _GridLayer.quiltBase:
+        _paintQuiltBase(canvas, size);
+      case _GridLayer.quiltOverlay:
+        _paintQuiltOverlay(canvas, size);
     }
   }
 
@@ -3272,6 +3319,178 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
+  static final Paint _quiltLinenBgPaint = Paint()..color = const Color(0xFFECE5D8);
+  static final Paint _quiltPatchPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _quiltThreadPaint = Paint()
+    ..color = const Color(0x66000000)
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _quiltWeavePaint = Paint()
+    ..color = const Color(0x18FFFFFF)
+    ..style = PaintingStyle.stroke;
+
+  void _drawQuiltCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
+    if (effectiveCell < 3.0) {
+      canvas.drawRect(rect, _quiltPatchPaint..color = base);
+      return;
+    }
+
+    _quiltPatchPaint.color = base;
+    canvas.drawRect(rect, _quiltPatchPaint);
+
+    if (effectiveCell >= 7.0) {
+      _quiltWeavePaint.strokeWidth = 0.5;
+      final step = (effectiveCell * 0.25).clamp(2.5, 6.0);
+      for (double x = rect.left + step; x < rect.right; x += step) {
+        canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), _quiltWeavePaint);
+      }
+
+      _quiltThreadPaint.strokeWidth = (effectiveCell * 0.07).clamp(0.6, 1.6);
+      final inset = (effectiveCell * 0.12).clamp(1.0, 3.0);
+      final r = rect.deflate(inset);
+      final dash = (effectiveCell * 0.18).clamp(1.5, 4.0);
+      final gap = (effectiveCell * 0.12).clamp(1.0, 3.0);
+
+      for (double x = r.left; x < r.right; x += dash + gap) {
+        final end = min(x + dash, r.right);
+        canvas.drawLine(Offset(x, r.top), Offset(end, r.top), _quiltThreadPaint);
+      }
+      for (double x = r.left; x < r.right; x += dash + gap) {
+        final end = min(x + dash, r.right);
+        canvas.drawLine(Offset(x, r.bottom), Offset(end, r.bottom), _quiltThreadPaint);
+      }
+      for (double y = r.top; y < r.bottom; y += dash + gap) {
+        final end = min(y + dash, r.bottom);
+        canvas.drawLine(Offset(r.left, y), Offset(r.left, end), _quiltThreadPaint);
+      }
+      for (double y = r.top; y < r.bottom; y += dash + gap) {
+        final end = min(y + dash, r.bottom);
+        canvas.drawLine(Offset(r.right, y), Offset(r.right, end), _quiltThreadPaint);
+      }
+    }
+  }
+
+  void _paintQuiltBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _quiltLinenBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawQuiltCell(recorderCanvas, rect, color, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFFDCD5C5));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              final bastingPaint = Paint()
+                ..color = const Color(0x358A7F6E)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.4;
+              recorderCanvas.drawRect(rect, bastingPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintQuiltOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawQuiltCell(canvas, scaledRect, color, effectiveCell);
+      });
+    }
+
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch),
+            shimmerPaint,
+          );
+        }
+      }
+    }
+  }
+
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
   static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
   static final Paint _borderPaint = Paint()
@@ -3753,6 +3972,7 @@ class _PixelGridPainter extends CustomPainter {
       mosaicStyle != old.mosaicStyle ||
       glowStyle != old.glowStyle ||
       stickerStyle != old.stickerStyle ||
+      quiltStyle != old.quiltStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).

@@ -111,6 +111,14 @@
             "flutterMode": "profile",
             "program": "lib/main_sticker.dart",
             "toolArgs": ["--flavor", "sticker", "--dart-define=FLAVOR=sticker"]
+        },
+        {
+            "name": "Quilt Art (quilt, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_quilt.dart",
+            "toolArgs": ["--flavor", "quilt", "--dart-define=FLAVOR=quilt"]
         }
     ]
 }

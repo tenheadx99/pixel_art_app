@@ -16,6 +16,7 @@ enum AppFlavor {
   mosaic,
   glow,
   sticker,
+  quilt,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
@@ -26,8 +27,9 @@ enum AppFlavor {
 /// [knit] renders an interlocking V-stitch woolen yarn loop;
 /// [mosaic] renders a glazed ceramic tile with beveled edges and mortar grout;
 /// [glow] renders a luminous neon cylindrical peg on a dark lite-brite pegboard with radial bloom;
-/// [sticker] renders a glossy vinyl die-cut sticker tile with a crisp white border rim and peel shadow.
-enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow, sticker }
+/// [sticker] renders a glossy vinyl die-cut sticker tile with a crisp white border rim and peel shadow;
+/// [quilt] renders a textured patchwork fabric swatch with fine running stitch seams.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow, sticker, quilt }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -69,6 +71,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.glow;
     case 'sticker':
       return AppFlavor.sticker;
+    case 'quilt':
+      return AppFlavor.quilt;
     case 'original':
     default:
       return AppFlavor.original;
@@ -322,6 +326,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.sticker,
       paletteLabel: 'Select a Sticker',
       placeVerb: 'Stick',
+    ),
+    AppFlavor.quilt: FlavorConfig(
+      appName: 'Quilt Art: Sew by Number',
+      splashTitle: 'Quilt Art',
+      splashTagline: 'Patchwork Quilting by Number',
+      appIconPath: 'assets/icons/quilt.png',
+      primary: Color(0xFF2B4C7E), // Vintage Indigo
+      secondary: Color(0xFFC47A88), // Dusty Rose
+      accent: Color(0xFFDDA15E), // Mustard Gold
+      brandGradient: [Color(0xFF2B4C7E), Color(0xFFC47A88)],
+      manifestPath: 'assets/pixel_art_quilt/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.quilt,
+      paletteLabel: 'Select a Fabric',
+      placeVerb: 'Sew',
     ),
   };
 
