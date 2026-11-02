@@ -2238,17 +2238,19 @@ class _PixelGridPainter extends CustomPainter {
     final center = rect.center;
     final w = rect.width;
     final outerRadius = w * 0.46;
-    final holeRadius = (w * 0.18).clamp(1.2, outerRadius * 0.55);
+    final holeRadius = (w * 0.19).clamp(1.4, outerRadius * 0.55);
 
     // 1. Soft ground contact drop shadow onto pegboard
+    final shadowDx = (w * 0.04).clamp(0.6, 2.0);
+    final shadowDy = (w * 0.07).clamp(0.9, 3.0);
     canvas.drawCircle(
-      center + const Offset(0.8, 1.4),
+      center + Offset(shadowDx, shadowDy),
       outerRadius,
       _beadShadowPaint,
     );
 
     // 2. Plastic cylinder 2.5D lower body depth (shaded underside)
-    final depthOffset = Offset(0.0, outerRadius * 0.12);
+    final depthOffset = Offset(0.0, (outerRadius * 0.12).clamp(0.8, 2.6));
     _beadBodyPaint.color = _darken(base, 0.22);
     canvas.drawCircle(center + depthOffset, outerRadius, _beadBodyPaint);
 
@@ -2319,7 +2321,7 @@ class _PixelGridPainter extends CustomPainter {
     final glintStrokeW = (w * 0.05).clamp(0.6, 1.6);
     _beadHighlightPaint
       ..strokeWidth = glintStrokeW
-      ..color = Colors.white.withAlpha(180);
+      ..color = Colors.white.withAlpha(190);
     canvas.drawArc(
       Rect.fromCircle(center: center, radius: glintRadius),
       -2.4,
@@ -2379,11 +2381,16 @@ class _PixelGridPainter extends CustomPainter {
               recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             }
             if (detailStep > 0) {
-              // Pegboard pin dot in center of unfilled cell
-              final pinRadius = (rect.width * 0.11).clamp(0.8, 2.5);
+              // Pegboard socket guide ring & center pin
+              final socketPaint = Paint()
+                ..color = const Color(0x18000000)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.4;
+              recorderCanvas.drawCircle(rect.center, rect.width * 0.44, socketPaint);
+              final pinRadius = (rect.width * 0.12).clamp(0.8, 2.5);
               recorderCanvas.drawCircle(rect.center, pinRadius, _beadPegPinPaint);
               final borderPaint = Paint()
-                ..color = const Color(0x1F000000)
+                ..color = const Color(0x1A000000)
                 ..style = PaintingStyle.stroke
                 ..strokeWidth = 0.35;
               recorderCanvas.drawRect(rect, borderPaint);
@@ -2478,133 +2485,107 @@ class _PixelGridPainter extends CustomPainter {
   void _drawBrickCell(Canvas canvas, Rect rect, Color base) {
     final w = rect.width;
     final h = rect.height;
-    final blockRect = rect.deflate(0.5);
-    final bevel = (min(blockRect.width, blockRect.height) * 0.15).clamp(1.2, 4.5);
-    final innerRect = blockRect.deflate(bevel);
+    final blockRect = rect.deflate(0.4);
+    final rrect = RRect.fromRectAndRadius(blockRect, const Radius.circular(1.6));
 
-    // 1. Brick Body 4-Facet Directional 3D Bevels
-    // Top Bevel
-    final topFacet = Path()
-      ..moveTo(blockRect.left, blockRect.top)
-      ..lineTo(blockRect.right, blockRect.top)
-      ..lineTo(innerRect.right, innerRect.top)
-      ..lineTo(innerRect.left, innerRect.top)
-      ..close();
-    canvas.drawPath(topFacet, Paint()..color = _lighten(base, 0.26));
+    // 1. Flat, glossy plastic brick body
+    _brickBodyPaint.color = base;
+    canvas.drawRRect(rrect, _brickBodyPaint);
 
-    // Left Bevel
-    final leftFacet = Path()
-      ..moveTo(blockRect.left, blockRect.bottom)
-      ..lineTo(blockRect.left, blockRect.top)
-      ..lineTo(innerRect.left, innerRect.top)
-      ..lineTo(innerRect.left, innerRect.bottom)
-      ..close();
-    canvas.drawPath(leftFacet, Paint()..color = _lighten(base, 0.12));
-
-    // Right Bevel
-    final rightFacet = Path()
-      ..moveTo(blockRect.right, blockRect.top)
-      ..lineTo(blockRect.right, blockRect.bottom)
-      ..lineTo(innerRect.right, innerRect.bottom)
-      ..lineTo(innerRect.right, innerRect.top)
-      ..close();
-    canvas.drawPath(rightFacet, Paint()..color = _darken(base, 0.18));
-
-    // Bottom Bevel
-    final bottomFacet = Path()
-      ..moveTo(innerRect.left, innerRect.bottom)
-      ..lineTo(innerRect.right, innerRect.bottom)
-      ..lineTo(blockRect.right, blockRect.bottom)
-      ..lineTo(blockRect.left, blockRect.bottom)
-      ..close();
-    canvas.drawPath(bottomFacet, Paint()..color = _darken(base, 0.30));
-
-    // Brick Raised Top Face
-    _brickBodyPaint.color = _lighten(base, 0.04);
-    canvas.drawRect(innerRect, _brickBodyPaint);
-
-    // Corner Miter Creases
-    final miterLight = Paint()..color = const Color(0x35FFFFFF)..strokeWidth = 0.6;
-    final miterDark = Paint()..color = const Color(0x35000000)..strokeWidth = 0.6;
-    canvas.drawLine(blockRect.topLeft, innerRect.topLeft, miterLight);
-    canvas.drawLine(blockRect.bottomRight, innerRect.bottomRight, miterDark);
-
-    // Top-Left outer ridge highlight & Bottom-Right seam shadow
-    final ridgeW = (bevel * 0.22).clamp(0.6, 1.4);
+    // 2. Micro-edge lighting along perimeter (light from top-left)
+    final rimW = (min(w, h) * 0.05).clamp(0.5, 1.2);
     _brickHighlightPaint
-      ..strokeWidth = ridgeW
-      ..color = const Color(0x55FFFFFF);
-    final lightRidge = Path()
-      ..moveTo(blockRect.left, blockRect.bottom)
-      ..lineTo(blockRect.left, blockRect.top)
-      ..lineTo(blockRect.right, blockRect.top);
-    canvas.drawPath(lightRidge, _brickHighlightPaint);
+      ..strokeWidth = rimW
+      ..color = const Color(0x45FFFFFF);
+    // Top-left highlight rim
+    canvas.drawLine(
+      Offset(blockRect.left + 1.0, blockRect.bottom - 1.0),
+      Offset(blockRect.left + 1.0, blockRect.top + 1.0),
+      _brickHighlightPaint,
+    );
+    canvas.drawLine(
+      Offset(blockRect.left + 1.0, blockRect.top + 1.0),
+      Offset(blockRect.right - 1.0, blockRect.top + 1.0),
+      _brickHighlightPaint,
+    );
 
+    // Bottom-right shadow rim
     _brickShadowPaint
-      ..strokeWidth = ridgeW
+      ..strokeWidth = rimW
       ..color = const Color(0x35000000);
-    final darkRidge = Path()
-      ..moveTo(blockRect.right, blockRect.top)
-      ..lineTo(blockRect.right, blockRect.bottom)
-      ..lineTo(blockRect.left, blockRect.bottom);
-    canvas.drawPath(darkRidge, _brickShadowPaint);
+    canvas.drawLine(
+      Offset(blockRect.right - 1.0, blockRect.top + 1.0),
+      Offset(blockRect.right - 1.0, blockRect.bottom - 1.0),
+      _brickShadowPaint,
+    );
+    canvas.drawLine(
+      Offset(blockRect.right - 1.0, blockRect.bottom - 1.0),
+      Offset(blockRect.left + 1.0, blockRect.bottom - 1.0),
+      _brickShadowPaint,
+    );
 
-    // 2. Raised Cylindrical Stud in 2.5D
+    // 3. Raised Lego Stud in 2.5D
     final center = rect.center;
-    final studRadius = (w * 0.26).clamp(1.5, w * 0.42);
-    final studDepth = (h * 0.10).clamp(0.8, 3.0);
+    final studRadius = (min(w, h) * 0.28).clamp(1.8, 18.0);
+    final studDepth = (min(w, h) * 0.09).clamp(1.0, 3.5);
 
-    // Stud Cast Drop Shadow onto brick face
+    // Stud Cast Drop Shadow onto the flat brick face
     canvas.drawCircle(
-      center + const Offset(0.8, 1.4),
-      studRadius,
+      center + Offset(studDepth * 0.5, studDepth * 0.9),
+      studRadius * 1.02,
       _brickStudShadowPaint,
     );
 
-    // Stud 2.5D Cylindrical Lower Body (underside depth)
+    // Stud Cylindrical Underside (extruded side wall in shadow)
     canvas.drawCircle(
-      center + Offset(0.0, studDepth * 0.5),
+      center + Offset(0.0, studDepth * 0.45),
       studRadius,
-      Paint()..color = _darken(base, 0.20),
+      Paint()..color = _darken(base, 0.22),
     );
 
     // Stud Raised Top Face
     canvas.drawCircle(
-      center - Offset(0.0, studDepth * 0.5),
+      center - Offset(0.0, studDepth * 0.2),
       studRadius,
       Paint()..color = _lighten(base, 0.08),
     );
 
-    // Stud Rim Specular Highlight (top-left arc)
-    final studArcW = (w * 0.06).clamp(0.6, 1.8);
+    // Stud Top Specular Rim (crisp plastic arc along top-left)
+    final studArcW = (studRadius * 0.24).clamp(0.6, 2.0);
     _brickHighlightPaint
       ..strokeWidth = studArcW
-      ..color = const Color(0x75FFFFFF);
+      ..color = const Color(0x95FFFFFF);
     canvas.drawArc(
-      Rect.fromCircle(center: center - Offset(0.0, studDepth * 0.5), radius: studRadius - studArcW * 0.5),
+      Rect.fromCircle(
+        center: center - Offset(0.0, studDepth * 0.2),
+        radius: studRadius - studArcW * 0.5,
+      ),
       -2.6,
       1.9,
       false,
       _brickHighlightPaint,
     );
 
-    // Stud Rim Shadow (bottom-right arc)
+    // Stud Bottom Occlusion Crease (arc along bottom-right)
     _brickShadowPaint
       ..strokeWidth = studArcW
       ..color = _darken(base, 0.28);
     canvas.drawArc(
-      Rect.fromCircle(center: center - Offset(0.0, studDepth * 0.5), radius: studRadius - studArcW * 0.5),
+      Rect.fromCircle(
+        center: center - Offset(0.0, studDepth * 0.2),
+        radius: studRadius - studArcW * 0.5,
+      ),
       0.5,
       1.9,
       false,
       _brickShadowPaint,
     );
 
-    // Stud Center Acrylic Glint
+    // Stud Top Specular Glint (reflection point on stud surface)
     canvas.drawCircle(
-      center - Offset(studRadius * 0.32, studDepth * 0.5 + studRadius * 0.32),
-      (studRadius * 0.22).clamp(0.6, 1.5),
-      Paint()..color = const Color(0x60FFFFFF),
+      center - Offset(studRadius * 0.35, studDepth * 0.2 + studRadius * 0.35),
+      (studRadius * 0.22).clamp(0.7, 1.8),
+      Paint()..color = const Color(0x90FFFFFF),
     );
   }
 
