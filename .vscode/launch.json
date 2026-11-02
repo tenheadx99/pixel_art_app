@@ -95,6 +95,14 @@
             "flutterMode": "profile",
             "program": "lib/main_mosaic.dart",
             "toolArgs": ["--flavor", "mosaic", "--dart-define=FLAVOR=mosaic"]
+        },
+        {
+            "name": "Glow Art (glow, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_glow.dart",
+            "toolArgs": ["--flavor", "glow", "--dart-define=FLAVOR=glow"]
         }
     ]
 }

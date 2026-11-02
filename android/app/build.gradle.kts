@@ -201,6 +201,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Glow Art" — Lite-Brite neon light pegs craft flavor.
+        create("glow") {
+            dimension = "app"
+            applicationId = "com.tenhead.glowart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Glow Art: Light by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

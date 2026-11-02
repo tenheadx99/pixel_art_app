@@ -114,6 +114,15 @@ class DefaultFirebaseOptions {
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
+      case AppFlavor.glow:
+        // Registered for com.tenhead.glowart (falls back to default Firebase project)
+        return const FirebaseOptions(
+          apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
+          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          messagingSenderId: '433057017992',
+          projectId: 'om108-5c015',
+          storageBucket: 'om108-5c015.firebasestorage.app',
+        );
     }
   }
 }

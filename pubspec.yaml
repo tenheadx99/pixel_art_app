@@ -70,6 +70,7 @@ flutter:
     - assets/pixel_art_brick/
     - assets/pixel_art_knit/
     - assets/pixel_art_mosaic/
+    - assets/pixel_art_glow/
     - assets/icons/
     - assets/audio/
   shaders:

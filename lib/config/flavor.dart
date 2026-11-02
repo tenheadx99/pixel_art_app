@@ -14,6 +14,7 @@ enum AppFlavor {
   brick,
   knit,
   mosaic,
+  glow,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
@@ -22,8 +23,9 @@ enum AppFlavor {
 /// [bead] renders a 3D cylindrical fuse bead (Perler/Hama style) with a center peg hole;
 /// [brick] renders a 3D building brick with a raised circular top stud;
 /// [knit] renders an interlocking V-stitch woolen yarn loop;
-/// [mosaic] renders a glazed ceramic tile with beveled edges and mortar grout.
-enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic }
+/// [mosaic] renders a glazed ceramic tile with beveled edges and mortar grout;
+/// [glow] renders a luminous neon cylindrical peg on a dark lite-brite pegboard with radial bloom.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -61,6 +63,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.knit;
     case 'mosaic':
       return AppFlavor.mosaic;
+    case 'glow':
+      return AppFlavor.glow;
     case 'original':
     default:
       return AppFlavor.original;
@@ -284,6 +288,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.mosaic,
       paletteLabel: 'Select a Tile',
       placeVerb: 'Tile',
+    ),
+    AppFlavor.glow: FlavorConfig(
+      appName: 'Glow Art: Light by Number',
+      splashTitle: 'Glow Art',
+      splashTagline: 'Neon Lite Pegs by Number',
+      appIconPath: 'assets/icons/glow.png',
+      primary: Color(0xFF00F0FF), // Electric Neon Cyan
+      secondary: Color(0xFFFF007F), // Vibrant Neon Pink
+      accent: Color(0xFFFFE600), // Electric Neon Yellow
+      brandGradient: [Color(0xFF00F0FF), Color(0xFFFF007F)],
+      manifestPath: 'assets/pixel_art_glow/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.glow,
+      paletteLabel: 'Select a Light',
+      placeVerb: 'Light',
     ),
   };
 
