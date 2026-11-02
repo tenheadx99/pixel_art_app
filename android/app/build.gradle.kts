@@ -191,6 +191,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Mosaic Art" — ceramic & glass tile craft flavor.
+        create("mosaic") {
+            dimension = "app"
+            applicationId = "com.tenhead.mosaicart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Mosaic Art: Tile by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

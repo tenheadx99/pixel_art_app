@@ -87,6 +87,14 @@
             "flutterMode": "profile",
             "program": "lib/main_knit.dart",
             "toolArgs": ["--flavor", "knit", "--dart-define=FLAVOR=knit"]
+        },
+        {
+            "name": "Mosaic Art (mosaic, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_mosaic.dart",
+            "toolArgs": ["--flavor", "mosaic", "--dart-define=FLAVOR=mosaic"]
         }
     ]
 }

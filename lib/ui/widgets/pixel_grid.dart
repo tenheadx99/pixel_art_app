@@ -144,6 +144,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _brickOverlayRepaint;
   Listenable? _knitBaseRepaint;
   Listenable? _knitOverlayRepaint;
+  Listenable? _mosaicBaseRepaint;
+  Listenable? _mosaicOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -233,6 +235,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.sectionShimmer,
     ]);
     _knitOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _mosaicBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _mosaicOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
@@ -461,6 +476,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.brickOverlay => _brickOverlayRepaint,
         _GridLayer.knitBase => _knitBaseRepaint,
         _GridLayer.knitOverlay => _knitOverlayRepaint,
+        _GridLayer.mosaicBase => _mosaicBaseRepaint,
+        _GridLayer.mosaicOverlay => _mosaicOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -483,6 +500,7 @@ class _PixelGridState extends State<PixelGrid> {
       beadStyle: FlavorConfig.current.cellStyle == CellRenderStyle.bead,
       brickStyle: FlavorConfig.current.cellStyle == CellRenderStyle.brick,
       knitStyle: FlavorConfig.current.cellStyle == CellRenderStyle.knit,
+      mosaicStyle: FlavorConfig.current.cellStyle == CellRenderStyle.mosaic,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -603,6 +621,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.mosaic) {
+      // Mosaic art mode: sandy mortar grout + glazed ceramic tiles.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.mosaicBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.mosaicOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -648,7 +687,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -684,6 +723,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as cozy interlocking V-stitch woolen yarn.
   final bool knitStyle;
+
+  /// When true, filled cells render as glazed ceramic mosaic tiles with grout lines.
+  final bool mosaicStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -724,6 +766,7 @@ class _PixelGridPainter extends CustomPainter {
     this.beadStyle = false,
     this.brickStyle = false,
     this.knitStyle = false,
+    this.mosaicStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1533,7 +1576,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1570,6 +1613,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintKnitBase(canvas, size);
       case _GridLayer.knitOverlay:
         _paintKnitOverlay(canvas, size);
+      case _GridLayer.mosaicBase:
+        _paintMosaicBase(canvas, size);
+      case _GridLayer.mosaicOverlay:
+        _paintMosaicOverlay(canvas, size);
     }
   }
 
@@ -2633,6 +2680,177 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
+  static final Paint _mosaicGroutBgPaint = Paint()..color = const Color(0xFFD6CDBF);
+  static final Paint _mosaicTilePaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _mosaicBevelPaint = Paint()..style = PaintingStyle.stroke;
+  static final Paint _mosaicGlazePaint = Paint()..style = PaintingStyle.fill;
+
+  void _drawMosaicCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
+    if (effectiveCell < 3.0) {
+      canvas.drawRect(rect, _mosaicTilePaint..color = base);
+      return;
+    }
+
+    final inset = (effectiveCell * 0.08).clamp(0.5, 2.5);
+    final tileRect = rect.deflate(inset);
+    final r = (effectiveCell * 0.15).clamp(1.0, 4.0);
+    final rrect = RRect.fromRectAndRadius(tileRect, Radius.circular(r));
+
+    _mosaicTilePaint.color = base;
+    canvas.drawRRect(rrect, _mosaicTilePaint);
+
+    if (effectiveCell >= 7.0) {
+      final sheenRect = Rect.fromLTWH(
+        tileRect.left + 0.5,
+        tileRect.top + 0.5,
+        tileRect.width * 0.6,
+        tileRect.height * 0.45,
+      );
+      final sheenRRect = RRect.fromRectAndRadius(sheenRect, Radius.circular(r * 0.8));
+      _mosaicGlazePaint.color = const Color(0x44FFFFFF);
+      canvas.drawRRect(sheenRRect, _mosaicGlazePaint);
+
+      final lightPath = Path()
+        ..moveTo(tileRect.left + r, tileRect.bottom - r)
+        ..lineTo(tileRect.left + r, tileRect.top + r)
+        ..lineTo(tileRect.right - r, tileRect.top + r);
+      _mosaicBevelPaint
+        ..color = const Color(0x38FFFFFF)
+        ..strokeWidth = (effectiveCell * 0.06).clamp(0.5, 1.5);
+      canvas.drawPath(lightPath, _mosaicBevelPaint);
+
+      final darkPath = Path()
+        ..moveTo(tileRect.right - r, tileRect.top + r)
+        ..lineTo(tileRect.right - r, tileRect.bottom - r)
+        ..lineTo(tileRect.left + r, tileRect.bottom - r);
+      _mosaicBevelPaint
+        ..color = const Color(0x33000000)
+        ..strokeWidth = (effectiveCell * 0.06).clamp(0.5, 1.5);
+      canvas.drawPath(darkPath, _mosaicBevelPaint);
+    }
+  }
+
+  void _paintMosaicBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _mosaicGroutBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawMosaicCell(recorderCanvas, rect, color, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              final groutGuide = Paint()
+                ..color = const Color(0x30B5A895)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.5;
+              recorderCanvas.drawRect(rect, groutGuide);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintMosaicOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawMosaicCell(canvas, scaledRect, color, effectiveCell);
+      });
+    }
+
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch),
+            shimmerPaint,
+          );
+        }
+      }
+    }
+  }
+
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
   static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
   static final Paint _borderPaint = Paint()
@@ -3111,6 +3329,7 @@ class _PixelGridPainter extends CustomPainter {
       beadStyle != old.beadStyle ||
       brickStyle != old.brickStyle ||
       knitStyle != old.knitStyle ||
+      mosaicStyle != old.mosaicStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).

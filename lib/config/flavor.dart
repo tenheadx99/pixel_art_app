@@ -13,6 +13,7 @@ enum AppFlavor {
   bead,
   brick,
   knit,
+  mosaic,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
@@ -20,8 +21,9 @@ enum AppFlavor {
 /// [crossStitch] renders an X-shaped thread stitch on fabric for the cross-stitch flavor;
 /// [bead] renders a 3D cylindrical fuse bead (Perler/Hama style) with a center peg hole;
 /// [brick] renders a 3D building brick with a raised circular top stud;
-/// [knit] renders an interlocking V-stitch woolen yarn loop.
-enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit }
+/// [knit] renders an interlocking V-stitch woolen yarn loop;
+/// [mosaic] renders a glazed ceramic tile with beveled edges and mortar grout.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -57,6 +59,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.brick;
     case 'knit':
       return AppFlavor.knit;
+    case 'mosaic':
+      return AppFlavor.mosaic;
     case 'original':
     default:
       return AppFlavor.original;
@@ -265,6 +269,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.knit,
       paletteLabel: 'Select a Yarn',
       placeVerb: 'Knit',
+    ),
+    AppFlavor.mosaic: FlavorConfig(
+      appName: 'Mosaic Art: Tile by Number',
+      splashTitle: 'Mosaic Art',
+      splashTagline: 'Ceramic & Glass Tiles by Number',
+      appIconPath: 'assets/icons/mosaic.png',
+      primary: Color(0xFF0077B6), // Mediterranean Cobalt
+      secondary: Color(0xFFE07A5F), // Terracotta
+      accent: Color(0xFFF4A261), // Glazed Amber
+      brandGradient: [Color(0xFF0077B6), Color(0xFFE07A5F)],
+      manifestPath: 'assets/pixel_art_mosaic/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.mosaic,
+      paletteLabel: 'Select a Tile',
+      placeVerb: 'Tile',
     ),
   };
 

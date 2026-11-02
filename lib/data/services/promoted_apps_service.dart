@@ -111,6 +111,7 @@ class PromotedAppsService {
       final cfg = FlavorConfig.of(flavor);
 
       String? badge;
+      if (flavor == AppFlavor.mosaic) badge = 'NEW';
       if (flavor == AppFlavor.knit) badge = 'NEW';
       if (flavor == AppFlavor.brick) badge = 'NEW';
       if (flavor == AppFlavor.bead) badge = 'NEW';
@@ -129,6 +130,7 @@ class PromotedAppsService {
         AppFlavor.bead => 'com.tenhead.beadart',
         AppFlavor.brick => 'com.tenhead.brickart',
         AppFlavor.knit => 'com.tenhead.knitart',
+        AppFlavor.mosaic => 'com.tenhead.mosaicart',
       };
 
       list.add(
