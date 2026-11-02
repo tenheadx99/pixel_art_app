@@ -687,6 +687,35 @@
           ]
         }
       }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:433057017992:android:0cef1e6dc22d746855af3d",
+        "android_client_info": {
+          "package_name": "com.tenhead.voxelart"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "433057017992-k6rigublc38tehbfkdfalj8f99eiuo0g.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
     }
   ],
   "configuration_version": "1"

@@ -142,10 +142,10 @@ class DefaultFirebaseOptions {
           storageBucket: 'om108-5c015.firebasestorage.app',
         );
       case AppFlavor.voxel:
-        // Fallback options for com.tenhead.voxelart
+        // Registered for com.tenhead.voxelart
         return const FirebaseOptions(
           apiKey: 'AIzaSyDLdv_gx0rgVEiJ5i4ufkFb7h1cSLe8vtE',
-          appId: '1:433057017992:android:f9a922b4c41a0a2255af3d',
+          appId: '1:433057017992:android:0cef1e6dc22d746855af3d',
           messagingSenderId: '433057017992',
           projectId: 'om108-5c015',
           storageBucket: 'om108-5c015.firebasestorage.app',
