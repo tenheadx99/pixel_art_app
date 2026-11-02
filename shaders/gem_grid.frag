@@ -17,6 +17,14 @@ uniform sampler2D uFillAge;
 
 out vec4 fragColor;
 
+vec2 getTexUV(vec2 coord) {
+    vec2 uv = (coord + vec2(0.5)) / uGrid;
+#ifdef IMPELLER_TARGET_OPENGLES
+    uv.y = 1.0 - uv.y;
+#endif
+    return uv;
+}
+
 void main() {
     vec2 pos = FlutterFragCoord().xy;
     
@@ -40,37 +48,43 @@ void main() {
     bool isCellBorder = cellUV.x < borderThresh.x || cellUV.x > (1.0 - borderThresh.x) ||
                         cellUV.y < borderThresh.y || cellUV.y > (1.0 - borderThresh.y);
 
-
-    // Sample the grid texture at the texel center for this cell. The image is
-    // built with toImageSync and sampled top-left-origin, matching
-    // FlutterFragCoord — no orientation fixup needed. (A previous "Y-flip
-    // fallback" here re-sampled the mirrored texel for empty cells, which
-    // painted every fill onto its vertically mirrored cell as well.)
-    vec2 texUV = (cellCoord + vec2(0.5)) / uGrid;
-#ifdef IMPELLER_TARGET_OPENGLES
-    // On Impeller's OpenGLES backend sampled images are vertically flipped
-    // (see the texture-sampling note in Flutter's fragment-shader docs), so
-    // flip the row lookup only for that backend. Never "detect" the flip at
-    // runtime by re-sampling the mirrored texel: that renders every fill at
-    // both its real and mirrored cell.
-    texUV.y = 1.0 - texUV.y;
-#endif
+    // Sample the grid texture at the texel center for this cell.
+    vec2 texUV = getTexUV(cellCoord);
     vec4 cellColor = texture(uTexture, texUV);
 
-    // The grid texture encodes each cell's state in alpha:
-    //   a == 0.0  -> empty cell (no number in the artwork)
-    //   a ~= 0.5  -> unfilled numbered cell; rgb holds the grayscale preview
-    //   a == 1.0  -> filled cell; rgb holds the fill color
-    // This lets the shader render every zoom level (including the zoomed-out
-    // "ghost" preview), so the CPU never re-bakes the grid on fills.
+    // --- 2.5D Drop Shadow from top-left neighbor gems ---
+    // Physical diamonds have height above the canvas bed, casting soft shadows.
+    float contactShadow = 0.0;
+    if (cellCoord.y > 0.0) {
+        float aTop = texture(uTexture, getTexUV(cellCoord - vec2(0.0, 1.0))).a;
+        if (aTop > 0.8) {
+            contactShadow = max(contactShadow, smoothstep(0.24, 0.0, cellUV.y) * 0.38);
+        }
+    }
+    if (cellCoord.x > 0.0) {
+        float aLeft = texture(uTexture, getTexUV(cellCoord - vec2(1.0, 0.0))).a;
+        if (aLeft > 0.8) {
+            contactShadow = max(contactShadow, smoothstep(0.24, 0.0, cellUV.x) * 0.38);
+        }
+    }
+    if (cellCoord.x > 0.0 && cellCoord.y > 0.0) {
+        float aDiag = texture(uTexture, getTexUV(cellCoord - vec2(1.0, 1.0))).a;
+        if (aDiag > 0.8) {
+            contactShadow = max(contactShadow, smoothstep(0.32, 0.0, length(cellUV)) * 0.44);
+        }
+    }
 
-    // Empty cell -> plain background, no border.
+    // Empty cell -> subtle canvas fabric weave with contact shadow from placed gems
     if (cellColor.a < 0.01) {
-        fragColor = vec4(1.0);
+        vec3 canvasBg = vec3(0.965, 0.968, 0.972);
+        float weave = sin(pos.x * 0.8) * cos(pos.y * 0.8) * 0.015;
+        canvasBg += weave;
+        canvasBg *= (1.0 - contactShadow);
+        fragColor = vec4(canvasBg, 1.0);
         return;
     }
 
-    // Unfilled numbered cell -> direct transition from color to grey-out (no white gap)
+    // Unfilled numbered cell -> direct transition from color to grey-out with contact shadow
     if (cellColor.a < 0.75) {
         vec3 color = cellColor.rgb / max(cellColor.a, 0.001);
         float luminance = dot(color, vec3(0.299, 0.587, 0.114));
@@ -80,29 +94,24 @@ void main() {
         if (isCellBorder && t > 0.1) {
             cellBody = mix(cellBody, vec3(0.80, 0.80, 0.80), t);
         }
+        cellBody *= (1.0 - contactShadow);
         fragColor = vec4(cellBody, 1.0);
         return;
     }
 
-    // Filled Gem -> Full 3D Faceted Cushion Diamond Drill
+    // Filled Gem -> Full 2.5D Faceted Cushion Diamond Drill
     vec2 center = vec2(0.5);
 
-    // Low LOD (< 10.0): Flat Square Tile (no animation while zoomed out —
-    // cells are a handful of pixels, so the timeline would read as noise).
+    // Low LOD (< 10.0): Flat Square Tile
     if (uEffectiveCell < 10.0) {
         fragColor = vec4(cellColor.rgb, 1.0);
         return;
     }
 
     // --- Fill-animation timeline -------------------------------------------
-    // Seconds since this cell was filled. Cells filled long ago read >= 1.6
-    // and skip every animation branch. Swiped cells carry naturally staggered
-    // ages, so a stroke blooms in as a wave behind the finger for free.
     float age = texture(uFillAge, texUV).r * 1.6 + uTime;
 
-    // Settle pop: the gem scales 0.68 -> ~1.04 -> 1.0 (ease-out-back) over
-    // 240ms. Implemented by expanding the local UV around the cell center;
-    // fragments that fall outside the shrunken gem show the clean canvas.
+    // Settle pop: the gem scales 0.68 -> ~1.04 -> 1.0 (ease-out-back) over 240ms
     vec2 uv = cellUV;
     if (age < 0.24) {
         float t0 = clamp(age / 0.24, 0.0, 1.0);
@@ -112,7 +121,8 @@ void main() {
         uv = center + (cellUV - center) / max(scale, 0.01);
         vec2 od = abs(uv - center);
         if (max(od.x, od.y) > 0.5) {
-            fragColor = vec4(1.0);
+            vec3 canvasBg = vec3(0.965, 0.968, 0.972);
+            fragColor = vec4(canvasBg, 1.0);
             return;
         }
     }
@@ -126,14 +136,13 @@ void main() {
     shift = clamp(shift, vec2(-1.20), vec2(1.20));
     vec2 lightDir = normalize(-shift);
 
-    // Jewel color palette: preserve true color saturation with balanced shading
+    // Jewel color palette: rich saturation with dynamic 2.5D jewel contrast
     vec3 baseCol = cellColor.rgb;
-    vec3 brightColor = min(baseCol * 1.05 + vec3(0.03), vec3(1.0));
-    vec3 lightShade = min(brightColor + vec3(0.20), vec3(1.0));
-    vec3 darkShade = brightColor * 0.72;
+    vec3 brightColor = min(baseCol * 1.08 + vec3(0.04), vec3(1.0));
+    vec3 lightShade = min(brightColor + vec3(0.28), vec3(1.0));
+    vec3 darkShade = brightColor * 0.60;
 
     // --- 1. Octagonal Table Cut & 8 Facet Sector Geometry ---
-    // Octagonal distance from center for real diamond drill shape
     float octDist = max(max(absDir.x, absDir.y), (absDir.x + absDir.y) * 0.7071);
     bool isTable = octDist < 0.165;
 
@@ -145,54 +154,71 @@ void main() {
     float sectorAngle = (sectorIndex + 0.5) * 0.785398 - 3.14159265;
     vec2 facetNormal = vec2(cos(sectorAngle), sin(sectorAngle));
 
-    // Per-facet lighting dot product (creates sharp light/shade steps between facets)
+    // Per-facet lighting dot product with enhanced 2.5D jewel contrast
     float lightDot = dot(facetNormal, lightDir);
-    float facetIntensity = mix(0.85, 1.14, lightDot * 0.5 + 0.5);
+    float facetLighting = lightDot * 0.5 + 0.5;
+    float facetIntensity = mix(0.70, 1.30, pow(facetLighting, 1.25));
 
     vec3 baseColor;
     if (isTable) {
-        // Flat Table Facet (Top center octagonal cut) with subtle glass sheen
-        vec3 tableBase = min(brightColor * 1.06 + vec3(0.04), vec3(1.0));
+        // Flat Table Facet (Raised top center octagonal plateau) with crystal glass sheen
+        vec3 tableBase = min(brightColor * 1.12 + vec3(0.06), vec3(1.0));
         float crystalGlassSheen = smoothstep(0.165, 0.0, octDist);
-        baseColor = mix(tableBase, lightShade, 0.20 * crystalGlassSheen);
+        float tableLight = dot(lightDir, vec2(-0.707, -0.707));
+        baseColor = mix(tableBase, lightShade, 0.28 * crystalGlassSheen + clamp(tableLight * 0.15, 0.0, 0.20));
     } else {
-        // Crown Facet Body with stepped luminous crystal lighting contrast
+        // Crown Facet Body with dramatic stepped crystal refraction
         baseColor = clamp(brightColor * facetIntensity, darkShade, lightShade);
-        // Add subtle crystal refraction on light-facing crown facets
-        if (lightDot > 0.1) {
-            baseColor = mix(baseColor, lightShade, lightDot * 0.15);
+        // Crystal refraction highlights on light-facing crown facets
+        if (lightDot > 0.0) {
+            baseColor = mix(baseColor, lightShade * 1.15, lightDot * 0.28);
+        } else {
+            baseColor = mix(baseColor, darkShade * 0.85, (-lightDot) * 0.35);
         }
     }
 
     // --- 2. Crystal Facet Seams & Octagonal Table Border ---
     if (uEffectiveCell >= 14.0) {
-        // Octagonal Table Border Line (Crystal Edge)
+        // Octagonal Table Border Line (Crystal Cut Edge)
         float tableBorderDist = abs(octDist - 0.165);
-        if (tableBorderDist < 0.016) {
-            float bGlint = clamp(lightDot * 0.5 + 0.5, 0.4, 1.0);
-            baseColor = mix(baseColor, vec3(1.0), 0.25 * bGlint);
+        if (tableBorderDist < 0.018) {
+            if (lightDot > -0.1) {
+                // Top-left table edge catches sharp specular brilliance
+                baseColor = mix(baseColor, vec3(1.0), 0.55);
+            } else {
+                // Bottom-right table edge has crisp facet step shadow
+                baseColor = mix(baseColor, darkShade * 0.60, 0.45);
+            }
         }
 
-        // Radial Facet Seams (Subtle crystal refraction lines)
+        // Radial Facet Seams (Subtle crystal ridge lines)
         float facetEdge = abs(fract((angle + 3.14159265) / 0.785398) - 0.5);
         if (facetEdge < 0.038 && octDist >= 0.165 && max(absDir.x, absDir.y) < 0.44) {
             if (lightDot > -0.2) {
-                baseColor = mix(baseColor, vec3(1.0), 0.20);
+                baseColor = mix(baseColor, vec3(1.0), 0.30);
             } else {
-                baseColor = mix(baseColor, darkShade * 0.7, 0.25);
+                baseColor = mix(baseColor, darkShade * 0.65, 0.35);
             }
         }
     }
 
-    // --- 3. 3D Cushion Outer Bevel & Crystal Rim Highlight ---
+    // --- 3. 2.5D Cushion Outer Bevel & Inter-Drill Crevice ---
     float maxEdge = max(absDir.x, absDir.y);
     if (maxEdge > 0.38) {
         float bevelT = smoothstep(0.38, 0.48, maxEdge);
         float edgeDirDot = dot(normalize(dir), lightDir);
         if (edgeDirDot > 0.1) {
-            baseColor = mix(baseColor, lightShade, bevelT * 0.35);
+            // Top/left rim highlight
+            baseColor = mix(baseColor, lightShade * 1.15, bevelT * 0.45);
         } else {
-            baseColor = mix(baseColor, darkShade * 0.65, bevelT * 0.40);
+            // Bottom/right rim shadow
+            baseColor = mix(baseColor, darkShade * 0.60, bevelT * 0.50);
+        }
+
+        // Inter-drill micro crevice seam (drills meet with tactile physical depth)
+        if (maxEdge > 0.46) {
+            float seam = smoothstep(0.46, 0.50, maxEdge);
+            baseColor = mix(baseColor, darkShade * 0.35, seam * 0.65);
         }
     }
 
@@ -201,28 +227,27 @@ void main() {
     float specDist = length(uv - specPos);
 
     // Soft Wide Crystal Halo
-    if (specDist < 0.18) {
-        float halo = smoothstep(0.18, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), halo * 0.28);
+    if (specDist < 0.20) {
+        float halo = smoothstep(0.20, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), halo * 0.35);
     }
 
     // White Crystal Pinpoint Specular Glint
-    if (specDist < 0.06) {
-        float core = smoothstep(0.06, 0.0, specDist);
-        baseColor = mix(baseColor, vec3(1.0), core * 0.70);
+    if (specDist < 0.07) {
+        float core = smoothstep(0.07, 0.0, specDist);
+        baseColor = mix(baseColor, vec3(1.0), core * 0.85);
     }
 
-    // 4-Point Crisp Star Flare Glint (Zoom >= 18.0)
-    if (uEffectiveCell >= 18.0 && specDist < 0.20) {
+    // 4-Point Crisp Star Flare Glint (Zoom >= 16.0)
+    if (uEffectiveCell >= 16.0 && specDist < 0.22) {
         vec2 specDir = abs(uv - specPos);
-        if ((specDir.x < 0.014 && specDir.y < 0.14) || (specDir.y < 0.014 && specDir.x < 0.14)) {
-            float crossIntensity = smoothstep(0.14, 0.0, max(specDir.x, specDir.y));
-            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.48);
+        if ((specDir.x < 0.015 && specDir.y < 0.16) || (specDir.y < 0.015 && specDir.x < 0.16)) {
+            float crossIntensity = smoothstep(0.16, 0.0, max(specDir.x, specDir.y));
+            baseColor = mix(baseColor, vec3(1.0), crossIntensity * 0.65);
         }
     }
 
-    // Afterglow + glint sweep: a warm landing flash that fades over 450ms,
-    // and one subtle diagonal streak crossing the face between 150-500ms.
+    // Afterglow + glint sweep: a warm landing flash that fades over 450ms
     if (age < 0.55) {
         float glow = 1.0 - clamp(age / 0.45, 0.0, 1.0);
         baseColor = mix(baseColor, vec3(1.0, 0.97, 0.88), glow * glow * 0.18);
@@ -238,8 +263,7 @@ void main() {
         }
     }
 
-    // Section-complete shimmer: one skewed bright band sweeping every placed
-    // gem, driven by a 0..1 progress uniform (inactive at the ends).
+    // Section-complete shimmer: one skewed bright band sweeping every placed gem
     if (uShimmer > 0.001 && uShimmer < 0.999) {
         float q = (pos.x + pos.y * 0.35) / (uSize.x + uSize.y * 0.35);
         float band = mix(-0.2, 1.2, uShimmer);

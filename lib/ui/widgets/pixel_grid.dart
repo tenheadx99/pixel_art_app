@@ -1351,15 +1351,14 @@ class _PixelGridPainter extends CustomPainter {
     const shiftX = -0.707;
     const shiftY = -0.707;
 
-    // 2. Ambient Drop Shadow (gives 3D depth above the canvas grid)
-    final shadowOffset = Offset(
-      c.dx - shiftX * r * 0.08,
-      c.dy - shiftY * r * 0.08,
-    );
+    // 2. 2.5D Contact Drop Shadow onto canvas grid
+    final shadowDx = (r * 0.12).clamp(1.0, 3.5);
+    final shadowDy = (r * 0.16).clamp(1.2, 4.5);
+    final shadowOffset = Offset(c.dx + shadowDx, c.dy + shadowDy);
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
-      ..color = const Color(0x35000000);
+      ..color = const Color(0x40000000);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromCenter(
@@ -1372,22 +1371,22 @@ class _PixelGridPainter extends CustomPainter {
       cellPaint,
     );
 
-    // 3. 3D Spherical Radial Gradient Body with Balanced Shading
+    // 3. 3D Spherical Radial Gradient Body with Dynamic Facet Shading
     final focalOffset = Offset(
-      c.dx + r * shiftX * 0.3,
-      c.dy + r * shiftY * 0.3,
+      c.dx - r * 0.35,
+      c.dy - r * 0.35,
     );
-    final brightBase = _lighten(base, 0.06);
-    final lightShade = _lighten(base, 0.22);
-    final darkShade = _darken(base, 0.22);
+    final brightBase = _lighten(base, 0.08);
+    final lightShade = _lighten(base, 0.30);
+    final darkShade = _darken(base, 0.28);
 
     cellPaint
       ..style = PaintingStyle.fill
       ..shader = ui.Gradient.radial(
         focalOffset,
-        r * 1.15,
+        r * 1.20,
         [lightShade, brightBase, darkShade],
-        [0.0, 0.55, 1.0],
+        [0.0, 0.45, 1.0],
       );
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(4)),
@@ -1395,11 +1394,11 @@ class _PixelGridPainter extends CustomPainter {
     );
     cellPaint.shader = null;
 
-    // Bevel outer ring for edge definition
+    // Bevel outer ring: top-left glossy sheen & bottom-right depth seam
     cellPaint
       ..style = PaintingStyle.stroke
       ..strokeWidth = max(0.8, r * _gemRingWidth)
-      ..color = Colors.white.withAlpha(45);
+      ..color = Colors.white.withAlpha(65);
     canvas.drawRRect(
       RRect.fromRectAndRadius(rect, const Radius.circular(4)),
       cellPaint,
@@ -1414,8 +1413,8 @@ class _PixelGridPainter extends CustomPainter {
 
       final tableRadius = r * 0.44;
       final tableCenter = Offset(
-        c.dx + shiftX * r * 0.08,
-        c.dy + shiftY * r * 0.08,
+        c.dx - r * 0.06,
+        c.dy - r * 0.06,
       );
 
       // Octagonal Table Path
@@ -1445,21 +1444,21 @@ class _PixelGridPainter extends CustomPainter {
         final p2 = Offset(c.dx + (r * 0.90) * cosA, c.dy + (r * 0.90) * sinA);
 
         facetPaint.color = (i < 4)
-            ? Colors.white.withAlpha(50)
-            : darkShade.withAlpha(50);
+            ? Colors.white.withAlpha(70)
+            : darkShade.withAlpha(70);
         canvas.drawLine(p1, p2, facetPaint);
       }
 
-      // Flat Octagonal Table Facet Cut with subtle glass sheen
+      // Flat Octagonal Table Facet Cut with crystal glass sheen
       cellPaint
         ..style = PaintingStyle.fill
-        ..color = Colors.white.withAlpha(45);
+        ..color = Colors.white.withAlpha(60);
       canvas.drawPath(octPath, cellPaint);
 
       cellPaint
         ..style = PaintingStyle.stroke
-        ..strokeWidth = max(0.9, r * 0.06)
-        ..color = Colors.white.withAlpha(75);
+        ..strokeWidth = max(0.9, r * 0.07)
+        ..color = Colors.white.withAlpha(110);
       canvas.drawPath(octPath, cellPaint);
       cellPaint.style = PaintingStyle.fill;
     }
@@ -1869,7 +1868,7 @@ class _PixelGridPainter extends CustomPainter {
 
       recorderCanvas.drawRRect(
         RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-        Paint()..color = const Color(0xFFFFFFFF),
+        Paint()..color = const Color(0xFFF7F8FA),
       );
 
       final recPaint = Paint();
