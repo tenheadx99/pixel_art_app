@@ -2101,8 +2101,8 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
-    // Stitch cell background: natural Aida fabric with ambient thread shadow
-    final cellBg = Color.lerp(const Color(0xFFF7F5F0), base, 0.28)!;
+    // Stitch cell background: darker color of the thread (dark cell background box)
+    final cellBg = Color.lerp(Colors.black, base, 0.48)!;
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
