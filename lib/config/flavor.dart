@@ -17,6 +17,7 @@ enum AppFlavor {
   glow,
   sticker,
   quilt,
+  voxel,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
@@ -28,8 +29,9 @@ enum AppFlavor {
 /// [mosaic] renders a glazed ceramic tile with beveled edges and mortar grout;
 /// [glow] renders a luminous neon cylindrical peg on a dark lite-brite pegboard with radial bloom;
 /// [sticker] renders a glossy vinyl die-cut sticker tile with a crisp white border rim and peel shadow;
-/// [quilt] renders a textured patchwork fabric swatch with fine running stitch seams.
-enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow, sticker, quilt }
+/// [quilt] renders a textured patchwork fabric swatch with fine running stitch seams;
+/// [voxel] renders an extruded 3D isometric block with directional lighting and depth.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow, sticker, quilt, voxel }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -73,6 +75,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.sticker;
     case 'quilt':
       return AppFlavor.quilt;
+    case 'voxel':
+      return AppFlavor.voxel;
     case 'original':
     default:
       return AppFlavor.original;
@@ -341,6 +345,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.quilt,
       paletteLabel: 'Select a Fabric',
       placeVerb: 'Sew',
+    ),
+    AppFlavor.voxel: FlavorConfig(
+      appName: 'Voxel Art: 3D Color by Number',
+      splashTitle: 'Voxel Art',
+      splashTagline: '3D Isometric Blocks by Number',
+      appIconPath: 'assets/icons/voxel.png',
+      primary: Color(0xFF3F51B5), // Tech Indigo / Blue
+      secondary: Color(0xFF00BFA5), // Neon Mint
+      accent: Color(0xFFFFB300), // Amber Gold
+      brandGradient: [Color(0xFF3F51B5), Color(0xFF00BFA5)],
+      manifestPath: 'assets/pixel_art_voxel/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.voxel,
+      paletteLabel: 'Select a Block',
+      placeVerb: 'Build',
     ),
   };
 

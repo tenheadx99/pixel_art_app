@@ -134,6 +134,7 @@ class PromotedAppsService {
         AppFlavor.glow => 'com.tenhead.glowart',
         AppFlavor.sticker => 'com.tenhead.stickerart',
         AppFlavor.quilt => 'com.tenhead.quiltart',
+        AppFlavor.voxel => 'com.tenhead.voxelart',
       };
 
       list.add(

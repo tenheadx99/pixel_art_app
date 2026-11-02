@@ -119,6 +119,14 @@
             "flutterMode": "profile",
             "program": "lib/main_quilt.dart",
             "toolArgs": ["--flavor", "quilt", "--dart-define=FLAVOR=quilt"]
+        },
+        {
+            "name": "Voxel Art (voxel, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_voxel.dart",
+            "toolArgs": ["--flavor", "voxel", "--dart-define=FLAVOR=voxel"]
         }
     ]
 }

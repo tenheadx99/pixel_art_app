@@ -152,6 +152,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _stickerOverlayRepaint;
   Listenable? _quiltBaseRepaint;
   Listenable? _quiltOverlayRepaint;
+  Listenable? _voxelBaseRepaint;
+  Listenable? _voxelOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -293,6 +295,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.sectionShimmer,
     ]);
     _quiltOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _voxelBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _voxelOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
@@ -533,6 +548,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.stickerOverlay => _stickerOverlayRepaint,
         _GridLayer.quiltBase => _quiltBaseRepaint,
         _GridLayer.quiltOverlay => _quiltOverlayRepaint,
+        _GridLayer.voxelBase => _voxelBaseRepaint,
+        _GridLayer.voxelOverlay => _voxelOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -559,6 +576,7 @@ class _PixelGridState extends State<PixelGrid> {
       glowStyle: FlavorConfig.current.cellStyle == CellRenderStyle.glow,
       stickerStyle: FlavorConfig.current.cellStyle == CellRenderStyle.sticker,
       quiltStyle: FlavorConfig.current.cellStyle == CellRenderStyle.quilt,
+      voxelStyle: FlavorConfig.current.cellStyle == CellRenderStyle.voxel,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -763,6 +781,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.voxel) {
+      // Voxel 3D art mode: isometric cubic blocks with directional lighting.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.voxelBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.voxelOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -808,7 +847,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay, glowBase, glowOverlay, stickerBase, stickerOverlay, quiltBase, quiltOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay, glowBase, glowOverlay, stickerBase, stickerOverlay, quiltBase, quiltOverlay, voxelBase, voxelOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -856,6 +895,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as textured patchwork fabric swatches with running stitch seams.
   final bool quiltStyle;
+
+  /// When true, filled cells render as extruded 3D isometric voxel blocks with directional lighting.
+  final bool voxelStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -900,6 +942,7 @@ class _PixelGridPainter extends CustomPainter {
     this.glowStyle = false,
     this.stickerStyle = false,
     this.quiltStyle = false,
+    this.voxelStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1709,7 +1752,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle || quiltStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle || quiltStyle || voxelStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1762,6 +1805,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintQuiltBase(canvas, size);
       case _GridLayer.quiltOverlay:
         _paintQuiltOverlay(canvas, size);
+      case _GridLayer.voxelBase:
+        _paintVoxelBase(canvas, size);
+      case _GridLayer.voxelOverlay:
+        _paintVoxelOverlay(canvas, size);
     }
   }
 
@@ -3486,6 +3533,215 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
+  static final Paint _voxelBoardBgPaint = Paint()..color = const Color(0xFF1E2430);
+  static final Paint _voxelShadowPaint = Paint()..color = const Color(0x35000000);
+  static final Paint _voxelTopPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelLeftPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelRightPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _voxelEdgeHighlightPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..color = const Color(0x50FFFFFF);
+  static final Paint _voxelRidgePaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..color = const Color(0x28000000);
+
+  void _drawVoxelCell(Canvas canvas, Rect rect, Color base, [double grow = 1.0]) {
+    final cx = rect.center.dx;
+    final cy = rect.center.dy;
+    final w = rect.width;
+    final h = rect.height;
+
+    final halfW = w * 0.47;
+    final halfH = h * 0.26;
+    final depth = (h * 0.36) * grow.clamp(0.08, 1.0);
+
+    // 1. Ground contact drop shadow beneath the 3D block
+    final shadowY = cy + depth * 0.38 + halfH * 0.5;
+    final shadowRect = Rect.fromCenter(
+      center: Offset(cx, shadowY),
+      width: halfW * 1.95,
+      height: halfH * 1.5,
+    );
+    canvas.drawOval(shadowRect, _voxelShadowPaint);
+
+    // Cube vertices in isometric projection
+    final topY = cy - depth * 0.5;
+    final pNorth = Offset(cx, topY - halfH);
+    final pEast = Offset(cx + halfW, topY);
+    final pSouth = Offset(cx, topY + halfH);
+    final pWest = Offset(cx - halfW, topY);
+
+    final pWestBottom = Offset(cx - halfW, topY + depth);
+    final pSouthBottom = Offset(cx, topY + halfH + depth);
+    final pEastBottom = Offset(cx + halfW, topY + depth);
+
+    // 2. Left side face (ambient light, medium shading)
+    final leftPath = Path()
+      ..moveTo(pWest.dx, pWest.dy)
+      ..lineTo(pSouth.dx, pSouth.dy)
+      ..lineTo(pSouthBottom.dx, pSouthBottom.dy)
+      ..lineTo(pWestBottom.dx, pWestBottom.dy)
+      ..close();
+    _voxelLeftPaint.color = _darken(base, 0.12);
+    canvas.drawPath(leftPath, _voxelLeftPaint);
+
+    // 3. Right side face (shadow facet, deeper shading)
+    final rightPath = Path()
+      ..moveTo(pSouth.dx, pSouth.dy)
+      ..lineTo(pEast.dx, pEast.dy)
+      ..lineTo(pEastBottom.dx, pEastBottom.dy)
+      ..lineTo(pSouthBottom.dx, pSouthBottom.dy)
+      ..close();
+    _voxelRightPaint.color = _darken(base, 0.28);
+    canvas.drawPath(rightPath, _voxelRightPaint);
+
+    // 4. Center front vertical seam/ridge
+    _voxelRidgePaint.strokeWidth = (w * 0.05).clamp(0.5, 1.4);
+    canvas.drawLine(pSouth, pSouthBottom, _voxelRidgePaint);
+
+    // 5. Top face (overhead illuminated diamond)
+    final topPath = Path()
+      ..moveTo(pNorth.dx, pNorth.dy)
+      ..lineTo(pEast.dx, pEast.dy)
+      ..lineTo(pSouth.dx, pSouth.dy)
+      ..lineTo(pWest.dx, pWest.dy)
+      ..close();
+    _voxelTopPaint.color = _lighten(base, 0.20);
+    canvas.drawPath(topPath, _voxelTopPaint);
+
+    // 6. Crisp specular edge highlight along lit top ridges (North-West & North-East)
+    _voxelEdgeHighlightPaint.strokeWidth = (w * 0.06).clamp(0.6, 1.6);
+    final lightEdges = Path()
+      ..moveTo(pWest.dx, pWest.dy)
+      ..lineTo(pNorth.dx, pNorth.dy)
+      ..lineTo(pEast.dx, pEast.dy);
+    canvas.drawPath(lightEdges, _voxelEdgeHighlightPaint);
+  }
+
+  void _paintVoxelBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _voxelBoardBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawVoxelCell(recorderCanvas, rect, color, 1.0);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF2C3446));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              final floorDiamond = Path()
+                ..moveTo(rect.center.dx, rect.top + rect.height * 0.15)
+                ..lineTo(rect.right - rect.width * 0.1, rect.center.dy)
+                ..lineTo(rect.center.dx, rect.bottom - rect.height * 0.15)
+                ..lineTo(rect.left + rect.width * 0.1, rect.center.dy)
+                ..close();
+              final isoGridPaint = Paint()
+                ..color = const Color(0x20FFFFFF)
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 0.5;
+              recorderCanvas.drawPath(floorDiamond, isoGridPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintVoxelOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        _drawVoxelCell(canvas, baseRect, color, grow);
+      });
+    }
+
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch),
+            shimmerPaint,
+          );
+        }
+      }
+    }
+  }
+
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
   static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
   static final Paint _borderPaint = Paint()
@@ -3968,6 +4224,7 @@ class _PixelGridPainter extends CustomPainter {
       glowStyle != old.glowStyle ||
       stickerStyle != old.stickerStyle ||
       quiltStyle != old.quiltStyle ||
+      voxelStyle != old.voxelStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).

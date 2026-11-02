@@ -231,6 +231,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Voxel Art" — 3D isometric voxel blocks flavor.
+        create("voxel") {
+            dimension = "app"
+            applicationId = "com.tenhead.voxelart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Voxel Art: 3D Color by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {
