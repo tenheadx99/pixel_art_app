@@ -17,6 +17,14 @@ uniform sampler2D uFillAge;
 
 out vec4 fragColor;
 
+vec2 getTexUV(vec2 coord) {
+    vec2 uv = (coord + vec2(0.5)) / uGrid;
+#ifdef IMPELLER_TARGET_OPENGLES
+    uv.y = 1.0 - uv.y;
+#endif
+    return uv;
+}
+
 void main() {
     vec2 pos = FlutterFragCoord().xy;
 
@@ -36,10 +44,7 @@ void main() {
     vec2 cellUV = fract(pos / cellSize);
 
     // Sample the grid texture at the texel center for this cell
-    vec2 texUV = (cellCoord + vec2(0.5)) / uGrid;
-#ifdef IMPELLER_TARGET_OPENGLES
-    texUV.y = 1.0 - texUV.y;
-#endif
+    vec2 texUV = getTexUV(cellCoord);
     vec4 cellColor = texture(uTexture, texUV);
 
     // ================================================================
@@ -51,14 +56,49 @@ void main() {
     float aa = clamp(pixSize * 1.0, 0.0015, 0.015);
 
     // ================================================================
-    // ARTWORK BACKGROUND (Clean pure white fabric with subtle weave)
+    // 2.5D CONTACT DROP SHADOW FROM TOP-LEFT NEIGHBOR STITCHES
     // ================================================================
-    vec3 fabricBase = vec3(1.0, 1.0, 1.0);        // Pure clean white
-    vec3 fabricDark = vec3(0.980, 0.980, 0.980);  // Subtle clean weave
+    float contactShadow = 0.0;
+    if (cellCoord.y > 0.0) {
+        float aTop = texture(uTexture, getTexUV(cellCoord - vec2(0.0, 1.0))).a;
+        if (aTop > 0.8) {
+            contactShadow = max(contactShadow, smoothstep(0.24, 0.0, cellUV.y) * 0.40);
+        }
+    }
+    if (cellCoord.x > 0.0) {
+        float aLeft = texture(uTexture, getTexUV(cellCoord - vec2(1.0, 0.0))).a;
+        if (aLeft > 0.8) {
+            contactShadow = max(contactShadow, smoothstep(0.24, 0.0, cellUV.x) * 0.40);
+        }
+    }
+    if (cellCoord.x > 0.0 && cellCoord.y > 0.0) {
+        float aDiag = texture(uTexture, getTexUV(cellCoord - vec2(1.0, 1.0))).a;
+        if (aDiag > 0.8) {
+            contactShadow = max(contactShadow, smoothstep(0.32, 0.0, length(cellUV)) * 0.45);
+        }
+    }
+
+    // ================================================================
+    // AUTHENTIC 14-COUNT AIDA FABRIC WEAVE
+    // Natural warm cotton texture with distinct weave bundles & eyelets
+    // ================================================================
+    vec3 fabricBase = vec3(0.975, 0.970, 0.962);
+    vec3 fabricDark = vec3(0.930, 0.925, 0.912);
     float weaveX = sin(cellUV.x * 3.14159 * 4.0) * 0.5 + 0.5;
     float weaveY = sin(cellUV.y * 3.14159 * 4.0) * 0.5 + 0.5;
     float weave = weaveX * 0.5 + weaveY * 0.5;
     vec3 fabric = mix(fabricDark, fabricBase, weave);
+
+    // Eyelet puncture holes at the 4 corners of the Aida cell
+    float cornerHole = 0.0;
+    for (int i = 0; i < 4; i++) {
+        vec2 hpos = vec2(i == 1 || i == 3 ? 0.95 : 0.05, i >= 2 ? 0.95 : 0.05);
+        float hdist = length(cellUV - hpos);
+        if (hdist < 0.08) {
+            cornerHole = max(cornerHole, smoothstep(0.08, 0.02, hdist) * 0.35);
+        }
+    }
+    fabric = mix(fabric, vec3(0.25, 0.23, 0.20), cornerHole);
 
     // Cell square border (clean frame)
     vec2 borderThresh = vec2(0.35 / cellSize.x, 0.35 / cellSize.y);
@@ -69,13 +109,14 @@ void main() {
     // CELL STATE ROUTING
     // ================================================================
 
-    // Empty cell -> clean white fabric
+    // Empty cell -> natural Aida cloth with 2.5D contact drop shadow
     if (cellColor.a < 0.01) {
+        fabric *= (1.0 - contactShadow);
         fragColor = vec4(fabric, 1.0);
         return;
     }
 
-    // Unfilled numbered cell -> direct transition from color to grey-out (no white gap)
+    // Unfilled numbered cell -> direct transition from color to grey-out with contact shadow
     if (cellColor.a < 0.75) {
         vec3 color = cellColor.rgb / max(cellColor.a, 0.001);
         float luminance = dot(color, vec3(0.299, 0.587, 0.114));
@@ -85,17 +126,16 @@ void main() {
         if (isCellBorder && t > 0.1) {
             cellBody = mix(cellBody, vec3(0.82, 0.82, 0.82), t);
         }
+        cellBody *= (1.0 - contactShadow);
         fragColor = vec4(cellBody, 1.0);
         return;
     }
 
     // ================================================================
-    // FILLED CELL -> REALISTIC PLUMP EMBROIDERY FLOSS STITCH
-    // Matches the reference: thick plump spindle shape,
-    // fully rounded symmetrical ends reaching corners (never cut off!),
-    // 5 fine twisted thread fibers with 3D cylindrical volume,
+    // FILLED CELL -> 2.5D EMBROIDERY FLOSS ON AIDA FABRIC
+    // Thick plump spindle shape with 2.5D cylindrical volume,
     // top strand (\, TL->BR) crossing continuous over bottom strand (/, BL->TR)
-    // with contact drop shadows and satin silk luster.
+    // with deep crossover shadows and satin cotton luster.
     // ================================================================
 
     // Zoomed out LOD (< 7.0): Flat colored tile
@@ -109,17 +149,16 @@ void main() {
 
     // Rich thread colors
     vec3 threadColor = cellColor.rgb;
-    vec3 threadLight = min(threadColor * 1.28 + vec3(0.06), vec3(1.0));
-    vec3 threadDark = threadColor * 0.48;
-    vec3 sheenColor = min(threadColor * 1.38 + vec3(0.14), vec3(1.0));
+    vec3 threadLight = min(threadColor * 1.30 + vec3(0.08), vec3(1.0));
+    vec3 threadDark = threadColor * 0.44;
+    vec3 sheenColor = min(threadColor * 1.40 + vec3(0.16), vec3(1.0));
 
-    // Stitch cell background: darker color of the thread
-    vec3 stitchCellBg = threadDark;
+    // Stitch cell background: Aida fabric deepened with thread contact shadow
+    vec3 stitchCellBg = mix(fabric, threadDark * 0.65, 0.65);
+    stitchCellBg = mix(stitchCellBg, vec3(0.14, 0.13, 0.12), cornerHole);
 
-    // ================================================================
     // ================================================================
     // FULL CORNER-TO-CORNER ANCHORS
-    // Ensures all four ends (TL, TR, BL, BR) extend fully into the corners
     // ================================================================
     vec2 TL = vec2(0.05, 0.05);
     vec2 BR = vec2(0.95, 0.95);
@@ -127,17 +166,6 @@ void main() {
     vec2 TR = vec2(0.95, 0.05);
 
     float maxRadius = 0.178; // Plump strand width (~0.36 of cell at middle)
-
-    // Corner eyelets on fabric (subtle punctures where threads anchor)
-    float cornerHole = 0.0;
-    for (int i = 0; i < 4; i++) {
-        vec2 hpos = vec2(i == 1 || i == 3 ? 0.95 : 0.05, i >= 2 ? 0.95 : 0.05);
-        float hdist = length(cellUV - hpos);
-        if (hdist < 0.07) {
-            cornerHole = max(cornerHole, smoothstep(0.07, 0.02, hdist) * 0.22);
-        }
-    }
-    stitchCellBg = mix(stitchCellBg, vec3(0.12, 0.12, 0.12), cornerHole);
 
     // --- Strand 1: Bottom Strand (/, BL to TR) ---
     vec2 dir1 = TR - BL;
@@ -171,8 +199,7 @@ void main() {
     float rad2 = maxRadius * taper2;
 
     // ================================================================
-    // ANIMATION & REVEAL (Never cuts off finished threads!)
-    // When age >= 0.26 (normal settled state), revealCut is strictly 0.0!
+    // ANIMATION & REVEAL
     // ================================================================
     float revealCut1 = 0.0;
     float revealCut2 = 0.0;
@@ -186,8 +213,6 @@ void main() {
         s1_active = p1 > 0.05 ? 1.0 : 0.0;
         s2_active = p2 > 0.05 ? 1.0 : 0.0;
 
-        // Animate reveal leading edge; sweeps past 1.0 to 1.25 so at 100%
-        // the tips at TR and BR are never chopped!
         float edge1 = p1 * 1.25;
         if (edge1 < 1.15) {
             revealCut1 = smoothstep(edge1 - 0.08, edge1, t1);
@@ -206,30 +231,29 @@ void main() {
         }
     }
 
-    // Strand silhouettes with razor-sharp 1-pixel anti-aliasing
+    // Strand silhouettes with razor-sharp anti-aliasing
     float stroke1 = (1.0 - smoothstep(rad1 - aa, rad1 + aa, d1)) * (1.0 - revealCut1);
     float stroke2 = (1.0 - smoothstep(rad2 - aa, rad2 + aa, d2)) * (1.0 - revealCut2);
 
     float stitchMask = max(stroke1, stroke2);
 
     // ================================================================
-    // TACTILE MULTI-STRAND EMBROIDERY FIBERS (Helical Stranded Floss)
-    // Curving twisted filaments along each plump strand!
+    // TACTILE MULTI-STRAND EMBROIDERY FIBERS
     // ================================================================
     float normS1 = s1 / max(rad1, 0.001);
     float twist1 = normS1 * 3.2 + (t1 - 0.5) * 1.8;
     float filament1 = sin(twist1 * 6.2831853);
-    float fiberShade1 = 0.84 + 0.16 * filament1;
+    float fiberShade1 = 0.82 + 0.18 * filament1;
 
     float normS2 = s2 / max(rad2, 0.001);
     float twist2 = normS2 * 3.2 - (t2 - 0.5) * 1.8;
     float filament2 = sin(twist2 * 6.2831853);
-    float fiberShade2 = 0.84 + 0.16 * filament2;
+    float fiberShade2 = 0.82 + 0.18 * filament2;
 
     // ================================================================
-    // 3D CYLINDRICAL CUSHION SHADING & DIRECTIONAL LIGHT
+    // 2.5D CYLINDRICAL CUSHION SHADING & DIRECTIONAL LIGHT
     // ================================================================
-    vec2 shift = vec2(-0.5 - uTilt.x * 0.3, -0.5 + uTilt.y * 0.3);
+    vec2 shift = vec2(-0.707 - uTilt.x * 0.35, -0.707 + uTilt.y * 0.35);
     shift = clamp(shift, vec2(-1.0), vec2(1.0));
     vec2 lightDir = normalize(-shift);
 
@@ -237,20 +261,20 @@ void main() {
     float r1 = clamp(d1 / max(rad1, 0.001), 0.0, 1.0);
     float dome1 = sqrt(max(0.0, 1.0 - r1 * r1)); // 3D rounded dome
     float lightDot1 = dot(unorm1 * normS1, lightDir);
-    float light1 = clamp(lightDot1 * 0.35 + dome1 * 0.65 + 0.18, 0.0, 1.0);
+    float light1 = clamp(lightDot1 * 0.42 + dome1 * 0.58 + 0.20, 0.0, 1.0);
     vec3 color1 = mix(threadDark, threadLight, light1) * fiberShade1;
     float sheen1 = pow(clamp(1.0 - abs(normS1) / 0.55, 0.0, 1.0), 2.5);
     sheen1 *= (0.70 + 0.30 * clamp(filament1 * 0.5 + 0.5, 0.0, 1.0));
 
     // Corner eyelet depth dipping (soft tuck into hole)
     float dip1 = min(smoothstep(0.0, 0.12, t1), smoothstep(1.0, 0.88, t1));
-    color1 *= (0.84 + 0.16 * dip1);
+    color1 *= (0.80 + 0.20 * dip1);
 
     // --- Strand 2 (Top, \) ---
     float r2 = clamp(d2 / max(rad2, 0.001), 0.0, 1.0);
     float dome2 = sqrt(max(0.0, 1.0 - r2 * r2)); // 3D rounded dome
     float lightDot2 = dot(unorm2 * normS2, lightDir);
-    float light2 = clamp(lightDot2 * 0.35 + dome2 * 0.65 + 0.22, 0.0, 1.0);
+    float light2 = clamp(lightDot2 * 0.42 + dome2 * 0.58 + 0.24, 0.0, 1.0);
     vec3 color2 = mix(threadDark, threadLight, light2) * fiberShade2;
     float sheen2 = pow(clamp(1.0 - abs(normS2) / 0.55, 0.0, 1.0), 2.5);
     sheen2 *= (0.70 + 0.30 * clamp(filament2 * 0.5 + 0.5, 0.0, 1.0));
@@ -259,56 +283,55 @@ void main() {
     sheen2 *= (1.0 + 0.35 * centerT2);
 
     float dip2 = min(smoothstep(0.0, 0.12, t2), smoothstep(1.0, 0.88, t2));
-    color2 *= (0.84 + 0.16 * dip2);
+    color2 *= (0.80 + 0.20 * dip2);
 
     // ================================================================
     // REALISTIC CONTACT DROP SHADOWS
-    // Top strand (\) casts a distinct contact shadow onto bottom strand (/)!
     // ================================================================
-    vec2 shadowOffset = vec2(0.012, 0.016);
+    vec2 shadowOffset = vec2(0.015, 0.020);
 
-    // Shadow from Strand 1 onto background:
+    // Shadow from Strand 1 onto fabric:
     vec2 pt1_sh = BL + clamp(dot(cellUV - shadowOffset - BL, udir1) / len1, 0.0, 1.0) * dir1;
     float d1_sh = length(cellUV - shadowOffset - pt1_sh);
     float rad1_sh = maxRadius * (0.66 + 0.34 * sin(clamp(dot(cellUV - shadowOffset - BL, udir1) / len1, 0.0, 1.0) * 3.14159265));
     float shadow1 = 1.0 - smoothstep(rad1_sh, rad1_sh + aa * 2.5, d1_sh);
 
-    // Shadow from Strand 2 onto background AND onto Strand 1 below it:
+    // Shadow from Strand 2 onto fabric AND onto Strand 1 below it:
     vec2 pt2_sh = TL + clamp(dot(cellUV - shadowOffset - TL, udir2) / len2, 0.0, 1.0) * dir2;
     float d2_sh = length(cellUV - shadowOffset - pt2_sh);
     float rad2_sh = maxRadius * (0.68 + 0.32 * sin(clamp(dot(cellUV - shadowOffset - TL, udir2) / len2, 0.0, 1.0) * 3.14159265));
     float shadow2 = 1.0 - smoothstep(rad2_sh, rad2_sh + aa * 2.5, d2_sh);
 
-    // Contact shadow where Strand 1 ducks under Strand 2:
-    float crossoverContact = stroke2 * smoothstep(0.32, 0.68, t1);
-    color1 = mix(color1, threadDark * 0.45, crossoverContact * 0.80);
+    // Crossover contact shadow where Strand 1 ducks under Strand 2:
+    float crossoverContact = stroke2 * smoothstep(0.28, 0.72, t1);
+    color1 = mix(color1, threadDark * 0.35, crossoverContact * 0.85);
 
     // ================================================================
     // MULTI-LAYER COMPOSITING
     // ================================================================
     vec3 result = stitchCellBg;
 
-    // 1. Bottom strand shadow onto background
-    result = mix(result, result * 0.65, shadow1 * 0.40 * s1_active * (1.0 - stroke1));
+    // 1. Bottom strand shadow onto fabric background
+    result = mix(result, result * 0.60, shadow1 * 0.45 * s1_active * (1.0 - stroke1));
 
     // 2. Bottom strand (/, BL to TR)
     result = mix(result, color1, stroke1);
 
     // 3. Bottom strand core silk sheen
-    result = mix(result, sheenColor, sheen1 * stroke1 * 0.42);
+    result = mix(result, sheenColor, sheen1 * stroke1 * 0.44);
 
-    // 4. Top strand shadow (onto background AND onto bottom strand!)
-    result = mix(result, result * 0.55, shadow2 * 0.48 * s2_active * (1.0 - stroke2));
+    // 4. Top strand shadow (onto fabric AND onto bottom strand!)
+    result = mix(result, result * 0.50, shadow2 * 0.52 * s2_active * (1.0 - stroke2));
 
-    // 5. Top strand (\, TL to BR) - completely passes over bottom strand!
+    // 5. Top strand (\, TL to BR) - passes over bottom strand with physical height
     result = mix(result, color2, stroke2);
 
     // 6. Top strand core silk sheen
-    result = mix(result, sheenColor, sheen2 * stroke2 * 0.48);
+    result = mix(result, sheenColor, sheen2 * stroke2 * 0.50);
 
-    // 7. Subtle cell frame border (like the reference screenshot)
+    // 7. Subtle cell frame border
     if (isCellBorder) {
-        result = mix(result, vec3(0.18, 0.18, 0.18), 0.22);
+        result = mix(result, vec3(0.18, 0.18, 0.18), 0.20);
     }
 
     // ================================================================
@@ -319,7 +342,7 @@ void main() {
         float specDist = length(cellUV - specPos);
         if (specDist < 0.16) {
             float glint = smoothstep(0.16, 0.0, specDist);
-            result = mix(result, vec3(1.0), glint * 0.20 * stroke2);
+            result = mix(result, vec3(1.0), glint * 0.24 * stroke2);
         }
     }
 

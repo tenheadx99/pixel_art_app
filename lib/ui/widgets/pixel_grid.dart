@@ -2013,10 +2013,10 @@ class _PixelGridPainter extends CustomPainter {
       final recorder = ui.PictureRecorder();
       final recorderCanvas = Canvas(recorder);
 
-      // Artwork background: clean white
+      // Artwork background: natural Aida cloth
       recorderCanvas.drawRRect(
         RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
-        Paint()..color = Colors.white,
+        Paint()..color = const Color(0xFFF7F5F0),
       );
 
       final recPaint = Paint();
@@ -2101,8 +2101,8 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
-    // Stitch cell background: darker color of the thread
-    final cellBg = Color.lerp(Colors.black, base, 0.48)!;
+    // Stitch cell background: natural Aida fabric with ambient thread shadow
+    final cellBg = Color.lerp(const Color(0xFFF7F5F0), base, 0.28)!;
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
@@ -2110,11 +2110,11 @@ class _PixelGridPainter extends CustomPainter {
     canvas.drawRect(rect, cellPaint);
 
     final inset = rect.width * 0.05;
-    // Corner eyelet holes
+    // Corner eyelet needle puncture holes in Aida cloth
     final holePaint = Paint()
       ..style = PaintingStyle.fill
-      ..color = const Color(0x28000000);
-    final holeRadius = (rect.width * 0.06).clamp(1.0, 3.0);
+      ..color = const Color(0x40000000);
+    final holeRadius = (rect.width * 0.07).clamp(1.2, 3.5);
     canvas.drawCircle(Offset(rect.left + inset, rect.top + inset), holeRadius, holePaint);
     canvas.drawCircle(Offset(rect.right - inset, rect.top + inset), holeRadius, holePaint);
     canvas.drawCircle(Offset(rect.left + inset, rect.bottom - inset), holeRadius, holePaint);
