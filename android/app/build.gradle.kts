@@ -211,6 +211,16 @@ android {
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
         }
+        // "Sticker Art" — vinyl die-cut stickers & badges flavor.
+        create("sticker") {
+            dimension = "app"
+            applicationId = "com.tenhead.stickerart"
+            versionCode = 1
+            versionName = "1.0.0"
+            resValue("string", "app_name", "Sticker Art: Stick by Number")
+            manifestPlaceholders["admobAppId"] =
+                "ca-app-pub-7469053965996793~6638258557"
+        }
     }
 
     lint {

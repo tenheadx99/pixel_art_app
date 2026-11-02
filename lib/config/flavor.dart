@@ -15,6 +15,7 @@ enum AppFlavor {
   knit,
   mosaic,
   glow,
+  sticker,
 }
 
 /// How filled cells are painted. [flat] is the classic color-by-number square;
@@ -24,8 +25,9 @@ enum AppFlavor {
 /// [brick] renders a 3D building brick with a raised circular top stud;
 /// [knit] renders an interlocking V-stitch woolen yarn loop;
 /// [mosaic] renders a glazed ceramic tile with beveled edges and mortar grout;
-/// [glow] renders a luminous neon cylindrical peg on a dark lite-brite pegboard with radial bloom.
-enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow }
+/// [glow] renders a luminous neon cylindrical peg on a dark lite-brite pegboard with radial bloom;
+/// [sticker] renders a glossy vinyl die-cut sticker tile with a crisp white border rim and peel shadow.
+enum CellRenderStyle { flat, gem, crossStitch, bead, brick, knit, mosaic, glow, sticker }
 
 /// Resolved once from the compile-time environment.
 const String _flavorName = String.fromEnvironment(
@@ -65,6 +67,8 @@ AppFlavor get currentFlavor {
       return AppFlavor.mosaic;
     case 'glow':
       return AppFlavor.glow;
+    case 'sticker':
+      return AppFlavor.sticker;
     case 'original':
     default:
       return AppFlavor.original;
@@ -303,6 +307,21 @@ class FlavorConfig {
       cellStyle: CellRenderStyle.glow,
       paletteLabel: 'Select a Light',
       placeVerb: 'Light',
+    ),
+    AppFlavor.sticker: FlavorConfig(
+      appName: 'Sticker Art: Stick by Number',
+      splashTitle: 'Sticker Art',
+      splashTagline: 'Vinyl Stickers & Badges by Number',
+      appIconPath: 'assets/icons/sticker.png',
+      primary: Color(0xFFFF6B6B), // Pastel Coral
+      secondary: Color(0xFFFFD93D), // Sunshine Yellow
+      accent: Color(0xFF4D96FF), // Sky Blue
+      brandGradient: [Color(0xFFFF6B6B), Color(0xFFFFD93D)],
+      manifestPath: 'assets/pixel_art_sticker/manifest.json',
+      adsEnabled: true,
+      cellStyle: CellRenderStyle.sticker,
+      paletteLabel: 'Select a Sticker',
+      placeVerb: 'Stick',
     ),
   };
 

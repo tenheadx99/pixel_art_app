@@ -103,6 +103,14 @@
             "flutterMode": "profile",
             "program": "lib/main_glow.dart",
             "toolArgs": ["--flavor", "glow", "--dart-define=FLAVOR=glow"]
+        },
+        {
+            "name": "Sticker Art (sticker, profile)",
+            "request": "launch",
+            "type": "dart",
+            "flutterMode": "profile",
+            "program": "lib/main_sticker.dart",
+            "toolArgs": ["--flavor", "sticker", "--dart-define=FLAVOR=sticker"]
         }
     ]
 }

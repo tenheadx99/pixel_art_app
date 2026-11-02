@@ -148,6 +148,8 @@ class _PixelGridState extends State<PixelGrid> {
   Listenable? _mosaicOverlayRepaint;
   Listenable? _glowBaseRepaint;
   Listenable? _glowOverlayRepaint;
+  Listenable? _stickerBaseRepaint;
+  Listenable? _stickerOverlayRepaint;
 
   void _onWaveRevealed() {
     _PixelGridPainter.markWaveDirty();
@@ -263,6 +265,19 @@ class _PixelGridState extends State<PixelGrid> {
       widget.sectionShimmer,
     ]);
     _glowOverlayRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow,
+      widget.sectionShimmer,
+    ]);
+    _stickerBaseRepaint = Listenable.merge([
+      widget.gridFade,
+      widget.transform,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
+      widget.sectionShimmer,
+    ]);
+    _stickerOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
       widget.fillGrow,
@@ -495,6 +510,8 @@ class _PixelGridState extends State<PixelGrid> {
         _GridLayer.mosaicOverlay => _mosaicOverlayRepaint,
         _GridLayer.glowBase => _glowBaseRepaint,
         _GridLayer.glowOverlay => _glowOverlayRepaint,
+        _GridLayer.stickerBase => _stickerBaseRepaint,
+        _GridLayer.stickerOverlay => _stickerOverlayRepaint,
       },
       art: art,
       filledGrid: widget.provider.filledGrid,
@@ -519,6 +536,7 @@ class _PixelGridState extends State<PixelGrid> {
       knitStyle: FlavorConfig.current.cellStyle == CellRenderStyle.knit,
       mosaicStyle: FlavorConfig.current.cellStyle == CellRenderStyle.mosaic,
       glowStyle: FlavorConfig.current.cellStyle == CellRenderStyle.glow,
+      stickerStyle: FlavorConfig.current.cellStyle == CellRenderStyle.sticker,
       tiltNotifier: widget.tiltNotifier,
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
@@ -681,6 +699,27 @@ class _PixelGridState extends State<PixelGrid> {
         ],
       );
     }
+    if (cellStyle == CellRenderStyle.sticker) {
+      // Sticker art mode: clean notebook backing + glossy die-cut vinyl stickers.
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          RepaintBoundary(
+            child: CustomPaint(
+              isComplex: true,
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.stickerBase),
+            ),
+          ),
+          RepaintBoundary(
+            child: CustomPaint(
+              willChange: false,
+              painter: _buildPainter(art, _GridLayer.stickerOverlay),
+            ),
+          ),
+        ],
+      );
+    }
     // Gem mode paints in two isolated layers: the art body (repaints per
     // tilt/zoom tick — on the GPU path that's just one shader quad) and the
     // labels/selection overlay (repaints on fills and selection changes).
@@ -726,7 +765,7 @@ class _PixelGridState extends State<PixelGrid> {
 /// Which slice of the grid a painter instance draws. Both modes split the
 /// canvas into a static-ish base layer and an animated overlay so each can
 /// repaint on its own triggers.
-enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay, glowBase, glowOverlay }
+enum _GridLayer { flatBase, flatOverlay, gemBase, gemOverlay, crossStitchBase, crossStitchOverlay, beadBase, beadOverlay, brickBase, brickOverlay, knitBase, knitOverlay, mosaicBase, mosaicOverlay, glowBase, glowOverlay, stickerBase, stickerOverlay }
 
 class _PixelGridPainter extends CustomPainter {
   final _GridLayer layer;
@@ -768,6 +807,9 @@ class _PixelGridPainter extends CustomPainter {
 
   /// When true, filled cells render as luminous neon light pegs with radial bloom.
   final bool glowStyle;
+
+  /// When true, filled cells render as glossy vinyl die-cut sticker tiles with crisp white border.
+  final bool stickerStyle;
   final ValueNotifier<Offset>? tiltNotifier;
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
@@ -810,6 +852,7 @@ class _PixelGridPainter extends CustomPainter {
     this.knitStyle = false,
     this.mosaicStyle = false,
     this.glowStyle = false,
+    this.stickerStyle = false,
     this.tiltNotifier,
     this.shaderProgram,
     this.crossStitchShaderProgram,
@@ -1619,7 +1662,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -1664,6 +1707,10 @@ class _PixelGridPainter extends CustomPainter {
         _paintGlowBase(canvas, size);
       case _GridLayer.glowOverlay:
         _paintGlowOverlay(canvas, size);
+      case _GridLayer.stickerBase:
+        _paintStickerBase(canvas, size);
+      case _GridLayer.stickerOverlay:
+        _paintStickerOverlay(canvas, size);
     }
   }
 
@@ -3051,6 +3098,180 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
+  static final Paint _stickerSheetBgPaint = Paint()..color = const Color(0xFFF6F8FA);
+  static final Paint _stickerDotPaint = Paint()..color = const Color(0xFFE2E7EE);
+  static final Paint _stickerShadowPaint = Paint()..color = const Color(0x28000000);
+  static final Paint _stickerWhiteBorderPaint = Paint()..color = const Color(0xFFFFFFFF);
+  static final Paint _stickerFillPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _stickerGlossPaint = Paint()..color = const Color(0x38FFFFFF);
+
+  void _drawStickerCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
+    if (effectiveCell < 3.0) {
+      canvas.drawRect(rect, _stickerFillPaint..color = base);
+      return;
+    }
+
+    final inset = (effectiveCell * 0.06).clamp(0.4, 1.8);
+    final stickerRect = rect.deflate(inset);
+    final r = (effectiveCell * 0.22).clamp(1.5, 6.0);
+
+    // 1. Soft drop shadow (peel effect)
+    if (effectiveCell >= 5.0) {
+      final shadowOffset = (effectiveCell * 0.08).clamp(0.6, 2.2);
+      final shadowRect = stickerRect.shift(Offset(shadowOffset * 0.5, shadowOffset));
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(shadowRect, Radius.circular(r)),
+        _stickerShadowPaint,
+      );
+    }
+
+    // 2. Thick white die-cut vinyl border
+    final whiteRRect = RRect.fromRectAndRadius(stickerRect, Radius.circular(r));
+    canvas.drawRRect(whiteRRect, _stickerWhiteBorderPaint);
+
+    // 3. Colored vinyl inner tile
+    final borderWidth = (effectiveCell * 0.12).clamp(0.8, 2.4);
+    final innerRect = stickerRect.deflate(borderWidth);
+    final innerR = (r - borderWidth).clamp(0.5, 5.0);
+    final innerRRect = RRect.fromRectAndRadius(innerRect, Radius.circular(innerR));
+    _stickerFillPaint.color = base;
+    canvas.drawRRect(innerRRect, _stickerFillPaint);
+
+    // 4. Glossy vinyl sheen highlight across top-left
+    if (effectiveCell >= 7.0) {
+      final glossRect = Rect.fromLTWH(
+        innerRect.left + 0.5,
+        innerRect.top + 0.5,
+        innerRect.width * 0.55,
+        innerRect.height * 0.45,
+      );
+      final glossRRect = RRect.fromRectAndRadius(
+        glossRect,
+        Radius.circular(innerR * 0.8),
+      );
+      canvas.drawRRect(glossRRect, _stickerGlossPaint);
+    }
+  }
+
+  void _paintStickerBase(Canvas canvas, Size size) {
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    final lowDetail = detailStep == 0;
+    if (_bakedBasePicture == null ||
+        _bakedFillVersion != fillVersion ||
+        _bakedLowDetail != lowDetail ||
+        _bakedArtId != art.id ||
+        _bakedWidth != size.width ||
+        _bakedHeight != size.height) {
+      final recorder = ui.PictureRecorder();
+      final recorderCanvas = Canvas(recorder);
+
+      recorderCanvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(8)),
+        _stickerSheetBgPaint,
+      );
+
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      final dotRadius = (min(cw, ch) * 0.1).clamp(0.6, 2.0);
+
+      for (var r = 0; r < gridHeight; r++) {
+        for (var c = 0; c < gridWidth; c++) {
+          final isFilled =
+              filledGrid[r][c] > 0 &&
+              (fillGrow == null || fillGrow!.isRevealed(r, c, nowMs));
+          final expectedNumber = art.grid[r][c] as int;
+          final rect = Rect.fromLTWH(
+            c * cw + cellGap,
+            r * ch + cellGap,
+            cw - cellGap * 2,
+            ch - cellGap * 2,
+          );
+          if (isFilled) {
+            final color =
+                filledColors[expectedNumber] ??
+                AppStyle.numberToColor(expectedNumber);
+            _drawStickerCell(recorderCanvas, rect, color, effectiveCell);
+            if (colorblindMode) {
+              _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
+            }
+          } else if (expectedNumber > 0) {
+            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
+              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFFE2E7EE));
+            } else {
+              final previewColor = _previewColor(expectedNumber, detailStep);
+              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
+            }
+            if (detailStep > 0) {
+              recorderCanvas.drawCircle(rect.center, dotRadius, _stickerDotPaint);
+            }
+          }
+        }
+      }
+
+      _bakedBasePicture = recorder.endRecording();
+      _bakedFillVersion = fillVersion;
+      _bakedLowDetail = lowDetail;
+      _bakedArtId = art.id;
+      _bakedWidth = size.width;
+      _bakedHeight = size.height;
+    }
+
+    canvas.drawPicture(_bakedBasePicture!);
+  }
+
+  void _paintStickerOverlay(Canvas canvas, Size size) {
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
+    final statics = _overlayStaticPicture;
+    if (statics != null) canvas.drawPicture(statics);
+
+    final gridWidth = art.gridWidth as int;
+    final gridHeight = art.gridHeight as int;
+    if (fillGrow != null && !fillGrow!.isEmpty) {
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      fillGrow!.forEachActive((row, col, startMs) {
+        if (row < 0 || row >= gridHeight || col < 0 || col >= gridWidth) return;
+        if (nowMs < startMs) return;
+        if (filledGrid[row][col] <= 0) return;
+        final grow = fillGrow!.factor(row, col, nowMs);
+        if (grow >= 1.0) return;
+        final expectedNumber = art.grid[row][col] as int;
+        final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
+        final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final scaledRect = Rect.fromCenter(
+          center: baseRect.center,
+          width: baseRect.width * (0.2 + 0.8 * grow),
+          height: baseRect.height * (0.2 + 0.8 * grow),
+        );
+        _drawStickerCell(canvas, scaledRect, color, effectiveCell);
+      });
+    }
+
+    if (sectionShimmer != null && sectionShimmer!.value < 1.0) {
+      final t = sectionShimmer!.value;
+      final band = t * 1.4 - 0.2;
+      final denom = gridWidth * cw + gridHeight * ch * 0.35;
+      final shimmerPaint = Paint()..style = PaintingStyle.fill;
+      for (var row = 0; row < gridHeight; row++) {
+        for (var col = 0; col < gridWidth; col++) {
+          if (filledGrid[row][col] <= 0) continue;
+          final q = ((col + 0.5) * cw + (row + 0.5) * ch * 0.35) / denom;
+          final d = (q - band).abs();
+          if (d >= 0.09) continue;
+          final s = 1.0 - d / 0.09;
+          shimmerPaint.color = Colors.white.withAlpha((130 * s * s).round());
+          canvas.drawRect(
+            Rect.fromLTWH(col * cw, row * ch, cw, ch),
+            shimmerPaint,
+          );
+        }
+      }
+    }
+  }
+
   // Flat-path paints, reused across frames (see note in _paintFlatBase).
   static final Paint _bgPaint = Paint()..color = const Color(0xFFF0F0F0);
   static final Paint _borderPaint = Paint()
@@ -3531,6 +3752,7 @@ class _PixelGridPainter extends CustomPainter {
       knitStyle != old.knitStyle ||
       mosaicStyle != old.mosaicStyle ||
       glowStyle != old.glowStyle ||
+      stickerStyle != old.stickerStyle ||
       crossStitchShaderProgram != old.crossStitchShaderProgram ||
       // Only the flat overlay draws the hover cursor; don't force the other
       // layers to repaint on every hovered-cell change (desktop/web).
