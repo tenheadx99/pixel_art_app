@@ -304,6 +304,7 @@ class _PixelGridState extends State<PixelGrid> {
   void initState() {
     super.initState();
     widget.fillGrow?.newlyRevealed.addListener(_onWaveRevealed);
+    widget.fillGrow?.settled.addListener(_onWaveRevealed);
     _rebuildRepaintListenables();
     // Normally already warm via main(); this is the fallback path.
     if (_gemShaderProgram == null) {
@@ -323,7 +324,9 @@ class _PixelGridState extends State<PixelGrid> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.fillGrow != widget.fillGrow) {
       oldWidget.fillGrow?.newlyRevealed.removeListener(_onWaveRevealed);
+      oldWidget.fillGrow?.settled.removeListener(_onWaveRevealed);
       widget.fillGrow?.newlyRevealed.addListener(_onWaveRevealed);
+      widget.fillGrow?.settled.addListener(_onWaveRevealed);
     }
     if (oldWidget.gridFade != widget.gridFade ||
         oldWidget.transform != widget.transform ||
@@ -338,6 +341,7 @@ class _PixelGridState extends State<PixelGrid> {
   @override
   void dispose() {
     widget.fillGrow?.newlyRevealed.removeListener(_onWaveRevealed);
+    widget.fillGrow?.settled.removeListener(_onWaveRevealed);
     // The painter keeps static picture/image/text caches so they survive
     // rebuilds; release them when the grid leaves the tree so a long session
     // doesn't accumulate every opened artwork's caches.
@@ -2826,55 +2830,50 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _mosaicBevelPaint = Paint()..style = PaintingStyle.stroke;
   static final Paint _mosaicGlazePaint = Paint()..style = PaintingStyle.fill;
 
-  void _drawMosaicCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
-    if (effectiveCell < 3.0) {
-      canvas.drawRect(rect, _mosaicTilePaint..color = base);
-      return;
-    }
-
-    final inset = (effectiveCell * 0.08).clamp(0.5, 2.5);
+  void _drawMosaicCell(Canvas canvas, Rect rect, Color base) {
+    final w = min(rect.width, rect.height);
+    final inset = (w * 0.08).clamp(0.6, 2.5);
     final tileRect = rect.deflate(inset);
-    final r = (effectiveCell * 0.15).clamp(1.0, 4.0);
+    final r = (w * 0.16).clamp(1.0, 4.0);
     final rrect = RRect.fromRectAndRadius(tileRect, Radius.circular(r));
 
     _mosaicTilePaint.color = base;
     canvas.drawRRect(rrect, _mosaicTilePaint);
 
-    if (effectiveCell >= 7.0) {
-      final sheenRect = Rect.fromLTWH(
-        tileRect.left + 0.5,
-        tileRect.top + 0.5,
-        tileRect.width * 0.6,
-        tileRect.height * 0.45,
-      );
-      final sheenRRect = RRect.fromRectAndRadius(sheenRect, Radius.circular(r * 0.8));
-      _mosaicGlazePaint.color = const Color(0x44FFFFFF);
-      canvas.drawRRect(sheenRRect, _mosaicGlazePaint);
+    final sheenRect = Rect.fromLTWH(
+      tileRect.left + 0.5,
+      tileRect.top + 0.5,
+      tileRect.width * 0.55,
+      tileRect.height * 0.45,
+    );
+    final sheenRRect = RRect.fromRectAndRadius(sheenRect, Radius.circular(r * 0.8));
+    _mosaicGlazePaint.color = const Color(0x48FFFFFF);
+    canvas.drawRRect(sheenRRect, _mosaicGlazePaint);
 
-      final lightPath = Path()
-        ..moveTo(tileRect.left + r, tileRect.bottom - r)
-        ..lineTo(tileRect.left + r, tileRect.top + r)
-        ..lineTo(tileRect.right - r, tileRect.top + r);
-      _mosaicBevelPaint
-        ..color = const Color(0x38FFFFFF)
-        ..strokeWidth = (effectiveCell * 0.06).clamp(0.5, 1.5);
-      canvas.drawPath(lightPath, _mosaicBevelPaint);
+    final strokeW = (w * 0.07).clamp(0.6, 1.8);
+    final lightPath = Path()
+      ..moveTo(tileRect.left + r, tileRect.bottom - r)
+      ..lineTo(tileRect.left + r, tileRect.top + r)
+      ..lineTo(tileRect.right - r, tileRect.top + r);
+    _mosaicBevelPaint
+      ..color = const Color(0x50FFFFFF)
+      ..strokeWidth = strokeW;
+    canvas.drawPath(lightPath, _mosaicBevelPaint);
 
-      final darkPath = Path()
-        ..moveTo(tileRect.right - r, tileRect.top + r)
-        ..lineTo(tileRect.right - r, tileRect.bottom - r)
-        ..lineTo(tileRect.left + r, tileRect.bottom - r);
-      _mosaicBevelPaint
-        ..color = const Color(0x33000000)
-        ..strokeWidth = (effectiveCell * 0.06).clamp(0.5, 1.5);
-      canvas.drawPath(darkPath, _mosaicBevelPaint);
-    }
+    final darkPath = Path()
+      ..moveTo(tileRect.right - r, tileRect.top + r)
+      ..lineTo(tileRect.right - r, tileRect.bottom - r)
+      ..lineTo(tileRect.left + r, tileRect.bottom - r);
+    _mosaicBevelPaint
+      ..color = const Color(0x38000000)
+      ..strokeWidth = strokeW;
+    canvas.drawPath(darkPath, _mosaicBevelPaint);
   }
 
   void _paintMosaicBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -2908,7 +2907,7 @@ class _PixelGridPainter extends CustomPainter {
             final color =
                 filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
-            _drawMosaicCell(recorderCanvas, rect, color, effectiveCell);
+            _drawMosaicCell(recorderCanvas, rect, color);
             if (colorblindMode) {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
@@ -2942,7 +2941,7 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   void _paintMosaicOverlay(Canvas canvas, Size size) {
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
     final statics = _overlayStaticPicture;
@@ -2966,7 +2965,7 @@ class _PixelGridPainter extends CustomPainter {
           width: baseRect.width * (0.2 + 0.8 * grow),
           height: baseRect.height * (0.2 + 0.8 * grow),
         );
-        _drawMosaicCell(canvas, scaledRect, color, effectiveCell);
+        _drawMosaicCell(canvas, scaledRect, color);
       });
     }
 
@@ -2999,39 +2998,45 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _glowCorePaint = Paint()..style = PaintingStyle.fill;
   static final Paint _glowSpecPaint = Paint()..style = PaintingStyle.fill;
 
-  void _drawGlowCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
-    if (effectiveCell < 3.0) {
-      canvas.drawRect(rect, _glowPegPaint..color = base);
-      return;
-    }
-
+  void _drawGlowCell(Canvas canvas, Rect rect, Color base) {
     final center = rect.center;
-    final r = min(rect.width, rect.height) * 0.44;
+    final w = min(rect.width, rect.height);
+    final r = w * 0.44;
 
-    _glowBloomPaint.color = base.withAlpha(50);
-    canvas.drawCircle(center, r * 1.5, _glowBloomPaint);
+    // 1. Wide ambient diffuse aura
+    _glowBloomPaint.color = base.withAlpha(45);
+    canvas.drawCircle(center, r * 2.3, _glowBloomPaint);
 
+    // 2. Vibrant mid-neon corona bloom
+    _glowBloomPaint.color = base.withAlpha(115);
+    canvas.drawCircle(center, r * 1.6, _glowBloomPaint);
+
+    // 3. Peg cylinder acrylic body
     _glowPegPaint.color = base;
-    canvas.drawCircle(center, r, _glowPegPaint);
+    canvas.drawCircle(center, r * 0.95, _glowPegPaint);
 
-    _glowCorePaint.color = Color.lerp(base, Colors.white, 0.55)!;
-    canvas.drawCircle(center, r * 0.58, _glowCorePaint);
+    // 4. Hot saturated luminous core (light shining directly through translucent peg)
+    _glowCorePaint.color = Color.lerp(base, Colors.white, 0.65)!;
+    canvas.drawCircle(center, r * 0.62, _glowCorePaint);
 
-    if (effectiveCell >= 7.0) {
-      final specRadius = (r * 0.22).clamp(0.6, 2.0);
-      _glowSpecPaint.color = Colors.white.withAlpha(220);
-      canvas.drawCircle(
-        Offset(center.dx - r * 0.32, center.dy - r * 0.35),
-        specRadius,
-        _glowSpecPaint,
-      );
-    }
+    // 5. White-hot center focal point
+    _glowSpecPaint.color = Colors.white.withAlpha(240);
+    canvas.drawCircle(center, r * 0.32, _glowSpecPaint);
+
+    // 6. Acrylic peg surface reflection glint
+    final specRadius = (r * 0.20).clamp(0.6, 2.0);
+    _glowSpecPaint.color = Colors.white;
+    canvas.drawCircle(
+      Offset(center.dx - r * 0.35, center.dy - r * 0.35),
+      specRadius,
+      _glowSpecPaint,
+    );
   }
 
   void _paintGlowBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3067,7 +3072,7 @@ class _PixelGridPainter extends CustomPainter {
             final color =
                 filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
-            _drawGlowCell(recorderCanvas, rect, color, effectiveCell);
+            _drawGlowCell(recorderCanvas, rect, color);
             if (colorblindMode) {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
@@ -3095,7 +3100,7 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   void _paintGlowOverlay(Canvas canvas, Size size) {
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
     final statics = _overlayStaticPicture;
@@ -3119,7 +3124,7 @@ class _PixelGridPainter extends CustomPainter {
           width: baseRect.width * (0.2 + 0.8 * grow),
           height: baseRect.height * (0.2 + 0.8 * grow),
         );
-        _drawGlowCell(canvas, scaledRect, color, effectiveCell);
+        _drawGlowCell(canvas, scaledRect, color);
       });
     }
 
@@ -3152,32 +3157,26 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _stickerFillPaint = Paint()..style = PaintingStyle.fill;
   static final Paint _stickerGlossPaint = Paint()..color = const Color(0x38FFFFFF);
 
-  void _drawStickerCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
-    if (effectiveCell < 3.0) {
-      canvas.drawRect(rect, _stickerFillPaint..color = base);
-      return;
-    }
-
-    final inset = (effectiveCell * 0.06).clamp(0.4, 1.8);
+  void _drawStickerCell(Canvas canvas, Rect rect, Color base) {
+    final w = min(rect.width, rect.height);
+    final inset = (w * 0.06).clamp(0.5, 1.8);
     final stickerRect = rect.deflate(inset);
-    final r = (effectiveCell * 0.22).clamp(1.5, 6.0);
+    final r = (w * 0.22).clamp(1.5, 5.5);
 
     // 1. Soft drop shadow (peel effect)
-    if (effectiveCell >= 5.0) {
-      final shadowOffset = (effectiveCell * 0.08).clamp(0.6, 2.2);
-      final shadowRect = stickerRect.shift(Offset(shadowOffset * 0.5, shadowOffset));
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(shadowRect, Radius.circular(r)),
-        _stickerShadowPaint,
-      );
-    }
+    final shadowOffset = (w * 0.08).clamp(0.6, 2.0);
+    final shadowRect = stickerRect.shift(Offset(shadowOffset * 0.5, shadowOffset));
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(shadowRect, Radius.circular(r)),
+      _stickerShadowPaint,
+    );
 
     // 2. Thick white die-cut vinyl border
     final whiteRRect = RRect.fromRectAndRadius(stickerRect, Radius.circular(r));
     canvas.drawRRect(whiteRRect, _stickerWhiteBorderPaint);
 
     // 3. Colored vinyl inner tile
-    final borderWidth = (effectiveCell * 0.12).clamp(0.8, 2.4);
+    final borderWidth = (w * 0.12).clamp(0.8, 2.2);
     final innerRect = stickerRect.deflate(borderWidth);
     final innerR = (r - borderWidth).clamp(0.5, 5.0);
     final innerRRect = RRect.fromRectAndRadius(innerRect, Radius.circular(innerR));
@@ -3185,25 +3184,23 @@ class _PixelGridPainter extends CustomPainter {
     canvas.drawRRect(innerRRect, _stickerFillPaint);
 
     // 4. Glossy vinyl sheen highlight across top-left
-    if (effectiveCell >= 7.0) {
-      final glossRect = Rect.fromLTWH(
-        innerRect.left + 0.5,
-        innerRect.top + 0.5,
-        innerRect.width * 0.55,
-        innerRect.height * 0.45,
-      );
-      final glossRRect = RRect.fromRectAndRadius(
-        glossRect,
-        Radius.circular(innerR * 0.8),
-      );
-      canvas.drawRRect(glossRRect, _stickerGlossPaint);
-    }
+    final glossRect = Rect.fromLTWH(
+      innerRect.left + 0.5,
+      innerRect.top + 0.5,
+      innerRect.width * 0.55,
+      innerRect.height * 0.45,
+    );
+    final glossRRect = RRect.fromRectAndRadius(
+      glossRect,
+      Radius.circular(innerR * 0.8),
+    );
+    canvas.drawRRect(glossRRect, _stickerGlossPaint);
   }
 
   void _paintStickerBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3239,7 +3236,7 @@ class _PixelGridPainter extends CustomPainter {
             final color =
                 filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
-            _drawStickerCell(recorderCanvas, rect, color, effectiveCell);
+            _drawStickerCell(recorderCanvas, rect, color);
             if (colorblindMode) {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
@@ -3269,7 +3266,7 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   void _paintStickerOverlay(Canvas canvas, Size size) {
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
     final statics = _overlayStaticPicture;
@@ -3293,7 +3290,7 @@ class _PixelGridPainter extends CustomPainter {
           width: baseRect.width * (0.2 + 0.8 * grow),
           height: baseRect.height * (0.2 + 0.8 * grow),
         );
-        _drawStickerCell(canvas, scaledRect, color, effectiveCell);
+        _drawStickerCell(canvas, scaledRect, color);
       });
     }
 
@@ -3329,51 +3326,49 @@ class _PixelGridPainter extends CustomPainter {
     ..color = const Color(0x18FFFFFF)
     ..style = PaintingStyle.stroke;
 
-  void _drawQuiltCell(Canvas canvas, Rect rect, Color base, double effectiveCell) {
-    if (effectiveCell < 3.0) {
-      canvas.drawRect(rect, _quiltPatchPaint..color = base);
-      return;
-    }
+  void _drawQuiltCell(Canvas canvas, Rect rect, Color base) {
+    final w = min(rect.width, rect.height);
 
+    // 1. Fabric patch swatch
     _quiltPatchPaint.color = base;
     canvas.drawRect(rect, _quiltPatchPaint);
 
-    if (effectiveCell >= 7.0) {
-      _quiltWeavePaint.strokeWidth = 0.5;
-      final step = (effectiveCell * 0.25).clamp(2.5, 6.0);
-      for (double x = rect.left + step; x < rect.right; x += step) {
-        canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), _quiltWeavePaint);
-      }
+    // 2. Subtle textile weave lines
+    _quiltWeavePaint.strokeWidth = 0.5;
+    final step = (w * 0.25).clamp(2.0, 6.0);
+    for (double x = rect.left + step; x < rect.right; x += step) {
+      canvas.drawLine(Offset(x, rect.top), Offset(x, rect.bottom), _quiltWeavePaint);
+    }
 
-      _quiltThreadPaint.strokeWidth = (effectiveCell * 0.07).clamp(0.6, 1.6);
-      final inset = (effectiveCell * 0.12).clamp(1.0, 3.0);
-      final r = rect.deflate(inset);
-      final dash = (effectiveCell * 0.18).clamp(1.5, 4.0);
-      final gap = (effectiveCell * 0.12).clamp(1.0, 3.0);
+    // 3. Running thread perimeter seam
+    _quiltThreadPaint.strokeWidth = (w * 0.07).clamp(0.6, 1.6);
+    final inset = (w * 0.12).clamp(1.0, 3.0);
+    final r = rect.deflate(inset);
+    final dash = (w * 0.18).clamp(1.5, 4.0);
+    final gap = (w * 0.12).clamp(1.0, 3.0);
 
-      for (double x = r.left; x < r.right; x += dash + gap) {
-        final end = min(x + dash, r.right);
-        canvas.drawLine(Offset(x, r.top), Offset(end, r.top), _quiltThreadPaint);
-      }
-      for (double x = r.left; x < r.right; x += dash + gap) {
-        final end = min(x + dash, r.right);
-        canvas.drawLine(Offset(x, r.bottom), Offset(end, r.bottom), _quiltThreadPaint);
-      }
-      for (double y = r.top; y < r.bottom; y += dash + gap) {
-        final end = min(y + dash, r.bottom);
-        canvas.drawLine(Offset(r.left, y), Offset(r.left, end), _quiltThreadPaint);
-      }
-      for (double y = r.top; y < r.bottom; y += dash + gap) {
-        final end = min(y + dash, r.bottom);
-        canvas.drawLine(Offset(r.right, y), Offset(r.right, end), _quiltThreadPaint);
-      }
+    for (double x = r.left; x < r.right; x += dash + gap) {
+      final end = min(x + dash, r.right);
+      canvas.drawLine(Offset(x, r.top), Offset(end, r.top), _quiltThreadPaint);
+    }
+    for (double x = r.left; x < r.right; x += dash + gap) {
+      final end = min(x + dash, r.right);
+      canvas.drawLine(Offset(x, r.bottom), Offset(end, r.bottom), _quiltThreadPaint);
+    }
+    for (double y = r.top; y < r.bottom; y += dash + gap) {
+      final end = min(y + dash, r.bottom);
+      canvas.drawLine(Offset(r.left, y), Offset(r.left, end), _quiltThreadPaint);
+    }
+    for (double y = r.top; y < r.bottom; y += dash + gap) {
+      final end = min(y + dash, r.bottom);
+      canvas.drawLine(Offset(r.right, y), Offset(r.right, end), _quiltThreadPaint);
     }
   }
 
   void _paintQuiltBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3407,7 +3402,7 @@ class _PixelGridPainter extends CustomPainter {
             final color =
                 filledColors[expectedNumber] ??
                 AppStyle.numberToColor(expectedNumber);
-            _drawQuiltCell(recorderCanvas, rect, color, effectiveCell);
+            _drawQuiltCell(recorderCanvas, rect, color);
             if (colorblindMode) {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
@@ -3441,7 +3436,7 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   void _paintQuiltOverlay(Canvas canvas, Size size) {
-    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
 
     _ensureOverlayStatics(size, cw, ch, cellGap, detailStep);
     final statics = _overlayStaticPicture;
@@ -3465,7 +3460,7 @@ class _PixelGridPainter extends CustomPainter {
           width: baseRect.width * (0.2 + 0.8 * grow),
           height: baseRect.height * (0.2 + 0.8 * grow),
         );
-        _drawQuiltCell(canvas, scaledRect, color, effectiveCell);
+        _drawQuiltCell(canvas, scaledRect, color);
       });
     }
 
