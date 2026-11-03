@@ -690,9 +690,10 @@ class _ColoringScreenState extends State<ColoringScreen>
   void _adjustCellSize() {
     final screenSize = MediaQuery.of(context).size;
     final pad = MediaQuery.of(context).padding;
-    final availableWidth = screenSize.width - 32;
-    // Top bar (~64) + toolbar/palette/banner (~250).
-    final availableHeight = screenSize.height - pad.bottom - 250;
+    final availableWidth = screenSize.width - 20;
+    // Top bar (~75) + compact bottom (~165). Total deduction is reduced,
+    // maximizing canvas space for coloring.
+    final availableHeight = screenSize.height - pad.top - pad.bottom - 175;
     if (widget.art.gridWidth <= 0 || widget.art.gridHeight <= 0) return;
     final fromW = availableWidth / widget.art.gridWidth;
     final fromH = availableHeight / widget.art.gridHeight;
@@ -908,9 +909,9 @@ class _ColoringScreenState extends State<ColoringScreen>
 
               // 1. Top Bar (Overlay)
               Positioned(
-                top: statusBarHeight + 8,
-                left: 16,
-                right: 16,
+                top: statusBarHeight + 6,
+                left: 12,
+                right: 12,
                 child: ListenableBuilder(
                   listenable: provider,
                   builder: (context, _) {
@@ -930,9 +931,9 @@ class _ColoringScreenState extends State<ColoringScreen>
                 ),
               ),
 
-              // 2. Mini Preview in Top Left
+              // 2. Mini Preview in Top Left (directly below back button)
               Positioned(
-                top: statusBarHeight + 116,
+                top: statusBarHeight + 74,
                 left: 12,
                 child: ListenableBuilder(
                   listenable: provider,
@@ -955,76 +956,6 @@ class _ColoringScreenState extends State<ColoringScreen>
               ConfettiOverlay(
                 animation: _confettiController,
                 seed: widget.art.id.hashCode,
-              ),
-
-              // 3c. Active-color swatch chip — persists above the toolbar so
-              //     the user always knows which number is selected, even when
-              //     zoomed deeply into the grid.
-              ListenableBuilder(
-                listenable: provider,
-                builder: (context, _) {
-                  final isComplete =
-                      provider.currentArt?.id == widget.art.id && provider.isComplete;
-                  if (isComplete || _isReplaying || provider.currentArt == null) {
-                    return const SizedBox.shrink();
-                  }
-                  final selectedNum = provider.selectedNumber;
-                  final art = provider.currentArt!;
-                  final color = art.colorForNumber(selectedNum) ??
-                      AppStyle.numberToColor(selectedNum);
-                  final (filled, total) = provider.cellCountsForNumber(selectedNum);
-                  final remaining = total - filled;
-                  return Positioned(
-                    right: 12,
-                    bottom: (settings.isProUser ? 145 : 215),
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 200),
-                      child: Container(
-                        key: ValueKey(selectedNum),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: color,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: color.withAlpha(120),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
-                            ),
-                          ],
-                          border: Border.all(
-                            color: Colors.white.withAlpha(120),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '$selectedNum',
-                              style: TextStyle(
-                                color: _activeSwatchTextColor(color),
-                                fontSize: 15,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                            if (total > 0) ...[
-                              const SizedBox(width: 5),
-                              Text(
-                                '$remaining left',
-                                style: TextStyle(
-                                  color: _activeSwatchTextColor(color).withAlpha(200),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
               ),
 
               // 4. Bottom Section: the toolbar/palette/banner while there's
@@ -1074,28 +1005,22 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  /// Returns black or white text/icon color for best contrast on [bg].
-  Color _activeSwatchTextColor(Color bg) {
-    final luminance = 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b;
-    return luminance > 0.5 ? Colors.black87 : Colors.white;
-  }
-
   Widget _buildMiniMap(ColoringProvider provider, bool isDark) {
     return Container(
-      width: 80,
-      height: 80,
+      width: 64,
+      height: 64,
       decoration: BoxDecoration(
-        color: isDark ? Colors.black.withAlpha(120) : Colors.white.withAlpha(200),
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? Colors.black.withAlpha(120) : Colors.white,
+        borderRadius: BorderRadius.circular(10),
         border: Border.all(
-          color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
+          color: isDark ? Colors.white.withAlpha(30) : const Color(0xFF80DEEA),
           width: 1.5,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(20),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
+            color: Colors.black.withAlpha(15),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
@@ -2786,138 +2711,181 @@ class _ColoringScreenState extends State<ColoringScreen>
   ) {
     final settings = _settings ?? context.read<AppSettingsProvider>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(20),
-      // BackdropFilter removed: a persistent real-time blur here re-rasterized
-      // the whole backdrop every frame (major raster-thread cost). A near-opaque
-      // solid panel gives the same legibility for almost no GPU cost.
-      child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: isDark ? Colors.black.withAlpha(215) : Colors.white.withAlpha(236),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(15),
-                blurRadius: 10,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  GestureDetector(
-                    onTap: () {
-                      if (_isReplaying) {
-                        _replayController.stop();
-                        _replayController.reset();
-                        _finishReplay();
-                        return;
-                      }
-                      Navigator.pop(context);
-                    },
-                    child: Icon(
-                      Icons.arrow_back_ios_new_rounded,
-                      size: 18,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: _ProgressGiftsBar(
-                      progress: provider.progress,
-                      isStroking: provider.isStroking,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  GestureDetector(
-                    onTap: () => _showAmbientControls(context, settings),
-                    child: Icon(
-                      settings.ambientTrack != 'none'
-                          ? Icons.music_note_rounded
-                          : Icons.music_off_rounded,
-                      size: 20,
-                      color: settings.ambientTrack != 'none'
-                          ? AppStyle.primary
-                          : (isDark ? Colors.white60 : Colors.black54),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  GestureDetector(
-                    onTap: () => _zoomBy(0),
-                    child: Icon(
-                      Icons.fit_screen_rounded,
-                      size: 20,
-                      color: isDark ? Colors.white : Colors.black87,
-                    ),
+    final circleBg = isDark ? const Color(0xFF232530) : Colors.white;
+    final circleBorder = isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(15);
+    final iconColor = isDark ? Colors.white : Colors.black87;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        // 1. Top Right Diamond / Store Pill
+        GestureDetector(
+          onTap: () => _showShop(provider, settings),
+          child: AnimatedScale(
+            scale: _diamondChipPulse ? 1.15 : 1.0,
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutBack,
+            child: Container(
+              key: _diamondChipKey,
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3.5),
+              decoration: BoxDecoration(
+                color: circleBg,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark ? Colors.white.withAlpha(30) : const Color(0xFFBBDEFB),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(12),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
                   ),
                 ],
               ),
-              const SizedBox(height: 6),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Progress',
+                  const Icon(
+                    Icons.storefront_rounded,
+                    color: Color(0xFF1E88E5),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 5),
+                  RollingCount(
+                    settings.diamondsAvailable,
                     style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white70 : Colors.black54,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                      color: isDark ? Colors.white : Colors.black87,
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => _showShop(provider, settings),
-                    child: AnimatedScale(
-                      scale: _diamondChipPulse ? 1.15 : 1.0,
-                      duration: const Duration(milliseconds: 180),
-                      curve: Curves.easeOutBack,
-                      child: Container(
-                      key: _diamondChipKey,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.storefront_rounded,
-                            color: Colors.indigoAccent,
-                            size: 12,
-                          ),
-                          const SizedBox(width: 4),
-                          RollingCount(
-                            settings.diamondsAvailable,
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
-                              color: isDark ? Colors.white : Colors.black87,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          const Icon(
-                            Icons.diamond_rounded,
-                            color: Colors.orange,
-                            size: 12,
-                          ),
-                        ],
-                      ),
-                      ),
-                    ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.diamond_rounded,
+                    color: Color(0xFFFF9800),
+                    size: 14,
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
+
+        // 2. Control Row: Circular Back | Centered Progress Bar with Gifts | Fit Screen
+        Row(
+          children: [
+            // Circular Back Button
+            GestureDetector(
+              onTap: () {
+                if (_isReplaying) {
+                  _replayController.stop();
+                  _replayController.reset();
+                  _finishReplay();
+                  return;
+                }
+                Navigator.pop(context);
+              },
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: circleBg,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: circleBorder, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(12),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.arrow_back_rounded,
+                    size: 20,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Progress bar with gift milestones and %
+            Expanded(
+              child: _ProgressGiftsBar(
+                progress: provider.progress,
+                isStroking: provider.isStroking,
+              ),
+            ),
+            const SizedBox(width: 10),
+
+            // Ambient sound / music toggle (compact)
+            GestureDetector(
+              onTap: () => _showAmbientControls(context, settings),
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  color: circleBg,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: circleBorder, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(10),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    settings.ambientTrack != 'none'
+                        ? Icons.music_note_rounded
+                        : Icons.music_off_rounded,
+                    size: 17,
+                    color: settings.ambientTrack != 'none'
+                        ? AppStyle.primary
+                        : (isDark ? Colors.white60 : Colors.black45),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+
+            // Circular Fit / Expand Button
+            GestureDetector(
+              onTap: () => _zoomBy(0),
+              child: Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: circleBg,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: circleBorder, width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(12),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Center(
+                  child: Icon(
+                    Icons.crop_free_rounded,
+                    size: 20,
+                    color: iconColor,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -3180,25 +3148,23 @@ class _ColoringScreenState extends State<ColoringScreen>
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      // BackdropFilter removed: the persistent real-time backdrop blur was a
-      // major raster-thread cost. Near-opaque solid panel instead.
+      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
       child: Container(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+          padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
           decoration: BoxDecoration(
-            color: isDark ? Colors.black.withAlpha(222) : Colors.white.withAlpha(240),
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            color: isDark ? const Color(0xFF161720) : Colors.white,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
             border: Border(
               top: BorderSide(
-                color: isDark ? Colors.white.withAlpha(30) : Colors.black.withAlpha(15),
-                width: 1.5,
+                color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(12),
+                width: 1,
               ),
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withAlpha(15),
-                blurRadius: 10,
-                offset: const Offset(0, -3),
+                color: Colors.black.withAlpha(10),
+                blurRadius: 8,
+                offset: const Offset(0, -2),
               ),
             ],
           ),
@@ -3210,7 +3176,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 settings: settings,
                 onHint: () => _useHint(provider, settings),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
               NumberPalette(
                 provider: provider,
                 onNumberTapped: (number) => _locateNextCellForNumber(number),
@@ -3223,7 +3189,7 @@ class _ColoringScreenState extends State<ColoringScreen>
               // lives here for free users.
               if (!settings.isProUser)
                 const Padding(
-                  padding: EdgeInsets.only(top: 10),
+                  padding: EdgeInsets.only(top: 4),
                   child: AdBanner(),
                 ),
             ],
@@ -3245,10 +3211,10 @@ class _ColoringScreenState extends State<ColoringScreen>
     final screenCenter = MatrixUtils.transformPoint(matrix, Offset(cx, cy));
 
     final mediaQuery = MediaQuery.maybeOf(context);
-    final topSafe = (mediaQuery?.padding.top ?? 24.0) + 75.0;
+    final topSafe = (mediaQuery?.padding.top ?? 24.0) + 70.0;
     final bottomSafe = _viewerSize.height -
         ((mediaQuery?.padding.bottom ?? 16.0) +
-            ((_settings?.isProUser ?? false) ? 150.0 : 220.0));
+            ((_settings?.isProUser ?? false) ? 115.0 : 175.0));
     const horizontalSafe = 24.0;
 
     final safeArea = Rect.fromLTRB(
@@ -3825,12 +3791,13 @@ class _ProgressGiftsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     // Moving LayoutBuilder outside the animation builder prevents layout passes
     // on every animation frame. When isStroking is true, duration is zero to
     // eliminate continuous ticker rebuilds during rapid swipe fills.
     return LayoutBuilder(
       builder: (context, constraints) {
-        final trackWidth = max(0.0, constraints.maxWidth - 52);
+        final trackWidth = max(0.0, constraints.maxWidth - 46);
         return TweenAnimationBuilder<double>(
           tween: Tween(end: progress.clamp(0.0, 1.0)),
           duration: isStroking
@@ -3842,7 +3809,7 @@ class _ProgressGiftsBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 28,
+                    height: 24,
                     child: Stack(
                       alignment: Alignment.centerLeft,
                       clipBehavior: Clip.none,
@@ -3850,8 +3817,8 @@ class _ProgressGiftsBar extends StatelessWidget {
                         Positioned(
                           left: 0,
                           right: 0,
-                          top: 6,
-                          height: 11,
+                          top: 9,
+                          height: 6,
                           child: RepaintBoundary(
                             child: CustomPaint(
                               painter: _ProgressBarTrackPainter(progress: animated),
@@ -3859,31 +3826,34 @@ class _ProgressGiftsBar extends StatelessWidget {
                           ),
                         ),
                         Positioned(
-                          left: (trackWidth * 0.30) - 9,
+                          left: (trackWidth * 0.30) - 8,
+                          top: 3.5,
                           child: _buildGiftIcon(context, 1, animated >= 0.30),
                         ),
                         Positioned(
-                          left: (trackWidth * 0.65) - 9,
+                          left: (trackWidth * 0.65) - 8,
+                          top: 3.5,
                           child: _buildGiftIcon(context, 2, animated >= 0.65),
                         ),
                         Positioned(
-                          left: trackWidth - 9,
+                          left: trackWidth - 8,
+                          top: 3.5,
                           child: _buildGiftIcon(context, 3, animated >= 1.0),
                         ),
                       ],
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 SizedBox(
-                  width: 44,
+                  width: 38,
                   child: Text(
                     '${(animated * 100).toStringAsFixed(1)}%',
-                    textAlign: TextAlign.right,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.black87,
+                    textAlign: TextAlign.left,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: isDark ? Colors.white70 : Colors.black87,
                     ),
                   ),
                 ),

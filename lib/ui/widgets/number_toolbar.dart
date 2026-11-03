@@ -131,7 +131,7 @@ class NumberToolbar extends StatelessWidget {
     final hintsAvailable = settings.hintsAvailable;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 2.0),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
@@ -265,7 +265,6 @@ class _ToolCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAd = badgeValue == 'ad';
-    final isShop = badgeValue == 'Shop';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PressableScale(
@@ -276,24 +275,24 @@ class _ToolCircleButton extends StatelessWidget {
         children: [
           AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 52,
-            height: 52,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
               color: isActive
                   ? (isDark ? AppStyle.primary.withAlpha(70) : AppStyle.primary.withAlpha(35))
                   : (isDark ? Colors.white.withAlpha(15) : Colors.white),
               shape: BoxShape.circle,
               border: Border.all(
-                color: isActive ? AppStyle.primary : (isDark ? Colors.white.withAlpha(30) : Colors.grey.shade300),
-                width: 2,
+                color: isActive ? AppStyle.primary : (isDark ? Colors.white.withAlpha(30) : const Color(0xFFE0E0E0)),
+                width: 1.5,
               ),
               boxShadow: [
                 BoxShadow(
                   color: isActive
-                      ? AppStyle.primary.withAlpha(60)
-                      : (isDark ? Colors.black.withAlpha(60) : Colors.black.withAlpha(15)),
-                  blurRadius: isActive ? 12 : 8,
-                  offset: const Offset(0, 3),
+                      ? AppStyle.primary.withAlpha(50)
+                      : (isDark ? Colors.black.withAlpha(50) : Colors.black.withAlpha(10)),
+                  blurRadius: isActive ? 8 : 4,
+                  offset: const Offset(0, 2),
                 ),
               ],
             ),
@@ -304,47 +303,42 @@ class _ToolCircleButton extends StatelessWidget {
           // Badge: hidden when showBadge=false (Shop button uses inline icon)
           if (showBadge)
             Positioned(
-              top: isAd ? -4 : -2,
-              right: isAd || isShop ? -8 : -2,
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
+              top: -3,
+              right: -3,
+              child: Container(
                 padding: EdgeInsets.symmetric(
-                  horizontal: (isAd || isShop) ? 6 : 5,
-                  vertical: (isAd || isShop) ? 3 : 4,
+                  horizontal: isAd ? 4 : 3,
+                  vertical: 1.5,
                 ),
                 decoration: BoxDecoration(
-                  // Shop badge gets a cyan-to-indigo gradient
-                  gradient: isShop
-                      ? const LinearGradient(
-                          colors: [Color(0xFF00BCD4), Color(0xFF3F51B5)],
-                        )
-                      : null,
-                  color: isShop
-                      ? null
-                      : (badgeColor ?? (isAd ? Colors.blue : Colors.orange)),
-                  borderRadius: BorderRadius.circular(10),
-                  shape: BoxShape.rectangle,
+                  color: badgeColor ?? (isAd ? const Color(0xFFFF9800) : const Color(0xFFFF9800)),
+                  borderRadius: BorderRadius.circular(9),
                   border: Border.all(
                     color: Colors.white,
                     width: 1.5,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
                 ),
-                constraints: BoxConstraints(
-                  minWidth: (isAd || isShop) ? 26 : 18,
-                  minHeight: 20,
+                constraints: const BoxConstraints(
+                  minWidth: 16,
+                  minHeight: 16,
                 ),
                 child: Center(
-                  child: isShop
-                      ? const Icon(Icons.diamond_rounded, color: Colors.white, size: 11)
-                      : Text(
-                          badgeValue,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            height: 1.05,
-                          ),
-                        ),
+                  child: Text(
+                    isAd ? 'AD' : badgeValue,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                    ),
+                  ),
                 ),
               ),
             ),

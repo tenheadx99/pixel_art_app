@@ -59,7 +59,7 @@ class _NumberPaletteState extends State<NumberPalette> {
     _lastSelected = selected;
     final index = numbers.indexOf(selected);
     if (index < 0 || !_scrollController.hasClients) return;
-    const itemExtent = 74.0; // chip width (62 selected / 52 unselected) + margins
+    const itemExtent = 52.0; // chip width (44 selected / 40 unselected) + margins
     final viewport = _scrollController.position.viewportDimension;
     final target = (index * itemExtent - (viewport - itemExtent) / 2).clamp(
       0.0,
@@ -80,10 +80,6 @@ class _NumberPaletteState extends State<NumberPalette> {
     final incomplete = art.sortedNumbers
         .where((n) => provider.fillPercentForNumber(n) < 1.0)
         .toSet();
-    // Pre-fetch counts once per build — O(1) map lookups per chip.
-    final counts = {
-      for (final n in art.sortedNumbers) n: provider.cellCountsForNumber(n),
-    };
     // Numbers that completed since the previous build start their send-off.
     for (final n in _prevIncomplete) {
       if (!incomplete.contains(n) && !_celebrating.containsKey(n)) {
@@ -111,7 +107,7 @@ class _NumberPaletteState extends State<NumberPalette> {
     });
 
     return SizedBox(
-      height: 88,
+      height: 56,
       child: ListView.builder(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
@@ -124,11 +120,8 @@ class _NumberPaletteState extends State<NumberPalette> {
           final isSelected = provider.selectedNumber == number;
           final fillPercent = provider.fillPercentForNumber(number);
           final isCompleted = fillPercent >= 1.0;
-          final (filled, total) = counts[number] ?? (0, 0);
-          final remaining = total - filled;
 
-          // Selected chip is 60 px, unselected 52 px (no continuous animation tickers)
-          final chipSize = isSelected ? 60.0 : 52.0;
+          final chipSize = isSelected ? 44.0 : 40.0;
 
           Widget chip = Container(
             width: chipSize,
@@ -139,9 +132,9 @@ class _NumberPaletteState extends State<NumberPalette> {
               boxShadow: [
                 BoxShadow(
                   color: isSelected
-                      ? color.withAlpha(100)
-                      : Colors.black.withAlpha(20),
-                  blurRadius: isSelected ? 8 : 4,
+                      ? color.withAlpha(90)
+                      : Colors.black.withAlpha(15),
+                  blurRadius: isSelected ? 6 : 3,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -151,50 +144,33 @@ class _NumberPaletteState extends State<NumberPalette> {
                   ? Icon(
                       Icons.check_rounded,
                       color: _textColorForBg(color),
-                      size: isSelected ? 28 : 24,
+                      size: 22,
                     )
-                  : Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          '$number',
-                          style: TextStyle(
-                            color: _textColorForBg(color),
-                            fontSize: isSelected ? 20 : 16,
-                            fontWeight: FontWeight.bold,
-                            height: 1.1,
-                          ),
-                        ),
-                        if (!isCompleted && total > 0)
-                          Text(
-                            '$remaining',
-                            style: TextStyle(
-                              color: _textColorForBg(color).withAlpha(180),
-                              fontSize: isSelected ? 9 : 8,
-                              fontWeight: FontWeight.w600,
-                              height: 1.1,
-                            ),
-                          ),
-                      ],
+                  : Text(
+                      '$number',
+                      style: TextStyle(
+                        color: _textColorForBg(color),
+                        fontSize: isSelected ? 18 : 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
             ),
           );
 
-          // Progress ring on every chip: thick + green for selected,
-          // thin + white/grey for unselected (shows at-a-glance progress).
+          // Progress ring on chips: green for selected
           chip = CustomPaint(
             painter: ProgressRingPainter(
               progress: fillPercent.clamp(0.0, 1.0),
-              strokeWidth: isSelected ? 3.5 : 2.0,
+              strokeWidth: isSelected ? 3.0 : 1.5,
               progressColor: isSelected
                   ? const Color(0xFF4CAF50)
-                  : Colors.white.withAlpha(200),
+                  : Colors.white.withAlpha(160),
               backgroundColor: isSelected
                   ? const Color(0xFFE0E0E0)
-                  : Colors.white.withAlpha(60),
+                  : Colors.white.withAlpha(40),
             ),
             child: Padding(
-              padding: const EdgeInsets.all(5.0),
+              padding: const EdgeInsets.all(4.0),
               child: chip,
             ),
           );
@@ -224,8 +200,8 @@ class _NumberPaletteState extends State<NumberPalette> {
             child: Center(
               child: Padding(
                 padding: EdgeInsets.only(
-                  left: index == 0 ? 12.0 : 6.0,
-                  right: index == numbers.length - 1 ? 12.0 : 6.0,
+                  left: index == 0 ? 8.0 : 4.0,
+                  right: index == numbers.length - 1 ? 8.0 : 4.0,
                 ),
                 child: chip,
               ),
