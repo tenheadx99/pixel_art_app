@@ -3147,54 +3147,64 @@ class _ColoringScreenState extends State<ColoringScreen>
     AppSettingsProvider settings,
   ) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return ClipRRect(
-      borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-      child: Container(
-          padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-          decoration: BoxDecoration(
-            color: isDark ? const Color(0xFF161720) : Colors.white,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-            border: Border(
-              top: BorderSide(
-                color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(12),
-                width: 1,
-              ),
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withAlpha(10),
-                blurRadius: 8,
-                offset: const Offset(0, -2),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              NumberToolbar(
-                provider: provider,
-                settings: settings,
-                onHint: () => _useHint(provider, settings),
-              ),
-              const SizedBox(height: 4),
-              NumberPalette(
-                provider: provider,
-                onNumberTapped: (number) => _locateNextCellForNumber(number),
-                onNumberReTapped: (number) {
-                  provider.cycleNextFillable();
-                  _locateNextCellForNumber(number, force: true);
-                },
-              ),
-              // The coloring screen is where users spend their time — the banner
-              // lives here for free users.
-              if (!settings.isProUser)
-                const Padding(
-                  padding: EdgeInsets.only(top: 4),
-                  child: AdBanner(),
-                ),
-            ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 1. Floating Tools Row (Transparent background over canvas)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: NumberToolbar(
+            provider: provider,
+            settings: settings,
+            onHint: () => _useHint(provider, settings),
           ),
         ),
+
+        // 2. Palette & Ad Banner (Solid background container)
+        ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
+            decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF161720) : Colors.white,
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+              border: Border(
+                top: BorderSide(
+                  color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(12),
+                  width: 1,
+                ),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(10),
+                  blurRadius: 8,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                NumberPalette(
+                  provider: provider,
+                  onNumberTapped: (number) => _locateNextCellForNumber(number),
+                  onNumberReTapped: (number) {
+                    provider.cycleNextFillable();
+                    _locateNextCellForNumber(number, force: true);
+                  },
+                ),
+                // The coloring screen is where users spend their time — the banner
+                // lives here for free users.
+                if (!settings.isProUser)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: AdBanner(),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
