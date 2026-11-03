@@ -3160,23 +3160,25 @@ class _ColoringScreenState extends State<ColoringScreen>
           ),
         ),
 
-        // 2. Palette & Ad Banner (Solid background container)
+        // 2. Palette & Ad Banner (Semi-transparent background container)
         ClipRRect(
           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
           child: Container(
             padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
             decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF161720) : Colors.white,
+              color: isDark
+                  ? const Color(0xFF161720).withAlpha(190)
+                  : Colors.white.withAlpha(210),
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
               border: Border(
                 top: BorderSide(
-                  color: isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(12),
+                  color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(10),
                   width: 1,
                 ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(10),
+                  color: Colors.black.withAlpha(8),
                   blurRadius: 8,
                   offset: const Offset(0, -2),
                 ),
