@@ -127,12 +127,10 @@ class _NumberPaletteState extends State<NumberPalette> {
           final (filled, total) = counts[number] ?? (0, 0);
           final remaining = total - filled;
 
-          // Selected chip is 62 px, unselected 52 px — spring-animated.
-          final chipSize = isSelected ? 62.0 : 52.0;
+          // Selected chip is 60 px, unselected 52 px (no continuous animation tickers)
+          final chipSize = isSelected ? 60.0 : 52.0;
 
-          Widget chip = AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOutBack,
+          Widget chip = Container(
             width: chipSize,
             height: chipSize,
             decoration: BoxDecoration(
@@ -143,7 +141,7 @@ class _NumberPaletteState extends State<NumberPalette> {
                   color: isSelected
                       ? color.withAlpha(100)
                       : Colors.black.withAlpha(20),
-                  blurRadius: isSelected ? 10 : 4,
+                  blurRadius: isSelected ? 8 : 4,
                   offset: const Offset(0, 2),
                 ),
               ],

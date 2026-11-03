@@ -930,9 +930,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                 ),
               ),
 
-              // 2. Mini Preview in Top Left — hidden while actively painting
-              //    (isStroking) to avoid covering cells mid-stroke, fades back
-              //    500 ms after the last stroke ends.
+              // 2. Mini Preview in Top Left
               Positioned(
                 top: statusBarHeight + 116,
                 left: 12,
@@ -942,13 +940,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                     if (provider.currentArt?.id != widget.art.id || _isReplaying) {
                       return const SizedBox.shrink();
                     }
-                    return AnimatedOpacity(
-                      duration: provider.isStroking
-                          ? const Duration(milliseconds: 80)
-                          : const Duration(milliseconds: 500),
-                      opacity: provider.isStroking ? 0.0 : 1.0,
-                      child: _buildMiniMap(provider, isDark),
-                    );
+                    return _buildMiniMap(provider, isDark);
                   },
                 ),
               ),
@@ -963,25 +955,6 @@ class _ColoringScreenState extends State<ColoringScreen>
               ConfettiOverlay(
                 animation: _confettiController,
                 seed: widget.art.id.hashCode,
-              ),
-
-              // 3b. Canvas vignette — soft dark edges pull focus to the art.
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: RadialGradient(
-                        center: Alignment.center,
-                        radius: 1.0,
-                        colors: [
-                          Colors.transparent,
-                          Colors.black.withAlpha(isDark ? 55 : 30),
-                        ],
-                        stops: const [0.55, 1.0],
-                      ),
-                    ),
-                  ),
-                ),
               ),
 
               // 3c. Active-color swatch chip — persists above the toolbar so
@@ -3247,21 +3220,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                 },
               ),
               // The coloring screen is where users spend their time — the banner
-              // lives here for free users. It slides out during active paint
-              // strokes to avoid visual noise and slides back in after.
+              // lives here for free users.
               if (!settings.isProUser)
-                AnimatedSlide(
-                  offset: provider.isStroking
-                      ? const Offset(0, 1.5)
-                      : Offset.zero,
-                  duration: provider.isStroking
-                      ? const Duration(milliseconds: 120)
-                      : const Duration(milliseconds: 400),
-                  curve: Curves.easeOutCubic,
-                  child: const Padding(
-                    padding: EdgeInsets.only(top: 10),
-                    child: AdBanner(),
-                  ),
+                const Padding(
+                  padding: EdgeInsets.only(top: 10),
+                  child: AdBanner(),
                 ),
             ],
           ),
@@ -3794,7 +3757,6 @@ class _ProgressBarTrackPainter extends CustomPainter {
 
   static final Paint _bgPaint = Paint()..color = Colors.grey.shade200;
   static final Paint _barPaint = Paint();
-  static final Paint _glowPaint = Paint()..style = PaintingStyle.fill;
   static const List<Color> _gradientColors = [
     Color(0xFF81C784),
     Color(0xFF43A047),
@@ -3820,16 +3782,6 @@ class _ProgressBarTrackPainter extends CustomPainter {
       canvas.save();
       canvas.clipRRect(trackRRect);
       canvas.drawRect(fillRect, _barPaint);
-      // Soft top highlight stripe for a raised-pill feel
-      _glowPaint.shader = ui.Gradient.linear(
-        Offset.zero,
-        Offset(0, size.height * 0.5),
-        [Colors.white.withAlpha(100), Colors.transparent],
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(0, 0, fillWidth, size.height * 0.5),
-        _glowPaint,
-      );
       canvas.restore();
     }
   }
