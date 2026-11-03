@@ -232,7 +232,8 @@ class NumberToolbar extends StatelessWidget {
                 color: Colors.cyanAccent.shade400,
                 size: 24,
               ),
-              badgeValue: 'Shop',
+              badgeValue: '',
+              showBadge: false,
               isActive: false,
               onTap: () {
                 DiamondShopSheet.show(context);
@@ -248,6 +249,7 @@ class _ToolCircleButton extends StatelessWidget {
   final Widget icon;
   final String badgeValue;
   final bool isActive;
+  final bool showBadge;
   final Color? badgeColor;
   final VoidCallback? onTap;
 
@@ -255,6 +257,7 @@ class _ToolCircleButton extends StatelessWidget {
     required this.icon,
     required this.badgeValue,
     required this.isActive,
+    this.showBadge = true,
     this.badgeColor,
     this.onTap,
   });
@@ -262,6 +265,7 @@ class _ToolCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isAd = badgeValue == 'ad';
+    final isShop = badgeValue == 'Shop';
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return PressableScale(
@@ -297,42 +301,53 @@ class _ToolCircleButton extends StatelessWidget {
               child: icon,
             ),
           ),
-          // Orange Badge in Top Right (or Blue for ad refills)
-          Positioned(
-            top: isAd ? -4 : -2,
-            right: isAd ? -6 : -2,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              padding: EdgeInsets.symmetric(
-                horizontal: isAd ? 6 : 4,
-                vertical: isAd ? 2 : 4,
-              ),
-              decoration: BoxDecoration(
-                color: badgeColor ?? (isAd ? Colors.blue : Colors.orange),
-                borderRadius: BorderRadius.circular(10),
-                shape: BoxShape.rectangle,
-                border: Border.all(
-                  color: Colors.white,
-                  width: 1.5,
+          // Badge: hidden when showBadge=false (Shop button uses inline icon)
+          if (showBadge)
+            Positioned(
+              top: isAd ? -4 : -2,
+              right: isAd || isShop ? -8 : -2,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: EdgeInsets.symmetric(
+                  horizontal: (isAd || isShop) ? 6 : 5,
+                  vertical: (isAd || isShop) ? 3 : 4,
                 ),
-              ),
-              constraints: BoxConstraints(
-                minWidth: isAd ? 24 : 18,
-                minHeight: 18,
-              ),
-              child: Center(
-                child: Text(
-                  badgeValue,
-                  style: const TextStyle(
+                decoration: BoxDecoration(
+                  // Shop badge gets a cyan-to-indigo gradient
+                  gradient: isShop
+                      ? const LinearGradient(
+                          colors: [Color(0xFF00BCD4), Color(0xFF3F51B5)],
+                        )
+                      : null,
+                  color: isShop
+                      ? null
+                      : (badgeColor ?? (isAd ? Colors.blue : Colors.orange)),
+                  borderRadius: BorderRadius.circular(10),
+                  shape: BoxShape.rectangle,
+                  border: Border.all(
                     color: Colors.white,
-                    fontSize: 8,
-                    fontWeight: FontWeight.bold,
-                    height: 1.05,
+                    width: 1.5,
                   ),
+                ),
+                constraints: BoxConstraints(
+                  minWidth: (isAd || isShop) ? 26 : 18,
+                  minHeight: 20,
+                ),
+                child: Center(
+                  child: isShop
+                      ? const Icon(Icons.diamond_rounded, color: Colors.white, size: 11)
+                      : Text(
+                          badgeValue,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            height: 1.05,
+                          ),
+                        ),
                 ),
               ),
             ),
-          ),
         ],
       ),
     );

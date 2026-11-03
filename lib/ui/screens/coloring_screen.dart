@@ -930,7 +930,9 @@ class _ColoringScreenState extends State<ColoringScreen>
                 ),
               ),
 
-              // 2. Mini Preview in Top Left
+              // 2. Mini Preview in Top Left — hidden while actively painting
+              //    (isStroking) to avoid covering cells mid-stroke, fades back
+              //    500 ms after the last stroke ends.
               Positioned(
                 top: statusBarHeight + 116,
                 left: 12,
@@ -940,7 +942,13 @@ class _ColoringScreenState extends State<ColoringScreen>
                     if (provider.currentArt?.id != widget.art.id || _isReplaying) {
                       return const SizedBox.shrink();
                     }
-                    return _buildMiniMap(provider, isDark);
+                    return AnimatedOpacity(
+                      duration: provider.isStroking
+                          ? const Duration(milliseconds: 80)
+                          : const Duration(milliseconds: 500),
+                      opacity: provider.isStroking ? 0.0 : 1.0,
+                      child: _buildMiniMap(provider, isDark),
+                    );
                   },
                 ),
               ),
@@ -955,6 +963,95 @@ class _ColoringScreenState extends State<ColoringScreen>
               ConfettiOverlay(
                 animation: _confettiController,
                 seed: widget.art.id.hashCode,
+              ),
+
+              // 3b. Canvas vignette — soft dark edges pull focus to the art.
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: Alignment.center,
+                        radius: 1.0,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withAlpha(isDark ? 55 : 30),
+                        ],
+                        stops: const [0.55, 1.0],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+
+              // 3c. Active-color swatch chip — persists above the toolbar so
+              //     the user always knows which number is selected, even when
+              //     zoomed deeply into the grid.
+              ListenableBuilder(
+                listenable: provider,
+                builder: (context, _) {
+                  final isComplete =
+                      provider.currentArt?.id == widget.art.id && provider.isComplete;
+                  if (isComplete || _isReplaying || provider.currentArt == null) {
+                    return const SizedBox.shrink();
+                  }
+                  final selectedNum = provider.selectedNumber;
+                  final art = provider.currentArt!;
+                  final color = art.colorForNumber(selectedNum) ??
+                      AppStyle.numberToColor(selectedNum);
+                  final (filled, total) = provider.cellCountsForNumber(selectedNum);
+                  final remaining = total - filled;
+                  return Positioned(
+                    right: 12,
+                    bottom: (settings.isProUser ? 145 : 215),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: Container(
+                        key: ValueKey(selectedNum),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: color,
+                          borderRadius: BorderRadius.circular(20),
+                          boxShadow: [
+                            BoxShadow(
+                              color: color.withAlpha(120),
+                              blurRadius: 10,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                          border: Border.all(
+                            color: Colors.white.withAlpha(120),
+                            width: 1.5,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '$selectedNum',
+                              style: TextStyle(
+                                color: _activeSwatchTextColor(color),
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            if (total > 0) ...[
+                              const SizedBox(width: 5),
+                              Text(
+                                '$remaining left',
+                                style: TextStyle(
+                                  color: _activeSwatchTextColor(color).withAlpha(200),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
               ),
 
               // 4. Bottom Section: the toolbar/palette/banner while there's
@@ -1002,6 +1099,12 @@ class _ColoringScreenState extends State<ColoringScreen>
         ),
       ),
     );
+  }
+
+  /// Returns black or white text/icon color for best contrast on [bg].
+  Color _activeSwatchTextColor(Color bg) {
+    final luminance = 0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b;
+    return luminance > 0.5 ? Colors.black87 : Colors.white;
   }
 
   Widget _buildMiniMap(ColoringProvider provider, bool isDark) {
@@ -2977,7 +3080,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                         child: const Center(
                           child: SizedBox(
                             width: 24,
-                            height: 24,
+                            height: 28,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
                         ),
@@ -3144,11 +3247,21 @@ class _ColoringScreenState extends State<ColoringScreen>
                 },
               ),
               // The coloring screen is where users spend their time — the banner
-              // lives here for free users.
+              // lives here for free users. It slides out during active paint
+              // strokes to avoid visual noise and slides back in after.
               if (!settings.isProUser)
-                const Padding(
-                  padding: EdgeInsets.only(top: 10),
-                  child: AdBanner(),
+                AnimatedSlide(
+                  offset: provider.isStroking
+                      ? const Offset(0, 1.5)
+                      : Offset.zero,
+                  duration: provider.isStroking
+                      ? const Duration(milliseconds: 120)
+                      : const Duration(milliseconds: 400),
+                  curve: Curves.easeOutCubic,
+                  child: const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: AdBanner(),
+                  ),
                 ),
             ],
           ),
@@ -3681,9 +3794,10 @@ class _ProgressBarTrackPainter extends CustomPainter {
 
   static final Paint _bgPaint = Paint()..color = Colors.grey.shade200;
   static final Paint _barPaint = Paint();
+  static final Paint _glowPaint = Paint()..style = PaintingStyle.fill;
   static const List<Color> _gradientColors = [
     Color(0xFF81C784),
-    Color(0xFF4CAF50),
+    Color(0xFF43A047),
   ];
 
   _ProgressBarTrackPainter({required this.progress});
@@ -3706,6 +3820,16 @@ class _ProgressBarTrackPainter extends CustomPainter {
       canvas.save();
       canvas.clipRRect(trackRRect);
       canvas.drawRect(fillRect, _barPaint);
+      // Soft top highlight stripe for a raised-pill feel
+      _glowPaint.shader = ui.Gradient.linear(
+        Offset.zero,
+        Offset(0, size.height * 0.5),
+        [Colors.white.withAlpha(100), Colors.transparent],
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, fillWidth, size.height * 0.5),
+        _glowPaint,
+      );
       canvas.restore();
     }
   }
@@ -3766,7 +3890,7 @@ class _ProgressGiftsBar extends StatelessWidget {
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 24,
+                    height: 28,
                     child: Stack(
                       alignment: Alignment.centerLeft,
                       clipBehavior: Clip.none,
@@ -3774,8 +3898,8 @@ class _ProgressGiftsBar extends StatelessWidget {
                         Positioned(
                           left: 0,
                           right: 0,
-                          top: 8,
-                          height: 8,
+                          top: 6,
+                          height: 11,
                           child: RepaintBoundary(
                             child: CustomPaint(
                               painter: _ProgressBarTrackPainter(progress: animated),
@@ -3805,8 +3929,8 @@ class _ProgressGiftsBar extends StatelessWidget {
                     '${(animated * 100).toStringAsFixed(1)}%',
                     textAlign: TextAlign.right,
                     style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
                       color: Colors.black87,
                     ),
                   ),

@@ -59,7 +59,7 @@ class _NumberPaletteState extends State<NumberPalette> {
     _lastSelected = selected;
     final index = numbers.indexOf(selected);
     if (index < 0 || !_scrollController.hasClients) return;
-    const itemExtent = 62.0; // chip width + margins, approximate
+    const itemExtent = 74.0; // chip width (62 selected / 52 unselected) + margins
     final viewport = _scrollController.position.viewportDimension;
     final target = (index * itemExtent - (viewport - itemExtent) / 2).clamp(
       0.0,
@@ -80,6 +80,10 @@ class _NumberPaletteState extends State<NumberPalette> {
     final incomplete = art.sortedNumbers
         .where((n) => provider.fillPercentForNumber(n) < 1.0)
         .toSet();
+    // Pre-fetch counts once per build — O(1) map lookups per chip.
+    final counts = {
+      for (final n in art.sortedNumbers) n: provider.cellCountsForNumber(n),
+    };
     // Numbers that completed since the previous build start their send-off.
     for (final n in _prevIncomplete) {
       if (!incomplete.contains(n) && !_celebrating.containsKey(n)) {
@@ -107,7 +111,7 @@ class _NumberPaletteState extends State<NumberPalette> {
     });
 
     return SizedBox(
-      height: 80,
+      height: 88,
       child: ListView.builder(
         controller: _scrollController,
         scrollDirection: Axis.horizontal,
@@ -120,17 +124,26 @@ class _NumberPaletteState extends State<NumberPalette> {
           final isSelected = provider.selectedNumber == number;
           final fillPercent = provider.fillPercentForNumber(number);
           final isCompleted = fillPercent >= 1.0;
+          final (filled, total) = counts[number] ?? (0, 0);
+          final remaining = total - filled;
 
-          Widget chip = Container(
-            width: 52,
-            height: 52,
+          // Selected chip is 62 px, unselected 52 px — spring-animated.
+          final chipSize = isSelected ? 62.0 : 52.0;
+
+          Widget chip = AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutBack,
+            width: chipSize,
+            height: chipSize,
             decoration: BoxDecoration(
               color: color,
               shape: BoxShape.circle,
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withAlpha(20),
-                  blurRadius: 4,
+                  color: isSelected
+                      ? color.withAlpha(100)
+                      : Colors.black.withAlpha(20),
+                  blurRadius: isSelected ? 10 : 4,
                   offset: const Offset(0, 2),
                 ),
               ],
@@ -140,35 +153,53 @@ class _NumberPaletteState extends State<NumberPalette> {
                   ? Icon(
                       Icons.check_rounded,
                       color: _textColorForBg(color),
-                      size: 24,
+                      size: isSelected ? 28 : 24,
                     )
-                  : Text(
-                      '$number',
-                      style: TextStyle(
-                        color: _textColorForBg(color),
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '$number',
+                          style: TextStyle(
+                            color: _textColorForBg(color),
+                            fontSize: isSelected ? 20 : 16,
+                            fontWeight: FontWeight.bold,
+                            height: 1.1,
+                          ),
+                        ),
+                        if (!isCompleted && total > 0)
+                          Text(
+                            '$remaining',
+                            style: TextStyle(
+                              color: _textColorForBg(color).withAlpha(180),
+                              fontSize: isSelected ? 9 : 8,
+                              fontWeight: FontWeight.w600,
+                              height: 1.1,
+                            ),
+                          ),
+                      ],
                     ),
             ),
           );
 
-          if (isSelected) {
-            chip = CustomPaint(
-              painter: ProgressRingPainter(
-                progress: fillPercent.clamp(0.0, 1.0),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(5.0),
-                child: chip,
-              ),
-            );
-          } else {
-            chip = Padding(
+          // Progress ring on every chip: thick + green for selected,
+          // thin + white/grey for unselected (shows at-a-glance progress).
+          chip = CustomPaint(
+            painter: ProgressRingPainter(
+              progress: fillPercent.clamp(0.0, 1.0),
+              strokeWidth: isSelected ? 3.5 : 2.0,
+              progressColor: isSelected
+                  ? const Color(0xFF4CAF50)
+                  : Colors.white.withAlpha(200),
+              backgroundColor: isSelected
+                  ? const Color(0xFFE0E0E0)
+                  : Colors.white.withAlpha(60),
+            ),
+            child: Padding(
               padding: const EdgeInsets.all(5.0),
               child: chip,
-            );
-          }
+            ),
+          );
 
           if (_celebrating.containsKey(number)) {
             chip = TweenAnimationBuilder<double>(
