@@ -130,11 +130,17 @@ class _CameraScreenBody extends StatelessWidget {
                 label: 'Gallery',
                 onTap: () => _pickImage(context, camera, ImageSource.gallery),
               ),
-              const SizedBox(width: 20),
+              const SizedBox(width: 14),
               _IconButton(
                 icon: Icons.camera_alt_outlined,
                 label: 'Camera',
                 onTap: () => _pickImage(context, camera, ImageSource.camera),
+              ),
+              const SizedBox(width: 14),
+              _IconButton(
+                icon: Icons.draw_rounded,
+                label: 'Draw Canvas',
+                onTap: () => _showBlankCanvasDialog(context, camera),
               ),
             ],
           ),
@@ -226,6 +232,44 @@ class _CameraScreenBody extends StatelessWidget {
             ].map((c) => _Option(label: '$c', value: c)).toList(),
             selectedValue: camera.maxColors,
             onSelected: (v) => camera.setMaxColors(v as int),
+          ),
+          const SizedBox(height: 12),
+          _buildSettingRow(
+            context,
+            label: 'Filter',
+            options: [
+              _Option(label: 'Normal', value: 'normal'),
+              _Option(label: 'Vibrant', value: 'vibrant'),
+              _Option(label: 'Sepia', value: 'sepia'),
+              _Option(label: 'B&W', value: 'monochrome'),
+            ],
+            selectedValue: camera.filter,
+            onSelected: (v) => camera.setFilter(v as String),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.grain_rounded, color: Colors.white70, size: 16),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Retro Dither (Arcade)',
+                    style: TextStyle(
+                      color: Colors.white.withAlpha(200),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+              Switch(
+                value: camera.dither,
+                onChanged: (_) => camera.toggleDither(),
+                activeThumbColor: const Color(0xFF00CEC9),
+              ),
+            ],
           ),
         ],
       ),
@@ -482,6 +526,109 @@ class _CameraScreenBody extends StatelessWidget {
         );
       }
     }
+  }
+
+  void _showBlankCanvasDialog(BuildContext context, CameraProvider camera) {
+    int selectedSize = 24;
+    String selectedStyle = 'retro';
+    final nameController = TextEditingController(text: 'My Creation');
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlgState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: const Row(
+            children: [
+              Icon(Icons.draw_rounded, color: Color(0xFF6C5CE7)),
+              SizedBox(width: 10),
+              Text('Blank Canvas'),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Artwork Title',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Grid Dimensions',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [16, 24, 32].map((s) {
+                    final isSel = selectedSize == s;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                        label: Text('${s}x$s'),
+                        selected: isSel,
+                        onSelected: (_) => setDlgState(() => selectedSize = s),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Palette Style',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    ('retro', 'Retro 8-Bit'),
+                    ('pastel', 'Pastel Pop'),
+                    ('vibrant', 'Vibrant Vivid'),
+                  ].map((style) {
+                    final isSel = selectedStyle == style.$1;
+                    return ChoiceChip(
+                      label: Text(style.$2),
+                      selected: isSel,
+                      onSelected: (_) =>
+                          setDlgState(() => selectedStyle = style.$1),
+                    );
+                  }).toList(),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                final art = camera.createBlankCanvas(
+                  name: nameController.text.trim().isNotEmpty
+                      ? nameController.text.trim()
+                      : 'My Creation',
+                  size: selectedSize,
+                  paletteStyle: selectedStyle,
+                );
+                Navigator.pop(ctx);
+                _startColoring(context, art);
+              },
+              icon: const Icon(Icons.check),
+              label: const Text('Create Canvas'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF6C5CE7),
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _startColoring(BuildContext context, art) {

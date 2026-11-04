@@ -65,6 +65,13 @@ class SettingsSheet extends StatelessWidget {
                   onChanged: (_) => settings.toggleAutoMove(),
                 ),
                 SwitchListTile(
+                  secondary: const Icon(Icons.search_rounded),
+                  title: const Text('Magnifier Loupe'),
+                  subtitle: const Text('Show zoomed bubble over finger while painting'),
+                  value: settings.magnifierEnabled,
+                  onChanged: (_) => settings.toggleMagnifier(),
+                ),
+                SwitchListTile(
                   secondary: const Icon(Icons.vibration),
                   title: Text(l10n.hapticFeedback),
                   value: settings.hapticsEnabled,

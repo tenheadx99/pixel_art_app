@@ -213,8 +213,7 @@ class _NumberPaletteState extends State<NumberPalette> {
   }
 
   Color _textColorForBg(Color bg) {
-    final luminance = (0.299 * bg.r + 0.587 * bg.g + 0.114 * bg.b);
-    return luminance > 0.5 ? Colors.black87 : Colors.white;
+    return bg.computeLuminance() > 0.45 ? const Color(0xFF1E1E24) : Colors.white;
   }
 }
 

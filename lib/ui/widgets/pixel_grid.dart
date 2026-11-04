@@ -44,6 +44,10 @@ class PixelGrid extends StatefulWidget {
   final VoidCallback? onCellDragEnd;
   final VoidCallback? onCellDragCancel;
 
+  /// Fired with the touch global position and grid coordinate during strokes
+  /// so a magnifier loupe can float above the user's finger.
+  final void Function(Offset? globalPos, int? row, int? col)? onPointerHoverOrDrag;
+
   /// Toggles single-finger canvas panning for the current stroke. Called with
   /// `true` when a swipe begins over a non-selected cell (move the artwork) and
   /// `false` when that stroke ends (back to swipe-to-fill).
@@ -68,6 +72,7 @@ class PixelGrid extends StatefulWidget {
     this.onCellDrag,
     this.onCellDragEnd,
     this.onCellDragCancel,
+    this.onPointerHoverOrDrag,
     this.onRequestCanvasPan,
     this.tiltNotifier,
   });
@@ -380,10 +385,19 @@ class _PixelGridState extends State<PixelGrid> {
           !widget.provider.isMagicWandMode &&
           !widget.provider.isBombMode) {
         widget.onRequestCanvasPan?.call(true);
+      } else if (!widget.readOnly) {
+        final art = widget.provider.currentArt;
+        if (art != null) {
+          final pos = _gridPos(event.position, art);
+          if (pos != null) {
+            widget.onPointerHoverOrDrag?.call(event.position, pos.$1, pos.$2);
+          }
+        }
       }
     } else {
       // Second finger: this is a pinch, not a stroke. Revert any paint.
       _downPosition = null;
+      widget.onPointerHoverOrDrag?.call(null, null, null);
       if (_stroking) {
         _stroking = false;
         widget.onCellDragCancel?.call();
@@ -408,6 +422,10 @@ class _PixelGridState extends State<PixelGrid> {
     }
 
     if (widget.readOnly || widget.onCellDrag == null) return;
+    final pos = _gridPos(event.position, art);
+    if (pos != null) {
+      widget.onPointerHoverOrDrag?.call(event.position, pos.$1, pos.$2);
+    }
     if (!_stroking) {
       if (dist < kTouchSlop) {
         return;
@@ -415,13 +433,15 @@ class _PixelGridState extends State<PixelGrid> {
       _stroking = true;
       widget.onCellDragStart?.call();
     }
-    final pos = _gridPos(event.position, art);
     if (pos != null) widget.onCellDrag!(pos.$1, pos.$2);
   }
 
   void _onPointerEnd(PointerEvent event) {
     _activePointers = max(0, _activePointers - 1);
     _downPosition = null;
+    if (_activePointers == 0) {
+      widget.onPointerHoverOrDrag?.call(null, null, null);
+    }
     if (_stroking && _activePointers == 0) {
       _stroking = false;
       widget.onCellDragEnd?.call();

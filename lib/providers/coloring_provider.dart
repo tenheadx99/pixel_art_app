@@ -267,6 +267,12 @@ class ColoringProvider extends ChangeNotifier {
     }
   }
 
+  /// Crisp micro-tick for individual cells filled during a continuous swipe/drag.
+  void _strokeFillVibrate() {
+    if (!_hapticsOn) return;
+    HapticFeedback.selectionClick();
+  }
+
   void _fallbackImpact(String intensity) {
     if (intensity == 'soft') {
       HapticFeedback.lightImpact();
@@ -393,6 +399,8 @@ class ColoringProvider extends ChangeNotifier {
   PixelArt? get currentArt => _currentArt;
   List<List<int>> get filledGrid => _filledGrid;
   Map<int, Color> get filledColors => _filledColors;
+  String _activePaletteTheme = 'original';
+  String get activePaletteTheme => _activePaletteTheme;
   int get selectedNumber => _selectedNumber;
   double get progress => _progress;
   bool get isComplete => _isComplete;
@@ -783,6 +791,7 @@ class ColoringProvider extends ChangeNotifier {
     }
     _currentArt = art;
     _artStartedAt = DateTime.now();
+    _activePaletteTheme = 'original';
     _filledGrid = List.generate(
       art.gridHeight,
       (_) => List.filled(art.gridWidth, 0),
@@ -826,6 +835,75 @@ class ColoringProvider extends ChangeNotifier {
     _highlightedNumber = number;
     _updateNextFillable();
     notifyListeners();
+  }
+
+  /// Transforms the artwork's color scheme into an alternate artistic theme (e.g., pastel, neon).
+  void applyPaletteTheme(String themeKey) {
+    if (_currentArt == null) return;
+    _activePaletteTheme = themeKey;
+    if (themeKey == 'original') {
+      _filledColors = Map.from(_currentArt!.colorMap);
+    } else {
+      _filledColors = _generateThemedColors(_currentArt!.colorMap, themeKey);
+    }
+    notifyListeners();
+  }
+
+  Map<int, Color> _generateThemedColors(Map<int, Color> original, String themeKey) {
+    final result = <int, Color>{};
+    for (final entry in original.entries) {
+      final c = entry.value;
+      final hsv = HSVColor.fromColor(c);
+      final lum = c.computeLuminance();
+
+      switch (themeKey) {
+        case 'pastel':
+          result[entry.key] = HSVColor.fromAHSV(
+            1.0,
+            hsv.hue,
+            (hsv.saturation * 0.45).clamp(0.2, 0.55),
+            (0.85 + hsv.value * 0.15).clamp(0.8, 1.0),
+          ).toColor();
+          break;
+
+        case 'cyberpunk':
+          final neonHue = (hsv.hue < 120)
+              ? 300.0
+              : (hsv.hue < 240 ? 180.0 : 270.0);
+          result[entry.key] = HSVColor.fromAHSV(
+            1.0,
+            (neonHue + (hsv.hue % 40) - 20) % 360,
+            1.0,
+            (0.7 + lum * 0.3).clamp(0.5, 1.0),
+          ).toColor();
+          break;
+
+        case 'sepia':
+          final r = (lum * 240 + 20).round().clamp(0, 255);
+          final g = (lum * 190 + 15).round().clamp(0, 255);
+          final b = (lum * 130 + 10).round().clamp(0, 255);
+          result[entry.key] = Color.fromARGB(255, r, g, b);
+          break;
+
+        case 'twilight':
+          result[entry.key] = HSVColor.fromAHSV(
+            1.0,
+            (210.0 + lum * 60.0) % 360.0,
+            (0.65 + lum * 0.35).clamp(0.3, 1.0),
+            (0.4 + lum * 0.6).clamp(0.3, 1.0),
+          ).toColor();
+          break;
+
+        case 'monochrome':
+          final v = (lum * 255).round().clamp(0, 255);
+          result[entry.key] = Color.fromARGB(255, v, v, v);
+          break;
+
+        default:
+          result[entry.key] = c;
+      }
+    }
+    return result;
   }
 
   void clearHighlight() {
@@ -1077,6 +1155,7 @@ class ColoringProvider extends ChangeNotifier {
     }
     if (changed) {
       _strokeChanged = true;
+      _strokeFillVibrate();
       _scheduleStrokeFlush();
     }
   }

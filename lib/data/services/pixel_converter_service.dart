@@ -15,13 +15,15 @@ class PixelConverterService {
     int gridWidth = 32,
     int gridHeight = 32,
     int maxColors = 16,
+    String filter = 'normal',
+    bool dither = false,
   }) async {
     // Decode/downscale/quantize is CPU-heavy (~100-200ms for large photos) and
     // would freeze the import screen, so run it on a background isolate. Only
     // primitive results cross the boundary; the ui.Color map is built here.
     final (grid, quantizedMap) = await compute(
       _convertPhotoIsolate,
-      (imageBytes, gridWidth, gridHeight, maxColors),
+      (imageBytes, gridWidth, gridHeight, maxColors, filter, dither),
     );
     final colorMap = _imageProcessing.buildColorMap(quantizedMap);
 
@@ -119,13 +121,18 @@ Map<String, dynamic>? _parseJsonIsolate(String input) {
 /// returns only sendable primitives — the (grid, quantized-color) maps — so the
 /// caller can rebuild the ui.Color map on the main isolate.
 (List<List<int>>, Map<int, int>) _convertPhotoIsolate(
-  (Uint8List, int, int, int) args,
+  (Uint8List, int, int, int, String, bool) args,
 ) {
-  final (bytes, gridWidth, gridHeight, maxColors) = args;
+  final (bytes, gridWidth, gridHeight, maxColors, filter, dither) = args;
   final processing = ImageProcessingService();
-  final imgSrc = processing.loadImageFromBytes(bytes);
+  var imgSrc = processing.loadImageFromBytes(bytes);
+  imgSrc = processing.applyFilter(imgSrc, filter);
   final resized = processing.downscaleToGrid(imgSrc, gridWidth, gridHeight);
   final quantizedMap = processing.quantizeColors(resized, maxColors);
-  final grid = processing.buildGridFromImage(resized, quantizedMap);
+  final grid = processing.buildGridFromImage(
+    resized,
+    quantizedMap,
+    dither: dither,
+  );
   return (grid, quantizedMap);
 }

@@ -188,6 +188,17 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   _buildDivider(isDark),
                   SwitchListTile(
+                    secondary: _buildIconCircle(Icons.search_rounded, const Color(0xFF00E676), isDark),
+                    title: const Text('Magnifier Loupe', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Show zoomed bubble over finger while painting', style: TextStyle(fontSize: 12)),
+                    value: settings.magnifierEnabled,
+                    onChanged: (_) {
+                      HapticFeedback.lightImpact();
+                      settings.toggleMagnifier();
+                    },
+                  ),
+                  _buildDivider(isDark),
+                  SwitchListTile(
                     secondary: _buildIconCircle(Icons.vibration, const Color(0xFFFF5252), isDark),
                     title: Text(hapticTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: const Text('Tactile response on taps and completions', style: TextStyle(fontSize: 12)),

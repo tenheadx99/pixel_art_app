@@ -46,6 +46,8 @@ import '../../ui/widgets/diamond_shop_sheet.dart';
 import '../widgets/story_card_sheet.dart';
 import '../../ui/widgets/rating_dialog.dart';
 import '../../ui/widgets/art_preview_painter.dart';
+import '../../ui/widgets/magnifier_loupe.dart';
+import '../../ui/widgets/before_after_slider.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -122,6 +124,8 @@ class _ColoringScreenState extends State<ColoringScreen>
   // Toggled per gesture: a single-finger swipe that begins over a non-selected
   // cell pans the canvas; otherwise the finger paints (swipe-to-fill).
   final ValueNotifier<bool> _canvasPanNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<({Offset position, int row, int col})?> _loupeNotifier =
+      ValueNotifier(null);
   final ValueNotifier<Offset> _tiltNotifier = ValueNotifier<Offset>(Offset.zero);
   StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
   double _smoothTiltX = 0.0;
@@ -763,6 +767,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     _growTicker.dispose();
     _growController.dispose();
     _canvasPanNotifier.dispose();
+    _loupeNotifier.dispose();
     _accelerometerSubscription?.cancel();
     _tiltNotifier.dispose();
     _MiniMapPainter.releaseCache();
@@ -834,6 +839,7 @@ class _ColoringScreenState extends State<ColoringScreen>
 
     final statusBarHeight = MediaQuery.of(context).padding.top;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final flavor = FlavorConfig.current;
 
     return PopScope(
       canPop: !_isReplaying,
@@ -922,11 +928,22 @@ class _ColoringScreenState extends State<ColoringScreen>
                     if (provider.isStroking &&
                         _cachedTopBar != null &&
                         now - _lastTopBarBuildMs < 250) {
-                      return _cachedTopBar!;
+                      return AnimatedOpacity(
+                        duration: const Duration(milliseconds: 200),
+                        opacity: 0.18,
+                        child: IgnorePointer(child: _cachedTopBar!),
+                      );
                     }
                     _lastTopBarBuildMs = now;
                     _cachedTopBar = _buildTopBar(context, provider, isComplete);
-                    return _cachedTopBar!;
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: provider.isStroking ? 0.18 : 1.0,
+                      child: IgnorePointer(
+                        ignoring: provider.isStroking,
+                        child: _cachedTopBar!,
+                      ),
+                    );
                   },
                 ),
               ),
@@ -941,7 +958,14 @@ class _ColoringScreenState extends State<ColoringScreen>
                     if (provider.currentArt?.id != widget.art.id || _isReplaying) {
                       return const SizedBox.shrink();
                     }
-                    return _buildMiniMap(provider, isDark);
+                    return AnimatedOpacity(
+                      duration: const Duration(milliseconds: 200),
+                      opacity: provider.isStroking ? 0.18 : 1.0,
+                      child: IgnorePointer(
+                        ignoring: provider.isStroking,
+                        child: _buildMiniMap(provider, isDark),
+                      ),
+                    );
                   },
                 ),
               ),
@@ -953,6 +977,31 @@ class _ColoringScreenState extends State<ColoringScreen>
                   return _buildModePill(provider);
                 },
               ),
+
+              // 3. Floating Magnifier Loupe above touch point while painting
+              ValueListenableBuilder<({Offset position, int row, int col})?>(
+                valueListenable: _loupeNotifier,
+                builder: (context, loupeData, _) {
+                  if (loupeData == null ||
+                      !settings.magnifierEnabled ||
+                      _isReplaying ||
+                      provider.isComplete) {
+                    return const SizedBox.shrink();
+                  }
+                  return MagnifierLoupe(
+                    art: widget.art,
+                    filledGrid: provider.filledGrid,
+                    filledColors: provider.filledColors,
+                    selectedNumber: provider.selectedNumber,
+                    touchPosition: loupeData.position,
+                    targetRow: loupeData.row,
+                    targetCol: loupeData.col,
+                    isDark: isDark,
+                    primaryColor: flavor.primary,
+                  );
+                },
+              ),
+
               ConfettiOverlay(
                 animation: _confettiController,
                 seed: widget.art.id.hashCode,
@@ -1819,7 +1868,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                                   : _buildUpNextCard(isDark),
                             ),
                             const SizedBox(height: 12),
-                            // Sleek Action Buttons (Replay, Story Card, Share, Share GIF)
+                            // Sleek Action Buttons (Replay, Palette, Story Card, Share, Share GIF)
                             _hudReveal(
                               4,
                               Row(
@@ -1831,15 +1880,34 @@ class _ColoringScreenState extends State<ColoringScreen>
                                       onTap: () => _startTimeLapse(provider),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: _HudAction(
+                                      icon: Icons.palette_outlined,
+                                      label: 'Palette',
+                                      onTap: () => _openPaletteThemesSheet(provider),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
+                                  Expanded(
+                                    child: _HudAction(
+                                      icon: Icons.compare_rounded,
+                                      label: 'Compare',
+                                      onTap: () => BeforeAfterSlider.showSheet(
+                                        context,
+                                        art: widget.art,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: _HudAction(
                                       icon: Icons.auto_awesome_rounded,
-                                      label: 'Story Card',
+                                      label: 'Story',
                                       onTap: () => _openStoryCardSheet(provider),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: _HudAction(
                                       icon: Icons.image_rounded,
@@ -1847,11 +1915,11 @@ class _ColoringScreenState extends State<ColoringScreen>
                                       onTap: () => _sharePng(provider),
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
+                                  const SizedBox(width: 5),
                                   Expanded(
                                     child: _HudAction(
                                       icon: Icons.movie_rounded,
-                                      label: _sharingGif ? 'Rendering…' : 'Share GIF',
+                                      label: _sharingGif ? '…' : 'GIF',
                                       onTap: _sharingGif
                                           ? null
                                           : () => _shareTimelapse(provider),
@@ -2192,21 +2260,37 @@ class _ColoringScreenState extends State<ColoringScreen>
     );
   }
 
-  /// Floating button shown once the HUD is dismissed so the completion options
-  /// remain one tap away while the user admires the finished artwork.
+  /// Floating buttons shown once the HUD is dismissed so the completion options
+  /// and before-and-after comparison remain one tap away while the user admires the finished artwork.
   Widget _buildReopenOptionsButton() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return Positioned(
       right: 16,
       bottom: 16 + MediaQuery.of(context).padding.bottom,
-      child: FloatingActionButton.extended(
-        onPressed: () {
-          setState(() => _hudDismissed = false);
-          _hudController.forward(from: 0);
-        },
-        backgroundColor: AppStyle.primary,
-        foregroundColor: Colors.white,
-        icon: const Icon(Icons.emoji_events_rounded),
-        label: const Text('Options'),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.small(
+            heroTag: 'fab_compare_${widget.art.id}',
+            onPressed: () => BeforeAfterSlider.showSheet(context, art: widget.art),
+            backgroundColor: isDark ? const Color(0xFF2C254A) : Colors.white,
+            foregroundColor: const Color(0xFF6C5CE7),
+            tooltip: 'Before & After',
+            child: const Icon(Icons.compare_rounded),
+          ),
+          const SizedBox(width: 10),
+          FloatingActionButton.extended(
+            heroTag: 'fab_options_${widget.art.id}',
+            onPressed: () {
+              setState(() => _hudDismissed = false);
+              _hudController.forward(from: 0);
+            },
+            backgroundColor: AppStyle.primary,
+            foregroundColor: Colors.white,
+            icon: const Icon(Icons.emoji_events_rounded),
+            label: const Text('Options'),
+          ),
+        ],
       ),
     );
   }
@@ -2269,6 +2353,191 @@ class _ColoringScreenState extends State<ColoringScreen>
     } catch (_) {
       _showInfoSnack('Could not prepare story card.');
     }
+  }
+
+  void _openPaletteThemesSheet(ColoringProvider provider) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final themes = [
+      ('original', 'Original', 'Default artist colors', [
+        const Color(0xFFFF5252),
+        const Color(0xFFFFD700),
+        const Color(0xFF4CAF50),
+        const Color(0xFF2196F3),
+      ]),
+      ('pastel', 'Pastel Dreams', 'Soft, dreamy pastel tones', [
+        const Color(0xFFFFB3BA),
+        const Color(0xFFFFDFBA),
+        const Color(0xFFBAFFC9),
+        const Color(0xFFBAE1FF),
+      ]),
+      ('cyberpunk', 'Cyberpunk Neon', 'Electric synthwave glow', [
+        const Color(0xFFFF007F),
+        const Color(0xFF00F0FF),
+        const Color(0xFFB000FF),
+        const Color(0xFFFFE600),
+      ]),
+      ('sepia', 'Vintage Sepia', 'Nostalgic warm monochromatic', [
+        const Color(0xFF3E2723),
+        const Color(0xFF8D6E63),
+        const Color(0xFFD7CCC8),
+        const Color(0xFFFFF8E1),
+      ]),
+      ('twilight', 'Moonlight Twilight', 'Deep midnight blues & cyan', [
+        const Color(0xFF0D1B2A),
+        const Color(0xFF1B263B),
+        const Color(0xFF415A77),
+        const Color(0xFF00E5FF),
+      ]),
+      ('monochrome', 'Retro 8-Bit', 'Classic Gameboy monochrome', [
+        const Color(0xFF1B1B1B),
+        const Color(0xFF5A5A5A),
+        const Color(0xFFA5A5A5),
+        const Color(0xFFEBEBEB),
+      ]),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: isDark ? const Color(0xFF1E1E2C) : Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 36,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.withAlpha(80),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Icon(Icons.palette_rounded, color: Color(0xFF6C5CE7)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Artwork Palette Styles',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: isDark ? Colors.white : const Color(0xFF222222),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Transform your artwork with alternate aesthetic palettes:',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: themes.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 8),
+                      itemBuilder: (ctx, index) {
+                        final t = themes[index];
+                        final isSelected = provider.activePaletteTheme == t.$1;
+                        return Material(
+                          color: isSelected
+                              ? (const Color(0xFF6C5CE7).withAlpha(isDark ? 50 : 25))
+                              : (isDark ? Colors.white.withAlpha(8) : Colors.black.withAlpha(5)),
+                          borderRadius: BorderRadius.circular(16),
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(16),
+                            onTap: () {
+                              HapticFeedback.selectionClick();
+                              provider.applyPaletteTheme(t.$1);
+                              setSheetState(() {});
+                            },
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          t.$2,
+                                          style: TextStyle(
+                                            fontSize: 15,
+                                            fontWeight: isSelected
+                                                ? FontWeight.bold
+                                                : FontWeight.w600,
+                                            color: isSelected
+                                                ? const Color(0xFF6C5CE7)
+                                                : (isDark ? Colors.white : Colors.black87),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          t.$3,
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: isDark ? Colors.white54 : Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Row(
+                                    children: t.$4.map((swatch) {
+                                      return Container(
+                                        width: 16,
+                                        height: 16,
+                                        margin: const EdgeInsets.only(left: 4),
+                                        decoration: BoxDecoration(
+                                          color: swatch,
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: isDark ? Colors.white24 : Colors.black12,
+                                            width: 1,
+                                          ),
+                                        ),
+                                      );
+                                    }).toList(),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  if (isSelected)
+                                    const Icon(
+                                      Icons.check_circle_rounded,
+                                      color: Color(0xFF6C5CE7),
+                                      size: 20,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<void> _sharePng(ColoringProvider provider) async {
@@ -3066,6 +3335,17 @@ class _ColoringScreenState extends State<ColoringScreen>
                               );
                             },
                       onCellDragCancel: _isReplaying ? null : provider.cancelStroke,
+                      onPointerHoverOrDrag: (pos, row, col) {
+                        if (!settings.magnifierEnabled || _isReplaying) {
+                          if (_loupeNotifier.value != null) _loupeNotifier.value = null;
+                          return;
+                        }
+                        if (pos == null || row == null || col == null) {
+                          _loupeNotifier.value = null;
+                        } else {
+                          _loupeNotifier.value = (position: pos, row: row, col: col);
+                        }
+                      },
                       onRequestCanvasPan: (enabled) {
                         _canvasPanNotifier.value = enabled;
                       },
