@@ -45,7 +45,7 @@ class AppSettingsProvider extends ChangeNotifier {
   String _particleStyle = 'sparkles';
   bool _dailyRemindersEnabled = true;
   bool _autoMoveEnabled = false;
-  bool _magnifierEnabled = true;
+  bool _magnifierEnabled = false;
   int _hintsAvailable = 3;
   int _diamondsAvailable = 50;
   int _totalXp = 0;
@@ -157,8 +157,8 @@ class AppSettingsProvider extends ChangeNotifier {
       defaultValue: false,
     );
     _magnifierEnabled = _storageService.getBool(
-      'magnifier_enabled',
-      defaultValue: true,
+      AppConstants.magnifierPrefKey,
+      defaultValue: false,
     );
     _hintsAvailable = _storageService.getInt(
       AppConstants.hintsPrefKey,
@@ -300,7 +300,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
   void toggleMagnifier() {
     _magnifierEnabled = !_magnifierEnabled;
-    _storageService.setBool('magnifier_enabled', _magnifierEnabled);
+    _storageService.setBool(AppConstants.magnifierPrefKey, _magnifierEnabled);
     notifyListeners();
   }
 

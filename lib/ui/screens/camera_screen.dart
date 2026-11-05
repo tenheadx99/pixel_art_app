@@ -6,7 +6,9 @@ import '../../config/app_constants.dart';
 import '../../data/services/analytics_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
+import '../../ui/screens/pixel_creator_screen.dart';
 import '../../ui/widgets/transitions.dart';
+import '../../ui/widgets/art_preview_painter.dart';
 import '../../l10n/app_localizations.dart';
 
 class CameraScreen extends StatelessWidget {
@@ -433,6 +435,29 @@ class _CameraScreenBody extends StatelessWidget {
             '${art.gridWidth}x${art.gridHeight}  ·  ${art.colorCount} colors  ·  ${art.fillableCells} cells',
             style: const TextStyle(color: Colors.white70, fontSize: 13),
           ),
+          const SizedBox(height: 12),
+          Container(
+            width: 180,
+            height: 180,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white24, width: 2),
+              color: Colors.black26,
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(60),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: CustomPaint(
+                painter: ArtPreviewPainter(art: art, isCompleted: true),
+              ),
+            ),
+          ),
           const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -608,18 +633,24 @@ class _CameraScreenBody extends StatelessWidget {
             ),
             ElevatedButton.icon(
               onPressed: () {
-                final art = camera.createBlankCanvas(
-                  name: nameController.text.trim().isNotEmpty
-                      ? nameController.text.trim()
-                      : 'My Creation',
-                  size: selectedSize,
-                  paletteStyle: selectedStyle,
-                );
+                final chosenName = nameController.text.trim().isNotEmpty
+                    ? nameController.text.trim()
+                    : 'My Creation';
                 Navigator.pop(ctx);
-                _startColoring(context, art);
+                Navigator.push(
+                  context,
+                  fadeThroughRoute(
+                    PixelCreatorScreen(
+                      title: chosenName,
+                      size: selectedSize,
+                      paletteStyle: selectedStyle,
+                    ),
+                    name: 'pixel_creator',
+                  ),
+                );
               },
-              icon: const Icon(Icons.check),
-              label: const Text('Create Canvas'),
+              icon: const Icon(Icons.draw_rounded),
+              label: const Text('Open Creator'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF6C5CE7),
                 foregroundColor: Colors.white,

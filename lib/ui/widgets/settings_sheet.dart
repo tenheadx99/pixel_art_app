@@ -66,7 +66,7 @@ class SettingsSheet extends StatelessWidget {
                 ),
                 SwitchListTile(
                   secondary: const Icon(Icons.search_rounded),
-                  title: const Text('Magnifier Loupe'),
+                  title: const Text('Magnifying Glass'),
                   subtitle: const Text('Show zoomed bubble over finger while painting'),
                   value: settings.magnifierEnabled,
                   onChanged: (_) => settings.toggleMagnifier(),

@@ -189,7 +189,7 @@ class SettingsScreen extends StatelessWidget {
                   _buildDivider(isDark),
                   SwitchListTile(
                     secondary: _buildIconCircle(Icons.search_rounded, const Color(0xFF00E676), isDark),
-                    title: const Text('Magnifier Loupe', style: TextStyle(fontWeight: FontWeight.w600)),
+                    title: const Text('Magnifying Glass', style: TextStyle(fontWeight: FontWeight.w600)),
                     subtitle: const Text('Show zoomed bubble over finger while painting', style: TextStyle(fontSize: 12)),
                     value: settings.magnifierEnabled,
                     onChanged: (_) {

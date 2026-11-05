@@ -11,13 +11,21 @@ class ImageProcessingService {
   }
 
   img.Image loadImageFromBytes(Uint8List bytes) {
-    return img.decodeImage(bytes)!;
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) {
+      throw Exception('Could not decode image format');
+    }
+    return img.bakeOrientation(decoded);
   }
 
   Future<img.Image> loadImageFromAsset(String path) async {
     final data = await rootBundle.load(path);
     final bytes = data.buffer.asUint8List();
-    return img.decodeImage(bytes)!;
+    final decoded = img.decodeImage(bytes);
+    if (decoded == null) {
+      throw Exception('Could not decode asset image');
+    }
+    return img.bakeOrientation(decoded);
   }
 
   img.Image downscaleToGrid(img.Image source, int gridWidth, int gridHeight) {
@@ -65,8 +73,12 @@ class ImageProcessingService {
       ..sort((a, b) => b.value.compareTo(a.value));
     final topColors = sorted.take(maxColors).toList();
     final colorMap = <int, int>{};
-    for (var i = 0; i < topColors.length; i++) {
-      colorMap[topColors[i].key] = i + 1;
+    if (topColors.isEmpty) {
+      colorMap[0x000000] = 1;
+    } else {
+      for (var i = 0; i < topColors.length; i++) {
+        colorMap[topColors[i].key] = i + 1;
+      }
     }
     return colorMap;
   }
@@ -194,10 +206,10 @@ class ImageProcessingService {
   Map<int, ui.Color> buildColorMap(Map<int, int> quantizedMap) {
     final result = <int, ui.Color>{};
     for (final entry in quantizedMap.entries) {
-      final r = (entry.key >> 16) & 0xFF;
-      final g = (entry.key >> 8) & 0xFF;
-      final b = entry.key & 0xFF;
-      result[entry.value] = ui.Color.fromARGB(255, r + 16, g + 16, b + 16);
+      final r = (((entry.key >> 16) & 0xFF) + 16).clamp(0, 255);
+      final g = (((entry.key >> 8) & 0xFF) + 16).clamp(0, 255);
+      final b = ((entry.key & 0xFF) + 16).clamp(0, 255);
+      result[entry.value] = ui.Color.fromARGB(255, r, g, b);
     }
     return result;
   }

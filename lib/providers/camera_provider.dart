@@ -123,8 +123,11 @@ class CameraProvider extends ChangeNotifier {
         dither: _dither,
       );
     } catch (e, st) {
+      _isConverting = false;
+      notifyListeners();
       developer.log('Photo-to-pixel conversion failed',
           name: 'CameraProvider', error: e, stackTrace: st);
+      rethrow;
     }
 
     _isConverting = false;
