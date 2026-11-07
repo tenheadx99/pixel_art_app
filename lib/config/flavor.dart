@@ -180,7 +180,7 @@ class FlavorConfig {
       accent: Color(0xFFB14EFF), // Electric Violet
       brandGradient: [Color(0xFFFF4FA3), Color(0xFFB14EFF)],
       manifestPath: 'assets/pixel_art_anime/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.pixelcalm: FlavorConfig(
       appName: 'PixelCalm',
