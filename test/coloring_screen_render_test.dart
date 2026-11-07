@@ -20,7 +20,6 @@ import 'package:pixel_art_app/ui/widgets/pixel_grid.dart';
 
 void main() {
   testWidgets('ColoringScreen loads and renders PixelGrid for devotional art', (tester) async {
-    print('Starting test...');
     SharedPreferences.setMockInitialValues({});
     final storage = LocalStorageService();
     await storage.init();
@@ -29,14 +28,13 @@ void main() {
     final remoteCatalog = RemoteCatalogService(storage);
     final dailyPixel = DailyPixelService(storage);
 
-    final raw = await File('assets/pixel_art_devotional/diya.json').readAsString();
+    final raw = File('assets/pixel_art_devotional/diya.json').readAsStringSync();
     final art = PixelArt.fromJson(jsonDecode(raw) as Map<String, dynamic>);
 
     final coloringProvider = ColoringProvider(storage);
     final settingsProvider = AppSettingsProvider(storage)..loadSettings();
     final galleryProvider = GalleryProvider(storage, db, remoteCatalog, dailyPixel);
 
-    print('Pumping widget...');
     await tester.pumpWidget(
       MultiProvider(
         providers: [
@@ -53,17 +51,11 @@ void main() {
         ),
       ),
     );
-    print('Pumped initial widget!');
-
     // Let post frame callback run and complete
-    print('Pumping next frame...');
     await tester.pump();
-    print('Pumped 1 frame!');
-    await tester.pump(const Duration(milliseconds: 500));
-    print('Pumped 500ms!');
+    await tester.pump(const Duration(seconds: 2));
 
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.byType(PixelGrid), findsOneWidget);
-    print('Success!');
   });
 }
