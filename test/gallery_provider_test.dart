@@ -283,4 +283,124 @@ void main() {
       expect(inProgress.last.id, 'art_5');
     });
   });
+
+  group('status filtering', () {
+    test('filters catalog by notStarted, inProgress, and completed', () async {
+      final testCatalog = [
+        _art('art_unstarted'),
+        _art('art_started'),
+        _art('art_done'),
+      ];
+      final prefs = <String, Object>{
+        'pixelart_progress_art_started_pct': 45,
+        'completed_ids': ['art_done'],
+      };
+      SharedPreferences.setMockInitialValues(prefs);
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(testCatalog);
+
+      expect(provider.filteredCatalog.length, 3);
+
+      provider.setStatusFilter(ArtworkStatusFilter.notStarted);
+      expect(provider.filteredCatalog.map((a) => a.id).toList(), ['art_unstarted']);
+      expect(provider.hasActiveFilter, isTrue);
+
+      provider.setStatusFilter(ArtworkStatusFilter.inProgress);
+      expect(provider.filteredCatalog.map((a) => a.id).toList(), ['art_started']);
+
+      provider.setStatusFilter(ArtworkStatusFilter.completed);
+      expect(provider.filteredCatalog.map((a) => a.id).toList(), ['art_done']);
+
+      provider.clearFilters();
+      expect(provider.statusFilter, ArtworkStatusFilter.all);
+      expect(provider.filteredCatalog.length, 3);
+      expect(provider.hasActiveFilter, isFalse);
+    });
+  });
+
+  group('curated shelves and view mode', () {
+    test('shelvesView state toggles and determines shouldShowShelves', () async {
+      SharedPreferences.setMockInitialValues({});
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(catalog);
+
+      expect(provider.shelvesView, isTrue);
+      expect(provider.shouldShowShelves, isTrue);
+
+      provider.toggleViewMode();
+      expect(provider.shelvesView, isFalse);
+      expect(provider.shouldShowShelves, isFalse);
+
+      provider.toggleViewMode();
+      expect(provider.shouldShowShelves, isTrue);
+
+      // Narrowing by category disables shelves view
+      provider.setCategory('Devotional');
+      expect(provider.shouldShowShelves, isFalse);
+      provider.clearFilters();
+      expect(provider.shouldShowShelves, isTrue);
+
+      // Status filter disables shelves view
+      provider.setStatusFilter(ArtworkStatusFilter.notStarted);
+      expect(provider.shouldShowShelves, isFalse);
+      provider.clearFilters();
+      expect(provider.shouldShowShelves, isTrue);
+    });
+
+    test('shelf getters return correct slices', () async {
+      final varied = [
+        PixelArt(
+          id: 'a1',
+          name: 'A1',
+          gridWidth: 10,
+          gridHeight: 10,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          category: 'Anime',
+        ),
+        PixelArt(
+          id: 'a2',
+          name: 'A2',
+          gridWidth: 10,
+          gridHeight: 10,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          category: 'Anime',
+        ),
+        PixelArt(
+          id: 'd1',
+          name: 'D1',
+          gridWidth: 50,
+          gridHeight: 50,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          category: 'Devotional',
+        ),
+        PixelArt(
+          id: 'd2',
+          name: 'D2',
+          gridWidth: 50,
+          gridHeight: 50,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          category: 'Devotional',
+        ),
+      ];
+
+      SharedPreferences.setMockInitialValues({});
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(varied);
+
+      expect(provider.newArrivals.length, 4);
+      expect(provider.quickBites.map((a) => a.id), containsAll(['a1', 'a2']));
+      expect(provider.shelfCategories, containsAll(['Anime', 'Devotional']));
+      expect(provider.artworksForCategory('Anime').length, 2);
+    });
+  });
 }

@@ -41,6 +41,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scrollController = ScrollController();
+  final TextEditingController _searchController = TextEditingController();
 
   // Coin bursts fly to the header's diamond chip, which pulses on arrival.
   final GlobalKey _diamondChipKey = GlobalKey();
@@ -130,6 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
       _handleDailyArtRequest,
     );
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -199,20 +201,38 @@ class _HomeScreenState extends State<HomeScreen> {
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
                   sliver: SliverToBoxAdapter(
-                    child: _CategoryFilter(gallery: gallery),
+                    child: _CategoryFilter(
+                      gallery: gallery,
+                      searchController: _searchController,
+                    ),
                   ),
                 ),
                 if (!gallery.isLoading && catalog.isNotEmpty)
                   SliverToBoxAdapter(
-                    child: _ResultsCount(gallery: gallery, count: catalog.length),
+                    child: _ResultsCount(
+                      gallery: gallery,
+                      count: catalog.length,
+                      onClear: () {
+                        _searchController.clear();
+                        gallery.clearFilters();
+                      },
+                    ),
                   ),
                 if (gallery.isLoading)
                   const _SkeletonGrid()
                 else if (catalog.isEmpty)
                   SliverFillRemaining(
                     hasScrollBody: false,
-                    child: _EmptyState(gallery: gallery),
+                    child: _EmptyState(
+                      gallery: gallery,
+                      onClear: () {
+                        _searchController.clear();
+                        gallery.clearFilters();
+                      },
+                    ),
                   )
+                else if (gallery.shouldShowShelves)
+                  ..._buildShelvesSlivers(gallery, settings, catalog)
                 else
                   ..._buildCatalogSlivers(gallery, settings, catalog),
               ],
@@ -226,6 +246,190 @@ class _HomeScreenState extends State<HomeScreen> {
         );
       },
     );
+  }
+
+  /// Curated horizontal shelves view for the "All" tab when no narrowing filter
+  /// is active. Replaces endless single-file vertical scrolling with thematic rows.
+  List<Widget> _buildShelvesSlivers(
+    GalleryProvider gallery,
+    AppSettingsProvider settings,
+    List<PixelArt> catalog,
+  ) {
+    final slivers = <Widget>[];
+
+    Widget buildShelf({
+      required String title,
+      required String emoji,
+      required String subtitle,
+      required List<PixelArt> items,
+      VoidCallback? onSeeAll,
+    }) {
+      if (items.isEmpty) return const SizedBox.shrink();
+      return _ArtworkShelf(
+        title: title,
+        emoji: emoji,
+        subtitle: subtitle,
+        items: items,
+        gallery: gallery,
+        settings: settings,
+        onTapArt: (art) => _openColoring(context, art),
+        onFavorite: (art) => gallery.toggleFavorite(art.id),
+        onSeeAll: onSeeAll,
+      );
+    }
+
+    var shelfCount = 0;
+
+    // Shelf 1: New & Trending
+    final newArts = gallery.newArrivals;
+    if (newArts.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: buildShelf(
+            title: 'New & Trending',
+            emoji: '✨',
+            subtitle: '${newArts.length} fresh artworks',
+            items: newArts,
+            onSeeAll: () {
+              gallery.setSortBy('Default');
+              gallery.setShelvesView(false);
+            },
+          ),
+        ),
+      );
+      shelfCount++;
+    }
+
+    // Shelf 2: Quick & Easy (< 10 min)
+    final quickArts = gallery.quickBites;
+    if (quickArts.isNotEmpty) {
+      slivers.add(
+        SliverToBoxAdapter(
+          child: buildShelf(
+            title: 'Quick & Easy',
+            emoji: '⚡',
+            subtitle: 'Bite-sized (< 10 mins)',
+            items: quickArts,
+            onSeeAll: () {
+              gallery.setSortBy('Difficulty (Easy)');
+              gallery.setShelvesView(false);
+            },
+          ),
+        ),
+      );
+      shelfCount++;
+    }
+
+    // Category shelves (Devotional, Anime, Animals, Food, etc.)
+    for (final cat in gallery.shelfCategories) {
+      final catArts = gallery.artworksForCategory(cat);
+      if (catArts.isNotEmpty) {
+        if (!settings.isProUser && shelfCount > 0 && shelfCount % 2 == 0) {
+          slivers.add(const SliverToBoxAdapter(child: NativeAdCard()));
+        }
+        slivers.add(
+          SliverToBoxAdapter(
+            child: buildShelf(
+              title: cat,
+              emoji: _CategoryFilter._categoryEmoji(cat),
+              subtitle: '${catArts.length} artworks',
+              items: catArts,
+              onSeeAll: () {
+                gallery.setCategory(cat);
+              },
+            ),
+          ),
+        );
+        shelfCount++;
+      }
+    }
+
+    // Bottom Switcher Banner to explore full grid
+    slivers.add(
+      SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 20, 16, 100),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  AppStyle.primary.withAlpha(30),
+                  AppStyle.primary.withAlpha(12),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: AppStyle.primary.withAlpha(40),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppStyle.primary.withAlpha(35),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.grid_view_rounded,
+                    color: AppStyle.primary,
+                    size: 24,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Want to view all at once?',
+                        style: TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Browse in classic 2-column grid mode',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  onPressed: () => gallery.setShelvesView(false),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppStyle.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                  ),
+                  child: const Text(
+                    'Full Grid',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    return slivers;
   }
 
   /// The catalog grid, split into segments with a full-row native ad between
@@ -414,28 +618,49 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Colors.white.withAlpha(40),
                               borderRadius: BorderRadius.circular(14),
                             ),
-                            child: TextField(
-                              onChanged: (val) => gallery.setSearchQuery(val),
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 14,
-                              ),
-                              decoration: InputDecoration(
-                                hintText: AppLocalizations.of(context)?.searchHint ?? 'Search artworks...',
-                                hintStyle: TextStyle(
-                                  color: Colors.white.withAlpha(160),
-                                  fontSize: 13,
-                                ),
-                                prefixIcon: const Icon(
-                                  Icons.search,
-                                  color: Colors.white70,
-                                  size: 20,
-                                ),
-                                border: InputBorder.none,
-                                contentPadding: const EdgeInsets.symmetric(
-                                  vertical: 10,
-                                ),
-                              ),
+                            child: Builder(
+                              builder: (context) {
+                                if (_searchController.text != gallery.searchQuery) {
+                                  _searchController.text = gallery.searchQuery;
+                                }
+                                return TextField(
+                                  controller: _searchController,
+                                  onChanged: (val) => gallery.setSearchQuery(val),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 14,
+                                  ),
+                                  decoration: InputDecoration(
+                                    hintText: AppLocalizations.of(context)?.searchHint ?? 'Search artworks...',
+                                    hintStyle: TextStyle(
+                                      color: Colors.white.withAlpha(160),
+                                      fontSize: 13,
+                                    ),
+                                    prefixIcon: const Icon(
+                                      Icons.search,
+                                      color: Colors.white70,
+                                      size: 20,
+                                    ),
+                                    suffixIcon: gallery.searchQuery.isNotEmpty
+                                        ? IconButton(
+                                            icon: const Icon(
+                                              Icons.close,
+                                              color: Colors.white70,
+                                              size: 18,
+                                            ),
+                                            onPressed: () {
+                                              _searchController.clear();
+                                              gallery.setSearchQuery('');
+                                            },
+                                          )
+                                        : null,
+                                    border: InputBorder.none,
+                                    contentPadding: const EdgeInsets.symmetric(
+                                      vertical: 10,
+                                    ),
+                                  ),
+                                );
+                              },
                             ),
                           ),
                         ),
@@ -2529,8 +2754,22 @@ class _HeaderIconButton extends StatelessWidget {
 
 class _CategoryFilter extends StatelessWidget {
   final GalleryProvider gallery;
+  final TextEditingController? searchController;
 
-  const _CategoryFilter({required this.gallery});
+  const _CategoryFilter({
+    required this.gallery,
+    this.searchController,
+  });
+
+  static const List<String> _popularSearchTags = [
+    'Anime',
+    'Devotional',
+    'Animals',
+    'Easy',
+    'Mandala',
+    'Food',
+    'Nature',
+  ];
 
   static String _categoryEmoji(String cat) {
     final lower = cat.toLowerCase();
@@ -2551,112 +2790,679 @@ class _CategoryFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final categories = gallery.categories;
-    return SizedBox(
-      height: 44,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        // Index 0 is the Favorites toggle; the rest are categories.
-        itemCount: categories.length + 1,
-        itemBuilder: (context, rawIndex) {
-          if (rawIndex == 0) {
-            final on = gallery.favoritesOnly;
-            return Padding(
-              padding: const EdgeInsets.only(right: 10),
-              child: PressableScale(
-                onTap: () => gallery.toggleFavoritesOnly(),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 300),
-                  curve: Curves.easeOutCubic,
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: on ? Colors.red : Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(22),
-                    border: Border.all(
-                      color: on
-                          ? Colors.transparent
-                          : Theme.of(context).dividerColor.withAlpha(30),
+    final isSearching = gallery.searchQuery.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 1. Quick search suggestions bar (when searching or active)
+        if (isSearching)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: SizedBox(
+              height: 32,
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: _popularSearchTags.length,
+                itemBuilder: (context, i) {
+                  final tag = _popularSearchTags[i];
+                  final isCurrent = gallery.searchQuery.toLowerCase() == tag.toLowerCase();
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: PressableScale(
+                      onTap: () {
+                        searchController?.text = tag;
+                        gallery.setSearchQuery(tag);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isCurrent
+                              ? AppStyle.primary
+                              : Theme.of(context).cardColor,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isCurrent
+                                ? Colors.transparent
+                                : Theme.of(context).dividerColor.withAlpha(30),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              '#$tag',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: isCurrent ? FontWeight.bold : FontWeight.w500,
+                                color: isCurrent ? Colors.white : Theme.of(context).hintColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ),
+
+        // 2. Main category pills row
+        SizedBox(
+          height: 44,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            itemCount: categories.length + 1,
+            itemBuilder: (context, rawIndex) {
+              if (rawIndex == 0) {
+                final on = gallery.favoritesOnly;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: PressableScale(
+                    onTap: () => gallery.toggleFavoritesOnly(),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOutCubic,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        color: on ? Colors.red : Theme.of(context).cardColor,
+                        borderRadius: BorderRadius.circular(22),
+                        border: Border.all(
+                          color: on
+                              ? Colors.transparent
+                              : Theme.of(context).dividerColor.withAlpha(30),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            on ? Icons.favorite : Icons.favorite_border,
+                            size: 16,
+                            color: on ? Colors.white : null,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Favorites',
+                            style: TextStyle(
+                              color: on ? Colors.white : null,
+                              fontWeight: on ? FontWeight.w600 : FontWeight.w500,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                  child: Row(
-                    children: [
-                      Icon(on ? Icons.favorite : Icons.favorite_border,
-                          size: 16, color: on ? Colors.white : null),
-                      const SizedBox(width: 6),
-                      Text('Favorites',
-                          style: TextStyle(
-                            color: on ? Colors.white : null,
-                            fontWeight:
-                                on ? FontWeight.w600 : FontWeight.w500,
-                            fontSize: 14,
-                          )),
-                    ],
-                  ),
-                ),
-              ),
-            );
-          }
-          final index = rawIndex - 1;
-          final cat = categories[index];
-          final isSelected = gallery.selectedCategory == cat;
-          return Padding(
-            padding: const EdgeInsets.only(right: 10),
-            child: PressableScale(
-              onTap: () => gallery.setCategory(cat),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 350),
-                curve: Curves.easeInOut,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 10,
-                ),
-                decoration: BoxDecoration(
-                  gradient: isSelected
-                      ? LinearGradient(
-                          colors: AppColors.gradientForIndex(index),
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  color: isSelected ? null : Theme.of(context).cardColor,
-                  borderRadius: BorderRadius.circular(22),
-                  border: Border.all(
-                    color: isSelected
-                        ? Colors.transparent
-                        : Theme.of(context).dividerColor.withAlpha(30),
-                  ),
-                  boxShadow: isSelected
-                      ? [
-                          BoxShadow(
-                            color: AppColors
-                                .categoryColors[index %
-                                    AppColors.categoryColors.length]
-                                .withAlpha(40),
-                            blurRadius: 8,
-                            offset: const Offset(0, 3),
-                          ),
-                        ]
-                      : null,
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(_categoryEmoji(cat), style: const TextStyle(fontSize: 13)),
-                    const SizedBox(width: 5),
-                    Text(
-                      cat,
-                      style: TextStyle(
-                        color: isSelected ? Colors.white : null,
-                        fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
-                        fontSize: 14,
+                );
+              }
+              final index = rawIndex - 1;
+              final cat = categories[index];
+              final isSelected = gallery.selectedCategory == cat;
+              return Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: PressableScale(
+                  onTap: () => gallery.setCategory(cat),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 350),
+                    curve: Curves.easeInOut,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: isSelected
+                          ? LinearGradient(
+                              colors: AppColors.gradientForIndex(index),
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : null,
+                      color: isSelected ? null : Theme.of(context).cardColor,
+                      borderRadius: BorderRadius.circular(22),
+                      border: Border.all(
+                        color: isSelected
+                            ? Colors.transparent
+                            : Theme.of(context).dividerColor.withAlpha(30),
                       ),
+                      boxShadow: isSelected
+                          ? [
+                              BoxShadow(
+                                color: AppColors
+                                    .categoryColors[index %
+                                        AppColors.categoryColors.length]
+                                    .withAlpha(40),
+                                blurRadius: 8,
+                                offset: const Offset(0, 3),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(_categoryEmoji(cat), style: const TextStyle(fontSize: 13)),
+                        const SizedBox(width: 5),
+                        Text(
+                          cat,
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : null,
+                            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        // 3. Status filter chips & View Switcher row
+        Row(
+          children: [
+            Expanded(
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildStatusChip(
+                      context,
+                      label: 'All',
+                      icon: null,
+                      filter: ArtworkStatusFilter.all,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(
+                      context,
+                      label: 'Not Started',
+                      icon: Icons.star_border_rounded,
+                      filter: ArtworkStatusFilter.notStarted,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(
+                      context,
+                      label: 'In Progress',
+                      icon: Icons.timelapse_rounded,
+                      filter: ArtworkStatusFilter.inProgress,
+                    ),
+                    const SizedBox(width: 8),
+                    _buildStatusChip(
+                      context,
+                      label: 'Completed',
+                      icon: Icons.check_circle_outline_rounded,
+                      filter: ArtworkStatusFilter.completed,
                     ),
                   ],
                 ),
               ),
             ),
-          );
-        },
+
+            // View Mode Toggle (Shelves 📚 vs Grid ⊞)
+            if (gallery.selectedCategory == 'All' &&
+                gallery.searchQuery.isEmpty &&
+                !gallery.favoritesOnly &&
+                gallery.statusFilter == ArtworkStatusFilter.all) ...[
+              const SizedBox(width: 8),
+              PressableScale(
+                onTap: gallery.toggleViewMode,
+                child: Container(
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(17),
+                    border: Border.all(
+                      color: AppStyle.primary.withAlpha(60),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        gallery.shelvesView
+                            ? Icons.grid_view_rounded
+                            : Icons.view_agenda_rounded,
+                        size: 15,
+                        color: AppStyle.primary,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        gallery.shelvesView ? 'Grid' : 'Shelves',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: AppStyle.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusChip(
+    BuildContext context, {
+    required String label,
+    required IconData? icon,
+    required ArtworkStatusFilter filter,
+  }) {
+    final isSelected = gallery.statusFilter == filter;
+    return PressableScale(
+      onTap: () => gallery.setStatusFilter(filter),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        height: 32,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppStyle.primary
+              : Theme.of(context).cardColor,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? Colors.transparent
+                : Theme.of(context).dividerColor.withAlpha(30),
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppStyle.primary.withAlpha(50),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 13,
+                color: isSelected ? Colors.white : Theme.of(context).hintColor,
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.white : null,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ArtworkShelf extends StatelessWidget {
+  final String title;
+  final String emoji;
+  final String subtitle;
+  final List<PixelArt> items;
+  final GalleryProvider gallery;
+  final AppSettingsProvider settings;
+  final void Function(PixelArt art) onTapArt;
+  final void Function(PixelArt art) onFavorite;
+  final VoidCallback? onSeeAll;
+
+  const _ArtworkShelf({
+    required this.title,
+    required this.emoji,
+    required this.subtitle,
+    required this.items,
+    required this.gallery,
+    required this.settings,
+    required this.onTapArt,
+    required this.onFavorite,
+    this.onSeeAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 18, 16, 10),
+          child: Row(
+            children: [
+              Text(
+                '$emoji $title',
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: -0.3,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dividerColor.withAlpha(20),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${items.length}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).hintColor,
+                  ),
+                ),
+              ),
+              const Spacer(),
+              if (onSeeAll != null)
+                PressableScale(
+                  onTap: onSeeAll!,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 4,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'See all',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: AppStyle.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Icon(
+                          Icons.arrow_forward_ios_rounded,
+                          size: 11,
+                          color: AppStyle.primary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        SizedBox(
+          height: 195,
+          child: ListView.builder(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            itemCount: items.length,
+            itemBuilder: (context, index) {
+              final art = items[index];
+              return _ShelfArtworkCard(
+                art: art,
+                gallery: gallery,
+                settings: settings,
+                onTap: () => onTapArt(art),
+                onFavorite: () => onFavorite(art),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShelfArtworkCard extends StatelessWidget {
+  final PixelArt art;
+  final GalleryProvider gallery;
+  final AppSettingsProvider settings;
+  final VoidCallback onTap;
+  final VoidCallback onFavorite;
+
+  const _ShelfArtworkCard({
+    required this.art,
+    required this.gallery,
+    required this.settings,
+    required this.onTap,
+    required this.onFavorite,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isCompleted = gallery.isCompleted(art.id);
+    final isFavorite = gallery.isFavorite(art.id);
+    final isUnlocked = gallery.isUnlocked(art, settings.isProUser);
+    final progress = gallery.artProgressPercent(art);
+    final inProgress = !isCompleted && progress > 0 && progress < 100;
+
+    return PressableScale(
+      onTap: onTap,
+      child: Container(
+        width: 135,
+        margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          color: Theme.of(context).cardColor,
+          border: Border.all(
+            color: isDark
+                ? Colors.white.withAlpha(15)
+                : Colors.black.withAlpha(12),
+            width: 1,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(isDark ? 45 : 10),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(17),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: isDark
+                              ? [const Color(0xFF222433), const Color(0xFF191A26)]
+                              : [const Color(0xFFF7F8FA), const Color(0xFFECEFF5)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(17),
+                        ),
+                        child: RepaintBoundary(
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            clipBehavior: Clip.hardEdge,
+                            child: SizedBox(
+                              width: art.gridWidth.toDouble(),
+                              height: art.gridHeight.toDouble(),
+                              child: CustomPaint(
+                                painter: ArtPreviewPainter(
+                                  art: art,
+                                  isCompleted: true,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          art.name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 12.5,
+                            letterSpacing: -0.2,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Row(
+                          children: [
+                            Text(
+                              '${art.gridWidth}×${art.gridHeight}',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).hintColor,
+                              ),
+                            ),
+                            const Spacer(),
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppStyle.primary.withAlpha(180),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              '${art.colorCount}',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).hintColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              // Favorite button (top-right)
+              Positioned(
+                top: 6,
+                right: 6,
+                child: GestureDetector(
+                  onTap: onFavorite,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(90),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isFavorite ? Icons.favorite : Icons.favorite_border,
+                      size: 15,
+                      color: isFavorite ? Colors.redAccent : Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+              // Status / Lock badge (top-left)
+              if (isCompleted)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Color(0xFF4CAF50),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.check,
+                      size: 11,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              else if (inProgress)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withAlpha(120),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '$progress%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                )
+              else if (!isUnlocked)
+                Positioned(
+                  top: 6,
+                  left: 6,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF263238).withAlpha(200),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.workspace_premium,
+                          color: Color(0xFFFFD54F),
+                          size: 13,
+                        ),
+                        SizedBox(width: 2),
+                        Text(
+                          'Pro',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -3083,13 +3889,24 @@ class _PixelArtCard extends StatelessWidget {
 class _ResultsCount extends StatelessWidget {
   final GalleryProvider gallery;
   final int count;
+  final VoidCallback? onClear;
 
-  const _ResultsCount({required this.gallery, required this.count});
+  const _ResultsCount({
+    required this.gallery,
+    required this.count,
+    this.onClear,
+  });
 
   @override
   Widget build(BuildContext context) {
     final q = gallery.searchQuery;
-    final label = '$count artwork${count == 1 ? '' : 's'}'
+    final status = gallery.statusFilter;
+    String statusDesc = '';
+    if (status == ArtworkStatusFilter.notStarted) statusDesc = ' · Not started';
+    if (status == ArtworkStatusFilter.inProgress) statusDesc = ' · In progress';
+    if (status == ArtworkStatusFilter.completed) statusDesc = ' · Completed';
+
+    final label = '$count artwork${count == 1 ? '' : 's'}$statusDesc'
         '${q.isNotEmpty ? ' for "$q"' : ''}';
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 6, 20, 0),
@@ -3106,7 +3923,7 @@ class _ResultsCount extends StatelessWidget {
           const Spacer(),
           if (gallery.hasActiveFilter)
             GestureDetector(
-              onTap: gallery.clearFilters,
+              onTap: onClear ?? gallery.clearFilters,
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -3210,12 +4027,30 @@ class _ShimmerCardState extends State<_ShimmerCard>
 /// from "the catalog itself is empty".
 class _EmptyState extends StatelessWidget {
   final GalleryProvider gallery;
-  const _EmptyState({required this.gallery});
+  final VoidCallback? onClear;
+  const _EmptyState({required this.gallery, this.onClear});
 
   @override
   Widget build(BuildContext context) {
     final filtered = gallery.hasActiveFilter;
     final q = gallery.searchQuery;
+    final status = gallery.statusFilter;
+
+    String emptyMsg;
+    if (q.isNotEmpty) {
+      emptyMsg = 'Nothing matches "$q" with the current filters.';
+    } else if (status == ArtworkStatusFilter.notStarted) {
+      emptyMsg = 'You have colored all artworks in this category!';
+    } else if (status == ArtworkStatusFilter.inProgress) {
+      emptyMsg = 'No artworks currently in progress. Tap any artwork to start!';
+    } else if (status == ArtworkStatusFilter.completed) {
+      emptyMsg = 'No completed artworks yet. Finish an artwork to see it here!';
+    } else {
+      emptyMsg = filtered
+          ? 'No artworks match the current filters.'
+          : 'Pull to refresh, or check back soon for new pieces.';
+    }
+
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -3235,18 +4070,14 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              filtered
-                  ? (q.isNotEmpty
-                      ? 'Nothing matches "$q" with the current filters.'
-                      : 'No artworks match the current filters.')
-                  : 'Pull to refresh, or check back soon for new pieces.',
+              emptyMsg,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13.5, color: Theme.of(context).hintColor),
             ),
             if (filtered) ...[
               const SizedBox(height: 18),
               ElevatedButton.icon(
-                onPressed: gallery.clearFilters,
+                onPressed: onClear ?? gallery.clearFilters,
                 icon: const Icon(Icons.close_rounded, size: 18),
                 label: const Text('Clear filters'),
                 style: ElevatedButton.styleFrom(

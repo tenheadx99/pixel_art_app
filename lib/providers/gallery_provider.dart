@@ -14,6 +14,13 @@ import 'package:pixel_art_app/data/services/auth_service.dart';
 import 'package:pixel_art_app/data/services/cloud_sync_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
 
+enum ArtworkStatusFilter {
+  all,
+  notStarted,
+  inProgress,
+  completed,
+}
+
 class GalleryProvider extends ChangeNotifier {
   final LocalStorageService _storageService;
   final DatabaseService _databaseService;
@@ -41,17 +48,31 @@ class GalleryProvider extends ChangeNotifier {
 
   String _searchQuery = '';
   bool _favoritesOnly = false;
+  ArtworkStatusFilter _statusFilter = ArtworkStatusFilter.all;
+  bool _shelvesView = true;
   String _sortBy =
       'Default'; // Options: Default, Difficulty (Easy), Difficulty (Hard), Colors (Few), Colors (Many)
 
   String get searchQuery => _searchQuery;
   String get sortBy => _sortBy;
   bool get favoritesOnly => _favoritesOnly;
+  ArtworkStatusFilter get statusFilter => _statusFilter;
+  bool get shelvesView => _shelvesView;
 
-  /// True when the listing is narrowed by category, search or favorites — lets
+  bool get shouldShowShelves =>
+      _shelvesView &&
+      _selectedCategory == 'All' &&
+      _searchQuery.isEmpty &&
+      !_favoritesOnly &&
+      _statusFilter == ArtworkStatusFilter.all;
+
+  /// True when the listing is narrowed by category, search, favorites or status — lets
   /// the empty state distinguish "no matches" from "no catalog".
   bool get hasActiveFilter =>
-      _selectedCategory != 'All' || _searchQuery.isNotEmpty || _favoritesOnly;
+      _selectedCategory != 'All' ||
+      _searchQuery.isNotEmpty ||
+      _favoritesOnly ||
+      _statusFilter != ArtworkStatusFilter.all;
 
   void setSearchQuery(String query) {
     _searchQuery = query;
@@ -70,11 +91,35 @@ class GalleryProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  void setStatusFilter(ArtworkStatusFilter filter) {
+    if (_statusFilter == filter) return;
+    _statusFilter = filter;
+    AnalyticsService().logGalleryFilterApplied(
+      filterType: 'status',
+      value: filter.name,
+    );
+    notifyListeners();
+  }
+
+  void toggleViewMode() {
+    _shelvesView = !_shelvesView;
+    _storageService.setBool('gallery_shelves_view', _shelvesView);
+    notifyListeners();
+  }
+
+  void setShelvesView(bool value) {
+    if (_shelvesView == value) return;
+    _shelvesView = value;
+    _storageService.setBool('gallery_shelves_view', _shelvesView);
+    notifyListeners();
+  }
+
   /// Resets every listing filter back to the default "show all" view.
   void clearFilters() {
     _selectedCategory = 'All';
     _searchQuery = '';
     _favoritesOnly = false;
+    _statusFilter = ArtworkStatusFilter.all;
     notifyListeners();
   }
 
@@ -101,6 +146,25 @@ class GalleryProvider extends ChangeNotifier {
     }
     if (_favoritesOnly) {
       list = list.where((a) => _favoriteIds.contains(a.id)).toList();
+    }
+
+    if (_statusFilter == ArtworkStatusFilter.notStarted) {
+      list = list
+          .where((a) => !isCompleted(a.id) && artProgressPercent(a) == 0)
+          .toList();
+    } else if (_statusFilter == ArtworkStatusFilter.inProgress) {
+      list = list
+          .where(
+            (a) =>
+                !isCompleted(a.id) &&
+                artProgressPercent(a) > 0 &&
+                artProgressPercent(a) < 100,
+          )
+          .toList();
+    } else if (_statusFilter == ArtworkStatusFilter.completed) {
+      list = list
+          .where((a) => isCompleted(a.id) || artProgressPercent(a) >= 100)
+          .toList();
     }
 
     if (_sortBy == 'Difficulty (Easy)') {
@@ -136,6 +200,38 @@ class GalleryProvider extends ChangeNotifier {
     return cats.toList()..sort();
   }
 
+  /// Up to 10 latest or recently added artworks
+  List<PixelArt> get newArrivals {
+    if (_catalog.length <= 10) return _catalog;
+    return _catalog.reversed.take(10).toList();
+  }
+
+  /// Bite-sized, quick pixel art: grid area <= 484 (up to 22x22) or <= 8 colors
+  List<PixelArt> get quickBites {
+    final bites = _catalog
+        .where((a) => (a.gridWidth * a.gridHeight <= 484) || a.colorCount <= 8)
+        .toList();
+    return bites.take(12).toList();
+  }
+
+  /// Artworks for a specific category
+  List<PixelArt> artworksForCategory(String category) {
+    return _catalog.where((a) => a.category == category).toList();
+  }
+
+  /// Categories suitable for horizontal shelves (at least 2 artworks)
+  List<String> get shelfCategories {
+    final counts = <String, int>{};
+    for (final a in _catalog) {
+      if (a.category != 'All') {
+        counts[a.category] = (counts[a.category] ?? 0) + 1;
+      }
+    }
+    final cats = counts.entries.where((e) => e.value >= 2).map((e) => e.key).toList();
+    cats.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
+    return cats;
+  }
+
   static List<PixelArt> _deduplicate(List<PixelArt> arts) {
     final seen = <String>{};
     final unique = <PixelArt>[];
@@ -157,6 +253,7 @@ class GalleryProvider extends ChangeNotifier {
     );
     _favoriteIds = _storageService.getStringSet('favorite_ids');
     _diamondUnlockedIds = _storageService.getStringSet(_diamondUnlockedPrefKey);
+    _shelvesView = _storageService.getBool('gallery_shelves_view', defaultValue: true);
     _loadStreak();
 
     _isLoading = false;
