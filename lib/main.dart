@@ -76,6 +76,8 @@ Future<void> bootstrapApp() async {
     PixelGrid.preloadGemShader();
   } else if (flavor.cellStyle == CellRenderStyle.crossStitch) {
     PixelGrid.preloadCrossStitchShader();
+  } else if (flavor.cellStyle == CellRenderStyle.flat) {
+    PixelGrid.preloadFlatShader();
   }
 
   // Initialize Firebase early so Crashlytics can capture errors from the very

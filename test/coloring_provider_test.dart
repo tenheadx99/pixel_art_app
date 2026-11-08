@@ -86,6 +86,42 @@ void main() {
       expect(provider.filledGrid[1][1], 0);
     });
 
+    test('bresenhamLine computes horizontal, vertical, and diagonal steps', () {
+      final horiz = ColoringProvider.bresenhamLine(0, 0, 0, 3);
+      expect(horiz, [(0, 0), (0, 1), (0, 2), (0, 3)]);
+
+      final vert = ColoringProvider.bresenhamLine(1, 2, 4, 2);
+      expect(vert, [(1, 2), (2, 2), (3, 2), (4, 2)]);
+
+      final diag = ColoringProvider.bresenhamLine(0, 0, 2, 2);
+      expect(diag, [(0, 0), (1, 1), (2, 2)]);
+    });
+
+    test('fast swipe interpolates skipped intermediate cells', () async {
+      final provider = await _providerWith({});
+      final art = PixelArt(
+        id: 'line_art',
+        name: 'Line',
+        gridWidth: 6,
+        gridHeight: 6,
+        grid: List.generate(6, (_) => List.generate(6, (_) => 1)),
+        colorMap: {1: const Color(0xFFFF0000)},
+      );
+      provider.loadArt(art);
+      provider.selectNumber(1);
+
+      provider.beginStroke();
+      // Fast swipe: only two touch points sampled from (0, 0) directly to (0, 5)
+      provider.strokeFill(0, 0);
+      provider.strokeFill(0, 5);
+      provider.endStroke();
+
+      // All intermediate cells (0, 1) through (0, 5) must be filled
+      for (int c = 0; c <= 5; c++) {
+        expect(provider.filledGrid[0][c], 1, reason: 'cell (0, $c) should be filled');
+      }
+    });
+
     test('hint fills one correct cell and selects its number', () async {
       final provider = await _providerWith({});
       provider.loadArt(twoColorArt());

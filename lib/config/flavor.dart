@@ -156,7 +156,7 @@ class FlavorConfig {
       accent: Color(0xFF00F0FF), // Cyber Cyan
       brandGradient: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.devotional: FlavorConfig(
       appName: 'Bhakti Rang: Color by Number',
@@ -197,7 +197,7 @@ class FlavorConfig {
       // interstitial/app-open.
       fullScreenAdsEnabled: false,
       bannerAdsEnabled: false,
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.bible: FlavorConfig(
       appName: 'Daily Bible',
@@ -209,7 +209,7 @@ class FlavorConfig {
       accent: Color(0xFF7B4FBF), // Violet
       brandGradient: [Color(0xFF1A3FA8), Color(0xFF7B4FBF)],
       manifestPath: 'assets/pixel_art_bible/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',
@@ -251,7 +251,7 @@ class FlavorConfig {
       accent: Color(0xFFFFD166), // Marigold Yellow
       brandGradient: [Color(0xFF00B4D8), Color(0xFFFF70A6)],
       manifestPath: 'assets/pixel_art_bead/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.bead,
       paletteLabel: 'Select a Bead',
       placeVerb: 'Place',
@@ -266,7 +266,7 @@ class FlavorConfig {
       accent: Color(0xFFFFD600), // Brick Yellow
       brandGradient: [Color(0xFFE53935), Color(0xFFFFD600)],
       manifestPath: 'assets/pixel_art_brick/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.brick,
       paletteLabel: 'Select a Brick',
       placeVerb: 'Snap',
@@ -281,7 +281,7 @@ class FlavorConfig {
       accent: Color(0xFF8D99AE), // Sage Wool
       brandGradient: [Color(0xFFD81B60), Color(0xFFF48FB1)],
       manifestPath: 'assets/pixel_art_knit/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.knit,
       paletteLabel: 'Select a Yarn',
       placeVerb: 'Knit',
@@ -296,7 +296,7 @@ class FlavorConfig {
       accent: Color(0xFFF4A261), // Glazed Amber
       brandGradient: [Color(0xFF0077B6), Color(0xFFE07A5F)],
       manifestPath: 'assets/pixel_art_mosaic/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.mosaic,
       paletteLabel: 'Select a Tile',
       placeVerb: 'Tile',
@@ -311,7 +311,7 @@ class FlavorConfig {
       accent: Color(0xFFFFE600), // Electric Neon Yellow
       brandGradient: [Color(0xFF00F0FF), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art_glow/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.glow,
       paletteLabel: 'Select a Light',
       placeVerb: 'Light',
@@ -326,7 +326,7 @@ class FlavorConfig {
       accent: Color(0xFF4D96FF), // Sky Blue
       brandGradient: [Color(0xFFFF6B6B), Color(0xFFFFD93D)],
       manifestPath: 'assets/pixel_art_sticker/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.sticker,
       paletteLabel: 'Select a Sticker',
       placeVerb: 'Stick',
@@ -341,7 +341,7 @@ class FlavorConfig {
       accent: Color(0xFFDDA15E), // Mustard Gold
       brandGradient: [Color(0xFF2B4C7E), Color(0xFFC47A88)],
       manifestPath: 'assets/pixel_art_quilt/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.quilt,
       paletteLabel: 'Select a Fabric',
       placeVerb: 'Sew',
@@ -356,7 +356,7 @@ class FlavorConfig {
       accent: Color(0xFFFFB300), // Amber Gold
       brandGradient: [Color(0xFF3F51B5), Color(0xFF00BFA5)],
       manifestPath: 'assets/pixel_art_voxel/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.voxel,
       paletteLabel: 'Select a Block',
       placeVerb: 'Build',

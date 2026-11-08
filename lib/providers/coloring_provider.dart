@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:io' show Platform;
 import 'dart:typed_data';
-import 'package:flutter/foundation.dart' show compute, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
@@ -54,6 +54,8 @@ class ColoringProvider extends ChangeNotifier {
   bool _inStroke = false;
   bool _strokeChanged = false;
   int _strokeTimeLapseStart = 0;
+  int? _lastStrokeRow;
+  int? _lastStrokeCol;
   final Map<int, int> _totalPerNumber = {};
   final Map<int, int> _filledPerNumber = {};
   // Grid-wide tallies maintained incrementally by [_setCell]; rebuilt by the
@@ -435,29 +437,9 @@ class ColoringProvider extends ChangeNotifier {
     }
   }
 
-  // Invalidates in-flight async saves; bumped whenever a newer save starts or
-  // the saved-state lifecycle changes (clearProgress), so a slow encode can
-  // never overwrite fresher data or resurrect cleared progress.
-  int _saveSeq = 0;
-
-  // The most recent save still encoding on its worker isolate. loadArt awaits
-  // it before reading storage: the coloring screen fires an un-awaited
-  // saveProgress() from dispose, and reopening an artwork before that write
-  // lands would restore STALE progress — and then re-save it on the next
-  // exit, permanently losing the newest fills.
-  Future<void>? _pendingSave;
-
   Future<void> saveProgress() {
-    final future = _saveProgressImpl();
-    _pendingSave = future;
-    future.whenComplete(() {
-      if (identical(_pendingSave, future)) _pendingSave = null;
-    });
-    return future;
-  }
-
-  Future<void> _saveProgressImpl() async {
-    if (_currentArt == null) return;
+    _saveTimer?.cancel();
+    if (_currentArt == null) return Future.value();
     final saveKey = _saveKey;
     // Cheap scalar writes stay synchronous.
     _storageService.setInt('${saveKey}_fills', _totalFillCount);
@@ -478,23 +460,11 @@ class ColoringProvider extends ChangeNotifier {
     _storageService.setInt('bombs_count', _bombsCount);
     _storageService.setInt('brushes_count', _brushesCount);
 
-    // The grid and time-lapse strings grow with artwork size (tens of KB on
-    // large grids); building them blocked the UI thread on every debounced
-    // save. Snapshot the state now, encode on a worker isolate, then write.
-    final gridSnapshot = _filledGrid
-        .map((row) => List<int>.of(row, growable: false))
-        .toList(growable: false);
-    final timeLapseSnapshot = List<(int, int)>.of(_timeLapse, growable: false);
-    final seq = ++_saveSeq;
-    final encoded = await compute(
-      _encodeSaveStrings,
-      (grid: gridSnapshot, timeLapse: timeLapseSnapshot),
-    );
-    if (seq != _saveSeq) return; // superseded by a newer save or a clear
-    _storageService.setString(saveKey, encoded.grid);
-    // Persist the paint history so Replay / Share GIF keep working when a
-    // finished artwork is reopened later (the in-memory list is reset on load).
-    _storageService.setString('${saveKey}_timelapse', encoded.timeLapse);
+    final gridStr = _filledGrid.map((row) => row.join(',')).join(';');
+    final timeLapseStr = _timeLapse.map((a) => '${a.$1},${a.$2}').join(';');
+    _storageService.setString(saveKey, gridStr);
+    _storageService.setString('${saveKey}_timelapse', timeLapseStr);
+    return Future.value();
   }
 
   void _debouncedSave() {
@@ -633,7 +603,6 @@ class ColoringProvider extends ChangeNotifier {
 
   void clearProgress() {
     if (_currentArt == null) return;
-    _saveSeq++; // drop any in-flight async save so it can't resurrect data
     _storageService.setString(_saveKey, '');
     _storageService.setInt('${_saveKey}_pct', 0);
     _storageService.setString('${_saveKey}_timelapse', '');
@@ -777,18 +746,6 @@ class ColoringProvider extends ChangeNotifier {
   DateTime? _artStartedAt;
 
   Future<void> loadArt(PixelArt art) async {
-    // Wait for any in-flight save to land before reading storage back (see
-    // _pendingSave). Skipped entirely when no save is pending, so the common
-    // path stays synchronous for the first frame.
-    final pending = _pendingSave;
-    if (pending != null) {
-      try {
-        await pending;
-      } catch (_) {
-        // A failed save must not block loading; loadProgress falls back to
-        // whatever state is already persisted.
-      }
-    }
     _currentArt = art;
     _artStartedAt = DateTime.now();
     _activePaletteTheme = 'original';
@@ -1107,6 +1064,8 @@ class ColoringProvider extends ChangeNotifier {
     _inStroke = true;
     _strokeChanged = false;
     _strokeTimeLapseStart = _timeLapse.length;
+    _lastStrokeRow = null;
+    _lastStrokeCol = null;
   }
 
   /// Reverts an in-progress stroke, e.g. when a drag turns into a two-finger
@@ -1114,6 +1073,8 @@ class ColoringProvider extends ChangeNotifier {
   void cancelStroke() {
     if (!_inStroke) return;
     _inStroke = false;
+    _lastStrokeRow = null;
+    _lastStrokeCol = null;
     _abortUndo(revert: true);
     _timeLapse.removeRange(_strokeTimeLapseStart, _timeLapse.length);
     if (_strokeChanged) {
@@ -1123,33 +1084,85 @@ class ColoringProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Bresenham's 2D line algorithm returning all integer grid coordinates
+  /// from (r0, c0) to (r1, c1) inclusive. Used to interpolate fast drag strokes
+  /// so that fast swipes do not leave unfilled gaps between touch sample frames.
+  static List<(int, int)> bresenhamLine(int r0, int c0, int r1, int c1) {
+    final points = <(int, int)>[];
+    final dr = (r1 - r0).abs();
+    final dc = (c1 - c0).abs();
+    final sr = r0 < r1 ? 1 : -1;
+    final sc = c0 < c1 ? 1 : -1;
+    var err = dr - dc;
+
+    var curR = r0;
+    var curC = c0;
+
+    while (true) {
+      points.add((curR, curC));
+      if (curR == r1 && curC == c1) break;
+      final e2 = 2 * err;
+      if (e2 > -dc) {
+        err -= dc;
+        curR += sr;
+      }
+      if (e2 < dr) {
+        err += dr;
+        curC += sc;
+      }
+    }
+    return points;
+  }
+
   void strokeFill(int row, int col) {
     if (_isReplaying || !_inStroke || _currentArt == null) return;
     if (row < 0 || row >= _currentArt!.gridHeight) return;
     if (col < 0 || col >= _currentArt!.gridWidth) return;
 
+    // Fast-drag interpolation: if there is a gap between the previous touch event
+    // and this one, interpolate all intermediate grid cells using Bresenham's algorithm.
+    final pointsToFill = <(int, int)>[];
+    if (_lastStrokeRow != null && _lastStrokeCol != null) {
+      if (_lastStrokeRow == row && _lastStrokeCol == col) {
+        return; // Exact same cell as previous event in this stroke
+      }
+      final interpolated = bresenhamLine(_lastStrokeRow!, _lastStrokeCol!, row, col);
+      if (interpolated.isNotEmpty) {
+        // Skip index 0 because it was already filled in the previous event
+        pointsToFill.addAll(interpolated.skip(1));
+      }
+    } else {
+      pointsToFill.add((row, col));
+    }
+
+    _lastStrokeRow = row;
+    _lastStrokeCol = col;
+
     bool changed = false;
     final half = _brushSize ~/ 2;
-    for (var dr = -half; dr <= half; dr++) {
-      for (var dc = -half; dc <= half; dc++) {
-        final r = row + dr;
-        final c = col + dc;
-        if (r < 0 || r >= _currentArt!.gridHeight) continue;
-        if (c < 0 || c >= _currentArt!.gridWidth) continue;
-        if (_isEraseMode) {
-          if (_filledGrid[r][c] <= 0) continue;
-          _setCell(r, c, 0);
-          changed = true;
-        } else {
-          final expectedNumber = _currentArt!.grid[r][c];
-          if (expectedNumber == 0) continue;
-          if (_filledGrid[r][c] > 0) continue;
-          if (expectedNumber != _selectedNumber) continue;
-          _setCell(r, c, expectedNumber);
-          _recordTimeLapse(r, c);
-          changed = true;
-          onCellFilledCorrectly?.call();
-          onCellFilledAt?.call(r, c);
+
+    for (final (ptR, ptC) in pointsToFill) {
+      for (var dr = -half; dr <= half; dr++) {
+        for (var dc = -half; dc <= half; dc++) {
+          final r = ptR + dr;
+          final c = ptC + dc;
+          if (r < 0 || r >= _currentArt!.gridHeight) continue;
+          if (c < 0 || c >= _currentArt!.gridWidth) continue;
+          if (_isEraseMode) {
+            if (_filledGrid[r][c] <= 0) continue;
+            _setCell(r, c, 0);
+            changed = true;
+          } else {
+            final expectedNumber = _currentArt!.grid[r][c];
+            if (expectedNumber == 0) continue;
+            if (_filledGrid[r][c] > 0) continue;
+            if (expectedNumber != _selectedNumber) continue;
+            _setCell(r, c, expectedNumber);
+            _recordTimeLapse(r, c);
+            changed = true;
+            onCellFilledCorrectly?.call();
+            onCellFilledAt?.call(r, c);
+          }
         }
       }
     }
@@ -1163,6 +1176,8 @@ class ColoringProvider extends ChangeNotifier {
   void endStroke() {
     if (!_inStroke) return;
     _inStroke = false;
+    _lastStrokeRow = null;
+    _lastStrokeCol = null;
     if (!_strokeChanged) {
       _abortUndo();
       return;
@@ -1705,16 +1720,4 @@ class ColoringProvider extends ChangeNotifier {
       return false;
     }
   }
-}
-
-/// Builds the persisted grid / time-lapse strings. Top-level so
-/// [ColoringProvider.saveProgress] can run it on a worker isolate via
-/// [compute]; the payload lists are snapshots, never live provider state.
-({String grid, String timeLapse}) _encodeSaveStrings(
-  ({List<List<int>> grid, List<(int, int)> timeLapse}) data,
-) {
-  return (
-    grid: data.grid.map((row) => row.join(',')).join(';'),
-    timeLapse: data.timeLapse.map((a) => '${a.$1},${a.$2}').join(';'),
-  );
 }

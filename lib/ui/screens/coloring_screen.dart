@@ -337,7 +337,11 @@ class _ColoringScreenState extends State<ColoringScreen>
       // loadArt awaits any save still encoding on its worker isolate before
       // reading storage (quick exit-and-reopen must not restore stale
       // progress); everything below reads the freshly loaded state.
-      await provider.loadArt(widget.art);
+      try {
+        await provider.loadArt(widget.art);
+      } catch (e, stack) {
+        debugPrint('Error loading artwork: $e\n$stack');
+      }
       if (!mounted) return;
       _adjustCellSize();
       _transformController.value = Matrix4.identity();
@@ -408,6 +412,7 @@ class _ColoringScreenState extends State<ColoringScreen>
         flavor: currentFlavor.name,
         existingProgressPct: (provider.progress * 100).round(),
       );
+      if (mounted) setState(() {});
     });
   }
 
@@ -850,6 +855,7 @@ class _ColoringScreenState extends State<ColoringScreen>
             _savedGridState = null;
           }
           provider.setReplaying(false);
+          provider.saveProgress();
           if (provider.isComplete) {
             _saveArtwork(context, provider);
           }

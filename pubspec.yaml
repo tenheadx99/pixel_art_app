@@ -79,3 +79,4 @@ flutter:
   shaders:
     - shaders/gem_grid.frag
     - shaders/cross_stitch_grid.frag
+    - shaders/flat_grid.frag

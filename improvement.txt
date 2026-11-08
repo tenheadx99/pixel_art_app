@@ -29,14 +29,17 @@
 
 2. GAMEPLAY & COLORING USER EXPERIENCE (UX DELIGHT)
 --------------------------------------------------------------------------------
-* Continuous Drag-to-Color (Long-Press Swipe Fill):
-  - Enhance drag-to-fill with smooth haptic feedback ticks as consecutive 
-    matching numbered cells are filled in a continuous swipe.
-  - Highly satisfying tactile feel, especially on large 64x64 or 128x128 
-    canvases.
+* Fast-Swipe Line Interpolation (Bresenham's Algorithm):
+  - Uses Bresenham's 2D line algorithm between consecutive touch events during 
+    fast swipes.
+  - Prevents skipped cells and gaps when users quickly drag or flick their 
+    finger across the canvas at high speed, ensuring continuous coverage.
 
 * Flavor-Specific Visual Overlays & Shaders:
   - Custom texture overlays / shaders tailored for each app flavor:
+    * Original / Flat: GPU fragment shader (`shaders/flat_grid.frag`) matching
+      the cross-stitch / gem architecture for locked 120 FPS performance,
+      dynamic LOD grid lines, authentic top-edge gloss, and hardware wave animations.
     * Diamond: Subtle beveled gem reflections.
     * Stitch / CrossStitch: Realistic woven thread texture.
     * Glow: Vibrant neon bloom effects.
