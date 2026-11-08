@@ -1,0 +1,88 @@
+================================================================================
+                    PIXEL ART APP & ADMIN - FEATURE SUGGESTIONS & ROADMAP
+================================================================================
+
+1. ENGAGEMENT & RETENTION (DAILY ACTIVE USERS & RETENTION)
+--------------------------------------------------------------------------------
+* Daily Art Calendar & History Archive:
+  - Add a Monthly Calendar View where users can browse and see past completed 
+    days with golden stamps.
+  - Allow players to unlock and play missed past days using diamonds or rewarded 
+    ads.
+  - Protects streaks while creating a natural diamond sink and satisfying 
+    completionist motivation.
+
+* Thematic Collections & Album Badges (e.g., "Anime Legends", "Floral Garden"):
+  - Group 5-8 related artworks into curated "Albums" or "Packs".
+  - Completing all artworks in an album grants a unique collectible badge, 
+    diamond rewards, and a special animated completion screen.
+  - Dynamic Admin Support: Admins can curate, publish, and order albums from the 
+    admin panel via Firestore without requiring app store updates.
+
+* Time-Lapse Replay & Video Export:
+  - Track coloring actions and replay the artwork from a blank grid to the 
+    finished masterpiece in high-speed motion.
+  - Enable 1-tap export as MP4 / GIF with app branding and watermarks, optimized 
+    for Instagram Reels, TikTok, and WhatsApp Stories (driving organic viral 
+    growth).
+
+
+2. GAMEPLAY & COLORING USER EXPERIENCE (UX DELIGHT)
+--------------------------------------------------------------------------------
+* Continuous Drag-to-Color (Long-Press Swipe Fill):
+  - Enhance drag-to-fill with smooth haptic feedback ticks as consecutive 
+    matching numbered cells are filled in a continuous swipe.
+  - Highly satisfying tactile feel, especially on large 64x64 or 128x128 
+    canvases.
+
+* Flavor-Specific Visual Overlays & Shaders:
+  - Custom texture overlays / shaders tailored for each app flavor:
+    * Diamond: Subtle beveled gem reflections.
+    * Stitch / CrossStitch: Realistic woven thread texture.
+    * Glow: Vibrant neon bloom effects.
+    * Mosaic: Grout line shading and glazed tile look.
+
+* Offline Artwork Pack Downloads:
+  - Allow users to download entire category packs or custom shelves for offline 
+    coloring (ideal for flights, commutes, and low-connectivity environments).
+
+
+3. CONTENT MANAGEMENT & LIVEOPS (ADMIN PANEL)
+--------------------------------------------------------------------------------
+* Visual Release Scheduler & Expiry Management:
+  - In Admin panel, provide a calendar UI to schedule artwork releases 
+    (e.g., "Release on Dec 25 at 00:00").
+  - Show countdown badges in both Admin and Mobile app ("Releases in 2 days").
+
+* A/B Testing Home Shelves & Layouts:
+  - Support publishing multiple home shelf layouts (Variant A vs Variant B).
+  - Track completion rates and engagement metrics per layout to optimize 
+    onboarding and content discovery.
+
+* Bulk Artwork Importer with AI Auto-Tagging:
+  - Drag-and-drop batch upload for ZIP archives containing multiple pixel art 
+    images.
+  - Auto-calculates dimensions, color counts, and difficulty, and suggests tags 
+    and categories automatically before batch publishing.
+
+
+4. MONETIZATION & IN-GAME ECONOMY
+--------------------------------------------------------------------------------
+* 7-Day Daily Login Reward Wheel / Ladder:
+  - Day 1: +10 Diamonds
+  - Day 3: +1 Free Streak Freeze
+  - Day 5: 2x Magic Wand Booster
+  - Day 7: +100 Diamonds + Exclusive Mystery Artwork
+  - Directly boosts D1 to D7 user retention rates.
+
+* Rewarded Ad Reward Multipliers:
+  - On completing an artwork, offer: "Claim 20 Diamonds" or "Watch Video to 3x 
+    (60 Diamonds)".
+  - Consistently one of the highest-converting, non-intrusive rewarded ad formats 
+    in mobile puzzle games.
+
+* Seasonal Battle Pass / "Artist Pass":
+  - 30-day progression track: coloring cells and finishing artworks awards XP.
+  - Free track and VIP track unlocking exclusive seasonal artwork packs, 
+    special palette animations, and bonus power-ups.
+
