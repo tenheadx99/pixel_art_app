@@ -17,7 +17,9 @@ import '../widgets/art_preview_painter.dart';
 import '../widgets/coin_fly.dart';
 import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
+import '../widgets/festive_campaign_dialog.dart';
 import '../widgets/reward_popup.dart';
+import '../../data/services/local_storage_service.dart';
 import '../widgets/diamond_shop_sheet.dart';
 import '../widgets/in_app_update_card.dart';
 import '../../data/services/economy_config_service.dart';
@@ -107,6 +109,8 @@ class _HomeScreenState extends State<HomeScreen> {
         currentStreak: gallery.dailyStreak,
         todayCompleted: gallery.todayCompleted,
       );
+      // Check if there is an active festive/seasonal campaign
+      _checkFestiveCampaign();
     });
     // Listen to economy config updates (e.g. admin toggling shop status)
     EconomyConfigService().addListener(_onEconomyConfigChanged);
@@ -114,6 +118,41 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onEconomyConfigChanged() {
     if (mounted) setState(() {});
+  }
+
+  void _checkFestiveCampaign() {
+    if (!mounted) return;
+    final gallery = context.read<GalleryProvider>();
+    final campaign = gallery.festiveCampaign;
+    if (campaign == null || !campaign.isActiveNow) return;
+
+    final storage = LocalStorageService();
+    final claimKey = 'festive_claimed_${campaign.campaignId}';
+    if (storage.getBool(claimKey, defaultValue: false)) return;
+
+    showFestiveCampaignDialog(
+      context,
+      campaign: campaign,
+      onClaim: () {
+        storage.setBool(claimKey, true);
+        if (campaign.rewardDiamonds > 0) {
+          final settings = context.read<AppSettingsProvider>();
+          settings.addDiamonds(
+            campaign.rewardDiamonds,
+            source: 'festive_campaign_bonus',
+          );
+          _pulseDiamondChip();
+        }
+        if (campaign.targetType == 'category' &&
+            campaign.targetId != null &&
+            campaign.targetId!.isNotEmpty) {
+          final cat = campaign.targetId!;
+          if (gallery.categories.contains(cat)) {
+            gallery.setCategory(cat);
+          }
+        }
+      },
+    );
   }
 
   void _handleDailyArtRequest() {
@@ -198,26 +237,6 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
                   ),
-                SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-                  sliver: SliverToBoxAdapter(
-                    child: _CategoryFilter(
-                      gallery: gallery,
-                      searchController: _searchController,
-                    ),
-                  ),
-                ),
-                if (!gallery.isLoading && catalog.isNotEmpty)
-                  SliverToBoxAdapter(
-                    child: _ResultsCount(
-                      gallery: gallery,
-                      count: catalog.length,
-                      onClear: () {
-                        _searchController.clear();
-                        gallery.clearFilters();
-                      },
-                    ),
-                  ),
                 if (gallery.isLoading)
                   const _SkeletonGrid()
                 else if (catalog.isEmpty)
@@ -231,10 +250,36 @@ class _HomeScreenState extends State<HomeScreen> {
                       },
                     ),
                   )
-                else if (gallery.shouldShowShelves)
-                  ..._buildShelvesSlivers(gallery, settings, catalog)
-                else
+                else if (gallery.shouldShowShelves) ...[
+                  SliverToBoxAdapter(
+                    child: _ShelvesTopBar(
+                      gallery: gallery,
+                      totalCount: catalog.length,
+                    ),
+                  ),
+                  ..._buildShelvesSlivers(gallery, settings, catalog),
+                ] else ...[
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+                    sliver: SliverToBoxAdapter(
+                      child: _CategoryFilter(
+                        gallery: gallery,
+                        searchController: _searchController,
+                      ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: _ResultsCount(
+                      gallery: gallery,
+                      count: catalog.length,
+                      onClear: () {
+                        _searchController.clear();
+                        gallery.clearFilters();
+                      },
+                    ),
+                  ),
                   ..._buildCatalogSlivers(gallery, settings, catalog),
+                ],
               ],
             ),
             // Camera/Gallery stay reachable via the header icons; the bottom
@@ -257,91 +302,43 @@ class _HomeScreenState extends State<HomeScreen> {
   ) {
     final slivers = <Widget>[];
 
-    Widget buildShelf({
-      required String title,
-      required String emoji,
-      required String subtitle,
-      required List<PixelArt> items,
-      VoidCallback? onSeeAll,
-    }) {
-      if (items.isEmpty) return const SizedBox.shrink();
-      return _ArtworkShelf(
-        title: title,
-        emoji: emoji,
-        subtitle: subtitle,
-        items: items,
-        gallery: gallery,
-        settings: settings,
-        onTapArt: (art) => _openColoring(context, art),
-        onFavorite: (art) => gallery.toggleFavorite(art.id),
-        onSeeAll: onSeeAll,
-      );
-    }
-
     var shelfCount = 0;
+    for (final shelf in gallery.activeShelves) {
+      final items = gallery.itemsForShelf(shelf);
+      if (items.isEmpty) continue;
 
-    // Shelf 1: New & Trending
-    final newArts = gallery.newArrivals;
-    if (newArts.isNotEmpty) {
-      slivers.add(
-        SliverToBoxAdapter(
-          child: buildShelf(
-            title: 'New & Trending',
-            emoji: '✨',
-            subtitle: '${newArts.length} fresh artworks',
-            items: newArts,
-            onSeeAll: () {
-              gallery.setSortBy('Default');
-              gallery.setShelvesView(false);
-            },
-          ),
-        ),
-      );
-      shelfCount++;
-    }
-
-    // Shelf 2: Quick & Easy (< 10 min)
-    final quickArts = gallery.quickBites;
-    if (quickArts.isNotEmpty) {
-      slivers.add(
-        SliverToBoxAdapter(
-          child: buildShelf(
-            title: 'Quick & Easy',
-            emoji: '⚡',
-            subtitle: 'Bite-sized (< 10 mins)',
-            items: quickArts,
-            onSeeAll: () {
-              gallery.setSortBy('Difficulty (Easy)');
-              gallery.setShelvesView(false);
-            },
-          ),
-        ),
-      );
-      shelfCount++;
-    }
-
-    // Category shelves (Devotional, Anime, Animals, Food, etc.)
-    for (final cat in gallery.shelfCategories) {
-      final catArts = gallery.artworksForCategory(cat);
-      if (catArts.isNotEmpty) {
-        if (!settings.isProUser && shelfCount > 0 && shelfCount % 2 == 0) {
-          slivers.add(const SliverToBoxAdapter(child: NativeAdCard()));
-        }
-        slivers.add(
-          SliverToBoxAdapter(
-            child: buildShelf(
-              title: cat,
-              emoji: _CategoryFilter._categoryEmoji(cat),
-              subtitle: '${catArts.length} artworks',
-              items: catArts,
-              onSeeAll: () {
-                gallery.setCategory(cat);
-              },
-            ),
-          ),
-        );
-        shelfCount++;
+      if (!settings.isProUser && shelfCount > 0 && shelfCount % 3 == 0) {
+        slivers.add(const SliverToBoxAdapter(child: NativeAdCard()));
       }
+
+      VoidCallback? onSeeAll;
+      if (shelf.type == 'category' && shelf.category != null) {
+        onSeeAll = () => gallery.setCategory(shelf.category!);
+      } else if (shelf.type == 'quick') {
+        onSeeAll = () {
+          gallery.setSortBy('Difficulty (Easy)');
+          gallery.setShelvesView(false);
+        };
+      } else {
+        onSeeAll = () => gallery.setShelvesView(false);
+      }
+
+      slivers.add(
+        SliverToBoxAdapter(
+          child: _ArtworkShelf(
+            title: shelf.title,
+            emoji: shelf.emoji,
+            subtitle: shelf.subtitle ?? '${items.length} artworks',
+            items: items,
+            gallery: gallery,
+            settings: settings,
+            onTapArt: (art) => _openColoring(context, art),
+            onFavorite: (art) => gallery.toggleFavorite(art.id),
+            onSeeAll: onSeeAll,
+          ),
+        ),
+      );
+      shelfCount++;
     }
 
     // Bottom Switcher Banner to explore full grid
@@ -2752,6 +2749,110 @@ class _HeaderIconButton extends StatelessWidget {
   }
 }
 
+class _ShelvesTopBar extends StatelessWidget {
+  final GalleryProvider gallery;
+  final int totalCount;
+
+  const _ShelvesTopBar({
+    required this.gallery,
+    required this.totalCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
+      child: Row(
+        children: [
+          Flexible(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.collections_bookmark_rounded,
+                  size: 18,
+                  color: AppStyle.primary,
+                ),
+                const SizedBox(width: 8),
+                const Flexible(
+                  child: Text(
+                    'Collections',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppStyle.primary.withAlpha(25),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    '$totalCount',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppStyle.primary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          PressableScale(
+            onTap: () => gallery.setShelvesView(false),
+            child: Container(
+              height: 32,
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: AppStyle.primary.withAlpha(60),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(8),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.grid_view_rounded,
+                    size: 14,
+                    color: AppStyle.primary,
+                  ),
+                  SizedBox(width: 5),
+                  Text(
+                    'Full Grid',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppStyle.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _CategoryFilter extends StatelessWidget {
   final GalleryProvider gallery;
   final TextEditingController? searchController;
@@ -3006,49 +3107,45 @@ class _CategoryFilter extends StatelessWidget {
               ),
             ),
 
-            // View Mode Toggle (Shelves 📚 vs Grid ⊞)
-            if (gallery.selectedCategory == 'All' &&
-                gallery.searchQuery.isEmpty &&
-                !gallery.favoritesOnly &&
-                gallery.statusFilter == ArtworkStatusFilter.all) ...[
-              const SizedBox(width: 8),
-              PressableScale(
-                onTap: gallery.toggleViewMode,
-                child: Container(
-                  height: 34,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(17),
-                    border: Border.all(
-                      color: AppStyle.primary.withAlpha(60),
-                      width: 1,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        gallery.shelvesView
-                            ? Icons.grid_view_rounded
-                            : Icons.view_agenda_rounded,
-                        size: 15,
-                        color: AppStyle.primary,
-                      ),
-                      const SizedBox(width: 5),
-                      Text(
-                        gallery.shelvesView ? 'Grid' : 'Shelves',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                          color: AppStyle.primary,
-                        ),
-                      ),
-                    ],
+            // Shelves Mode Switcher
+            const SizedBox(width: 8),
+            PressableScale(
+              onTap: () {
+                gallery.setShelvesView(true);
+                gallery.clearFilters();
+              },
+              child: Container(
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: AppStyle.primary.withAlpha(20),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: AppStyle.primary.withAlpha(60),
+                    width: 1,
                   ),
                 ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.collections_bookmark_rounded,
+                      size: 13,
+                      color: AppStyle.primary,
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'Shelves',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: AppStyle.primary,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ],
+            ),
           ],
         ),
       ],
@@ -3146,31 +3243,45 @@ class _ArtworkShelf extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 18, 16, 10),
           child: Row(
             children: [
-              Text(
-                '$emoji $title',
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: -0.3,
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        '$emoji $title',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).dividerColor.withAlpha(20),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '${items.length}',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).dividerColor.withAlpha(20),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  '${items.length}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).hintColor,
-                  ),
-                ),
-              ),
-              const Spacer(),
               if (onSeeAll != null)
                 PressableScale(
                   onTap: onSeeAll!,
@@ -3691,84 +3802,92 @@ class _PixelArtCard extends StatelessWidget {
                     ),
                   ),
                 ),
-              if (!isUnlocked)
-                const Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Icon(Icons.workspace_premium,
-                      color: Color(0xFFFFD54F), size: 20),
-                ),
-              if (_inProgress)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 3.5,
-                    ),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
+              // Top-left status & tag badges (row layout ensures they never overlap)
+              Positioned(
+                top: 8,
+                left: 8,
+                right: 44,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!isUnlocked) ...[
+                      const Icon(
+                        Icons.workspace_premium,
+                        color: Color(0xFFFFD54F),
+                        size: 20,
                       ),
-                      borderRadius: BorderRadius.circular(10),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF6C5CE7).withAlpha(90),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
+                      const SizedBox(width: 5),
+                    ],
+                    if (_inProgress) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 3.5,
                         ),
-                      ],
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(
-                          Icons.brush_rounded,
-                          size: 10,
-                          color: Colors.white,
-                        ),
-                        const SizedBox(width: 3),
-                        Text(
-                          '$progressPercent%',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10.5,
-                            fontWeight: FontWeight.w800,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF6C5CE7), Color(0xFFA29BFE)],
                           ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF6C5CE7).withAlpha(90),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-              if (isCompleted)
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF00B894), Color(0xFF00CEC9)],
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.brush_rounded,
+                              size: 10,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              '$progressPercent%',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: const Color(0xFF00B894).withAlpha(100),
-                          blurRadius: 8,
-                          offset: const Offset(0, 2),
+                      const SizedBox(width: 5),
+                    ],
+                    if (isCompleted) ...[
+                      Container(
+                        padding: const EdgeInsets.all(5),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF00B894), Color(0xFF00CEC9)],
+                          ),
+                          borderRadius: BorderRadius.circular(10),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF00B894).withAlpha(100),
+                              blurRadius: 8,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.check,
-                      color: Colors.white,
-                      size: 14,
-                    ),
-                  ),
+                        child: const Icon(
+                          Icons.check,
+                          color: Colors.white,
+                          size: 12,
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                    ],
+                    if (art.tag != null && art.tag!.trim().isNotEmpty)
+                      Flexible(child: _buildTagBadge(context)),
+                  ],
                 ),
-              if (art.tag != null && art.tag!.trim().isNotEmpty)
-                _buildTagBadge(context),
+              ),
               Positioned(
                 top: 8,
                 right: 8,
@@ -3840,37 +3959,33 @@ class _PixelArtCard extends StatelessWidget {
         ),
     };
 
-    final double leftOffset = !isUnlocked
-        ? 32.0
-        : (_inProgress || isCompleted ? 36.0 : 8.0);
-
-    return Positioned(
-      top: 8,
-      left: leftOffset,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 3.5),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: gradient,
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(8),
-          boxShadow: [
-            BoxShadow(
-              color: gradient.first.withAlpha(100),
-              blurRadius: 6,
-              offset: const Offset(0, 2),
-            ),
-          ],
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 3.5),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: gradient,
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 10, color: Colors.white),
-            const SizedBox(width: 3),
-            Text(
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: gradient.first.withAlpha(100),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: Colors.white),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
               tagUpper,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 9.5,
@@ -3878,8 +3993,8 @@ class _PixelArtCard extends StatelessWidget {
                 letterSpacing: 0.4,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

@@ -7,7 +7,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../config/version_utils.dart';
+import '../models/festive_campaign.dart';
 import '../models/pixel_art.dart';
+import '../models/shelf_config.dart';
 import '../models/split_art.dart';
 import 'local_storage_service.dart';
 
@@ -50,6 +52,59 @@ class RemoteCatalogService {
   Set<String> get retiredIds => _retiredIds;
   Set<String> _retiredIds = {};
 
+  /// Shelf order & configuration set by admin in Firestore root doc or cached locally.
+  List<ShelfConfig>? get remoteShelvesConfig {
+    final raw = _storage.getString('remote_shelves_$_flavorId');
+    if (raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          final list = decoded
+              .whereType<Map>()
+              .map((m) => ShelfConfig.fromJson(Map<String, dynamic>.from(m)))
+              .where((s) => s.isEnabled)
+              .toList();
+          list.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+          return list;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  void _saveCachedShelves(dynamic shelvesRaw) {
+    if (shelvesRaw is List) {
+      final valid = shelvesRaw
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+      _storage.setString('remote_shelves_$_flavorId', jsonEncode(valid));
+    }
+  }
+
+  /// Dynamic festive campaign configuration set by admin in Firestore root doc or cached.
+  FestiveCampaign? get festiveCampaign {
+    final raw = _storage.getString('remote_festive_campaign_$_flavorId');
+    if (raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return FestiveCampaign.fromJson(Map<String, dynamic>.from(decoded));
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  void _saveCachedFestiveCampaign(dynamic campaignRaw) {
+    if (campaignRaw is Map) {
+      _storage.setString(
+        'remote_festive_campaign_$_flavorId',
+        jsonEncode(Map<String, dynamic>.from(campaignRaw)),
+      );
+    }
+  }
+
   /// Fetches the remote catalog and returns it merged with [bundled], or null
   /// when nothing remote is reachable (no catalog published yet, offline with
   /// a cold cache, or Firebase failed to initialize) — callers then keep the
@@ -60,8 +115,16 @@ class RemoteCatalogService {
       final db = FirebaseFirestore.instance;
       final rootSnap = await db.doc('$_root/$_flavorId').get();
       final rootData = rootSnap.data();
-      if (rootData != null && rootData.containsKey('premiumArtworksEnabled')) {
-        _premiumArtworksEnabled = rootData['premiumArtworksEnabled'] == true;
+      if (rootData != null) {
+        if (rootData.containsKey('premiumArtworksEnabled')) {
+          _premiumArtworksEnabled = rootData['premiumArtworksEnabled'] == true;
+        }
+        if (rootData.containsKey('shelves')) {
+          _saveCachedShelves(rootData['shelves']);
+        }
+        if (rootData.containsKey('festiveCampaign')) {
+          _saveCachedFestiveCampaign(rootData['festiveCampaign']);
+        }
       }
       final version = (rootData?['catalogVersion'] as num?)?.toInt();
       if (version == null) return null;
@@ -425,7 +488,7 @@ class RemoteCatalogService {
         return null;
       }
       return (
-        [for (final d in snaps[0].docs) d.data()],
+        [for (final d in snaps[0].docs) {...d.data(), 'id': d.data()['id'] ?? d.id}],
         {for (final d in snaps[1].docs) d.id: d.data()},
       );
     } on FirebaseException {

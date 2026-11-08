@@ -166,7 +166,9 @@ class PixelArt {
       (k, v) => MapEntry(int.parse(k), Color(int.parse(v.toString()))),
     );
 
-    final id = json['id'] as String;
+    final id = (json['id'] as String?)?.isNotEmpty == true
+        ? json['id'] as String
+        : (json['artId'] as String? ?? '');
     final rawTag = json['tag'] as String?;
     final String? tag;
     if (rawTag != null && rawTag.trim().isNotEmpty) {

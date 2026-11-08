@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
+import 'package:pixel_art_app/data/models/shelf_config.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/providers/gallery_provider.dart';
@@ -401,6 +402,145 @@ void main() {
       expect(provider.quickBites.map((a) => a.id), containsAll(['a1', 'a2']));
       expect(provider.shelfCategories, containsAll(['Anime', 'Devotional']));
       expect(provider.artworksForCategory('Anime').length, 2);
+    });
+
+    test('supports top 10 and seasonal shelves, and admin re-ordering', () async {
+      final varied = [
+        PixelArt(
+          id: 'p1',
+          name: 'Popular Hero',
+          gridWidth: 32,
+          gridHeight: 32,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          tag: 'POPULAR',
+        ),
+        PixelArt(
+          id: 's1',
+          name: 'Diwali Diya Light',
+          gridWidth: 20,
+          gridHeight: 20,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          tag: 'SEASONAL',
+        ),
+        PixelArt(
+          id: 'g1',
+          name: 'General Cat',
+          gridWidth: 15,
+          gridHeight: 15,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          category: 'Animals',
+        ),
+      ];
+
+      SharedPreferences.setMockInitialValues({});
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(varied);
+
+      // Verify top 10 prioritizes tagged popular/hot art
+      expect(provider.top10Artworks.first.id, 'p1');
+
+      // Verify seasonal shelf detects seasonal items
+      expect(provider.seasonalArtworks.map((a) => a.id), contains('s1'));
+
+      // Default active shelves includes Top 10 and Seasonal
+      final defaults = provider.activeShelves;
+      expect(defaults.any((s) => s.type == 'top10'), isTrue);
+      expect(defaults.any((s) => s.type == 'seasonal'), isTrue);
+
+      // Test Admin custom re-ordering & adding custom shelves
+      provider.setOverrideShelves([
+        const ShelfConfig(
+          id: 'custom_seasonal',
+          title: 'Diwali Special 2026',
+          emoji: '🪔',
+          type: 'seasonal',
+          sortOrder: 1,
+        ),
+        const ShelfConfig(
+          id: 'custom_top10',
+          title: 'Trending Right Now',
+          emoji: '🔥',
+          type: 'top10',
+          sortOrder: 2,
+        ),
+      ]);
+
+      expect(provider.activeShelves.first.title, 'Diwali Special 2026');
+      expect(provider.activeShelves[1].title, 'Trending Right Now');
+
+      // itemsForShelf correctly resolves items for each shelf
+      final seasonalItems = provider.itemsForShelf(provider.activeShelves.first);
+      expect(seasonalItems.map((a) => a.id), contains('s1'));
+
+      final topItems = provider.itemsForShelf(provider.activeShelves[1]);
+      expect(topItems.map((a) => a.id), contains('p1'));
+    });
+
+    test('supports remote artworks in shelves (newArrivals, category matching, custom order)', () async {
+      final catalog = [
+        // Bundled artworks at start/middle
+        PixelArt(
+          id: 'b1',
+          name: 'Bundled Turtle',
+          gridWidth: 16,
+          gridHeight: 16,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFF00FF00)},
+          category: 'Animals',
+        ),
+        PixelArt(
+          id: 'b2',
+          name: 'Bundled Parrot',
+          gridWidth: 20,
+          gridHeight: 20,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFFFF0000)},
+          category: 'Birds',
+        ),
+        // Remote artwork with rmt_ prefix and tag NEW
+        PixelArt(
+          id: 'rmt_naruto_01',
+          name: 'Anime Ninja',
+          gridWidth: 24,
+          gridHeight: 24,
+          grid: const [[1]],
+          colorMap: const {1: Color(0xFF0000FF)},
+          category: 'Anime',
+          tag: 'NEW',
+        ),
+      ];
+
+      SharedPreferences.setMockInitialValues({});
+      final storage = LocalStorageService();
+      await storage.init();
+      final provider = GalleryProvider(storage, _FakeDatabaseService());
+      await provider.loadCatalog(catalog);
+
+      // 1. newArrivals prioritizes remote art ahead of bundled art
+      final arrivals = provider.newArrivals;
+      expect(arrivals.first.id, 'rmt_naruto_01');
+
+      // 2. artworksForCategory matches case-insensitively and trimmed
+      expect(provider.artworksForCategory('anime').length, 1);
+      expect(provider.artworksForCategory('  ANIME  ').first.id, 'rmt_naruto_01');
+
+      // 3. Custom shelf with remote artwork IDs preserves admin order
+      final customShelf = const ShelfConfig(
+        id: 'custom_shelf_1',
+        title: 'Featured Heroes',
+        emoji: '⭐',
+        type: 'custom',
+        artworkIds: ['rmt_naruto_01', 'b1'],
+      );
+      final customItems = provider.itemsForShelf(customShelf);
+      expect(customItems.length, 2);
+      expect(customItems[0].id, 'rmt_naruto_01');
+      expect(customItems[1].id, 'b1');
     });
   });
 }

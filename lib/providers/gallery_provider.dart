@@ -1,7 +1,9 @@
 import 'dart:developer' as developer;
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:pixel_art_app/data/models/festive_campaign.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
+import 'package:pixel_art_app/data/models/shelf_config.dart';
 import 'package:pixel_art_app/data/models/split_art.dart';
 import 'package:pixel_art_app/data/services/daily_pixel_service.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
@@ -131,7 +133,10 @@ class GalleryProvider extends ChangeNotifier {
   List<PixelArt> get filteredCatalog {
     var list = _catalog;
     if (_selectedCategory != 'All') {
-      list = list.where((a) => a.category == _selectedCategory).toList();
+      final cleanCat = _selectedCategory.trim().toLowerCase();
+      list = list
+          .where((a) => a.category.trim().toLowerCase() == cleanCat)
+          .toList();
     }
     if (_searchQuery.isNotEmpty) {
       final q = _searchQuery.toLowerCase();
@@ -200,10 +205,32 @@ class GalleryProvider extends ChangeNotifier {
     return cats.toList()..sort();
   }
 
-  /// Up to 10 latest or recently added artworks
+  /// Up to 10 latest or recently added artworks, prioritizing newly added
+  /// remote artworks and items tagged 'NEW'.
   List<PixelArt> get newArrivals {
-    if (_catalog.length <= 10) return _catalog;
-    return _catalog.reversed.take(10).toList();
+    final list = <PixelArt>[];
+    final seen = <String>{};
+
+    // 1. Prioritize remote artworks and artworks explicitly tagged NEW
+    for (final a in _catalog) {
+      if (a.id.startsWith('rmt_') || a.tag?.toUpperCase() == 'NEW') {
+        if (seen.add(a.id)) {
+          list.add(a);
+        }
+      }
+    }
+
+    // 2. Fill remainder with latest bundled artworks (from reverse of catalog)
+    if (list.length < 10) {
+      for (final a in _catalog.reversed) {
+        if (seen.add(a.id)) {
+          list.add(a);
+          if (list.length >= 10) break;
+        }
+      }
+    }
+
+    return list.take(10).toList();
   }
 
   /// Bite-sized, quick pixel art: grid area <= 484 (up to 22x22) or <= 8 colors
@@ -214,22 +241,250 @@ class GalleryProvider extends ChangeNotifier {
     return bites.take(12).toList();
   }
 
-  /// Artworks for a specific category
+  /// Artworks for a specific category (case-insensitive & trimmed matching)
   List<PixelArt> artworksForCategory(String category) {
-    return _catalog.where((a) => a.category == category).toList();
+    final target = category.trim().toLowerCase();
+    return _catalog
+        .where((a) => a.category.trim().toLowerCase() == target)
+        .toList();
   }
 
-  /// Categories suitable for horizontal shelves (at least 2 artworks)
+  /// Categories suitable for horizontal shelves (at least 1 artwork)
   List<String> get shelfCategories {
     final counts = <String, int>{};
     for (final a in _catalog) {
-      if (a.category != 'All') {
-        counts[a.category] = (counts[a.category] ?? 0) + 1;
+      final cat = a.category.trim();
+      if (cat.isNotEmpty && cat.toLowerCase() != 'all') {
+        counts[cat] = (counts[cat] ?? 0) + 1;
       }
     }
-    final cats = counts.entries.where((e) => e.value >= 2).map((e) => e.key).toList();
+    final cats = counts.keys.toList();
     cats.sort((a, b) => (counts[b] ?? 0).compareTo(counts[a] ?? 0));
     return cats;
+  }
+
+  List<ShelfConfig>? _overrideShelves;
+
+  @visibleForTesting
+  void setOverrideShelves(List<ShelfConfig>? shelves) {
+    _overrideShelves = shelves;
+    notifyListeners();
+  }
+
+  /// Top 10 most popular or highlighted artworks
+  List<PixelArt> get top10Artworks {
+    final list = List<PixelArt>.from(_catalog);
+    list.sort((a, b) {
+      int score(PixelArt art) {
+        final tag = art.tag?.toUpperCase() ?? '';
+        if (tag == 'POPULAR' || tag == 'HOT' || tag == 'TRENDING') return 3;
+        if (tag == 'NEW' || art.id.startsWith('rmt_')) return 2;
+        if (art.isPremium) return 1;
+        return 0;
+      }
+
+      final aScore = score(a);
+      final bScore = score(b);
+      if (aScore != bScore) return bScore.compareTo(aScore);
+      return (b.gridWidth * b.gridHeight).compareTo(a.gridWidth * a.gridHeight);
+    });
+    return list.take(10).toList();
+  }
+
+  /// Artworks tagged or timed for current season/festivals (Diwali, Holidays, Seasonal)
+  List<PixelArt> get seasonalArtworks {
+    final now = DateTime.now();
+    return _catalog.where((a) {
+      if (a.availableFrom != null && now.isBefore(a.availableFrom!)) return false;
+      if (a.availableUntil != null && now.isAfter(a.availableUntil!)) return false;
+      final tag = a.tag?.toLowerCase() ?? '';
+      if (tag.contains('season') ||
+          tag.contains('festiv') ||
+          tag.contains('diwali') ||
+          tag.contains('hallow') ||
+          tag.contains('christm') ||
+          tag.contains('holiday') ||
+          tag.contains('summer') ||
+          tag.contains('spring')) {
+        return true;
+      }
+      final name = a.name.toLowerCase();
+      if (name.contains('diya') ||
+          name.contains('rangoli') ||
+          name.contains('festival') ||
+          name.contains('celebrat')) {
+        return true;
+      }
+      return false;
+    }).toList();
+  }
+
+  /// Dynamic festive campaign loaded from remote catalog
+  FestiveCampaign? get festiveCampaign => _remoteCatalogService?.festiveCampaign;
+
+  /// Active list of shelves ordered according to admin configuration or default layout
+  List<ShelfConfig> get activeShelves {
+    if (_overrideShelves != null) return _overrideShelves!;
+    final remote = _remoteCatalogService?.remoteShelvesConfig;
+    if (remote != null && remote.isNotEmpty) {
+      // If remote config explicitly contains category shelves, respect it completely.
+      final hasCategoryShelf = remote.any((s) => s.type == 'category');
+      if (hasCategoryShelf) {
+        return remote;
+      }
+
+      // If remote only has presets without category shelves, append category shelves
+      // so categories (including remote categories) remain accessible on home shelves.
+      final combined = List<ShelfConfig>.from(remote);
+      var maxSort = remote.fold<int>(
+        0,
+        (max, s) => s.sortOrder > max ? s.sortOrder : max,
+      );
+      for (final cat in shelfCategories) {
+        maxSort += 10;
+        combined.add(
+          ShelfConfig(
+            id: 'cat_${cat.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+            title: cat,
+            emoji: _categoryEmoji(cat),
+            type: 'category',
+            category: cat,
+            subtitle: '${artworksForCategory(cat).length} artworks',
+            sortOrder: maxSort,
+          ),
+        );
+      }
+      return combined;
+    }
+
+    final defaults = <ShelfConfig>[
+      const ShelfConfig(
+        id: 'top10',
+        title: 'Top 10 Picks',
+        emoji: '🔥',
+        type: 'top10',
+        subtitle: 'Most popular artworks',
+        sortOrder: 10,
+      ),
+    ];
+
+    if (seasonalArtworks.isNotEmpty) {
+      defaults.add(
+        const ShelfConfig(
+          id: 'seasonal',
+          title: 'Festive & Seasonal',
+          emoji: '🎉',
+          type: 'seasonal',
+          subtitle: 'Special celebration collection',
+          sortOrder: 20,
+        ),
+      );
+    }
+
+    defaults.addAll([
+      const ShelfConfig(
+        id: 'new',
+        title: 'New & Trending',
+        emoji: '✨',
+        type: 'new',
+        subtitle: 'Fresh arrivals',
+        sortOrder: 30,
+      ),
+      const ShelfConfig(
+        id: 'quick',
+        title: 'Quick & Easy',
+        emoji: '⚡',
+        type: 'quick',
+        subtitle: 'Bite-sized (< 10 mins)',
+        sortOrder: 40,
+      ),
+    ]);
+
+    var catIndex = 0;
+    for (final cat in shelfCategories) {
+      defaults.add(
+        ShelfConfig(
+          id: 'cat_${cat.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '_')}',
+          title: cat,
+          emoji: _categoryEmoji(cat),
+          type: 'category',
+          category: cat,
+          subtitle: '${artworksForCategory(cat).length} artworks',
+          sortOrder: 50 + (catIndex * 10),
+        ),
+      );
+      catIndex++;
+    }
+
+    return defaults;
+  }
+
+  static String _categoryEmoji(String cat) {
+    final lower = cat.toLowerCase();
+    if (lower == 'all') return '✨';
+    if (lower.contains('animal') || lower.contains('cat') || lower.contains('dog')) return '🐾';
+    if (lower.contains('food') || lower.contains('fruit') || lower.contains('sweet')) return '🍕';
+    if (lower.contains('mandala') || lower.contains('pattern')) return '🏵️';
+    if (lower.contains('nature') || lower.contains('flower') || lower.contains('garden')) return '🌿';
+    if (lower.contains('bird')) return '🦜';
+    if (lower.contains('fantasy') || lower.contains('magic')) return '🔮';
+    if (lower.contains('vehicle') || lower.contains('car')) return '🚗';
+    if (lower.contains('people') || lower.contains('face') || lower.contains('character')) return '👤';
+    if (lower.contains('simple') || lower.contains('easy')) return '⭐';
+    if (lower.contains('ocean') || lower.contains('sea')) return '🐠';
+    return '🎨';
+  }
+
+  /// Resolves the actual PixelArt list for a given shelf
+  List<PixelArt> itemsForShelf(ShelfConfig shelf) {
+    switch (shelf.type) {
+      case 'top10':
+        return top10Artworks;
+      case 'seasonal':
+        return seasonalArtworks;
+      case 'new':
+        return newArrivals;
+      case 'quick':
+        return quickBites;
+      case 'category':
+        final cat = shelf.category ?? shelf.title;
+        return artworksForCategory(cat);
+      case 'custom':
+        if (shelf.artworkIds != null && shelf.artworkIds!.isNotEmpty) {
+          final catalogMap = {for (final a in _catalog) a.id: a};
+          final ordered = <PixelArt>[];
+          for (final id in shelf.artworkIds!) {
+            if (catalogMap.containsKey(id)) {
+              ordered.add(catalogMap[id]!);
+            } else {
+              final fuzzy = _catalog.cast<PixelArt?>().firstWhere(
+                (a) =>
+                    a!.id == id ||
+                    a.id.startsWith('rmt_${id}_') ||
+                    (id.startsWith('rmt_') &&
+                        a.id == id.replaceAll(RegExp(r'^rmt_|_.*$'), '')),
+                orElse: () => null,
+              );
+              if (fuzzy != null && !ordered.contains(fuzzy)) {
+                ordered.add(fuzzy);
+              }
+            }
+          }
+          return ordered;
+        }
+        if (shelf.tag != null && shelf.tag!.isNotEmpty) {
+          final q = shelf.tag!.trim().toLowerCase();
+          return _catalog
+              .where((a) => a.tag?.trim().toLowerCase() == q)
+              .toList();
+        }
+        return const [];
+      default:
+        if (shelf.category != null) {
+          return artworksForCategory(shelf.category!);
+        }
+        return const [];
+    }
   }
 
   static List<PixelArt> _deduplicate(List<PixelArt> arts) {
