@@ -58,7 +58,7 @@ class _PixelCreatorScreenState extends State<PixelCreatorScreen> {
   void initState() {
     super.initState();
     _artName = widget.title;
-    _gridSize = widget.size.clamp(12, 48);
+    _gridSize = widget.size.clamp(12, 64);
     _grid = List.generate(
       _gridSize,
       (_) => List<int>.filled(_gridSize, 0),

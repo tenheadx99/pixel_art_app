@@ -588,16 +588,15 @@ class _CameraScreenBody extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
                 ),
                 const SizedBox(height: 8),
-                Row(
-                  children: [16, 24, 32].map((s) {
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: AppConstants.supportedGridSizes.map((s) {
                     final isSel = selectedSize == s;
-                    return Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        label: Text('${s}x$s'),
-                        selected: isSel,
-                        onSelected: (_) => setDlgState(() => selectedSize = s),
-                      ),
+                    return ChoiceChip(
+                      label: Text('${s}x$s'),
+                      selected: isSel,
+                      onSelected: (_) => setDlgState(() => selectedSize = s),
                     );
                   }).toList(),
                 ),

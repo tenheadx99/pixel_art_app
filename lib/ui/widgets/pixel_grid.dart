@@ -199,8 +199,10 @@ class _PixelGridState extends State<PixelGrid> {
     _flatBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
+      widget.sectionShimmer,
     ]);
     _flatOverlayRepaint = Listenable.merge([
       widget.gridFade,
@@ -1252,11 +1254,6 @@ class _PixelGridPainter extends CustomPainter {
     final c = Canvas(recorder);
 
     final highlightPaint = _highlightTintPaint;
-    final selectedBorderPaint = _selectedBorderPaint
-      ..color = isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF);
-    final glowPaint = _glowPaint
-      ..color = (isEraseMode ? const Color(0xFFFF6B6B) : const Color(0xFF6C63FF))
-          .withAlpha(36);
 
     final nowMs = DateTime.now().millisecondsSinceEpoch;
     for (var row = 0; row < gridHeight; row++) {
@@ -1283,9 +1280,7 @@ class _PixelGridPainter extends CustomPainter {
 
         if (isSelected && !isEraseMode && selectedNumber > 0) {
           c.drawRect(rect, Paint()..color = const Color(0xFF808080));
-          c.drawRect(rect.deflate(1), selectedBorderPaint);
-          c.drawRect(rect.deflate(1), glowPaint);
-        } else if (isHighlighted) {
+        } else if (isHighlighted && detailStep > 0) {
           c.drawRect(rect, highlightPaint);
         }
 
@@ -1812,7 +1807,7 @@ class _PixelGridPainter extends CustomPainter {
     final ch = size.height / (art.gridHeight as int);
     final viewerScale = transform?.value.getMaxScaleOnAxis() ?? 1.0;
     final gridLineOpacity = 1.0 - (gridFade?.value ?? 0.0);
-    final cellGap = (gemStyle || crossStitchStyle || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle || quiltStyle || voxelStyle) ? 0.0 : 0.2 * gridLineOpacity;
+    final cellGap = (gemStyle || crossStitchStyle || flatShaderProgram != null || beadStyle || brickStyle || knitStyle || mosaicStyle || glowStyle || stickerStyle || quiltStyle || voxelStyle) ? 0.0 : 0.2 * gridLineOpacity;
     final effectiveCell = min(cw, ch) * viewerScale;
     // Scale LOD threshold by screen-space cell size rather than raw zoom:
     // for large grids (64x64+), tiny cells (< 11px) stay in fast preview mode
@@ -3902,12 +3897,8 @@ class _PixelGridPainter extends CustomPainter {
     ..strokeWidth = 0.5;
   static final Paint _highlightTintPaint = Paint()
     ..color = const Color(0x336C63FF);
-  static final Paint _selectedBorderPaint = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeWidth = 2.5;
   static final Paint _cellPaint = Paint();
   static final Paint _glossPaint = Paint();
-  static final Paint _glowPaint = Paint();
   static final Paint _shimmerPaint = Paint();
   static final Paint _cursorPaint = Paint();
   static final Paint _edgePaint = Paint()
