@@ -169,7 +169,7 @@ class AppConfigService extends ChangeNotifier {
 
     // 1. Initial Firestore fetch
     try {
-      final snap = await _db.doc(docPath).get();
+      final snap = await _db.doc(docPath).get().timeout(const Duration(seconds: 4));
       if (snap.exists && snap.data() != null) {
         _applyFirestoreData(snap.data()!);
       }

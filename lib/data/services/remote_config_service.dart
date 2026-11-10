@@ -96,11 +96,11 @@ class RemoteConfigService {
 
     // 1. Initial one-time fetch
     try {
-      var snap = await _firestore.doc(docPath).get();
+      var snap = await _firestore.doc(docPath).get().timeout(const Duration(seconds: 4));
       if ((!snap.exists || snap.data() == null) &&
           currentFlavor == AppFlavor.original) {
         final altDoc = 'pixel_art/pixelyart/config/ads';
-        final altSnap = await _firestore.doc(altDoc).get();
+        final altSnap = await _firestore.doc(altDoc).get().timeout(const Duration(seconds: 4));
         if (altSnap.exists && altSnap.data() != null) {
           snap = altSnap;
           docPath = altDoc;
@@ -399,7 +399,7 @@ class RemoteConfigService {
   String get forceUpdateUrl => _getString('force_update_url');
 
   /// Resolves an ad unit ID:
-  /// - Priority: Firestore -> Remote Config (<flavor>_<key> or pixelyart_<key>) -> Test Unit ID fallback.
+  /// - Priority: Firestore -> Remote Config (`<flavor>_<key>` or `pixelyart_<key>`) -> Test Unit ID fallback.
   String _getAdUnitId({
     required String baseKey,
     required String testUnitIdAndroid,

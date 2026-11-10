@@ -14,6 +14,7 @@ class AdService {
   AdService._();
 
   bool _initialized = false;
+  bool get isInitialized => _initialized;
 
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
@@ -93,9 +94,15 @@ class AdService {
     if (!_adsEnabled) return;
     // AdMob/GDPR: gather consent via the UMP SDK before initializing ads, so
     // EEA/UK users see the consent form before any ad request is made.
-    await _gatherConsent();
-    await MobileAds.instance.initialize();
-    _initialized = true;
+    try {
+      await _gatherConsent();
+      await MobileAds.instance.initialize();
+      _initialized = true;
+      loadAppOpenAd();
+      preloadRewardedAd();
+    } catch (e) {
+      developer.log('MobileAds initialization error (continuing)', name: 'Ads', error: e);
+    }
   }
 
   /// Runs the Google UMP consent flow. Requests an info update, then loads and
@@ -137,7 +144,11 @@ class AdService {
         if (!completer.isCompleted) completer.complete();
       },
     );
-    await completer.future;
+    try {
+      await completer.future.timeout(const Duration(seconds: 8));
+    } catch (_) {
+      developer.log('UMP consent info update timed out; proceeding', name: 'Ads');
+    }
   }
 
   Future<void> _loadAndShowConsentForm() {

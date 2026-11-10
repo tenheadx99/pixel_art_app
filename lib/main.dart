@@ -176,7 +176,7 @@ class _AppBootstrapState extends State<AppBootstrap>
   /// freezing forever if a step hangs or a critical service throws).
   Future<void> _bootstrap() async {
     try {
-      await _runBootstrap().timeout(const Duration(seconds: 25));
+      await _runBootstrap().timeout(const Duration(seconds: 30));
     } catch (e, st) {
       if (_firebaseReady) {
         FirebaseCrashlytics.instance
@@ -205,11 +205,12 @@ class _AppBootstrapState extends State<AppBootstrap>
     // Firebase itself is initialized earlier in bootstrapApp(); these are
     // non-critical, so failures fall back to defaults without blocking the app.
     try {
-      await AnalyticsService().init(flavorName: currentFlavor.name);
-      final remoteConfig = RemoteConfigService();
-      await remoteConfig.initialize();
-      await EconomyConfigService().initialize();
-      await AppConfigService().initialize();
+      await Future.wait([
+        AnalyticsService().init(flavorName: currentFlavor.name),
+        RemoteConfigService().initialize(),
+        EconomyConfigService().initialize(),
+        AppConfigService().initialize(),
+      ]).timeout(const Duration(seconds: 5));
     } catch (e) {
       // Remote Config/PackageInfo are non-critical; continue with defaults.
     }
@@ -232,7 +233,11 @@ class _AppBootstrapState extends State<AppBootstrap>
       dailyPixelService: DailyPixelService(localStorageService),
     );
 
-    await deps.iapService.initialize();
+    try {
+      await deps.iapService.initialize().timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // Store/IAP unavailable or timed out; continue
+    }
 
     final preMade = await PixelConverterService().loadPreMadeAssets();
 
@@ -243,15 +248,26 @@ class _AppBootstrapState extends State<AppBootstrap>
     // Initialize anonymous authentication silently in the background
     final authInitFuture = AuthService().initialize();
 
-    await adInitFuture;
-    AdService()
-      ..isFirstSession = !hadFirstSession
-      ..loadAppOpenAd()
-      // Warm the rewarded cache so the first watch-ad tap shows instantly.
-      // Not gated by isFirstSession: rewarded ads are user-initiated.
-      ..preloadRewardedAd();
+    try {
+      await adInitFuture.timeout(const Duration(seconds: 6));
+    } catch (_) {
+      // Ad init timed out or delayed; continue
+    }
 
-    await authInitFuture;
+    if (AdService().isInitialized) {
+      AdService()
+        ..isFirstSession = !hadFirstSession
+        ..loadAppOpenAd()
+        // Warm the rewarded cache so the first watch-ad tap shows instantly.
+        // Not gated by isFirstSession: rewarded ads are user-initiated.
+        ..preloadRewardedAd();
+    }
+
+    try {
+      await authInitFuture.timeout(const Duration(seconds: 4));
+    } catch (_) {
+      // Anonymous auth timed out or delayed; continue offline
+    }
 
     if (!mounted) return;
     setState(() {

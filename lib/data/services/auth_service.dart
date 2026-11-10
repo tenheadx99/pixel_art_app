@@ -198,7 +198,7 @@ class AuthService {
   /// while still ensuring the underlying native Firebase anonymous session is active.
   Future<User?> _signInAnonymouslySafely() async {
     try {
-      final credential = await _auth.signInAnonymously();
+      final credential = await _auth.signInAnonymously().timeout(const Duration(seconds: 4));
       developer.log('Anonymous sign-in complete. UID: ${credential.user?.uid}', name: 'AuthService');
       return credential.user;
     } catch (e, st) {

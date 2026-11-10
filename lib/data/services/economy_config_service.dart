@@ -42,7 +42,7 @@ class EconomyConfigService {
     final docPath = 'pixel_art/$flavorId/config/economy';
 
     try {
-      final snap = await _db.doc(docPath).get();
+      final snap = await _db.doc(docPath).get().timeout(const Duration(seconds: 4));
       if (snap.exists && snap.data() != null) {
         _currentConfig = EconomyConfig.fromMap(snap.data()!);
         developer.log('Fetched remote economy config for $flavorId: ${_currentConfig.diamondPacks.length} packs');
