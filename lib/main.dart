@@ -245,8 +245,8 @@ class _AppBootstrapState extends State<AppBootstrap>
     final hadFirstSession = localStorageService.getBool('had_first_session');
     localStorageService.setBool('had_first_session', true);
 
-    // Initialize anonymous authentication silently in the background
-    final authInitFuture = AuthService().initialize();
+    // Initialize session state (returning Google/Email user)
+    await AuthService().initialize();
 
     try {
       await adInitFuture.timeout(const Duration(seconds: 6));
@@ -261,12 +261,6 @@ class _AppBootstrapState extends State<AppBootstrap>
         // Warm the rewarded cache so the first watch-ad tap shows instantly.
         // Not gated by isFirstSession: rewarded ads are user-initiated.
         ..preloadRewardedAd();
-    }
-
-    try {
-      await authInitFuture.timeout(const Duration(seconds: 4));
-    } catch (_) {
-      // Anonymous auth timed out or delayed; continue offline
     }
 
     if (!mounted) return;

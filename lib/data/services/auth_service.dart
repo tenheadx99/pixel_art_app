@@ -19,7 +19,7 @@ class AuthService {
   );
 
   User? get currentUser => _auth.currentUser;
-  bool get isAnonymous => currentUser?.isAnonymous ?? true;
+  bool get isAnonymous => currentUser?.isAnonymous ?? false;
   bool get isAuthenticated => currentUser != null && !isAnonymous;
   String? get uid => currentUser?.uid;
   String? get email => currentUser?.email;
@@ -28,23 +28,10 @@ class AuthService {
 
   Stream<User?> get authStateChanges => _auth.authStateChanges();
 
-  /// Silently signs in anonymously if no user session exists.
-  /// Runs in background without blocking gameplay or showing UI prompts.
+  /// Returns the current user session (e.g. returning Google or Email sign-in).
+  /// Guest users play offline without silent anonymous authentication.
   Future<User?> initialize() async {
-    try {
-      if (_auth.currentUser == null) {
-        developer.log('Initializing silent anonymous authentication...', name: 'AuthService');
-        final user = await _signInAnonymouslySafely();
-        if (user != null) {
-          AnalyticsService().logLogin(method: 'anonymous');
-        }
-        return user;
-      }
-      return _auth.currentUser;
-    } catch (e, st) {
-      developer.log('Anonymous sign-in failed (continuing offline)', name: 'AuthService', error: e, stackTrace: st);
-      return null;
-    }
+    return _auth.currentUser;
   }
 
   /// Links the current anonymous user with Google credentials.
@@ -161,15 +148,13 @@ class AuthService {
     }
   }
 
-  /// Signs out of the permanent account and immediately creates a fresh anonymous account.
+  /// Signs out of the permanent account.
   Future<void> signOut() async {
     try {
       if (await _googleSignIn.isSignedIn()) {
         await _googleSignIn.signOut();
       }
       await _auth.signOut();
-      // Drop back to anonymous guest mode safely
-      await _signInAnonymouslySafely();
     } catch (e, st) {
       developer.log('Error during sign out', name: 'AuthService', error: e, stackTrace: st);
       rethrow;
@@ -185,32 +170,9 @@ class AuthService {
         await _googleSignIn.signOut();
       }
       await user.delete();
-      // Return to a fresh anonymous session safely
-      await _signInAnonymouslySafely();
     } catch (e, st) {
       developer.log('Error deleting account', name: 'AuthService', error: e, stackTrace: st);
       rethrow;
-    }
-  }
-
-  /// Safely signs in anonymously, absorbing the known Pigeon deserialization
-  /// type cast bug (`List<Object?>` vs `PigeonUserDetails`) in FlutterFire on Android,
-  /// while still ensuring the underlying native Firebase anonymous session is active.
-  Future<User?> _signInAnonymouslySafely() async {
-    try {
-      final credential = await _auth.signInAnonymously().timeout(const Duration(seconds: 4));
-      developer.log('Anonymous sign-in complete. UID: ${credential.user?.uid}', name: 'AuthService');
-      return credential.user;
-    } catch (e, st) {
-      if (e is TypeError || e.toString().contains('PigeonUserDetails')) {
-        developer.log(
-          'Absorbed known Pigeon deserialization bug in signInAnonymously. Native currentUser is: ${_auth.currentUser?.uid}',
-          name: 'AuthService',
-        );
-        return _auth.currentUser;
-      }
-      developer.log('Anonymous sign-in error', name: 'AuthService', error: e, stackTrace: st);
-      return null;
     }
   }
 }
