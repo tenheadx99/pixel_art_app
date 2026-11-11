@@ -3,7 +3,7 @@ import 'flavor.dart';
 class AppConfig {
   static bool disableAds = false;
   static bool disableIap = false;
-  static bool showAds = false;
+  static bool showAds = true;
 
   /// Blocks interstitial + app-open formats only (banner/rewarded still
   /// follow [disableAds]/[showAds]). Set from the flavor at bootstrap.

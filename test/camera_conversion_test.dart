@@ -29,7 +29,6 @@ void main() {
     expect(art.gridWidth, 32);
     expect(art.gridHeight, 32);
     expect(art.colorMap.isNotEmpty, true);
-    print('Converted art colors: ${art.colorMap.length}, fillable: ${art.fillableCells}');
   });
 
   test('convertPhotoToPixelArt handles bright white pixels without Color.fromARGB overflow', () async {

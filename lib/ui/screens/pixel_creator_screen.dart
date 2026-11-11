@@ -7,6 +7,8 @@ import '../../data/models/pixel_art.dart';
 import '../../data/services/database_service.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/screenshot_service.dart';
+import '../../providers/app_settings_provider.dart';
+import '../../ui/widgets/ad_banner.dart';
 import '../../ui/widgets/transitions.dart';
 import 'coloring_screen.dart';
 
@@ -399,11 +401,21 @@ class _PixelCreatorScreenState extends State<PixelCreatorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    AppSettingsProvider? settings;
+    try {
+      settings = context.watch<AppSettingsProvider>();
+    } catch (_) {
+      settings = null;
+    }
+    final isPro = settings?.isProUser ?? false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = const Color(0xFF6C5CE7);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF13131F) : const Color(0xFFF7F7FA),
+      bottomNavigationBar: isPro
+          ? null
+          : const SafeArea(child: AdBanner()),
       appBar: AppBar(
         backgroundColor: isDark ? const Color(0xFF1B1B2C) : Colors.white,
         elevation: 0,

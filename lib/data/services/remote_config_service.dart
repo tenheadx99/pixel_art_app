@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart' show VoidCallback, kDebugMode, kIsWeb;
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:pixel_art_app/data/services/ad_service.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
@@ -50,6 +51,18 @@ class RemoteConfigService {
           name: 'AdsConfig',
           error: e,
         );
+      }
+    }
+  }
+
+  void _applyAdsConfig() {
+    AppConfig.showAds = showAds;
+    if (showAds && !AppConfig.disableAds) {
+      if (!AdService().isInitialized) {
+        AdService().initialize();
+      } else {
+        AdService().loadAppOpenAd();
+        AdService().preloadRewardedAd();
       }
     }
   }
@@ -109,7 +122,7 @@ class RemoteConfigService {
       if (snap.exists && snap.data() != null) {
         _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
         _saveCachedFirestoreConfig();
-        AppConfig.showAds = showAds;
+        _applyAdsConfig();
         developer.log(
           'Admin Firestore ads config synced for $flavorId (banner: ${_firestoreAdsConfig['bannerAdUnitId']}, showAds: ${_firestoreAdsConfig['showAds']})',
           name: 'AdsConfig',
@@ -140,7 +153,7 @@ class RemoteConfigService {
               if (snap.exists && snap.data() != null) {
                 _firestoreAdsConfig = Map<String, dynamic>.from(snap.data()!);
                 _saveCachedFirestoreConfig();
-                AppConfig.showAds = showAds;
+                _applyAdsConfig();
                 developer.log(
                   'Realtime admin ads config updated for $flavorId',
                   name: 'AdsConfig',
@@ -227,7 +240,7 @@ class RemoteConfigService {
         (event) async {
           try {
             await _remoteConfig.activate();
-            AppConfig.showAds = showAds;
+            _applyAdsConfig();
             developer.log(
               'Remote Config updated in real-time!',
               name: 'RemoteConfig',
@@ -326,7 +339,7 @@ class RemoteConfigService {
       );
 
       // Update AppConfig with remote config values
-      AppConfig.showAds = showAds;
+      _applyAdsConfig();
       developer.log(
         'Remote Config values: showAds = $showAds, banner = $bannerAdUnitId',
       );
@@ -337,7 +350,7 @@ class RemoteConfigService {
         stackTrace: stackTrace,
       );
       // Fallback
-      AppConfig.showAds = showAds;
+      _applyAdsConfig();
     }
   }
 

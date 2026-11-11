@@ -28,7 +28,6 @@ import 'data/models/pixel_art.dart';
 import 'providers/app_settings_provider.dart';
 import 'providers/auth_provider.dart';
 import 'ui/widgets/pixel_grid.dart';
-import 'ui/widgets/transitions.dart';
 import 'providers/coloring_provider.dart';
 import 'providers/gallery_provider.dart';
 import 'ui/screens/splash_screen.dart';
@@ -175,8 +174,9 @@ class _AppBootstrapState extends State<AppBootstrap>
   /// resolves: either into the app or a recoverable error screen (rather than
   /// freezing forever if a step hangs or a critical service throws).
   Future<void> _bootstrap() async {
+    final splashStart = DateTime.now();
     try {
-      await _runBootstrap().timeout(const Duration(seconds: 30));
+      await _runBootstrap(splashStart).timeout(const Duration(seconds: 30));
     } catch (e, st) {
       if (_firebaseReady) {
         FirebaseCrashlytics.instance
@@ -187,7 +187,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     }
   }
 
-  Future<void> _runBootstrap() async {
+  Future<void> _runBootstrap(DateTime splashStart) async {
     final localStorageService = LocalStorageService();
     await localStorageService.init();
 
@@ -254,13 +254,23 @@ class _AppBootstrapState extends State<AppBootstrap>
       // Ad init timed out or delayed; continue
     }
 
+    AdService().isFirstSession = !hadFirstSession;
     if (AdService().isInitialized) {
-      AdService()
-        ..isFirstSession = !hadFirstSession
-        ..loadAppOpenAd()
-        // Warm the rewarded cache so the first watch-ad tap shows instantly.
-        // Not gated by isFirstSession: rewarded ads are user-initiated.
-        ..preloadRewardedAd();
+      if (AppConfig.showAds && !AppConfig.disableAds) {
+        AdService()
+          ..loadAppOpenAd()
+          // Warm the rewarded cache so the first watch-ad tap shows instantly.
+          // Not gated by isFirstSession: rewarded ads are user-initiated.
+          ..preloadRewardedAd();
+      }
+    }
+
+    // Ensure splash entrance animation has time to settle smoothly so the
+    // user experiences a clean, single splash screen without flickering.
+    final elapsed = DateTime.now().difference(splashStart);
+    const minSplashDuration = Duration(milliseconds: 1500);
+    if (elapsed < minSplashDuration) {
+      await Future.delayed(minSplashDuration - elapsed);
     }
 
     if (!mounted) return;
@@ -436,6 +446,9 @@ class _AppShellWithDeps extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final storage = context.read<LocalStorageService>();
+    final hasSeenOnboarding = storage.getBool('has_seen_onboarding');
+
     return Consumer<AppSettingsProvider>(
       builder: (context, settings, _) {
         return MaterialApp(
@@ -449,35 +462,10 @@ class _AppShellWithDeps extends StatelessWidget {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           navigatorObservers: [AnalyticsService().observer],
-          home: const _IntroFlow(),
+          home: hasSeenOnboarding
+              ? const HomeScreen()
+              : const OnboardingScreen(),
         );
-      },
-    );
-  }
-}
-
-class _IntroFlow extends StatelessWidget {
-  const _IntroFlow();
-
-  @override
-  Widget build(BuildContext context) {
-    return SplashScreen(
-      canContinue: true,
-      displayDuration: const Duration(seconds: 2),
-      loadingMessage: 'Loading your next canvas...',
-      onFinished: () {
-        if (!context.mounted) return;
-        final storage = context.read<LocalStorageService>();
-        final hasSeenOnboarding = storage.getBool('has_seen_onboarding');
-        if (!hasSeenOnboarding) {
-          Navigator.of(context).pushReplacement(
-            fadeThroughRoute(const OnboardingScreen(), name: 'onboarding'),
-          );
-        } else {
-          Navigator.of(context).pushReplacement(
-            fadeThroughRoute(const HomeScreen(), name: 'home'),
-          );
-        }
       },
     );
   }

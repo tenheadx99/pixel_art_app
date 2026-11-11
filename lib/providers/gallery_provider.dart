@@ -936,7 +936,7 @@ class GalleryProvider extends ChangeNotifier {
       return;
     }
     _databaseService.incrementCompleted(id);
-    _remoteCatalogService?.reportCompletion(id);
+    _remoteCatalogService?.reportCompletion(id, isDaily: id == dailyArt?.id);
     if (id == dailyArt?.id) {
       _storageService.setString(
         _dailyDoneDatePrefKey,

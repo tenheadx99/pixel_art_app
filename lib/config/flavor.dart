@@ -136,7 +136,7 @@ class FlavorConfig {
     required this.accent,
     required this.brandGradient,
     required this.manifestPath,
-    this.adsEnabled = false,
+    this.adsEnabled = true,
     this.iapEnabled = true,
     this.fullScreenAdsEnabled = true,
     this.bannerAdsEnabled = true,
@@ -168,7 +168,7 @@ class FlavorConfig {
       accent: Color(0xFF8E0000), // Deep Maroon
       brandGradient: [Color(0xFFFF6D00), Color(0xFF8E0000)],
       manifestPath: 'assets/pixel_art_devotional/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.anime: FlavorConfig(
       appName: 'Anime Pixels',
@@ -180,7 +180,7 @@ class FlavorConfig {
       accent: Color(0xFFB14EFF), // Electric Violet
       brandGradient: [Color(0xFFFF4FA3), Color(0xFFB14EFF)],
       manifestPath: 'assets/pixel_art_anime/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.pixelcalm: FlavorConfig(
       appName: 'PixelCalm',
@@ -194,10 +194,24 @@ class FlavorConfig {
       manifestPath: 'assets/pixel_art_pixelcalm/manifest.json',
       // Stress-relief audience whose store listing promises no ad
       // interruptions: rewarded-only (user-initiated) — no banner, no
-      // interstitial/app-open.
+      // interstitial/app-open.      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+      // interruptions: rewarded-only (user-initiated) — no banner, no
+
       fullScreenAdsEnabled: false,
       bannerAdsEnabled: false,
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.bible: FlavorConfig(
       appName: 'Daily Bible',
@@ -209,7 +223,7 @@ class FlavorConfig {
       accent: Color(0xFF7B4FBF), // Violet
       brandGradient: [Color(0xFF1A3FA8), Color(0xFF7B4FBF)],
       manifestPath: 'assets/pixel_art_bible/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',
@@ -221,7 +235,7 @@ class FlavorConfig {
       accent: Color(0xFFF64F59), // Ruby
       brandGradient: [Color(0xFF12C2E9), Color(0xFFC471ED)],
       manifestPath: 'assets/pixel_art_diamond/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.gem,
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',
@@ -236,7 +250,7 @@ class FlavorConfig {
       accent: Color(0xFF5D4037), // Thread Brown
       brandGradient: [Color(0xFFC2185B), Color(0xFFD4A574)],
       manifestPath: 'assets/pixel_art_stitch/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.crossStitch,
       paletteLabel: 'Select a Thread',
       placeVerb: 'Stitch',
@@ -251,7 +265,7 @@ class FlavorConfig {
       accent: Color(0xFFFFD166), // Marigold Yellow
       brandGradient: [Color(0xFF00B4D8), Color(0xFFFF70A6)],
       manifestPath: 'assets/pixel_art_bead/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.bead,
       paletteLabel: 'Select a Bead',
       placeVerb: 'Place',
@@ -266,7 +280,7 @@ class FlavorConfig {
       accent: Color(0xFFFFD600), // Brick Yellow
       brandGradient: [Color(0xFFE53935), Color(0xFFFFD600)],
       manifestPath: 'assets/pixel_art_brick/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.brick,
       paletteLabel: 'Select a Brick',
       placeVerb: 'Snap',
@@ -281,7 +295,7 @@ class FlavorConfig {
       accent: Color(0xFF8D99AE), // Sage Wool
       brandGradient: [Color(0xFFD81B60), Color(0xFFF48FB1)],
       manifestPath: 'assets/pixel_art_knit/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.knit,
       paletteLabel: 'Select a Yarn',
       placeVerb: 'Knit',
@@ -296,7 +310,7 @@ class FlavorConfig {
       accent: Color(0xFFF4A261), // Glazed Amber
       brandGradient: [Color(0xFF0077B6), Color(0xFFE07A5F)],
       manifestPath: 'assets/pixel_art_mosaic/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.mosaic,
       paletteLabel: 'Select a Tile',
       placeVerb: 'Tile',
@@ -311,7 +325,7 @@ class FlavorConfig {
       accent: Color(0xFFFFE600), // Electric Neon Yellow
       brandGradient: [Color(0xFF00F0FF), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art_glow/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.glow,
       paletteLabel: 'Select a Light',
       placeVerb: 'Light',
@@ -326,7 +340,7 @@ class FlavorConfig {
       accent: Color(0xFF4D96FF), // Sky Blue
       brandGradient: [Color(0xFFFF6B6B), Color(0xFFFFD93D)],
       manifestPath: 'assets/pixel_art_sticker/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.sticker,
       paletteLabel: 'Select a Sticker',
       placeVerb: 'Stick',
@@ -341,7 +355,7 @@ class FlavorConfig {
       accent: Color(0xFFDDA15E), // Mustard Gold
       brandGradient: [Color(0xFF2B4C7E), Color(0xFFC47A88)],
       manifestPath: 'assets/pixel_art_quilt/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.quilt,
       paletteLabel: 'Select a Fabric',
       placeVerb: 'Sew',
@@ -356,7 +370,7 @@ class FlavorConfig {
       accent: Color(0xFFFFB300), // Amber Gold
       brandGradient: [Color(0xFF3F51B5), Color(0xFF00BFA5)],
       manifestPath: 'assets/pixel_art_voxel/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
       cellStyle: CellRenderStyle.voxel,
       paletteLabel: 'Select a Block',
       placeVerb: 'Build',

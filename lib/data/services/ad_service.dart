@@ -15,6 +15,17 @@ class AdService {
 
   bool _initialized = false;
   bool get isInitialized => _initialized;
+  final List<VoidCallback> _initListeners = [];
+
+  void addInitListener(VoidCallback listener) {
+    if (_initialized) {
+      listener();
+    } else {
+      _initListeners.add(listener);
+    }
+  }
+
+  void removeInitListener(VoidCallback listener) => _initListeners.remove(listener);
 
   InterstitialAd? _interstitialAd;
   RewardedAd? _rewardedAd;
@@ -91,15 +102,22 @@ class AdService {
 
   Future<void> initialize() async {
     if (_initialized) return;
-    if (!_adsEnabled) return;
+    if (AppConfig.disableAds) return;
     // AdMob/GDPR: gather consent via the UMP SDK before initializing ads, so
     // EEA/UK users see the consent form before any ad request is made.
     try {
       await _gatherConsent();
       await MobileAds.instance.initialize();
       _initialized = true;
-      loadAppOpenAd();
-      preloadRewardedAd();
+      for (final l in List.of(_initListeners)) {
+        try {
+          l();
+        } catch (_) {}
+      }
+      if (_adsEnabled) {
+        loadAppOpenAd();
+        preloadRewardedAd();
+      }
     } catch (e) {
       developer.log('MobileAds initialization error (continuing)', name: 'Ads', error: e);
     }

@@ -3470,25 +3470,28 @@ class _ColoringScreenState extends State<ColoringScreen>
                 ),
               ],
             ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                NumberPalette(
-                  provider: provider,
-                  onNumberTapped: (number) => _locateNextCellForNumber(number),
-                  onNumberReTapped: (number) {
-                    provider.cycleNextFillable();
-                    _locateNextCellForNumber(number, force: true);
-                  },
-                ),
-                // The coloring screen is where users spend their time — the banner
-                // lives here for free users.
-                if (!settings.isProUser)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 4),
-                    child: AdBanner(),
+            child: SafeArea(
+              top: false,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NumberPalette(
+                    provider: provider,
+                    onNumberTapped: (number) => _locateNextCellForNumber(number),
+                    onNumberReTapped: (number) {
+                      provider.cycleNextFillable();
+                      _locateNextCellForNumber(number, force: true);
+                    },
                   ),
-              ],
+                  // The coloring screen is where users spend their time — the banner
+                  // lives here for free users.
+                  if (!settings.isProUser)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4),
+                      child: AdBanner(),
+                    ),
+                ],
+              ),
             ),
           ),
         ),

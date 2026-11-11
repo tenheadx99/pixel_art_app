@@ -453,15 +453,31 @@ class RemoteCatalogService {
     return restored;
   }
 
-  /// Anonymous per-art completion counter for the admin dashboard
-  /// (`stats/{artId}.completions`). Fire-and-forget: the security rules only
-  /// accept this exact shape, and failures are irrelevant to gameplay.
-  void reportCompletion(String artId) {
+  /// Anonymous per-art completion counter and daily telemetry for the admin dashboard
+  /// (`stats/{artId}.completions` and `daily_stats/{yyyy-MM-dd}`). Fire-and-forget:
+  /// failures are irrelevant to gameplay.
+  void reportCompletion(String artId, {bool isDaily = false}) {
     try {
       FirebaseFirestore.instance
           .doc('$_root/$_flavorId/stats/$artId')
           .set(
             {'completions': FieldValue.increment(1)},
+            SetOptions(merge: true),
+          )
+          .catchError((_) {});
+
+      final now = DateTime.now();
+      final dateKey =
+          '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+      FirebaseFirestore.instance
+          .doc('$_root/$_flavorId/daily_stats/$dateKey')
+          .set(
+            {
+              'date': dateKey,
+              'completions': FieldValue.increment(1),
+              if (isDaily) 'dailyPixelCompletions': FieldValue.increment(1),
+              'updatedAt': FieldValue.serverTimestamp(),
+            },
             SetOptions(merge: true),
           )
           .catchError((_) {});
