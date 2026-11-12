@@ -102,10 +102,9 @@ class _StoryCardSheetState extends State<StoryCardSheet> {
       );
 
       // 4. Share via SharePlus
-      final appName = FlavorConfig.current.appName;
-      final storeUrl = FlavorConfig.current.storeUrl;
+      final flavor = FlavorConfig.current;
       final textMessage =
-          'I just finished "${widget.art.name}" in $appName! 🎨✨\nDownload on Google Play: $storeUrl';
+          'I just finished "${widget.art.name}" in ${flavor.appName}! 🎨✨\nPaint it here: ${flavor.artworkShareUrl(widget.art.id)}';
 
       await Share.shareXFiles(
         [XFile(shareFile.path, mimeType: 'image/png')],

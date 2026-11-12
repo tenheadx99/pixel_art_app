@@ -64,6 +64,15 @@ class PromotedApp {
       parsedTargets = [tf];
     }
 
+    final rawIcon = json['iconUrl'] ??
+        json['icon_url'] ??
+        json['icon'] ??
+        json['imageUrl'] ??
+        json['image_url'] ??
+        json['appIcon'] ??
+        json['iconPath'] ??
+        '';
+
     return PromotedApp(
       id: json['id'] as String? ?? '',
       title: json['title'] as String? ?? '',
@@ -71,7 +80,7 @@ class PromotedApp {
       packageName: json['packageName'] as String? ?? '',
       playStoreUrl: json['playStoreUrl'] as String?,
       appStoreUrl: json['appStoreUrl'] as String?,
-      iconUrl: json['iconUrl'] as String? ?? '',
+      iconUrl: rawIcon is String ? rawIcon : '',
       bannerUrl: json['bannerUrl'] as String?,
       rating: parsedRating,
       downloadCount: json['downloadCount'] as String? ?? '50K+',

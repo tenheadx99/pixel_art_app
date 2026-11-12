@@ -1,0 +1,80 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.divinepixels",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.animepixels",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.pixelcalm",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.gemart",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.craftcolor",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.bible",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.tenhead.pixelyart",
+      "sha256_cert_fingerprints": [
+        "C7:F0:CD:E2:4A:2D:77:07:B3:D5:0D:82:6E:BF:C5:3E:71:5C:3E:EE:94:F2:B0:98:95:F6:31:EB:20:F9:F0:DF",
+        "F7:26:0B:7F:42:8F:52:60:46:98:44:3C:BF:F9:77:C8:F4:58:A4:11:6B:2E:D7:F9:34:31:FB:AD:79:F5:55:4C"
+      ]
+    }
+  }
+]
+

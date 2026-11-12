@@ -311,9 +311,12 @@ class _GalleryScreenState extends State<GalleryScreen> {
       final file = File(artwork.filePath);
       if (await file.exists()) {
         final flavor = FlavorConfig.current;
+        final shareUrl = artwork.pixelArtId.isNotEmpty
+            ? flavor.artworkShareUrl(artwork.pixelArtId)
+            : flavor.appShareUrl;
         await Share.shareXFiles([
           XFile(artwork.filePath),
-        ], text: '🎨 Check out my artwork created with ${flavor.appName}!\nDownload to color: ${flavor.storeUrl}');
+        ], text: '🎨 Check out my artwork created with ${flavor.appName}!\nPaint it here: $shareUrl');
       }
     } catch (_) {
       // Share sheet unavailable — nothing actionable for the user.

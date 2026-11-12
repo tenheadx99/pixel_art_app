@@ -383,9 +383,9 @@ class SettingsScreen extends StatelessWidget {
                     onTap: () async {
                       HapticFeedback.lightImpact();
                       final appName = FlavorConfig.current.appName;
-                      final storeUrl = FlavorConfig.current.storeUrl;
+                      final shareUrl = FlavorConfig.current.appShareUrl;
                       await Share.share(
-                        'Hey! Check out $appName - Color by Number! 🎨✨ Relax and color beautiful artworks:\n$storeUrl',
+                        'Hey! Check out $appName - Color by Number! 🎨✨ Relax and color beautiful artworks:\n$shareUrl',
                         subject: 'Play $appName with me!',
                       );
                     },

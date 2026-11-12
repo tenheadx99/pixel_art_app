@@ -183,7 +183,7 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
                     child: SizedBox(
                       width: 64,
                       height: 64,
-                      child: _buildAppIcon(app.iconUrl),
+                      child: _buildAppIcon(app, isDark),
                     ),
                   ),
                   if (app.badge != null && app.badge!.trim().isNotEmpty)
@@ -260,42 +260,27 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
                 ),
               ),
               const SizedBox(width: 10),
-              // Action Button
+              // Google Play Store Action Button (replacing the GET button)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                width: 44,
+                height: 44,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [flavor.primary, flavor.secondary],
-                  ),
+                  color: isDark ? const Color(0xFF232338) : const Color(0xFFF1F3F9),
                   borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withAlpha(22) : Colors.black.withAlpha(15),
+                    width: 1.2,
+                  ),
                   boxShadow: [
                     BoxShadow(
-                      color: flavor.primary.withAlpha(80),
+                      color: Colors.black.withAlpha(isDark ? 60 : 15),
                       blurRadius: 8,
                       offset: const Offset(0, 3),
                     ),
                   ],
                 ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.play_arrow_rounded,
-                      color: Colors.white,
-                      size: 16,
-                    ),
-                    SizedBox(width: 2),
-                    Text(
-                      'GET',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ],
-                ),
+                alignment: Alignment.center,
+                child: const GooglePlayIcon(size: 24),
               ),
             ],
           ),
@@ -304,32 +289,118 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
     );
   }
 
-  Widget _buildAppIcon(String pathOrUrl) {
-    final trimmed = pathOrUrl.trim();
-    if (trimmed.isEmpty) {
-      return _buildFallbackIcon();
-    }
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+  Widget _buildAppIcon(PromotedApp app, bool isDark) {
+    final localAsset = _resolveLocalAsset(app);
+    final trimmedUrl = app.iconUrl.trim();
+    final isNetwork = trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://');
+
+    if (isNetwork) {
       return Image.network(
-        trimmed,
+        trimmedUrl,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(),
+        errorBuilder: (context, error, stackTrace) {
+          if (localAsset != null) {
+            return Image.asset(
+              localAsset,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => _buildFallbackIcon(app, isDark),
+            );
+          }
+          return _buildFallbackIcon(app, isDark);
+        },
       );
     }
-    return Image.asset(
-      trimmed,
-      fit: BoxFit.cover,
-      errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(),
-    );
+
+    if (localAsset != null) {
+      return Image.asset(
+        localAsset,
+        fit: BoxFit.cover,
+        errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(app, isDark),
+      );
+    }
+
+    return _buildFallbackIcon(app, isDark);
   }
 
-  Widget _buildFallbackIcon() {
+  String? _resolveLocalAsset(PromotedApp app) {
+    final raw = app.iconUrl.trim();
+    if (raw.isNotEmpty) {
+      if (raw.startsWith('assets/')) return raw;
+      if (raw.startsWith('icons/')) return 'assets/$raw';
+      if (raw.endsWith('.png')) return 'assets/icons/$raw';
+    }
+
+    // Map by id, packageName, or title to built-in flavor assets
+    final key = '${app.id} ${app.packageName} ${app.title}'.toLowerCase();
+    if (key.contains('divine') || key.contains('devotional') || key.contains('bhakti')) {
+      return 'assets/icons/devotional.png';
+    }
+    if (key.contains('anime')) {
+      return 'assets/icons/anime.png';
+    }
+    if (key.contains('calm') || key.contains('pixelcalm')) {
+      return 'assets/icons/pixelcalm.png';
+    }
+    if (key.contains('bible')) {
+      return 'assets/icons/bible.png';
+    }
+    if (key.contains('gem') || key.contains('diamond')) {
+      return 'assets/icons/diamond.png';
+    }
+    if (key.contains('stitch') || key.contains('craftcolor')) {
+      return 'assets/icons/cross_stitch.png';
+    }
+    if (key.contains('bead')) {
+      return 'assets/icons/bead.png';
+    }
+    if (key.contains('brick')) {
+      return 'assets/icons/brick.png';
+    }
+    if (key.contains('knit')) {
+      return 'assets/icons/knit.png';
+    }
+    if (key.contains('mosaic')) {
+      return 'assets/icons/mosaic.png';
+    }
+    if (key.contains('glow')) {
+      return 'assets/icons/glow.png';
+    }
+    if (key.contains('sticker')) {
+      return 'assets/icons/sticker.png';
+    }
+    if (key.contains('quilt')) {
+      return 'assets/icons/quilt.png';
+    }
+    if (key.contains('voxel')) {
+      return 'assets/icons/voxel.png';
+    }
+    if (key.contains('pixely') || key.contains('original')) {
+      return 'assets/icons/app_icon.png';
+    }
+
+    return null;
+  }
+
+  Widget _buildFallbackIcon(PromotedApp app, bool isDark) {
+    final initial = app.title.trim().isNotEmpty
+        ? app.title.trim().characters.first.toUpperCase()
+        : '★';
     return Container(
-      color: Colors.grey.shade800,
-      child: const Icon(
-        Icons.apps_rounded,
-        color: Colors.white54,
-        size: 32,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
+        ),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        initial,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w900,
+          fontSize: 26,
+        ),
       ),
     );
   }
@@ -405,4 +476,98 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
       ],
     );
   }
+}
+
+/// Official 4-color Google Play Store logo triangle.
+class GooglePlayIcon extends StatelessWidget {
+  final double size;
+
+  const GooglePlayIcon({super.key, this.size = 24});
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CustomPaint(
+        painter: _GooglePlayPainter(),
+      ),
+    );
+  }
+}
+
+class _GooglePlayPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+
+    // Exact Google Play Brand Triangle coordinates
+    final pLeftTop = Offset(w * 0.08, h * 0.07);
+    final pLeftBottom = Offset(w * 0.08, h * 0.93);
+    final pApex = Offset(w * 0.92, h * 0.50);
+    final pCenter = Offset(w * 0.50, h * 0.50);
+    final pRightTop = Offset(w * 0.70, h * 0.3874);
+    final pRightBottom = Offset(w * 0.70, h * 0.6126);
+
+    final paint = Paint()
+      ..style = PaintingStyle.fill
+      ..isAntiAlias = true;
+
+    // 1. Blue Trapezoid (Left)
+    final bluePath = Path()
+      ..moveTo(pLeftTop.dx, pLeftTop.dy)
+      ..lineTo(pLeftBottom.dx, pLeftBottom.dy)
+      ..lineTo(pCenter.dx, pCenter.dy)
+      ..close();
+    paint.shader = const LinearGradient(
+      begin: Alignment.topCenter,
+      end: Alignment.bottomCenter,
+      colors: [Color(0xFF00D3FF), Color(0xFF007EE5)],
+    ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(bluePath, paint);
+
+    // 2. Green Top Triangle
+    final greenPath = Path()
+      ..moveTo(pLeftTop.dx, pLeftTop.dy)
+      ..lineTo(pRightTop.dx, pRightTop.dy)
+      ..lineTo(pCenter.dx, pCenter.dy)
+      ..close();
+    paint.shader = const LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [Color(0xFF00E676), Color(0xFF00C853)],
+    ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(greenPath, paint);
+
+    // 3. Red Bottom Triangle
+    final redPath = Path()
+      ..moveTo(pLeftBottom.dx, pLeftBottom.dy)
+      ..lineTo(pRightBottom.dx, pRightBottom.dy)
+      ..lineTo(pCenter.dx, pCenter.dy)
+      ..close();
+    paint.shader = const LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [Color(0xFFFF334B), Color(0xFFD50000)],
+    ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(redPath, paint);
+
+    // 4. Yellow Right Triangle
+    final yellowPath = Path()
+      ..moveTo(pCenter.dx, pCenter.dy)
+      ..lineTo(pRightTop.dx, pRightTop.dy)
+      ..lineTo(pApex.dx, pApex.dy)
+      ..lineTo(pRightBottom.dx, pRightBottom.dy)
+      ..close();
+    paint.shader = const LinearGradient(
+      begin: Alignment.centerLeft,
+      end: Alignment.centerRight,
+      colors: [Color(0xFFFFD600), Color(0xFFFF9100)],
+    ).createShader(Rect.fromLTWH(0, 0, w, h));
+    canvas.drawPath(yellowPath, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

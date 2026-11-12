@@ -44,6 +44,7 @@ dependencies:
   google_sign_in: ^6.2.1
   firebase_messaging: ^14.7.10
   http: ^1.6.0
+  app_links: ^7.0.0
 
 dev_dependencies:
   flutter_test:

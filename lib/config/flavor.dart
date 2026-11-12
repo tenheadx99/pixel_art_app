@@ -93,8 +93,18 @@ class FlavorConfig {
   final String splashTitle;
   final String splashTagline;
 
+  static const String appLinksDomain = 'om108-5c015.web.app';
+
   String get storeUrl =>
       'https://play.google.com/store/apps/details?id=$packageName';
+
+  /// Generates the verified HTTPS App Link for a specific artwork.
+  String artworkShareUrl(String artworkId) =>
+      'https://$appLinksDomain/art?id=$artworkId&flavor=${currentFlavor.name}';
+
+  /// Generates the verified HTTPS App Link for the app.
+  String get appShareUrl =>
+      'https://$appLinksDomain/art?flavor=${currentFlavor.name}';
 
   final String appIconPath;
 
@@ -162,7 +172,7 @@ class FlavorConfig {
       accent: Color(0xFF00F0FF), // Cyber Cyan
       brandGradient: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
     ),
     AppFlavor.devotional: FlavorConfig(
       appName: 'Bhakti Rang: Color by Number',
@@ -246,7 +256,7 @@ class FlavorConfig {
       accent: Color(0xFFF64F59), // Ruby
       brandGradient: [Color(0xFF12C2E9), Color(0xFFC471ED)],
       manifestPath: 'assets/pixel_art_diamond/manifest.json',
-      adsEnabled: true,
+      adsEnabled: false,
       cellStyle: CellRenderStyle.gem,
       paletteLabel: 'Select a Drill',
       placeVerb: 'Place',

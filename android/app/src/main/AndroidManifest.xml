@@ -54,6 +54,23 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!-- App Links: Verified HTTPS Domain -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="om108-5c015.web.app" android:pathPrefix="/art" />
+                <data android:scheme="https" android:host="om108-5c015.firebaseapp.com" android:pathPrefix="/art" />
+            </intent-filter>
+
+            <!-- Custom URI Scheme (Local Fallback & Direct Linking) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pixely" />
+            </intent-filter>
         </activity>
         <!-- flutter_local_notifications: delivers scheduled reminders and
              reschedules them after a reboot / app update. -->

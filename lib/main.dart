@@ -22,6 +22,7 @@ import 'data/services/remote_catalog_service.dart';
 import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
+import 'data/services/deep_link_service.dart';
 import 'data/services/app_config_service.dart';
 import 'data/services/social_links_service.dart';
 import 'data/services/analytics_service.dart';
@@ -245,6 +246,8 @@ class _AppBootstrapState extends State<AppBootstrap>
     // Local reminders and live FCM push notifications with rich images.
     await NotificationService.instance.init();
     NotificationService.instance.initPushNotifications(currentFlavor.name);
+    // Deep links and Android App Links
+    DeepLinkService.instance.init();
 
     final deps = AppDependencies(
       localStorageService: localStorageService,
