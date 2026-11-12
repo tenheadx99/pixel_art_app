@@ -4,8 +4,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/database_service.dart';
+import 'package:pixel_art_app/providers/app_settings_provider.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';
 import 'package:pixel_art_app/providers/gallery_provider.dart';
+import 'package:pixel_art_app/config/app_constants.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -99,6 +101,80 @@ void main() {
       coloringProvider.loadArt(resizedArt);
       expect(coloringProvider.filledGrid.length, 3);
       expect(coloringProvider.progress, 0.0);
+    });
+
+    test('retains diamond balance, boosters, and purchases across app update', () async {
+      final preUpdatePrefs = <String, Object>{
+        'diamonds_available': 350,
+        'welcome_bonus_claimed': true,
+        'total_xp': 420,
+        'magic_wands_count': 7,
+        'bombs_count': 12,
+        'brushes_count': 6,
+        'daily_streak': 14,
+        'daily_last_date': '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
+        'streak_freezes': 2,
+        AppConstants.proPrefKey: true,
+        AppConstants.removeAdsPrefKey: true,
+        'diamond_unlocked_ids': ['art_unlocked_1', 'art_unlocked_2'],
+        'completed_ids': ['art_completed_1', 'art_completed_2'],
+        'favorite_ids': ['art_fav_1'],
+      };
+
+      SharedPreferences.setMockInitialValues(preUpdatePrefs);
+      final storage = LocalStorageService();
+      await storage.init();
+      final db = DatabaseService();
+
+      final settings = AppSettingsProvider(storage);
+      final gallery = GalleryProvider(storage, db);
+
+      final unlockedArt = PixelArt(
+        id: 'art_unlocked_1',
+        name: 'Unlocked Art',
+        gridWidth: 2,
+        gridHeight: 2,
+        grid: [[1, 1], [1, 1]],
+        colorMap: {1: const Color(0xFF000000)},
+        isPremium: true,
+      );
+      await gallery.loadCatalog([unlockedArt]);
+
+      // Welcome bonus check on new app version boot should NOT reset or overwrite diamonds
+      final welcomeAward = settings.checkAndClaimWelcomeBonus();
+      expect(welcomeAward, 0); // Already claimed in previous version
+
+      // Verify all economy and progress metrics survived the app upgrade
+      expect(settings.diamondsAvailable, 350);
+      expect(settings.isProUser, isTrue);
+      expect(settings.totalXp, 420);
+      expect(gallery.streakFreezes, 2);
+      expect(gallery.isUnlocked(unlockedArt, false), isTrue);
+      expect(gallery.isCompleted('art_completed_1'), isTrue);
+      expect(gallery.isFavorite('art_fav_1'), isTrue);
+      expect(gallery.dailyStreak, 14);
+
+      // ColoringProvider should load pre-update booster counts
+      final coloring = ColoringProvider(storage);
+      coloring.loadArt(unlockedArt);
+      expect(coloring.magicWandsCount, 7);
+      expect(coloring.bombsCount, 12);
+    });
+
+    test('preserves low diamond balance without wipe if user spent diamonds before updating', () async {
+      final preUpdatePrefs = <String, Object>{
+        'diamonds_available': 15, // User spent diamonds on boosters
+        'welcome_bonus_claimed': true,
+      };
+
+      SharedPreferences.setMockInitialValues(preUpdatePrefs);
+      final storage = LocalStorageService();
+      await storage.init();
+
+      final settings = AppSettingsProvider(storage);
+      final welcomeAward = settings.checkAndClaimWelcomeBonus();
+      expect(welcomeAward, 0);
+      expect(settings.diamondsAvailable, 15);
     });
   });
 }

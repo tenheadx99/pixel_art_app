@@ -2,6 +2,7 @@ import 'dart:developer' as developer;
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:pixel_art_app/data/models/festive_campaign.dart';
+import 'package:pixel_art_app/data/models/home_engagement_config.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
 import 'package:pixel_art_app/data/models/shelf_config.dart';
 import 'package:pixel_art_app/data/models/split_art.dart';
@@ -322,21 +323,31 @@ class GalleryProvider extends ChangeNotifier {
   /// Dynamic festive campaign loaded from remote catalog
   FestiveCampaign? get festiveCampaign => _remoteCatalogService?.festiveCampaign;
 
+  /// Dynamic home engagement configuration loaded from remote catalog
+  HomeEngagementConfig? get homeEngagement =>
+      _remoteCatalogService?.homeEngagement;
+
   /// Active list of shelves ordered according to admin configuration or default layout
   List<ShelfConfig> get activeShelves {
     if (_overrideShelves != null) return _overrideShelves!;
     final remote = _remoteCatalogService?.remoteShelvesConfig;
     if (remote != null && remote.isNotEmpty) {
+      // Filter out shelves explicitly disabled in the admin panel
+      final enabledRemote = remote.where((s) => s.isEnabled).toList();
+      if (enabledRemote.isEmpty) {
+        return const [];
+      }
+
       // If remote config explicitly contains category shelves, respect it completely.
-      final hasCategoryShelf = remote.any((s) => s.type == 'category');
+      final hasCategoryShelf = enabledRemote.any((s) => s.type == 'category');
       if (hasCategoryShelf) {
-        return remote;
+        return enabledRemote;
       }
 
       // If remote only has presets without category shelves, append category shelves
       // so categories (including remote categories) remain accessible on home shelves.
-      final combined = List<ShelfConfig>.from(remote);
-      var maxSort = remote.fold<int>(
+      final combined = List<ShelfConfig>.from(enabledRemote);
+      var maxSort = enabledRemote.fold<int>(
         0,
         (max, s) => s.sortOrder > max ? s.sortOrder : max,
       );

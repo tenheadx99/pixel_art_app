@@ -191,7 +191,7 @@ class AdService {
   // --- Interstitial (session-exit, frequency capped) ---
 
   void loadInterstitialAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
-    if (!_fullScreenAdsEnabled) {
+    if (!_initialized || !_fullScreenAdsEnabled) {
       onFailed?.call();
       return;
     }
@@ -418,7 +418,7 @@ class AdService {
   /// Fire-and-forget cache fill. Safe to call anytime; no-ops if a fresh ad
   /// is already cached or a load is in flight.
   void preloadRewardedAd() {
-    if (!_adsEnabled || _rewardedLoading || isRewardedAdReady) return;
+    if (!_initialized || !_adsEnabled || _rewardedLoading || isRewardedAdReady) return;
     _rewardedAd?.dispose();
     _rewardedAd = null;
     _rewardedLoading = true;
@@ -524,7 +524,7 @@ class AdService {
   // --- App open (on resume, heavily capped) ---
 
   void loadAppOpenAd() {
-    if (!_fullScreenAdsEnabled) return;
+    if (!_initialized || !_fullScreenAdsEnabled) return;
     if (_appOpenAd != null && _isFresh(_appOpenLoadedAt, _appOpenAdTtl)) {
       return;
     }

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
+import '../../config/flavor.dart';
 import '../../data/services/local_storage_service.dart';
 import '../../data/services/database_service.dart';
 import '../../data/models/user_artwork.dart';
@@ -309,9 +310,10 @@ class _GalleryScreenState extends State<GalleryScreen> {
     try {
       final file = File(artwork.filePath);
       if (await file.exists()) {
+        final flavor = FlavorConfig.current;
         await Share.shareXFiles([
           XFile(artwork.filePath),
-        ], text: '🎨 Check out my Pixel Art! Created with Pixel Art app.');
+        ], text: '🎨 Check out my artwork created with ${flavor.appName}!\nDownload to color: ${flavor.storeUrl}');
       }
     } catch (_) {
       // Share sheet unavailable — nothing actionable for the user.

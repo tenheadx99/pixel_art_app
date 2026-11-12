@@ -2563,7 +2563,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       );
       await Share.shareXFiles([
         XFile(file.path, mimeType: 'image/png'),
-      ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
+      ], text: 'I just finished "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨\nDownload to color: ${FlavorConfig.current.storeUrl}');
     } catch (_) {
       // Full storage / no share handler must not crash the celebration HUD.
       _showInfoSnack('Could not share right now.');
@@ -2596,7 +2596,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       );
       await Share.shareXFiles([
         XFile(file.path, mimeType: 'image/gif'),
-      ], text: 'Watch me paint "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨');
+      ], text: 'Watch me paint "${widget.art.name}" in ${FlavorConfig.current.appName}! 🎨\nDownload to color: ${FlavorConfig.current.storeUrl}');
     } catch (_) {
       // renderGif rethrows isolate failures (e.g. OOM on huge grids) and the
       // file/share steps can throw too; fail soft instead of crashing.

@@ -38,10 +38,11 @@ class FestiveCampaign {
       return null;
     }
 
+    final cid = (json['campaignId'] as String?)?.trim();
     return FestiveCampaign(
       isEnabled: json['isEnabled'] as bool? ?? false,
-      campaignId: json['campaignId'] as String? ?? '',
-      title: json['title'] as String? ?? '',
+      campaignId: (cid != null && cid.isNotEmpty) ? cid : 'campaign_default',
+      title: json['title'] as String? ?? 'Special Festive Celebration!',
       emoji: json['emoji'] as String? ?? '🎉',
       message: json['message'] as String? ?? '',
       themeGradient: json['themeGradient'] as String? ?? 'gold',
@@ -70,7 +71,7 @@ class FestiveCampaign {
       };
 
   bool get isActiveNow {
-    if (!isEnabled || campaignId.isEmpty) return false;
+    if (!isEnabled) return false;
     final now = DateTime.now();
     if (startDate != null && now.isBefore(startDate!)) return false;
     if (endDate != null && now.isAfter(endDate!)) return false;

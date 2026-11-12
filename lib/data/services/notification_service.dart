@@ -1,19 +1,33 @@
 import 'dart:developer' as developer;
-import 'dart:io' show Platform;
+import 'dart:io' show File, Platform;
 
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
 import 'package:timezone/data/latest_all.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
-/// Schedules the daily "come back and color" reminders entirely on-device — no
-/// push server required. Two reminders fire per day (a morning nudge and an
-/// evening wind-down), each with copy that matches the time of day and rotates
-/// across a small pool so it never reads like robotic spam.
+/// Background FCM message entry point. Must be top-level and pragma annotated.
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  developer.log(
+    'FCM background message received: ${message.messageId}',
+    name: 'NotificationService',
+  );
+}
+
+/// Service managing both local daily/streak reminders and remote FCM push notifications.
 ///
-/// Tapping a reminder deep-links to the Daily Art canvas: the tap sets
-/// [dailyArtRequested], which the home screen observes to open the daily art.
+/// Features:
+/// - Local daily morning & evening scheduled reminders
+/// - 7 PM streak-at-risk notifications
+/// - Firebase Cloud Messaging (FCM) topic subscription (flavor + all)
+/// - Foreground & background push notifications
+/// - Rich BigPictureStyle notifications with downloaded network images
+/// - Deep-link routing to Daily Art, specific Artwork, Category, or Diamond Shop
 class NotificationService {
   NotificationService._();
   static final NotificationService instance = NotificationService._();
@@ -64,9 +78,17 @@ class NotificationService {
   final FlutterLocalNotificationsPlugin _plugin =
       FlutterLocalNotificationsPlugin();
 
-  /// Set when a reminder is tapped (foreground/background or cold start). The
-  /// home screen listens and opens the Daily Art canvas, then resets it.
+  /// Set when a reminder or push is tapped targeting Daily Art.
   final ValueNotifier<bool> dailyArtRequested = ValueNotifier<bool>(false);
+
+  /// Set when a push notification targeting a specific artwork is tapped.
+  final ValueNotifier<String?> pendingArtworkId = ValueNotifier<String?>(null);
+
+  /// Set when a push notification targeting a category is tapped.
+  final ValueNotifier<String?> pendingCategory = ValueNotifier<String?>(null);
+
+  /// Set when a push notification targeting the diamond shop is tapped.
+  final ValueNotifier<bool> pendingShopRequested = ValueNotifier<bool>(false);
 
   bool _initialized = false;
 
@@ -91,7 +113,7 @@ class NotificationService {
         '@mipmap/launcher_icon',
       );
       const darwinSettings = DarwinInitializationSettings(
-        // Permissions are requested explicitly when the user enables reminders.
+        // Permissions are requested explicitly when the user enables reminders or on app start.
         requestAlertPermission: false,
         requestBadgePermission: false,
         requestSoundPermission: false,
@@ -106,11 +128,28 @@ class NotificationService {
         onDidReceiveNotificationResponse: _onNotificationTapped,
       );
 
-      // If the app was launched cold by tapping a reminder, route to Daily Art.
+      // Create notification channel on Android explicitly with high priority
+      final androidPlugin = _plugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin>();
+      if (androidPlugin != null) {
+        await androidPlugin.createNotificationChannel(
+          const AndroidNotificationChannel(
+            _channelId,
+            _channelName,
+            description: _channelDescription,
+            importance: Importance.max,
+            playSound: true,
+            enableVibration: true,
+          ),
+        );
+      }
+
+      // If the app was launched cold by tapping a notification, route according to payload.
       final launchDetails = await _plugin.getNotificationAppLaunchDetails();
       if (launchDetails?.didNotificationLaunchApp ?? false) {
-        if (launchDetails?.notificationResponse?.payload == dailyArtPayload) {
-          dailyArtRequested.value = true;
+        final payload = launchDetails?.notificationResponse?.payload;
+        if (payload != null) {
+          _routePayload(payload);
         }
       }
 
@@ -126,9 +165,229 @@ class NotificationService {
   }
 
   void _onNotificationTapped(NotificationResponse response) {
-    if (response.payload == dailyArtPayload) {
+    final payload = response.payload;
+    if (payload != null) {
+      _routePayload(payload);
+    }
+  }
+
+  void _routePayload(String payload) {
+    if (payload == dailyArtPayload) {
+      dailyArtRequested.value = true;
+    } else if (payload.startsWith('artwork:')) {
+      pendingArtworkId.value = payload.substring('artwork:'.length);
+    } else if (payload.startsWith('category:')) {
+      pendingCategory.value = payload.substring('category:'.length);
+    } else if (payload == 'shop') {
+      pendingShopRequested.value = true;
+    }
+  }
+
+  /// Initializes Firebase Cloud Messaging for live push broadcasts, topic subscription,
+  /// and rich BigPictureStyle foreground alerts.
+  Future<void> initPushNotifications(String flavorId) async {
+    try {
+      final messaging = FirebaseMessaging.instance;
+
+      // Request permissions (critical on Android 13+ and iOS)
+      final settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+      developer.log(
+        'FCM permission status: ${settings.authorizationStatus}',
+        name: 'NotificationService',
+      );
+
+      // Subscribe to broadcast topics for this flavor and all flavors
+      await messaging.subscribeToTopic('pixel_art_all');
+      await messaging.subscribeToTopic('pixel_art_$flavorId');
+      developer.log(
+        'Subscribed to FCM topics: pixel_art_all, pixel_art_$flavorId',
+        name: 'NotificationService',
+      );
+
+      // Listen for foreground push messages
+      _setupForegroundPushListener();
+
+      // Listen for background push tap open events
+      _setupPushTapListeners();
+    } catch (e, st) {
+      developer.log(
+        'Push notification setup skipped or failed: $e',
+        name: 'NotificationService',
+        stackTrace: st,
+      );
+    }
+  }
+
+  void _setupForegroundPushListener() {
+    FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+      developer.log(
+        'Received FCM foreground message: ${message.messageId}',
+        name: 'NotificationService',
+      );
+
+      final notification = message.notification;
+      final title = notification?.title ??
+          message.data['title'] ??
+          'New Artwork Alert! 🎨';
+      final body = notification?.body ??
+          message.data['body'] ??
+          'Tap to discover and color brand new pixel art!';
+      final imageUrl = notification?.android?.imageUrl ??
+          notification?.apple?.imageUrl ??
+          message.data['image'] ??
+          message.data['imageUrl'];
+
+      final action = message.data['action'] ?? 'daily_art';
+      final actionData = message.data['actionData'] ?? '';
+      String payload = dailyArtPayload;
+      if (action == 'artwork' && actionData.isNotEmpty) {
+        payload = 'artwork:$actionData';
+      } else if (action == 'category' && actionData.isNotEmpty) {
+        payload = 'category:$actionData';
+      } else if (action == 'shop') {
+        payload = 'shop';
+      }
+
+      final details = await _buildPushNotificationDetails(
+        imageUrl: imageUrl,
+        title: title,
+        body: body,
+      );
+
+      final id = message.messageId?.hashCode ?? DateTime.now().millisecondsSinceEpoch ~/ 1000;
+      await _plugin.show(
+        id: id,
+        title: title,
+        body: body,
+        notificationDetails: details,
+        payload: payload,
+      );
+    });
+  }
+
+  void _setupPushTapListeners() {
+    FirebaseMessaging.onMessageOpenedApp.listen(_handleRemoteMessageOpened);
+
+    FirebaseMessaging.instance.getInitialMessage().then((message) {
+      if (message != null) {
+        _handleRemoteMessageOpened(message);
+      }
+    });
+  }
+
+  void _handleRemoteMessageOpened(RemoteMessage message) {
+    developer.log(
+      'FCM Notification tapped with action: ${message.data['action']}',
+      name: 'NotificationService',
+    );
+    final action = message.data['action'];
+    final actionData = message.data['actionData'];
+
+    if (action == 'artwork' && actionData != null && actionData.isNotEmpty) {
+      pendingArtworkId.value = actionData;
+    } else if (action == 'category' &&
+        actionData != null &&
+        actionData.isNotEmpty) {
+      pendingCategory.value = actionData;
+    } else if (action == 'shop') {
+      pendingShopRequested.value = true;
+    } else {
       dailyArtRequested.value = true;
     }
+  }
+
+  Future<String?> _downloadAndSaveFile(String url, String fileName) async {
+    try {
+      final directory = await getTemporaryDirectory();
+      final filePath = '${directory.path}/$fileName';
+      final response = await http
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        return filePath;
+      }
+    } catch (e) {
+      developer.log(
+        'Failed to download notification image: $url',
+        name: 'NotificationService',
+        error: e,
+      );
+    }
+    return null;
+  }
+
+  Future<NotificationDetails> _buildPushNotificationDetails({
+    String? imageUrl,
+    String? title,
+    String? body,
+  }) async {
+    String? bigPicturePath;
+    if (imageUrl != null && imageUrl.trim().isNotEmpty) {
+      final cleanUrl = imageUrl.trim();
+      final ext = cleanUrl.contains('.')
+          ? cleanUrl.split('.').last.split('?').first
+          : 'png';
+      final safeExt = (ext.length <= 4 && !ext.contains('/')) ? ext : 'png';
+      final fileName =
+          'fcm_img_${DateTime.now().millisecondsSinceEpoch}.$safeExt';
+      bigPicturePath = await _downloadAndSaveFile(cleanUrl, fileName);
+    }
+
+    final AndroidNotificationDetails android;
+    if (bigPicturePath != null) {
+      final bigPictureStyle = BigPictureStyleInformation(
+        FilePathAndroidBitmap(bigPicturePath),
+        largeIcon: FilePathAndroidBitmap(bigPicturePath),
+        contentTitle: title,
+        summaryText: body,
+        hideExpandedLargeIcon: true,
+      );
+      android = AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        styleInformation: bigPictureStyle,
+        icon: '@mipmap/launcher_icon',
+      );
+    } else {
+      android = const AndroidNotificationDetails(
+        _channelId,
+        _channelName,
+        channelDescription: _channelDescription,
+        importance: Importance.max,
+        priority: Priority.high,
+        icon: '@mipmap/launcher_icon',
+      );
+    }
+
+    final DarwinNotificationDetails darwin;
+    if (bigPicturePath != null) {
+      darwin = DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+        attachments: [
+          DarwinNotificationAttachment(bigPicturePath),
+        ],
+      );
+    } else {
+      darwin = const DarwinNotificationDetails(
+        presentAlert: true,
+        presentBadge: true,
+        presentSound: true,
+      );
+    }
+
+    return NotificationDetails(android: android, iOS: darwin);
   }
 
   /// Asks the OS for permission to post notifications. Returns true if granted.
@@ -257,6 +516,7 @@ class NotificationService {
       channelDescription: _channelDescription,
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
+      icon: '@mipmap/launcher_icon',
     );
     const darwin = DarwinNotificationDetails();
     return const NotificationDetails(android: android, iOS: darwin);

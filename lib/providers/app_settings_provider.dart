@@ -58,7 +58,9 @@ class AppSettingsProvider extends ChangeNotifier {
   static const String _playerLevelPrefKey = 'player_level';
   static const String _lifetimeCellsPrefKey = 'lifetime_cells_colored';
 
-  AppSettingsProvider(this._storageService);
+  AppSettingsProvider(this._storageService) {
+    _readFromStorage();
+  }
 
   /// Pro entitlement: lifetime Pro purchase OR active Plus subscription OR Remove Ads.
   bool get isProUser => _isProUser || isPlusActive || _isRemoveAds;
@@ -123,7 +125,7 @@ class AppSettingsProvider extends ChangeNotifier {
   int get xpToNextLevel =>
       (xpForLevel(_playerLevel + 1) - _totalXp).clamp(0, 1 << 30);
 
-  Future<void> loadSettings() async {
+  void _readFromStorage() {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
     _isRemoveAds = _storageService.getBool(AppConstants.removeAdsPrefKey);
     _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
@@ -174,6 +176,10 @@ class AppSettingsProvider extends ChangeNotifier {
     } else {
       _appLocale = null;
     }
+  }
+
+  Future<void> loadSettings() async {
+    _readFromStorage();
     AnalyticsService()
         .setPlayerProperties(level: _playerLevel, isPro: _isProUser);
     notifyListeners();

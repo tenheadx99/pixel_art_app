@@ -89,8 +89,12 @@ AppFlavor get currentFlavor {
 /// entry in [_configs] + one manifest + one Android product flavor.
 class FlavorConfig {
   final String appName;
+  final String packageName;
   final String splashTitle;
   final String splashTagline;
+
+  String get storeUrl =>
+      'https://play.google.com/store/apps/details?id=$packageName';
 
   final String appIconPath;
 
@@ -128,6 +132,7 @@ class FlavorConfig {
 
   const FlavorConfig({
     required this.appName,
+    this.packageName = 'com.tenhead.pixelyart',
     required this.splashTitle,
     required this.splashTagline,
     required this.appIconPath,
@@ -148,6 +153,7 @@ class FlavorConfig {
   static const Map<AppFlavor, FlavorConfig> _configs = {
     AppFlavor.original: FlavorConfig(
       appName: 'Pixely',
+      packageName: 'com.tenhead.pixelyart',
       splashTitle: 'Pixel Art',
       splashTagline: 'Color by Number',
       appIconPath: 'assets/icons/app_icon.png',
@@ -156,10 +162,11 @@ class FlavorConfig {
       accent: Color(0xFF00F0FF), // Cyber Cyan
       brandGradient: [Color(0xFF8A2BE2), Color(0xFFFF007F)],
       manifestPath: 'assets/pixel_art/manifest.json',
-      adsEnabled: false,
+      adsEnabled: true,
     ),
     AppFlavor.devotional: FlavorConfig(
       appName: 'Bhakti Rang: Color by Number',
+      packageName: 'com.tenhead.divinepixels',
       splashTitle: 'Bhakti Rang',
       splashTagline: 'Color by Number',
       appIconPath: 'assets/icons/devotional.png',
@@ -172,6 +179,7 @@ class FlavorConfig {
     ),
     AppFlavor.anime: FlavorConfig(
       appName: 'Anime Pixels',
+      packageName: 'com.tenhead.animepixels',
       splashTitle: 'Anime Pixels',
       splashTagline: 'Color Your Heroes',
       appIconPath: 'assets/icons/anime.png',
@@ -184,6 +192,7 @@ class FlavorConfig {
     ),
     AppFlavor.pixelcalm: FlavorConfig(
       appName: 'PixelCalm',
+      packageName: 'com.tenhead.pixelcalm',
       splashTitle: 'PixelCalm',
       splashTagline: 'Relax. Color. Breathe.',
       appIconPath: 'assets/icons/pixelcalm.png',
@@ -215,6 +224,7 @@ class FlavorConfig {
     ),
     AppFlavor.bible: FlavorConfig(
       appName: 'Daily Bible',
+      packageName: 'com.tenhead.bible',
       splashTitle: 'Daily Bible',
       splashTagline: 'Color by Number',
       appIconPath: 'assets/icons/bible.png',
@@ -227,6 +237,7 @@ class FlavorConfig {
     ),
     AppFlavor.diamond: FlavorConfig(
       appName: 'Gem Art',
+      packageName: 'com.tenhead.gemart',
       splashTitle: 'Gem Art',
       splashTagline: 'Sparkle by Number',
       appIconPath: 'assets/icons/diamond.png',
@@ -242,6 +253,7 @@ class FlavorConfig {
     ),
     AppFlavor.stitch: FlavorConfig(
       appName: 'Cross Stitch',
+      packageName: 'com.tenhead.craftcolor',
       splashTitle: 'Cross Stitch',
       splashTagline: 'Stitch by Number',
       appIconPath: 'assets/icons/cross_stitch.png',
@@ -257,6 +269,7 @@ class FlavorConfig {
     ),
     AppFlavor.bead: FlavorConfig(
       appName: 'Bead Art: Color by Number',
+      packageName: 'com.tenhead.beadart',
       splashTitle: 'Bead Art',
       splashTagline: 'Fuse Beads by Number',
       appIconPath: 'assets/icons/bead.png',
@@ -272,6 +285,7 @@ class FlavorConfig {
     ),
     AppFlavor.brick: FlavorConfig(
       appName: 'Brick Art: Build by Number',
+      packageName: 'com.tenhead.brickart',
       splashTitle: 'Brick Art',
       splashTagline: 'Build by Number',
       appIconPath: 'assets/icons/brick.png',
@@ -287,6 +301,7 @@ class FlavorConfig {
     ),
     AppFlavor.knit: FlavorConfig(
       appName: 'Knit Art: Stitch by Number',
+      packageName: 'com.tenhead.knitart',
       splashTitle: 'Knit Art',
       splashTagline: 'Cozy Yarn by Number',
       appIconPath: 'assets/icons/knit.png',
@@ -302,6 +317,7 @@ class FlavorConfig {
     ),
     AppFlavor.mosaic: FlavorConfig(
       appName: 'Mosaic Art: Tile by Number',
+      packageName: 'com.tenhead.mosaicart',
       splashTitle: 'Mosaic Art',
       splashTagline: 'Ceramic & Glass Tiles by Number',
       appIconPath: 'assets/icons/mosaic.png',
@@ -317,6 +333,7 @@ class FlavorConfig {
     ),
     AppFlavor.glow: FlavorConfig(
       appName: 'Glow Art: Light by Number',
+      packageName: 'com.tenhead.glowart',
       splashTitle: 'Glow Art',
       splashTagline: 'Neon Lite Pegs by Number',
       appIconPath: 'assets/icons/glow.png',
@@ -332,6 +349,7 @@ class FlavorConfig {
     ),
     AppFlavor.sticker: FlavorConfig(
       appName: 'Sticker Art: Stick by Number',
+      packageName: 'com.tenhead.stickerart',
       splashTitle: 'Sticker Art',
       splashTagline: 'Vinyl Stickers & Badges by Number',
       appIconPath: 'assets/icons/sticker.png',
@@ -347,6 +365,7 @@ class FlavorConfig {
     ),
     AppFlavor.quilt: FlavorConfig(
       appName: 'Quilt Art: Sew by Number',
+      packageName: 'com.tenhead.quiltart',
       splashTitle: 'Quilt Art',
       splashTagline: 'Patchwork Quilting by Number',
       appIconPath: 'assets/icons/quilt.png',
@@ -362,6 +381,7 @@ class FlavorConfig {
     ),
     AppFlavor.voxel: FlavorConfig(
       appName: 'Voxel Art: 3D Color by Number',
+      packageName: 'com.tenhead.voxelart',
       splashTitle: 'Voxel Art',
       splashTagline: '3D Isometric Blocks by Number',
       appIconPath: 'assets/icons/voxel.png',

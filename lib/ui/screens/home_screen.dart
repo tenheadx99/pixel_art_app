@@ -35,6 +35,8 @@ import '../../ui/screens/profile_screen.dart';
 import '../../ui/screens/artwork_list_screen.dart';
 import '../widgets/pixel_art_card.dart';
 import '../../config/flavor.dart';
+import 'package:collection/collection.dart';
+import '../../data/models/home_engagement_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -50,6 +52,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // Coin bursts fly to the header's diamond chip, which pulses on arrival.
   final GlobalKey _diamondChipKey = GlobalKey();
   bool _diamondChipPulse = false;
+  String? _lastCheckedCampaignId;
 
   void _pulseDiamondChip() {
     if (!mounted) return;
@@ -71,6 +74,21 @@ class _HomeScreenState extends State<HomeScreen> {
       WidgetsBinding.instance.addPostFrameCallback(
         (_) => _handleDailyArtRequest(),
       );
+    }
+    final pendingArt = NotificationService.instance.pendingArtworkId;
+    pendingArt.addListener(_handlePendingArtwork);
+    if (pendingArt.value != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handlePendingArtwork());
+    }
+    final pendingCat = NotificationService.instance.pendingCategory;
+    pendingCat.addListener(_handlePendingCategory);
+    if (pendingCat.value != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handlePendingCategory());
+    }
+    final pendingShop = NotificationService.instance.pendingShopRequested;
+    pendingShop.addListener(_handlePendingShop);
+    if (pendingShop.value) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _handlePendingShop());
     }
     // Surface the 50 diamond welcome bonus for new users on first time launch.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -128,7 +146,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final campaign = gallery.festiveCampaign;
     if (campaign == null || !campaign.isActiveNow) return;
 
-    final storage = LocalStorageService();
+    _lastCheckedCampaignId = campaign.campaignId;
+
+    final storage = context.read<LocalStorageService>();
     final claimKey = 'festive_claimed_${campaign.campaignId}';
     if (storage.getBool(claimKey, defaultValue: false)) return;
 
@@ -165,11 +185,48 @@ class _HomeScreenState extends State<HomeScreen> {
     if (art != null) _openColoring(context, art);
   }
 
+  void _handlePendingArtwork() {
+    final notifier = NotificationService.instance.pendingArtworkId;
+    final artId = notifier.value;
+    if (artId == null || !mounted) return;
+    notifier.value = null;
+    final gallery = context.read<GalleryProvider>();
+    final art = gallery.catalog.firstWhereOrNull((a) => a.id == artId);
+    if (art != null) _openColoring(context, art);
+  }
+
+  void _handlePendingCategory() {
+    final notifier = NotificationService.instance.pendingCategory;
+    final category = notifier.value;
+    if (category == null || !mounted) return;
+    notifier.value = null;
+    final gallery = context.read<GalleryProvider>();
+    if (gallery.categories.contains(category)) {
+      gallery.setCategory(category);
+    }
+  }
+
+  void _handlePendingShop() {
+    final notifier = NotificationService.instance.pendingShopRequested;
+    if (!notifier.value || !mounted) return;
+    notifier.value = false;
+    DiamondShopSheet.show(context);
+  }
+
   @override
   void dispose() {
     EconomyConfigService().removeListener(_onEconomyConfigChanged);
     NotificationService.instance.dailyArtRequested.removeListener(
       _handleDailyArtRequest,
+    );
+    NotificationService.instance.pendingArtworkId.removeListener(
+      _handlePendingArtwork,
+    );
+    NotificationService.instance.pendingCategory.removeListener(
+      _handlePendingCategory,
+    );
+    NotificationService.instance.pendingShopRequested.removeListener(
+      _handlePendingShop,
     );
     _scrollController.dispose();
     _searchController.dispose();
@@ -181,6 +238,17 @@ class _HomeScreenState extends State<HomeScreen> {
     return Consumer2<GalleryProvider, AppSettingsProvider>(
       builder: (context, gallery, settings, _) {
         gallery.checkAndGrantPlusMonthlyFreeze(settings.isPlusActive);
+
+        final campaign = gallery.festiveCampaign;
+        if (campaign != null &&
+            campaign.isActiveNow &&
+            _lastCheckedCampaignId != campaign.campaignId) {
+          _lastCheckedCampaignId = campaign.campaignId;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _checkFestiveCampaign();
+          });
+        }
+
         // Filter + sort once per rebuild; the getter recomputes on each call
         // and the grid delegate would otherwise hit it per item.
         final catalog = gallery.filteredCatalog;
@@ -303,6 +371,41 @@ class _HomeScreenState extends State<HomeScreen> {
     List<PixelArt> catalog,
   ) {
     final slivers = <Widget>[];
+
+    final engagement = gallery.homeEngagement;
+    if (engagement != null) {
+      if (engagement.heroBannerEnabled) {
+        slivers.add(
+          SliverToBoxAdapter(
+            child: _buildHeroBanner(engagement, gallery),
+          ),
+        );
+      }
+      if (engagement.dailySpotlightEnabled) {
+        final spotlightArt = engagement.dailySpotlightArtId != null &&
+                engagement.dailySpotlightArtId!.isNotEmpty
+            ? gallery.catalog.firstWhereOrNull(
+                (a) => a.id == engagement.dailySpotlightArtId,
+              )
+            : gallery.catalog.firstWhereOrNull(
+                (a) => !gallery.isCompleted(a.id),
+              );
+        if (spotlightArt != null) {
+          slivers.add(
+            SliverToBoxAdapter(
+              child: _buildDailySpotlight(engagement, spotlightArt),
+            ),
+          );
+        }
+      }
+      if (engagement.mysteryGiftBoxEnabled) {
+        slivers.add(
+          SliverToBoxAdapter(
+            child: _buildMysteryGiftBox(engagement, settings),
+          ),
+        );
+      }
+    }
 
     var shelfCount = 0;
     for (final shelf in gallery.activeShelves) {
@@ -446,6 +549,435 @@ class _HomeScreenState extends State<HomeScreen> {
     );
 
     return slivers;
+  }
+
+  Widget _buildHeroBanner(
+    HomeEngagementConfig engagement,
+    GalleryProvider gallery,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 6),
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _handleHeroBannerTap(engagement, gallery),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: engagement.gradientColors,
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: engagement.gradientColors.first.withAlpha(80),
+                  blurRadius: 14,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withAlpha(45),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          engagement.heroBannerBadge.toUpperCase(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        engagement.heroBannerTitle,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        engagement.heroBannerSubtitle,
+                        style: TextStyle(
+                          color: Colors.white.withAlpha(225),
+                          fontSize: 12,
+                          height: 1.3,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(50),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.arrow_forward_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _handleHeroBannerTap(
+    HomeEngagementConfig engagement,
+    GalleryProvider gallery,
+  ) {
+    final type = engagement.heroBannerTargetType.toLowerCase();
+    final targetId = engagement.heroBannerTargetId?.trim();
+
+    if (type == 'category' && targetId != null && targetId.isNotEmpty) {
+      if (gallery.categories.contains(targetId)) {
+        gallery.setCategory(targetId);
+        final items = gallery.artworksForCategory(targetId);
+        if (items.isNotEmpty) {
+          Navigator.push(
+            context,
+            fadeThroughRoute(
+              ArtworkListScreen(
+                title: targetId,
+                category: targetId,
+                artworks: items,
+              ),
+              name: 'artwork_list_$targetId',
+            ),
+          );
+          return;
+        }
+      }
+    } else if (type == 'artwork' && targetId != null && targetId.isNotEmpty) {
+      final art = gallery.catalog.firstWhereOrNull((a) => a.id == targetId);
+      if (art != null) {
+        _openColoring(context, art);
+        return;
+      }
+    } else if (type == 'shelf' && targetId != null && targetId.isNotEmpty) {
+      final shelf = gallery.activeShelves.firstWhereOrNull((s) => s.id == targetId);
+      if (shelf != null) {
+        final items = gallery.itemsForShelf(shelf);
+        Navigator.push(
+          context,
+          fadeThroughRoute(
+            ArtworkListScreen(
+              title: shelf.title,
+              category: shelf.type == 'category' ? shelf.category : null,
+              artworks: items,
+            ),
+            name: 'artwork_list_${shelf.id}',
+          ),
+        );
+        return;
+      }
+    } else if (type == 'shop') {
+      DiamondShopSheet.show(context);
+      return;
+    }
+
+    // Default Fallback: Open all artworks so tap ALWAYS does something delightful!
+    Navigator.push(
+      context,
+      fadeThroughRoute(
+        ArtworkListScreen(
+          title: engagement.heroBannerTitle.isNotEmpty
+              ? engagement.heroBannerTitle
+              : 'Featured Artworks',
+          artworks: gallery.catalog,
+        ),
+        name: 'hero_banner_artworks',
+      ),
+    );
+  }
+
+  Widget _buildDailySpotlight(
+    HomeEngagementConfig engagement,
+    PixelArt art,
+  ) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Material(
+        color: isDark ? const Color(0xFF2A2318) : const Color(0xFFFFF9EE),
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => _openColoring(context, art),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0xFFFFB703).withAlpha(100),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    width: 52,
+                    height: 52,
+                    color: isDark ? Colors.black26 : Colors.white,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: art.gridWidth / art.gridHeight,
+                        child: RepaintBoundary(
+                          child: CustomPaint(
+                            painter: ArtPreviewPainter(
+                              art: art,
+                              isCompleted: true,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Text('⭐', style: TextStyle(fontSize: 12)),
+                          const SizedBox(width: 4),
+                          Text(
+                            engagement.dailySpotlightTitle.toUpperCase(),
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFFE68A00),
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        art.name,
+                        style: const TextStyle(
+                          fontSize: 14.5,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${art.category} · ${art.gridWidth}×${art.gridHeight} · ${art.difficulty}',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFFFFB703), Color(0xFFFB8500)],
+                    ),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.palette_rounded, size: 14, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Color',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMysteryGiftBox(
+    HomeEngagementConfig engagement,
+    AppSettingsProvider settings,
+  ) {
+    final storage = context.read<LocalStorageService>();
+    final todayStr = DateTime.now().toIso8601String().substring(0, 10);
+    final claimKey = 'mystery_gift_claimed_$todayStr';
+    final isClaimed = storage.getBool(claimKey, defaultValue: false);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
+      child: Material(
+        color: isDark ? const Color(0xFF261D33) : const Color(0xFFF7F0FF),
+        borderRadius: BorderRadius.circular(18),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () {
+            if (isClaimed) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text("You've already claimed today's Mystery Gift! Come back tomorrow 🎉"),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              return;
+            }
+            storage.setBool(claimKey, true);
+            final reward = engagement.mysteryGiftDiamonds;
+            settings.addDiamonds(reward, source: 'mystery_gift_box');
+            _pulseDiamondChip();
+            setState(() {});
+            showRewardPopup(
+              context,
+              icon: Icons.card_giftcard_rounded,
+              title: 'Mystery Gift Claimed!',
+              subtitle: 'Enjoy your daily surprise diamond bonus!',
+              diamonds: reward,
+              badgeColors: const [Color(0xFF8B5CF6), Color(0xFF6D28D9)],
+            );
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: const Color(0xFF8B5CF6).withAlpha(80),
+                width: 1.2,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF8B5CF6).withAlpha(30),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Center(
+                    child: Text('🎁', style: TextStyle(fontSize: 22)),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(
+                        children: [
+                          const Text(
+                            'Mystery Diamond Gift',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF8B5CF6).withAlpha(40),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '+${engagement.mysteryGiftDiamonds} 💎',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF8B5CF6),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isClaimed
+                            ? 'Claimed today! Come back tomorrow'
+                            : 'Tap to open your daily gift box!',
+                        style: TextStyle(
+                          fontSize: 11.5,
+                          color: Theme.of(context).hintColor,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                if (isClaimed)
+                  const Icon(
+                    Icons.check_circle_rounded,
+                    color: Colors.green,
+                    size: 22,
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8B5CF6),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Text(
+                      'Claim',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   /// The catalog grid, split into segments with a full-row native ad between

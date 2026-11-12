@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../config/app_config.dart';
+import '../../data/services/ad_service.dart';
 import '../../data/services/remote_config_service.dart';
 
 /// Self-contained banner: owns its BannerAd instance (so multiple screens can
@@ -23,6 +24,7 @@ class _AdBannerState extends State<AdBanner> {
   void initState() {
     super.initState();
     RemoteConfigService().addAdsListener(_onAdsConfigChanged);
+    AdService().addInitListener(_onAdsConfigChanged);
   }
 
   void _onAdsConfigChanged() {
@@ -80,6 +82,7 @@ class _AdBannerState extends State<AdBanner> {
   }
 
   void _load() {
+    if (!AdService().isInitialized) return;
     final size = _adSize;
     if (size == null) return;
     final banner = BannerAd(
@@ -117,6 +120,7 @@ class _AdBannerState extends State<AdBanner> {
   @override
   void dispose() {
     RemoteConfigService().removeAdsListener(_onAdsConfigChanged);
+    AdService().removeInitListener(_onAdsConfigChanged);
     final ad = _ad;
     if (ad != null) {
       _ad = null;

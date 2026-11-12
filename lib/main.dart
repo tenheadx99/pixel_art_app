@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'l10n/app_localizations.dart';
 import 'config/app_constants.dart';
@@ -22,6 +23,7 @@ import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/app_config_service.dart';
+import 'data/services/social_links_service.dart';
 import 'data/services/analytics_service.dart';
 import 'data/services/auth_service.dart';
 import 'data/models/pixel_art.dart';
@@ -86,6 +88,7 @@ Future<void> bootstrapApp() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     _firebaseReady = true;
+    FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     final crashlytics = FirebaseCrashlytics.instance;
     // Framework (build/layout/paint) errors → Crashlytics.
     FlutterError.onError = crashlytics.recordFlutterFatalError;
@@ -161,6 +164,25 @@ class _AppBootstrapState extends State<AppBootstrap>
     // App-open ad on return from background (never on cold start); AdService
     // applies the pro/first-session/cooldown caps.
     if (state == AppLifecycleState.resumed && _ready) {
+      // Re-fetch cloud catalog, shelves, festive campaigns & engagement features
+      final remoteCatalog = _dependencies?.remoteCatalogService;
+      if (remoteCatalog != null) {
+        remoteCatalog.fetchCatalog(_preMadeArts).then((merged) async {
+          try {
+            final catalog = await remoteCatalog
+                .withRestoredCachedArts(merged ?? _preMadeArts);
+            if (mounted && appNavigatorKey.currentContext != null) {
+              final gallery = appNavigatorKey.currentContext!
+                  .read<GalleryProvider>();
+              gallery.updateCatalog(
+                catalog,
+                retiredIds: remoteCatalog.retiredIds,
+              );
+            }
+          } catch (_) {}
+        });
+      }
+
       final storage = _dependencies?.localStorageService;
       // Lifetime Pro or an unexpired Plus subscription both suppress the ad.
       final isPro = (storage?.getBool(AppConstants.proPrefKey) ?? false) ||
@@ -195,6 +217,7 @@ class _AppBootstrapState extends State<AppBootstrap>
     AdService().attachStorage(localStorageService);
     AppConfigService().attachStorage(localStorageService);
     RemoteConfigService().attachStorage(localStorageService);
+    SocialLinksService().attachStorage(localStorageService);
 
     // UMP consent + Mobile Ads SDK init needs neither Remote Config nor IAP
     // (ad unit IDs are read from RC at load time, after the await below), so
@@ -210,6 +233,7 @@ class _AppBootstrapState extends State<AppBootstrap>
         RemoteConfigService().initialize(),
         EconomyConfigService().initialize(),
         AppConfigService().initialize(),
+        SocialLinksService().initialize(storage: localStorageService),
       ]).timeout(const Duration(seconds: 5));
     } catch (e) {
       // Remote Config/PackageInfo are non-critical; continue with defaults.
@@ -218,10 +242,9 @@ class _AppBootstrapState extends State<AppBootstrap>
     final soundService = SoundService();
     await soundService.init();
 
-    // Local-only daily reminders. Initializing here registers the tap handler
-    // and captures the launch payload if the app was opened from a reminder;
-    // actual (re)scheduling happens once settings load (syncDailyReminders).
+    // Local reminders and live FCM push notifications with rich images.
     await NotificationService.instance.init();
+    NotificationService.instance.initPushNotifications(currentFlavor.name);
 
     final deps = AppDependencies(
       localStorageService: localStorageService,
@@ -316,6 +339,9 @@ class _AppBootstrapState extends State<AppBootstrap>
         Provider<IAPService>.value(value: _dependencies!.iapService),
         Provider<AdService>.value(value: AdService()),
         Provider<SoundService>.value(value: _dependencies!.soundService),
+        ChangeNotifierProvider<SocialLinksService>.value(
+          value: SocialLinksService(),
+        ),
         ChangeNotifierProvider<AuthProvider>(
           create: (_) => AuthProvider(_dependencies!.localStorageService),
         ),

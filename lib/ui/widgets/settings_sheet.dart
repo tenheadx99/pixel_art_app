@@ -6,6 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../../config/app_constants.dart';
 import '../../providers/app_settings_provider.dart';
 import '../../data/services/sound_service.dart';
+import '../../data/services/social_links_service.dart';
 import '../theme/app_style.dart';
 import '../../config/flavor.dart';
 import '../screens/onboarding_screen.dart';
@@ -218,6 +219,49 @@ class SettingsSheet extends StatelessWidget {
                         const OnboardingScreen(isReplay: true),
                         name: 'onboarding_guide',
                       ),
+                    );
+                  },
+                ),
+                AnimatedBuilder(
+                  animation: SocialLinksService(),
+                  builder: (context, _) {
+                    final service = SocialLinksService();
+                    final links = service.activeLinks;
+                    if (!service.isEnabled || links.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Divider(height: 8),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(24, 8, 24, 4),
+                          child: Text(
+                            service.sectionTitle,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.8,
+                              color: flavor.primary,
+                            ),
+                          ),
+                        ),
+                        ...links.map((link) {
+                          return ListTile(
+                            leading: Icon(
+                              link.resolvedIcon,
+                              color: link.resolvedColor,
+                            ),
+                            title: Text(link.title),
+                            subtitle: link.subtitle != null && link.subtitle!.isNotEmpty
+                                ? Text(link.subtitle!)
+                                : null,
+                            trailing: const Icon(Icons.open_in_new, size: 18),
+                            onTap: () => service.openLink(link),
+                          );
+                        }),
+                      ],
                     );
                   },
                 ),

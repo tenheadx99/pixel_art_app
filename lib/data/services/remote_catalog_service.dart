@@ -8,6 +8,7 @@ import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../config/version_utils.dart';
 import '../models/festive_campaign.dart';
+import '../models/home_engagement_config.dart';
 import '../models/pixel_art.dart';
 import '../models/shelf_config.dart';
 import '../models/split_art.dart';
@@ -105,6 +106,31 @@ class RemoteCatalogService {
     }
   }
 
+  /// Dynamic Home Engagement configuration (Hero banner, Daily spotlight, Mystery gift).
+  HomeEngagementConfig? get homeEngagement {
+    final raw = _storage.getString('remote_home_engagement_$_flavorId');
+    if (raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is Map) {
+          return HomeEngagementConfig.fromJson(
+            Map<String, dynamic>.from(decoded),
+          );
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  void _saveCachedHomeEngagement(dynamic engagementRaw) {
+    if (engagementRaw is Map) {
+      _storage.setString(
+        'remote_home_engagement_$_flavorId',
+        jsonEncode(Map<String, dynamic>.from(engagementRaw)),
+      );
+    }
+  }
+
   /// Fetches the remote catalog and returns it merged with [bundled], or null
   /// when nothing remote is reachable (no catalog published yet, offline with
   /// a cold cache, or Firebase failed to initialize) — callers then keep the
@@ -124,6 +150,9 @@ class RemoteCatalogService {
         }
         if (rootData.containsKey('festiveCampaign')) {
           _saveCachedFestiveCampaign(rootData['festiveCampaign']);
+        }
+        if (rootData.containsKey('homeEngagement')) {
+          _saveCachedHomeEngagement(rootData['homeEngagement']);
         }
       }
       final version = (rootData?['catalogVersion'] as num?)?.toInt();

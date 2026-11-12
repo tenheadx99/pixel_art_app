@@ -2,11 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
+import '../../data/models/social_link.dart';
 import '../../data/services/review_service.dart';
+import '../../data/services/social_links_service.dart';
 import '../../data/services/sound_service.dart';
 import '../../l10n/app_localizations.dart';
 import '../../providers/app_settings_provider.dart';
@@ -364,11 +367,30 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
+              // Section 4.8: Dynamic Community & Social Links (Managed via Admin App)
+              _buildSocialLinksSection(context, isDark, flavor),
+
               // Section 5: Legal & Version
               _buildSectionHeader('ABOUT', isDark, flavor.primary),
               _buildCard(
                 isDark: isDark,
                 children: [
+                  ListTile(
+                    leading: _buildIconCircle(Icons.share_rounded, const Color(0xFF2ED573), isDark),
+                    title: const Text('Share with Friends', style: TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: const Text('Invite friends to relax and color together', style: TextStyle(fontSize: 12)),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () async {
+                      HapticFeedback.lightImpact();
+                      final appName = FlavorConfig.current.appName;
+                      final storeUrl = FlavorConfig.current.storeUrl;
+                      await Share.share(
+                        'Hey! Check out $appName - Color by Number! 🎨✨ Relax and color beautiful artworks:\n$storeUrl',
+                        subject: 'Play $appName with me!',
+                      );
+                    },
+                  ),
+                  _buildDivider(isDark),
                   ListTile(
                     leading: _buildIconCircle(Icons.star_rounded, const Color(0xFFFFB300), isDark),
                     title: Text(rateUsTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -537,6 +559,99 @@ class SettingsScreen extends StatelessWidget {
         color: color.withAlpha(isDark ? 35 : 25),
       ),
       child: Icon(icon, color: color, size: 20),
+    );
+  }
+
+  Widget _buildSocialLeadingIcon(SocialLink link, bool isDark) {
+    if (link.isInstagram) {
+      return Container(
+        padding: const EdgeInsets.all(8),
+        decoration: const BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [
+              Color(0xFF833AB4),
+              Color(0xFFFD1D1D),
+              Color(0xFFFCB045),
+            ],
+            begin: Alignment.bottomLeft,
+            end: Alignment.topRight,
+          ),
+        ),
+        child: const Icon(
+          Icons.camera_alt_rounded,
+          color: Colors.white,
+          size: 20,
+        ),
+      );
+    }
+    return _buildIconCircle(link.resolvedIcon, link.resolvedColor, isDark);
+  }
+
+  Widget _buildSocialLinksSection(
+    BuildContext context,
+    bool isDark,
+    FlavorConfig flavor,
+  ) {
+    return AnimatedBuilder(
+      animation: SocialLinksService(),
+      builder: (context, _) {
+        final service = SocialLinksService();
+        final links = service.activeLinks;
+        if (!service.isEnabled || links.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        final title = service.sectionTitle.isNotEmpty
+            ? service.sectionTitle
+            : 'COMMUNITY & SOCIAL';
+
+        final children = <Widget>[];
+        for (int i = 0; i < links.length; i++) {
+          final link = links[i];
+          if (i > 0) {
+            children.add(_buildDivider(isDark));
+          }
+          children.add(
+            ListTile(
+              leading: _buildSocialLeadingIcon(link, isDark),
+              title: Text(
+                link.title,
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              subtitle: link.subtitle != null && link.subtitle!.isNotEmpty
+                  ? Text(link.subtitle!, style: const TextStyle(fontSize: 12))
+                  : null,
+              trailing: const Icon(
+                Icons.open_in_new_rounded,
+                size: 18,
+                color: Colors.grey,
+              ),
+              onTap: () async {
+                HapticFeedback.lightImpact();
+                final success = await service.openLink(link);
+                if (!success && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Could not open ${link.title}'),
+                      duration: const Duration(seconds: 2),
+                    ),
+                  );
+                }
+              },
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _buildSectionHeader(title, isDark, flavor.primary),
+            _buildCard(isDark: isDark, children: children),
+            const SizedBox(height: 20),
+          ],
+        );
+      },
     );
   }
 

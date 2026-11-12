@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../../config/app_config.dart';
 import '../../config/flavor.dart';
+import '../../data/services/ad_service.dart';
 import '../../data/services/remote_config_service.dart';
 
 /// A full-width native ad styled to sit inside the home grid as a content
@@ -30,6 +31,18 @@ class _NativeAdCardState extends State<NativeAdCard> with AutomaticKeepAliveClie
   @override
   bool get wantKeepAlive => _loaded;
 
+  @override
+  void initState() {
+    super.initState();
+    AdService().addInitListener(_onInitialized);
+  }
+
+  void _onInitialized() {
+    if (mounted && _ad == null) {
+      _load();
+    }
+  }
+
   // The medium template needs Theme colors, so load from
   // didChangeDependencies rather than initState.
   @override
@@ -39,6 +52,7 @@ class _NativeAdCardState extends State<NativeAdCard> with AutomaticKeepAliveClie
   }
 
   void _load() {
+    if (!AdService().isInitialized) return;
     if (AppConfig.disableAds || !AppConfig.showAds) return;
     final rc = RemoteConfigService();
     if (!rc.homeNativeAdsEnabled) return;
@@ -90,6 +104,7 @@ class _NativeAdCardState extends State<NativeAdCard> with AutomaticKeepAliveClie
 
   @override
   void dispose() {
+    AdService().removeInitListener(_onInitialized);
     final ad = _ad;
     if (ad != null) {
       _liveCount--;
