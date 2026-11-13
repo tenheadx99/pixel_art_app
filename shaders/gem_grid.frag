@@ -18,11 +18,7 @@ uniform sampler2D uFillAge;
 out vec4 fragColor;
 
 vec2 getTexUV(vec2 coord) {
-    vec2 uv = (coord + vec2(0.5)) / uGrid;
-#ifdef IMPELLER_TARGET_OPENGLES
-    uv.y = 1.0 - uv.y;
-#endif
-    return uv;
+    return (coord + vec2(0.5)) / uGrid;
 }
 
 void main() {

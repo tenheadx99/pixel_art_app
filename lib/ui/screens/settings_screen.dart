@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 import '../../data/models/social_link.dart';
+import '../../data/services/ad_service.dart';
 import '../../data/services/review_service.dart';
 import '../../data/services/social_links_service.dart';
 import '../../data/services/sound_service.dart';
@@ -415,6 +416,40 @@ class SettingsScreen extends StatelessWidget {
                     },
                   ),
                   _buildDivider(isDark),
+                  FutureBuilder<bool>(
+                    future: AdService().isPrivacyOptionsRequired(),
+                    builder: (context, snapshot) {
+                      if (snapshot.data != true) {
+                        return const SizedBox.shrink();
+                      }
+                      return Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: _buildIconCircle(
+                              Icons.security_outlined,
+                              const Color(0xFF6C5CE7),
+                              isDark,
+                            ),
+                            title: const Text(
+                              'Ad Privacy Choices',
+                              style: TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                            subtitle: const Text(
+                              'Manage your advertising consent choices',
+                              style: TextStyle(fontSize: 12),
+                            ),
+                            trailing: const Icon(Icons.chevron_right_rounded),
+                            onTap: () async {
+                              HapticFeedback.lightImpact();
+                              await AdService().showPrivacyOptionsForm();
+                            },
+                          ),
+                          _buildDivider(isDark),
+                        ],
+                      );
+                    },
+                  ),
                   ListTile(
                     leading: _buildIconCircle(Icons.privacy_tip_outlined, Colors.grey, isDark),
                     title: Text(privacyTitle, style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -521,11 +556,7 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildCard({required bool isDark, required List<Widget> children}) {
     return Container(
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF18172B) : Colors.white,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: isDark ? Colors.white.withAlpha(16) : Colors.black.withAlpha(10),
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(isDark ? 30 : 10),
@@ -534,9 +565,19 @@ class SettingsScreen extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: children,
+      child: Material(
+        color: isDark ? const Color(0xFF18172B) : Colors.white,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: BorderSide(
+            color: isDark ? Colors.white.withAlpha(16) : Colors.black.withAlpha(10),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: children,
+        ),
       ),
     );
   }
@@ -655,8 +696,11 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _openUrl(String url) {
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  void _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   String _getAmbientName(String track) {

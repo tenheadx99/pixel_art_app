@@ -52,7 +52,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     super.initState();
     _ambientController = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 14),
+      duration: const Duration(seconds: 16),
     )..repeat();
   }
 
@@ -116,30 +116,48 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     }
   }
 
+  Color _getSlideAuraColor(int page, Color primary, Color secondary) {
+    switch (page) {
+      case 0:
+        return const Color(0xFFFF3366);
+      case 1:
+        return const Color(0xFF00D2D3);
+      case 2:
+        return const Color(0xFFFF9F1A);
+      case 3:
+        return const Color(0xFF2ED573);
+      default:
+        return primary;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final flavor = FlavorConfig.current;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryColor = flavor.primary;
     final secondaryColor = flavor.secondary;
+    final activeAuraColor = _getSlideAuraColor(_currentPage, primaryColor, secondaryColor);
 
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0D0D18) : const Color(0xFFF7F8FD),
+      backgroundColor: isDark ? AppStyle.darkBg : const Color(0xFFF6F7FB),
       body: Stack(
         children: [
-          // Background ambient gradient aura
+          // Dynamic ambient gradient aura that smoothly shifts with the active slide
           Positioned.fill(
-            child: DecoratedBox(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 500),
+              curve: Curves.easeOut,
               decoration: BoxDecoration(
                 gradient: RadialGradient(
-                  center: const Alignment(0.3, -0.5),
-                  radius: 1.4,
+                  center: const Alignment(0.0, -0.2),
+                  radius: 1.3,
                   colors: [
-                    primaryColor.withAlpha(isDark ? 50 : 25),
-                    secondaryColor.withAlpha(isDark ? 28 : 12),
+                    activeAuraColor.withAlpha(isDark ? 36 : 22),
+                    primaryColor.withAlpha(isDark ? 20 : 10),
                     Colors.transparent,
                   ],
-                  stops: const [0.0, 0.45, 1.0],
+                  stops: const [0.0, 0.48, 1.0],
                 ),
               ),
             ),
@@ -176,6 +194,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 Expanded(
                   child: PageView(
                     controller: _pageController,
+                    physics: const BouncingScrollPhysics(),
                     onPageChanged: (page) {
                       setState(() => _currentPage = page);
                     },
@@ -222,7 +241,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     Color secondaryColor,
   ) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
@@ -231,37 +250,58 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
               color: isDark
-                  ? Colors.white.withAlpha(16)
-                  : primaryColor.withAlpha(16),
+                  ? Colors.white.withAlpha(14)
+                  : Colors.white,
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
-                color: isDark ? Colors.white.withAlpha(22) : primaryColor.withAlpha(35),
+                color: isDark ? Colors.white.withAlpha(20) : primaryColor.withAlpha(30),
                 width: 1,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withAlpha(isDark ? 40 : 8),
+                  blurRadius: 10,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
-                  widget.isReplay ? Icons.menu_book_rounded : Icons.auto_awesome_rounded,
-                  size: 14,
-                  color: isDark ? const Color(0xFFFFD700) : primaryColor,
+                Container(
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [primaryColor, secondaryColor],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      widget.isReplay ? Icons.menu_book_rounded : Icons.auto_awesome_rounded,
+                      size: 11,
+                      color: Colors.white,
+                    ),
+                  ),
                 ),
-                const SizedBox(width: 6),
+                const SizedBox(width: 8),
                 Text(
                   widget.isReplay ? 'How to Play Guide' : FlavorConfig.current.appName,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: 12.5,
                     fontWeight: FontWeight.w700,
-                    letterSpacing: 0.4,
-                    color: isDark ? Colors.white.withAlpha(230) : primaryColor,
+                    letterSpacing: 0.3,
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
                 const SizedBox(width: 8),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: primaryColor.withAlpha(isDark ? 50 : 30),
+                    color: primaryColor.withAlpha(isDark ? 45 : 25),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
@@ -284,12 +324,19 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
               decoration: BoxDecoration(
                 color: isDark
-                    ? Colors.white.withAlpha(14)
-                    : Colors.black.withAlpha(10),
+                    ? Colors.white.withAlpha(12)
+                    : Colors.white,
                 borderRadius: BorderRadius.circular(20),
                 border: Border.all(
-                  color: isDark ? Colors.white.withAlpha(18) : Colors.black12,
+                  color: isDark ? Colors.white.withAlpha(18) : Colors.black.withAlpha(12),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withAlpha(isDark ? 30 : 6),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -307,9 +354,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                         ? 'Close'
                         : (_currentPage == _totalPages - 1 ? '' : 'Skip'),
                     style: TextStyle(
-                      fontSize: 12.5,
+                      fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.white.withAlpha(190) : Colors.black54,
+                      color: isDark ? Colors.white70 : Colors.black54,
                     ),
                   ),
                 ],
@@ -323,17 +370,24 @@ class _OnboardingScreenState extends State<OnboardingScreen>
 
   Widget _buildTopicTabs(bool isDark, Color primaryColor, Color secondaryColor) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+      padding: const EdgeInsets.fromLTRB(16, 2, 16, 6),
       child: Container(
-        height: 38,
+        height: 40,
         decoration: BoxDecoration(
-          color: isDark ? const Color(0xFF161528) : Colors.black.withAlpha(8),
-          borderRadius: BorderRadius.circular(19),
+          color: isDark ? const Color(0xFF1B1A2C) : Colors.white,
+          borderRadius: BorderRadius.circular(20),
           border: Border.all(
-            color: isDark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(12),
+            color: isDark ? Colors.white.withAlpha(16) : Colors.black.withAlpha(10),
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(isDark ? 45 : 8),
+              blurRadius: 10,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
-        padding: const EdgeInsets.all(3),
+        padding: const EdgeInsets.all(3.5),
         child: Row(
           children: List.generate(_topics.length, (index) {
             final isSelected = index == _currentPage;
@@ -342,6 +396,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             return Expanded(
               child: GestureDetector(
                 onTap: () => _goToPage(index),
+                behavior: HitTestBehavior.opaque,
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 260),
                   curve: Motion.standard,
@@ -373,7 +428,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           size: 13,
                           color: isSelected
                               ? Colors.white
-                              : (isDark ? Colors.white54 : Colors.black54),
+                              : (isDark ? Colors.white54 : Colors.black45),
                         ),
                         const SizedBox(width: 4),
                         Flexible(
@@ -382,7 +437,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 11,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                              fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                               color: isSelected
                                   ? Colors.white
                                   : (isDark ? Colors.white60 : Colors.black87),
@@ -426,7 +481,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   curve: Motion.standard,
                   margin: const EdgeInsets.symmetric(horizontal: 4),
                   height: 6,
-                  width: isSelected ? 24 : 6,
+                  width: isSelected ? 26 : 6,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(3),
                     gradient: isSelected
@@ -452,18 +507,25 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                 child: PressableScale(
                   onTap: _currentPage > 0 ? _prevPage : null,
                   child: Container(
-                    height: 50,
-                    width: 50,
+                    height: 52,
+                    width: 52,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isDark
-                          ? Colors.white.withAlpha(16)
-                          : Colors.black.withAlpha(10),
+                          ? Colors.white.withAlpha(14)
+                          : Colors.white,
                       border: Border.all(
                         color: isDark
-                            ? Colors.white.withAlpha(22)
-                            : Colors.black.withAlpha(14),
+                            ? Colors.white.withAlpha(20)
+                            : Colors.black.withAlpha(12),
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(isDark ? 30 : 8),
+                          blurRadius: 10,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Icon(
                       Icons.arrow_back_rounded,
@@ -481,9 +543,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                   key: const ValueKey('main_action_btn'),
                   onTap: _nextPage,
                   child: Container(
-                    height: 50,
+                    height: 52,
                     decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(25),
+                      borderRadius: BorderRadius.circular(26),
                       gradient: LinearGradient(
                         colors: [primaryColor, secondaryColor],
                         begin: Alignment.topLeft,
@@ -491,9 +553,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: primaryColor.withAlpha(isDark ? 90 : 70),
+                          color: primaryColor.withAlpha(isDark ? 100 : 80),
                           blurRadius: 16,
-                          offset: const Offset(0, 5),
+                          offset: const Offset(0, 6),
                         ),
                       ],
                     ),
@@ -505,16 +567,16 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           child: ScaleTransition(scale: anim, child: child),
                         ),
                         child: isLastPage
-                            ? const Row(
-                                key: ValueKey('start_btn'),
+                            ? Row(
+                                key: const ValueKey('start_btn'),
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.palette_rounded,
+                                  const Icon(Icons.palette_rounded,
                                       color: Colors.white, size: 20),
-                                  SizedBox(width: 8),
+                                  const SizedBox(width: 8),
                                   Text(
-                                    'Start Coloring!',
-                                    style: TextStyle(
+                                    widget.isReplay ? 'Back to Game' : 'Start Coloring!',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
                                       fontWeight: FontWeight.bold,
@@ -583,6 +645,10 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
   bool _userInteracted = false;
   DateTime _lastUserTouch = DateTime.now();
 
+  final GlobalKey _gridKey = GlobalKey();
+
+  // 5x5 Pixel Art Heart:
+  // 0 = Empty, 1 = Pink/Coral (#1), 2 = Purple (#2)
   static const List<int> _heartGrid = [
     0, 1, 0, 1, 0,
     1, 2, 1, 2, 1,
@@ -619,12 +685,41 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
       _userInteracted = true;
       _lastUserTouch = DateTime.now();
       if (cellNum == _selectedColorIndex) {
-        _userFilledCells.add(index);
-        HapticFeedback.lightImpact();
+        if (!_userFilledCells.contains(index)) {
+          _userFilledCells.add(index);
+          HapticFeedback.lightImpact();
+        }
       } else {
         HapticFeedback.selectionClick();
       }
     });
+  }
+
+  void _handleDrag(Offset globalPosition) {
+    final renderBox = _gridKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null) return;
+
+    final localPos = renderBox.globalToLocal(globalPosition);
+    final size = renderBox.size;
+    if (localPos.dx < 0 || localPos.dx >= size.width || localPos.dy < 0 || localPos.dy >= size.height) {
+      return;
+    }
+
+    final col = (localPos.dx / (size.width / 5)).floor().clamp(0, 4);
+    final row = (localPos.dy / (size.height / 5)).floor().clamp(0, 4);
+    final index = row * 5 + col;
+
+    if (index >= 0 && index < _heartGrid.length) {
+      final cellNum = _heartGrid[index];
+      if (cellNum == _selectedColorIndex && !_userFilledCells.contains(index)) {
+        setState(() {
+          _userInteracted = true;
+          _lastUserTouch = DateTime.now();
+          _userFilledCells.add(index);
+          HapticFeedback.selectionClick();
+        });
+      }
+    }
   }
 
   void _onPaletteTapped(int num) {
@@ -649,7 +744,7 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
   Widget build(BuildContext context) {
     return _OnboardingSlideLayout(
       badge: 'STEP 1 · THE BASICS',
-      badgeColor: const Color(0xFFFF4757),
+      badgeColor: const Color(0xFFFF3366),
       title: 'Tap & Drag to Color',
       subtitle:
           'Select a numbered color from the palette, find matching cells on the canvas, and tap or glide your finger to paint them instantly.',
@@ -667,12 +762,12 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
         // If user touched within the last 5 seconds, use user interactive state.
         final now = DateTime.now();
         final isUsingAutoDemo = !_userInteracted ||
-            now.difference(_lastUserTouch).inSeconds > 5;
+            now.difference(_lastUserTouch).inSeconds > 6;
 
-        final autoCell1Filled = t > 0.35;
-        final autoCell2Filled = t > 0.50;
-        final autoCell3Filled = t > 0.65;
-        final autoIsComplete = t > 0.72;
+        final autoCell1Filled = t > 0.32;
+        final autoCell2Filled = t > 0.48;
+        final autoCell3Filled = t > 0.64;
+        final autoIsComplete = t > 0.74;
 
         final effectivePaletteNum = isUsingAutoDemo ? 1 : _selectedColorIndex;
 
@@ -689,15 +784,15 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
           children: [
             // Interactive Mini Canvas Frame
             Container(
-              width: 250,
-              height: 205,
-              padding: const EdgeInsets.all(12),
+              width: 256,
+              height: 215,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(22),
+                color: widget.isDark ? const Color(0xFF1A192D) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.primaryColor.withAlpha(widget.isDark ? 55 : 30),
+                    color: const Color(0xFFFF3366).withAlpha(widget.isDark ? 50 : 25),
                     blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
@@ -714,100 +809,105 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                 children: [
                   // 5x5 Heart Grid (Interactive on tap & drag)
                   GestureDetector(
-                    onPanUpdate: (details) {
-                      // Allow drag coloring
-                      final renderBox = context.findRenderObject() as RenderBox?;
-                      if (renderBox == null) return;
-                      // Drag detection fallback
-                    },
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: List.generate(5, (r) {
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 2),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(5, (c) {
-                              final index = r * 5 + c;
-                              final cellNum = _heartGrid[index];
+                    onPanDown: (d) => _handleDrag(d.globalPosition),
+                    onPanUpdate: (d) => _handleDrag(d.globalPosition),
+                    child: Container(
+                      key: _gridKey,
+                      padding: const EdgeInsets.all(4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: List.generate(5, (r) {
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2.2),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: List.generate(5, (c) {
+                                final index = r * 5 + c;
+                                final cellNum = _heartGrid[index];
 
-                              bool filled;
-                              if (cellNum == 0) {
-                                filled = false;
-                              } else if (cellNum == 2) {
-                                filled = true; // Pre-filled purple for visual context
-                              } else {
-                                if (isUsingAutoDemo) {
-                                  // Automated timeline demo
-                                  if (index == 1 || index == 5) {
-                                    filled = autoCell1Filled;
-                                  } else if (index == 3 || index == 9) {
-                                    filled = autoCell2Filled;
-                                  } else {
-                                    filled = autoCell3Filled;
-                                  }
+                                bool filled;
+                                if (cellNum == 0) {
+                                  filled = false;
+                                } else if (cellNum == 2) {
+                                  filled = true; // Pre-filled purple for visual context
                                 } else {
-                                  filled = _userFilledCells.contains(index);
+                                  if (isUsingAutoDemo) {
+                                    if (index == 1 || index == 5) {
+                                      filled = autoCell1Filled;
+                                    } else if (index == 3 || index == 9) {
+                                      filled = autoCell2Filled;
+                                    } else {
+                                      filled = autoCell3Filled;
+                                    }
+                                  } else {
+                                    filled = _userFilledCells.contains(index);
+                                  }
                                 }
-                              }
 
-                              final isActive = (cellNum == effectivePaletteNum);
+                                final isActive = (cellNum == effectivePaletteNum);
 
-                              return Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 2),
-                                child: GestureDetector(
-                                  onTapDown: (_) => _onCellTapped(index),
-                                  child: _Pixel(
-                                    num: cellNum,
-                                    filled: filled,
-                                    color: cellNum == 1
-                                        ? const Color(0xFFFF3366)
-                                        : const Color(0xFFBD93F9),
-                                    active: isActive,
+                                return Padding(
+                                  padding: const EdgeInsets.symmetric(horizontal: 2.2),
+                                  child: GestureDetector(
+                                    onTapDown: (_) => _onCellTapped(index),
+                                    child: _Pixel(
+                                      num: cellNum,
+                                      filled: filled,
+                                      color: cellNum == 1
+                                          ? const Color(0xFFFF3366)
+                                          : const Color(0xFFBD93F9),
+                                      active: isActive,
+                                      isDark: widget.isDark,
+                                    ),
                                   ),
-                                ),
-                              );
-                            }),
-                          ),
-                        );
-                      }),
+                                );
+                              }),
+                            ),
+                          );
+                        }),
+                      ),
                     ),
                   ),
 
                   // Success celebration banner
                   if (showCompleteBanner)
                     Positioned(
-                      top: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF2ED573), Color(0xFF10AC84)],
-                          ),
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: [
-                            BoxShadow(
-                              color: const Color(0xFF2ED573).withAlpha(120),
-                              blurRadius: 10,
-                              offset: const Offset(0, 3),
+                      top: 4,
+                      child: AnimatedScale(
+                        scale: 1.0,
+                        duration: const Duration(milliseconds: 300),
+                        curve: Motion.reward,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [Color(0xFF2ED573), Color(0xFF10AC84)],
                             ),
-                          ],
-                        ),
-                        child: const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.check_circle_rounded, color: Colors.white, size: 13),
-                            SizedBox(width: 5),
-                            Text(
-                              'Color #1 Complete! ✨',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: 0.2,
+                            borderRadius: BorderRadius.circular(14),
+                            boxShadow: [
+                              BoxShadow(
+                                color: const Color(0xFF2ED573).withAlpha(120),
+                                blurRadius: 10,
+                                offset: const Offset(0, 3),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.check_circle_rounded, color: Colors.white, size: 13),
+                              SizedBox(width: 5),
+                              Text(
+                                'Color #1 Complete! ✨',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
@@ -815,22 +915,22 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                   // Animated Hand / Pointer Cursor when in auto demo mode
                   if (isUsingAutoDemo) _buildAnimatedCursor(t),
 
-                  // Interactive "Try tapping cells" hint
+                  // Interactive "Try tapping or dragging" hint
                   if (!_userInteracted && isUsingAutoDemo)
                     Positioned(
-                      bottom: 4,
+                      bottom: 2,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                         decoration: BoxDecoration(
-                          color: widget.isDark ? Colors.black54 : Colors.white70,
-                          borderRadius: BorderRadius.circular(10),
+                          color: widget.isDark ? Colors.black.withAlpha(160) : Colors.black.withAlpha(12),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'Try tapping cells!',
+                          'Try tapping or dragging cells!',
                           style: TextStyle(
-                            fontSize: 9.5,
+                            fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: widget.isDark ? Colors.white60 : Colors.black54,
+                            color: widget.isDark ? Colors.white70 : Colors.black54,
                           ),
                         ),
                       ),
@@ -845,9 +945,9 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                   decoration: BoxDecoration(
-                    color: widget.isDark ? const Color(0xFF1B1A30) : Colors.white,
+                    color: widget.isDark ? const Color(0xFF1B1A2C) : Colors.white,
                     borderRadius: BorderRadius.circular(24),
                     border: Border.all(
                       color: widget.isDark
@@ -872,6 +972,7 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                           color: const Color(0xFFFF3366),
                           isSelected: effectivePaletteNum == 1,
                           isDone: isAllNum1Filled && !isUsingAutoDemo,
+                          isDark: widget.isDark,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -882,6 +983,7 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                           color: const Color(0xFFBD93F9),
                           isSelected: effectivePaletteNum == 2,
                           isDone: true,
+                          isDark: widget.isDark,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -891,6 +993,7 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                           number: 3,
                           color: const Color(0xFFFFBE2E),
                           isSelected: effectivePaletteNum == 3,
+                          isDark: widget.isDark,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -900,6 +1003,7 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                           number: 4,
                           color: const Color(0xFF2ED573),
                           isSelected: effectivePaletteNum == 4,
+                          isDark: widget.isDark,
                         ),
                       ),
                     ],
@@ -910,9 +1014,9 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                   GestureDetector(
                     onTap: _resetInteractiveDemo,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                       decoration: BoxDecoration(
-                        color: widget.isDark ? Colors.white.withAlpha(14) : Colors.black.withAlpha(8),
+                        color: widget.isDark ? Colors.white.withAlpha(16) : Colors.black.withAlpha(8),
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Row(
@@ -923,7 +1027,7 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
                           Text(
                             'Reset',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: 10.5,
                               fontWeight: FontWeight.bold,
                               color: widget.primaryColor,
                             ),
@@ -946,27 +1050,29 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
     double dy = 0;
     double scale = 1.0;
 
-    if (t < 0.20) {
-      dx = -45;
-      dy = 75;
-      scale = 0.9;
-    } else if (t < 0.40) {
-      final p = (t - 0.20) / 0.20;
-      dx = -45 + (-30 - -45) * p;
-      dy = 75 + (-50 - 75) * p;
-      scale = 0.9 + 0.1 * math.sin(p * math.pi);
+    if (t < 0.18) {
+      dx = -38;
+      dy = 50;
+      scale = 0.95;
+    } else if (t < 0.38) {
+      final p = (t - 0.18) / 0.20;
+      dx = -38 + (-28 - -38) * p;
+      dy = 50 + (-35 - 50) * p;
+      scale = 0.95 + 0.15 * math.sin(p * math.pi);
     } else if (t < 0.60) {
-      final p = (t - 0.40) / 0.20;
-      dx = -30 + (30 - -30) * p;
-      dy = -50;
-    } else if (t < 0.75) {
-      final p = (t - 0.60) / 0.15;
-      dx = 30 + (0 - 30) * p;
-      dy = -50 + (10 - -50) * p;
+      final p = (t - 0.38) / 0.22;
+      dx = -28 + (28 - -28) * p;
+      dy = -35 + (-10 - -35) * math.sin(p * math.pi);
+      scale = 1.05;
+    } else if (t < 0.76) {
+      final p = (t - 0.60) / 0.16;
+      dx = 28 + (0 - 28) * p;
+      dy = -10 + (25 - -10) * p;
+      scale = 1.0;
     } else {
-      dx = 60;
-      dy = 60;
-      scale = 0.8;
+      dx = 55;
+      dy = 45;
+      scale = 0.85;
     }
 
     return Transform.translate(
@@ -978,19 +1084,19 @@ class _HowToPlaySlideState extends State<_HowToPlaySlide>
           height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: Colors.white.withAlpha(230),
+            color: Colors.white,
             boxShadow: [
               BoxShadow(
-                color: widget.primaryColor.withAlpha(140),
+                color: widget.primaryColor.withAlpha(160),
                 blurRadius: 14,
                 spreadRadius: 2,
               ),
             ],
           ),
-          child: const Center(
+          child: Center(
             child: Icon(
               Icons.touch_app_rounded,
-              color: Color(0xFF2A2B4A),
+              color: widget.primaryColor,
               size: 20,
             ),
           ),
@@ -1005,38 +1111,46 @@ class _Pixel extends StatelessWidget {
   final bool filled;
   final Color color;
   final bool active;
+  final bool isDark;
 
   const _Pixel({
     required this.num,
     required this.filled,
     required this.color,
     this.active = false,
+    this.isDark = true,
   });
 
   @override
   Widget build(BuildContext context) {
     if (num == 0) {
-      return const SizedBox(width: 28, height: 28);
+      return const SizedBox(width: 30, height: 30);
     }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
       curve: Motion.standard,
-      width: 28,
-      height: 28,
+      width: 30,
+      height: 30,
       decoration: BoxDecoration(
-        color: filled ? color : (active ? Colors.white.withAlpha(45) : Colors.black12),
-        borderRadius: BorderRadius.circular(5),
+        color: filled
+            ? color
+            : (active
+                ? (isDark ? Colors.white.withAlpha(35) : color.withAlpha(25))
+                : (isDark ? Colors.white.withAlpha(10) : Colors.black.withAlpha(8))),
+        borderRadius: BorderRadius.circular(6),
         border: Border.all(
           color: active && !filled
               ? color
-              : (filled ? color : Colors.white24),
-          width: active && !filled ? 2 : 1,
+              : (filled
+                  ? color.withAlpha(200)
+                  : (isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(15))),
+          width: active && !filled ? 2.0 : 1.0,
         ),
         boxShadow: filled
             ? [
                 BoxShadow(
-                  color: color.withAlpha(120),
+                  color: color.withAlpha(100),
                   blurRadius: 6,
                   offset: const Offset(0, 2),
                 ),
@@ -1049,9 +1163,11 @@ class _Pixel extends StatelessWidget {
             : Text(
                 '$num',
                 style: TextStyle(
-                  fontSize: 10.5,
+                  fontSize: 11,
                   fontWeight: FontWeight.w900,
-                  color: active ? color : Colors.white70,
+                  color: active
+                      ? (isDark ? Colors.white : color)
+                      : (isDark ? Colors.white60 : Colors.black54),
                 ),
               ),
       ),
@@ -1064,46 +1180,52 @@ class _PaletteItem extends StatelessWidget {
   final Color color;
   final bool isSelected;
   final bool isDone;
+  final bool isDark;
 
   const _PaletteItem({
     required this.number,
     required this.color,
     required this.isSelected,
     this.isDone = false,
+    this.isDark = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: 34,
-      height: 34,
+      curve: Motion.standard,
+      width: isSelected ? 38 : 32,
+      height: isSelected ? 38 : 32,
       decoration: BoxDecoration(
         color: color,
         shape: BoxShape.circle,
         border: Border.all(
-          color: isSelected ? Colors.white : Colors.transparent,
-          width: isSelected ? 2.5 : 1,
+          color: isSelected
+              ? Colors.white
+              : (isDark ? Colors.white.withAlpha(40) : Colors.black.withAlpha(20)),
+          width: isSelected ? 2.5 : 1.2,
         ),
         boxShadow: isSelected
             ? [
                 BoxShadow(
-                  color: color.withAlpha(190),
+                  color: color.withAlpha(140),
                   blurRadius: 10,
-                  spreadRadius: 2,
+                  spreadRadius: 1,
+                  offset: const Offset(0, 2),
                 ),
               ]
             : null,
       ),
       child: Center(
         child: isDone
-            ? const Icon(Icons.check_rounded, color: Colors.white, size: 17)
+            ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
             : Text(
                 '$number',
                 style: const TextStyle(
                   color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12.5,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
                 ),
               ),
       ),
@@ -1112,7 +1234,7 @@ class _PaletteItem extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// SLIDE 2: Zoom in/out and Pan (Effortless Navigation)
+// SLIDE 2: Precision Zoom & Pan - Interactive Gesture Playground!
 // ---------------------------------------------------------------------------
 class _ZoomPanSlide extends StatefulWidget {
   final Color primaryColor;
@@ -1141,7 +1263,7 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
     super.initState();
     _zoomAnimController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 4000),
+      duration: const Duration(milliseconds: 4200),
     )..repeat();
   }
 
@@ -1171,7 +1293,7 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
   Widget build(BuildContext context) {
     return _OnboardingSlideLayout(
       badge: 'STEP 2 · PRECISION',
-      badgeColor: const Color(0xFF00F0FF),
+      badgeColor: const Color(0xFF00D2D3),
       title: 'Pinch to Zoom & Pan',
       subtitle:
           'Pinch with two fingers to zoom in on intricate pixel numbers, or zoom out to admire the big picture. Drag smoothly to navigate anywhere on large canvases.',
@@ -1220,19 +1342,19 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              width: 255,
-              height: 200,
+              width: 256,
+              height: 205,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(22),
+                color: widget.isDark ? const Color(0xFF1A192D) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: widget.isDark ? Colors.white24 : Colors.black12,
+                  color: widget.isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(12),
                   width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.secondaryColor.withAlpha(widget.isDark ? 45 : 25),
+                    color: const Color(0xFF00D2D3).withAlpha(widget.isDark ? 45 : 25),
                     blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
@@ -1241,7 +1363,7 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
               child: Stack(
                 alignment: Alignment.center,
                 children: [
-                  // Animated Zoom Canvas
+                  // Animated Zoom Canvas (Star / Gamepad pixel art)
                   Transform.translate(
                     offset: Offset(panX, panY),
                     child: Transform.scale(
@@ -1257,9 +1379,19 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: widget.isDark ? Colors.black87.withAlpha(200) : Colors.white.withAlpha(220),
+                        color: widget.isDark
+                            ? Colors.black.withAlpha(180)
+                            : Colors.white.withAlpha(220),
                         borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: widget.primaryColor.withAlpha(120)),
+                        border: Border.all(
+                          color: const Color(0xFF00D2D3).withAlpha(120),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withAlpha(widget.isDark ? 40 : 10),
+                            blurRadius: 6,
+                          ),
+                        ],
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -1267,7 +1399,7 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
                           Icon(
                             scale > 1.2 ? Icons.zoom_in_rounded : Icons.zoom_out_rounded,
                             size: 14,
-                            color: widget.primaryColor,
+                            color: const Color(0xFF00D2D3),
                           ),
                           const SizedBox(width: 4),
                           Text(
@@ -1325,21 +1457,24 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
               decoration: BoxDecoration(
-                color: widget.primaryColor.withAlpha(widget.isDark ? 30 : 18),
+                color: const Color(0xFF00D2D3).withAlpha(widget.isDark ? 25 : 15),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: widget.primaryColor.withAlpha(40)),
+                border: Border.all(color: const Color(0xFF00D2D3).withAlpha(50)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.pinch_rounded, size: 16, color: widget.primaryColor),
+                  const Icon(Icons.pinch_rounded, size: 16, color: Color(0xFF00D2D3)),
                   const SizedBox(width: 6),
-                  Text(
-                    'Pinch outward to reveal numbers · Pan with 2 fingers',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: widget.isDark ? Colors.white70 : Colors.black87,
+                  Flexible(
+                    child: Text(
+                      'Pinch outward to reveal numbers · Pan with 2 fingers',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: widget.isDark ? Colors.white70 : Colors.black87,
+                      ),
                     ),
                   ),
                 ],
@@ -1352,18 +1487,19 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
   }
 
   Widget _buildPixelArtMesh(bool showNumbers) {
+    // 6x6 pixel retro arcade star pattern
     final palette = [
-      const Color(0xFFFF5252),
-      const Color(0xFFFF793F),
-      const Color(0xFFFFDA79),
-      const Color(0xFF33D9B2),
-      const Color(0xFF34ACE0),
-      const Color(0xFF706FD3),
+      const Color(0xFFFF4757),
+      const Color(0xFFFF9F1A),
+      const Color(0xFFFFD32A),
+      const Color(0xFF2ED573),
+      const Color(0xFF1E90FF),
+      const Color(0xFFBD93F9),
     ];
 
     return SizedBox(
-      width: 130,
-      height: 130,
+      width: 132,
+      height: 132,
       child: GridView.builder(
         physics: const NeverScrollableScrollPhysics(),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -1381,8 +1517,8 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
             decoration: BoxDecoration(
               color: isRevealed
                   ? color
-                  : (widget.isDark ? const Color(0xFF26253E) : const Color(0xFFEEEEEE)),
-              borderRadius: BorderRadius.circular(2),
+                  : (widget.isDark ? const Color(0xFF26253E) : const Color(0xFFE8E9F2)),
+              borderRadius: BorderRadius.circular(2.5),
               border: Border.all(
                 color: widget.isDark ? Colors.white12 : Colors.black12,
                 width: 0.5,
@@ -1393,7 +1529,7 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
                   ? Text(
                       '$number',
                       style: TextStyle(
-                        fontSize: 8,
+                        fontSize: 8.5,
                         fontWeight: FontWeight.w900,
                         color: widget.isDark ? Colors.white70 : Colors.black54,
                       ),
@@ -1416,7 +1552,7 @@ class _ZoomPanSlideState extends State<_ZoomPanSlide>
         ),
         Transform.translate(
           offset: Offset(spread, spread * 0.7),
-          child: _FingerRing(color: widget.secondaryColor),
+          child: const _FingerRing(color: Color(0xFF00D2D3)),
         ),
       ],
     );
@@ -1439,14 +1575,20 @@ class _ZoomButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         decoration: BoxDecoration(
-          color: isDark ? Colors.black54 : Colors.white70,
+          color: isDark ? Colors.black.withAlpha(180) : Colors.white.withAlpha(220),
           shape: BoxShape.circle,
           border: Border.all(
             color: isDark ? Colors.white24 : Colors.black12,
           ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(isDark ? 30 : 10),
+              blurRadius: 4,
+            ),
+          ],
         ),
         child: Center(
           child: Icon(
@@ -1558,18 +1700,19 @@ class _BoostersSlideState extends State<_BoostersSlide>
             final blastProgress = isExploding ? ((t - 0.35) / 0.50) : 0.0;
 
             return Container(
-              width: 255,
-              height: 145,
+              width: 256,
+              height: 150,
               clipBehavior: Clip.antiAlias,
               decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(22),
+                color: widget.isDark ? const Color(0xFF1A192D) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: widget.isDark ? Colors.white24 : Colors.black12,
+                  color: widget.isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(12),
+                  width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: const Color(0xFFFF4757).withAlpha(widget.isDark ? 50 : 30),
+                    color: const Color(0xFFFF9F1A).withAlpha(widget.isDark ? 50 : 25),
                     blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
@@ -1623,7 +1766,7 @@ class _BoostersSlideState extends State<_BoostersSlide>
             );
           },
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 12),
 
         // 3 Booster Cards Row - Interactive Tabs
         Row(
@@ -1719,7 +1862,7 @@ class _BoostersSlideState extends State<_BoostersSlide>
 
         final cellColor = isColored
             ? AppStyle.paletteColors[i % AppStyle.paletteColors.length]
-            : (widget.isDark ? const Color(0xFF26253E) : const Color(0xFFEEEEEE));
+            : (widget.isDark ? const Color(0xFF26253E) : const Color(0xFFE8E9F2));
 
         return AnimatedContainer(
           duration: const Duration(milliseconds: 150),
@@ -1824,25 +1967,25 @@ class _BoosterFeatureChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 220),
-      width: 95,
+      width: 96,
       padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
       decoration: BoxDecoration(
         color: isSelected
-            ? (isDark ? accentColor.withAlpha(40) : accentColor.withAlpha(25))
-            : (isDark ? const Color(0xFF1B1A30) : Colors.white),
+            ? (isDark ? accentColor.withAlpha(35) : accentColor.withAlpha(20))
+            : (isDark ? const Color(0xFF1B1A2C) : Colors.white),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: isSelected
               ? accentColor
-              : (isDark ? Colors.white.withAlpha(25) : Colors.black.withAlpha(18)),
+              : (isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(12)),
           width: isSelected ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
             color: isSelected
-                ? accentColor.withAlpha(isDark ? 80 : 50)
-                : accentColor.withAlpha(isDark ? 25 : 12),
-            blurRadius: isSelected ? 14 : 8,
+                ? accentColor.withAlpha(isDark ? 70 : 45)
+                : Colors.black.withAlpha(isDark ? 25 : 8),
+            blurRadius: isSelected ? 12 : 6,
             offset: const Offset(0, 3),
           ),
         ],
@@ -1858,9 +2001,9 @@ class _BoosterFeatureChip extends StatelessWidget {
                 height: 44,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isDark ? Colors.white.withAlpha(16) : Colors.white,
+                  color: isDark ? Colors.white.withAlpha(14) : Colors.white,
                   border: Border.all(
-                    color: isDark ? Colors.white.withAlpha(30) : Colors.grey.shade300,
+                    color: isDark ? Colors.white.withAlpha(25) : Colors.grey.shade300,
                     width: 1.5,
                   ),
                   boxShadow: [
@@ -1920,7 +2063,7 @@ class _BoosterFeatureChip extends StatelessWidget {
             description,
             style: TextStyle(
               fontSize: 9,
-              color: isDark ? Colors.white54 : Colors.black45,
+              color: isDark ? Colors.white54 : Colors.black54,
             ),
             textAlign: TextAlign.center,
           ),
@@ -2009,18 +2152,19 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
           children: [
             // Video Replay Showcase Mockup
             Container(
-              width: 255,
-              height: 155,
+              width: 256,
+              height: 160,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: widget.isDark ? const Color(0xFF19182C) : Colors.white,
-                borderRadius: BorderRadius.circular(22),
+                color: widget.isDark ? const Color(0xFF1A192D) : Colors.white,
+                borderRadius: BorderRadius.circular(24),
                 border: Border.all(
-                  color: widget.primaryColor.withAlpha(widget.isDark ? 80 : 40),
+                  color: const Color(0xFF2ED573).withAlpha(widget.isDark ? 80 : 40),
+                  width: 1.5,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: widget.primaryColor.withAlpha(widget.isDark ? 50 : 25),
+                    color: const Color(0xFF2ED573).withAlpha(widget.isDark ? 45 : 20),
                     blurRadius: 20,
                     offset: const Offset(0, 6),
                   ),
@@ -2036,8 +2180,21 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.videocam_rounded, size: 16, color: Color(0xFF2ED573)),
-                            const SizedBox(width: 4),
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: const BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Color(0xFF2ED573),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Color(0xFF2ED573),
+                                    blurRadius: 4,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
                             Flexible(
                               child: Text(
                                 'Time-Lapse Replay',
@@ -2073,7 +2230,7 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                   ),
                   const Spacer(),
 
-                  // Animated Replay Artwork Visual
+                  // Animated Replay Artwork Visual (Progressive reveal)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(6, (col) {
@@ -2082,8 +2239,8 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                         padding: const EdgeInsets.symmetric(horizontal: 2.5),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 140),
-                          width: 24,
-                          height: 52,
+                          width: 25,
+                          height: 54,
                           decoration: BoxDecoration(
                             borderRadius: BorderRadius.circular(6),
                             gradient: isRevealed
@@ -2098,7 +2255,7 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                                 : null,
                             color: isRevealed
                                 ? null
-                                : (widget.isDark ? const Color(0xFF27263E) : Colors.black12),
+                                : (widget.isDark ? const Color(0xFF26253E) : Colors.black12),
                           ),
                         ),
                       );
@@ -2114,7 +2271,7 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                         child: Icon(
                           _isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                           size: 20,
-                          color: widget.primaryColor,
+                          color: const Color(0xFF2ED573),
                         ),
                       ),
                       const SizedBox(width: 6),
@@ -2126,7 +2283,7 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                               trackHeight: 4,
                               thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
                               overlayShape: const RoundSliderOverlayShape(overlayRadius: 10),
-                              activeTrackColor: widget.primaryColor,
+                              activeTrackColor: const Color(0xFF2ED573),
                               inactiveTrackColor: widget.isDark ? Colors.white12 : Colors.black12,
                               thumbColor: Colors.white,
                             ),
@@ -2162,7 +2319,7 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // Feature Badges
             Wrap(
@@ -2179,7 +2336,7 @@ class _ReplayAndFeaturesSlideState extends State<_ReplayAndFeaturesSlide>
                 _FeaturePill(
                   icon: Icons.camera_alt_rounded,
                   label: 'Photo Converter',
-                  color: const Color(0xFF00F0FF),
+                  color: const Color(0xFF00D2D3),
                   isDark: widget.isDark,
                 ),
                 _FeaturePill(
@@ -2215,7 +2372,7 @@ class _FeaturePill extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark ? const Color(0xFF1B1A30) : Colors.white,
+        color: isDark ? const Color(0xFF1B1A2C) : Colors.white,
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: color.withAlpha(isDark ? 80 : 50)),
         boxShadow: [
@@ -2280,10 +2437,7 @@ class _OnboardingSlideLayout extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 8),
-                  // Interactive Visual Card
-                  child,
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 6),
 
                   // Slide Badge Tag
                   Container(
@@ -2291,19 +2445,19 @@ class _OnboardingSlideLayout extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: badgeColor.withAlpha(25),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: badgeColor.withAlpha(60)),
+                      border: Border.all(color: badgeColor.withAlpha(70)),
                     ),
                     child: Text(
                       badge,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: 10.5,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.8,
                         color: badgeColor,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
 
                   // Title
                   Text(
@@ -2316,7 +2470,7 @@ class _OnboardingSlideLayout extends StatelessWidget {
                       color: isDark ? Colors.white : const Color(0xFF14142B),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
 
                   // Subtitle
                   Padding(
@@ -2325,13 +2479,17 @@ class _OnboardingSlideLayout extends StatelessWidget {
                       subtitle,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 12.5,
-                        height: 1.38,
+                        fontSize: 12,
+                        height: 1.35,
                         fontWeight: FontWeight.w400,
                         color: isDark ? Colors.white70 : Colors.black87.withAlpha(180),
                       ),
                     ),
                   ),
+                  const SizedBox(height: 12),
+
+                  // Interactive Visual Card
+                  child,
                   const SizedBox(height: 12),
                 ],
               ),
@@ -2354,12 +2512,12 @@ class _OnboardingParticlesPainter extends CustomPainter {
 
   static final List<_ParticleData> _particles = () {
     final rng = math.Random(1337);
-    return List.generate(20, (i) {
+    return List.generate(22, (i) {
       return _ParticleData(
         x: rng.nextDouble(),
         y: rng.nextDouble(),
-        size: 3.5 + rng.nextDouble() * 5.0,
-        speed: 0.3 + rng.nextDouble() * 0.7,
+        size: 3.0 + rng.nextDouble() * 5.0,
+        speed: 0.25 + rng.nextDouble() * 0.75,
         alpha: 0.08 + rng.nextDouble() * 0.18,
         useSecondary: rng.nextBool(),
       );
@@ -2381,7 +2539,7 @@ class _OnboardingParticlesPainter extends CustomPainter {
 
       final color = p.useSecondary ? secondaryColor : primaryColor;
       final paint = Paint()
-        ..color = color.withAlpha(((p.alpha * (isDark ? 1.0 : 0.6)).clamp(0.0, 1.0) * 255).round())
+        ..color = color.withAlpha(((p.alpha * (isDark ? 1.0 : 0.65)).clamp(0.0, 1.0) * 255).round())
         ..style = PaintingStyle.fill;
 
       canvas.drawRRect(

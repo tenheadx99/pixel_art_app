@@ -424,8 +424,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
     super.dispose();
   }
 
-  void _openUrl(String url) {
-    launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  void _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
   }
 
   String _getButtonText(RemoteConfigService rc, PaywallConfig eco) {

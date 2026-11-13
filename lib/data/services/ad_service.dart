@@ -188,6 +188,33 @@ class AdService {
     return formCompleter.future;
   }
 
+  /// Checks whether Google UMP requires the privacy options form (consent
+  /// modification or revocation) to be displayed to the user (e.g. EEA and UK).
+  Future<bool> isPrivacyOptionsRequired() async {
+    if (AppConfig.disableAds) return false;
+    try {
+      final status =
+          await ConsentInformation.instance.getPrivacyOptionsRequirementStatus();
+      return status == PrivacyOptionsRequirementStatus.required;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Displays the Google UMP privacy options form so the user can modify or
+  /// withdraw their consent choices at any time.
+  Future<void> showPrivacyOptionsForm() {
+    final completer = Completer<void>();
+    ConsentForm.showPrivacyOptionsForm((FormError? error) {
+      if (error != null) {
+        developer.log('UMP privacy options form show error: ${error.message}',
+            name: 'Ads');
+      }
+      if (!completer.isCompleted) completer.complete();
+    });
+    return completer.future;
+  }
+
   // --- Interstitial (session-exit, frequency capped) ---
 
   void loadInterstitialAd({VoidCallback? onLoaded, VoidCallback? onFailed}) {
@@ -535,7 +562,6 @@ class AdService {
     AppOpenAd.load(
       adUnitId: RemoteConfigService().appOpenAdUnitId,
       request: const AdRequest(),
-      orientation: AppOpenAd.orientationPortrait,
       adLoadCallback: AppOpenAdLoadCallback(
         onAdLoaded: (ad) {
           _appOpenAd = ad;

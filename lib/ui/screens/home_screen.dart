@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/services/analytics_service.dart';
@@ -2406,11 +2407,8 @@ class _DailyPixelBanner extends StatelessWidget {
                   color: Colors.white.withAlpha(40),
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(
-                  Icons.heart_broken_rounded,
-                  color: Colors.white,
-                  size: 32,
-                ),
+                alignment: Alignment.center,
+                child: const _StreakHeartBreakAnimation(),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -2446,32 +2444,7 @@ class _DailyPixelBanner extends StatelessWidget {
                   ],
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      Icons.build_rounded,
-                      color: Color(0xFFE53935),
-                      size: 16,
-                    ),
-                    SizedBox(width: 4),
-                    Text(
-                      'Repair',
-                      style: TextStyle(
-                        color: Color(0xFFE53935),
-                        fontWeight: FontWeight.w700,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const _AnimatedRepairButton(),
             ],
           ),
         ),
@@ -2765,6 +2738,396 @@ class _DailyPixelBanner extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Animated heart that beats twice intact, starts tearing from the middle
+/// with a jagged fracture and glowing spark, splits apart into two jagged
+/// halves, rests in heartbreak, and smoothly heals back together in a loop.
+class _StreakHeartBreakAnimation extends StatefulWidget {
+  const _StreakHeartBreakAnimation();
+
+  @override
+  State<_StreakHeartBreakAnimation> createState() =>
+      _StreakHeartBreakAnimationState();
+}
+
+class _StreakHeartBreakAnimationState extends State<_StreakHeartBreakAnimation>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 3200),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+
+        double beatScale = 1.0;
+        double tearProgress = 0.0;
+        double shudder = 0.0;
+        double separation = 0.0;
+        double crackOpacity = 1.0;
+
+        if (t < 0.28) {
+          // Intact heartbeats
+          if (t < 0.13) {
+            final p = t / 0.13;
+            beatScale = 1.0 + math.sin(p * math.pi) * 0.15;
+          } else if (t >= 0.15 && t < 0.26) {
+            final p = (t - 0.15) / 0.11;
+            beatScale = 1.0 + math.sin(p * math.pi) * 0.11;
+          }
+        } else if (t < 0.48) {
+          // Tearing down the middle with jitter
+          final p = (t - 0.28) / 0.20;
+          tearProgress = p.clamp(0.0, 1.0);
+          shudder = math.sin(p * 8 * math.pi) * 1.5 * (1.0 - p);
+        } else if (t < 0.68) {
+          // Snapping apart
+          tearProgress = 1.0;
+          final p = (t - 0.48) / 0.20;
+          separation = Curves.easeOutBack.transform(p);
+        } else if (t < 0.85) {
+          // Broken pause
+          tearProgress = 1.0;
+          separation = 1.0;
+        } else {
+          // Smooth healing
+          tearProgress = 1.0;
+          final p = (t - 0.85) / 0.15;
+          separation = Curves.easeInOutCubic.transform(1.0 - p);
+          crackOpacity = (1.0 - p).clamp(0.0, 1.0);
+        }
+
+        return Transform.scale(
+          scale: beatScale,
+          child: CustomPaint(
+            size: const Size(38, 38),
+            painter: _HeartBreakPainter(
+              tearProgress: tearProgress,
+              separation: separation,
+              shudder: shudder,
+              crackOpacity: crackOpacity,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HeartBreakPainter extends CustomPainter {
+  final double tearProgress;
+  final double separation;
+  final double shudder;
+  final double crackOpacity;
+
+  _HeartBreakPainter({
+    required this.tearProgress,
+    required this.separation,
+    required this.shudder,
+    required this.crackOpacity,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width;
+    final h = size.height;
+    final sx = w / 24.0;
+    final sy = h / 24.0;
+
+    // Center zigzag crack vertices along the 24x24 Material grid
+    final zigzagPoints = [
+      Offset(12.0 * sx, 5.09 * sy),
+      Offset(10.3 * sx, 8.2 * sy),
+      Offset(13.8 * sx, 11.5 * sy),
+      Offset(10.5 * sx, 14.8 * sy),
+      Offset(13.4 * sx, 17.8 * sy),
+      Offset(12.0 * sx, 21.35 * sy),
+    ];
+
+    final leftPath = _buildHalf(size, isLeft: true, points: zigzagPoints);
+    final rightPath = _buildHalf(size, isLeft: false, points: zigzagPoints);
+
+    final fillPaint = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+
+    // Draw Left Half
+    canvas.save();
+    if (separation > 0.0 || shudder.abs() > 0.01) {
+      final leftDx = -separation * (w * 0.12) + shudder;
+      final leftDy = separation * (h * 0.03);
+      final leftRot = -separation * 0.12;
+      final leftPivot = Offset(7.0 * sx, 11.5 * sy);
+      canvas.translate(leftPivot.dx + leftDx, leftPivot.dy + leftDy);
+      canvas.rotate(leftRot);
+      canvas.translate(-leftPivot.dx, -leftPivot.dy);
+    }
+    canvas.drawShadow(leftPath, Colors.black.withOpacity(0.25), 3, false);
+    canvas.drawPath(leftPath, fillPaint);
+    canvas.restore();
+
+    // Draw Right Half
+    canvas.save();
+    if (separation > 0.0 || shudder.abs() > 0.01) {
+      final rightDx = separation * (w * 0.12) + shudder;
+      final rightDy = separation * (h * 0.04);
+      final rightRot = separation * 0.14;
+      final rightPivot = Offset(17.0 * sx, 11.5 * sy);
+      canvas.translate(rightPivot.dx + rightDx, rightPivot.dy + rightDy);
+      canvas.rotate(rightRot);
+      canvas.translate(-rightPivot.dx, -rightPivot.dy);
+    }
+    canvas.drawShadow(rightPath, Colors.black.withOpacity(0.25), 3, false);
+    canvas.drawPath(rightPath, fillPaint);
+    canvas.restore();
+
+    // Draw Tearing / Fracture Line down the middle
+    if (tearProgress > 0.0 && crackOpacity > 0.0) {
+      final crackPath = Path()..moveTo(zigzagPoints.first.dx, zigzagPoints.first.dy);
+      for (int i = 1; i < zigzagPoints.length; i++) {
+        crackPath.lineTo(zigzagPoints[i].dx, zigzagPoints[i].dy);
+      }
+
+      final metrics = crackPath.computeMetrics().toList();
+      if (metrics.isNotEmpty) {
+        final metric = metrics.first;
+        final currentLength = metric.length * tearProgress;
+        final partialPath = metric.extractPath(0, currentLength);
+
+        final crackPaint = Paint()
+          ..color = const Color(0xFFC2185B).withOpacity(crackOpacity)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0
+          ..strokeCap = StrokeCap.round
+          ..strokeJoin = StrokeJoin.round;
+
+        canvas.save();
+        if (shudder.abs() > 0.01) {
+          canvas.translate(shudder, 0);
+        }
+        canvas.drawPath(partialPath, crackPaint);
+
+        // Glowing tearing spark at the leading tear point
+        if (tearProgress < 1.0) {
+          final tangent = metric.getTangentForOffset(currentLength);
+          if (tangent != null) {
+            final sparkPaint = Paint()
+              ..color = const Color(0xFFFFEB3B).withOpacity(crackOpacity)
+              ..style = PaintingStyle.fill;
+            canvas.drawCircle(tangent.position, 2.8, sparkPaint);
+
+            final sparkGlow = Paint()
+              ..color = Colors.white.withOpacity(0.7 * crackOpacity)
+              ..style = PaintingStyle.fill;
+            canvas.drawCircle(tangent.position, 1.4, sparkGlow);
+          }
+        }
+        canvas.restore();
+      }
+    }
+  }
+
+  Path _buildHalf(Size size, {required bool isLeft, required List<Offset> points}) {
+    final sx = size.width / 24.0;
+    final sy = size.height / 24.0;
+    final path = Path();
+
+    if (isLeft) {
+      // Top cleft
+      path.moveTo(points.first.dx, points.first.dy);
+
+      // Curve 1: Cleft to Top-Left peak
+      path.cubicTo(
+        10.91 * sx, 3.81 * sy,
+        9.24 * sx, 3.0 * sy,
+        7.5 * sx, 3.0 * sy,
+      );
+
+      // Curve 2: Top-Left peak to Outer-Left edge
+      path.cubicTo(
+        4.42 * sx, 3.0 * sy,
+        2.0 * sx, 5.42 * sy,
+        2.0 * sx, 8.5 * sy,
+      );
+
+      // Curve 3: Outer-Left edge to Lower taper
+      path.cubicTo(
+        2.0 * sx, 12.28 * sy,
+        5.4 * sx, 15.36 * sy,
+        10.55 * sx, 20.03 * sy,
+      );
+
+      // Bottom tip
+      path.lineTo(points.last.dx, points.last.dy);
+
+      // Zigzag back up
+      for (int i = points.length - 2; i >= 0; i--) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+      path.close();
+    } else {
+      // Top cleft
+      path.moveTo(points.first.dx, points.first.dy);
+
+      // Zigzag down
+      for (int i = 1; i < points.length; i++) {
+        path.lineTo(points[i].dx, points[i].dy);
+      }
+
+      // Lower taper
+      path.lineTo(13.45 * sx, 20.03 * sy);
+
+      // Curve 1: Lower taper to Outer-Right edge
+      path.cubicTo(
+        18.6 * sx, 15.36 * sy,
+        22.0 * sx, 12.28 * sy,
+        22.0 * sx, 8.5 * sy,
+      );
+
+      // Curve 2: Outer-Right edge to Top-Right peak
+      path.cubicTo(
+        22.0 * sx, 5.42 * sy,
+        19.58 * sx, 3.0 * sy,
+        16.5 * sx, 3.0 * sy,
+      );
+
+      // Curve 3: Top-Right peak to Top cleft
+      path.cubicTo(
+        14.76 * sx, 3.0 * sy,
+        13.09 * sx, 3.81 * sy,
+        points.first.dx, points.first.dy,
+      );
+      path.close();
+    }
+    return path;
+  }
+
+  @override
+  bool shouldRepaint(covariant _HeartBreakPainter oldDelegate) {
+    return oldDelegate.tearProgress != tearProgress ||
+        oldDelegate.separation != separation ||
+        oldDelegate.shudder != shudder ||
+        oldDelegate.crackOpacity != crackOpacity;
+  }
+}
+
+/// Eye-catching animated repair button with a wiggling wrench tool and
+/// glowing breathing pulse.
+class _AnimatedRepairButton extends StatefulWidget {
+  const _AnimatedRepairButton();
+
+  @override
+  State<_AnimatedRepairButton> createState() => _AnimatedRepairButtonState();
+}
+
+class _AnimatedRepairButtonState extends State<_AnimatedRepairButton>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+
+        // Wrench tool wiggle: rotates playfully in [0.15 .. 0.50]
+        double wrenchRotation = 0.0;
+        if (t >= 0.15 && t < 0.50) {
+          final p = (t - 0.15) / 0.35;
+          wrenchRotation = math.sin(p * 4 * math.pi) * (1.0 - p * 0.5) * 0.32;
+        }
+
+        // Button breathing scale & glowing halo in [0.10 .. 0.50]
+        double buttonScale = 1.0;
+        double glowPulse = 0.0;
+        if (t >= 0.10 && t < 0.50) {
+          final p = (t - 0.10) / 0.40;
+          glowPulse = math.sin(p * math.pi);
+          buttonScale = 1.0 + glowPulse * 0.06;
+        }
+
+        return Transform.scale(
+          scale: buttonScale,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.white.withOpacity((0.3 + 0.35 * glowPulse).clamp(0.0, 1.0)),
+                  blurRadius: 6 + 6 * glowPulse,
+                  spreadRadius: 0.8 * glowPulse,
+                  offset: const Offset(0, 2),
+                ),
+                BoxShadow(
+                  color: const Color(0xFFC2185B).withOpacity(0.2),
+                  blurRadius: 4,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Transform.rotate(
+                  angle: wrenchRotation,
+                  child: const Icon(
+                    Icons.build_rounded,
+                    color: Color(0xFFE53935),
+                    size: 16,
+                  ),
+                ),
+                const SizedBox(width: 5),
+                const Text(
+                  'Repair',
+                  style: TextStyle(
+                    color: Color(0xFFE53935),
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    letterSpacing: 0.2,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }
