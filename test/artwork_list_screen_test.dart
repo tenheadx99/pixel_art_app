@@ -79,8 +79,8 @@ void main() {
 
     // Verify PixelArtCard is rendered for artworks
     expect(find.byType(PixelArtCard), findsNWidgets(2));
-    expect(find.text('Anime Hero'), findsOneWidget);
-    expect(find.text('Cute Chibi'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is PixelArtCard && w.art.name == 'Anime Hero'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is PixelArtCard && w.art.name == 'Cute Chibi'), findsOneWidget);
 
     // Verify AdBanner is present at the bottom
     expect(find.byType(AdBanner), findsOneWidget);
@@ -106,7 +106,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Should only show "Cute Chibi"
-    expect(find.text('Cute Chibi'), findsOneWidget);
-    expect(find.text('Anime Hero'), findsNothing);
+    expect(find.byWidgetPredicate((w) => w is PixelArtCard && w.art.name == 'Cute Chibi'), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is PixelArtCard && w.art.name == 'Anime Hero'), findsNothing);
   });
 }

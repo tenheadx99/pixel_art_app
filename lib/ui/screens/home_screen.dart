@@ -4129,120 +4129,96 @@ class _ShelfArtworkCard extends StatelessWidget {
     final progress = gallery.artProgressPercent(art);
     final inProgress = !isCompleted && progress > 0 && progress < 100;
 
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        width: 135,
-        margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(18),
-          color: Theme.of(context).cardColor,
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withAlpha(15)
-                : Colors.black.withAlpha(12),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(isDark ? 45 : 10),
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+    return Semantics(
+      label: art.name,
+      button: true,
+      child: PressableScale(
+        onTap: onTap,
+        child: Container(
+          width: 135,
+          margin: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: Theme.of(context).cardColor,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withAlpha(15)
+                  : Colors.black.withAlpha(12),
+              width: 1,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(17),
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark
-                              ? [const Color(0xFF222433), const Color(0xFF191A26)]
-                              : [const Color(0xFFF7F8FA), const Color(0xFFECEFF5)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(isDark ? 45 : 10),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(17),
+            child: Stack(
+              children: [
+                // 1. Full-Bleed Artwork Canvas
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [const Color(0xFF222433), const Color(0xFF191A26)]
+                            : [const Color(0xFFF7F8FA), const Color(0xFFECEFF5)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(17),
-                        ),
-                        child: RepaintBoundary(
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            clipBehavior: Clip.hardEdge,
-                            child: SizedBox(
-                              width: art.gridWidth.toDouble(),
-                              height: art.gridHeight.toDouble(),
-                              child: CustomPaint(
-                                painter: ArtPreviewPainter(
-                                  art: art,
-                                  isCompleted: true,
-                                ),
-                              ),
+                    ),
+                    child: RepaintBoundary(
+                      child: FittedBox(
+                        fit: BoxFit.cover,
+                        clipBehavior: Clip.hardEdge,
+                        child: SizedBox(
+                          width: art.gridWidth.toDouble(),
+                          height: art.gridHeight.toDouble(),
+                          child: CustomPaint(
+                            painter: ArtPreviewPainter(
+                              art: art,
+                              isCompleted: true,
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                ),
+
+                // 2. Bottom Gradient Scrim & Meta Overlay (Idea 1)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 7),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.0),
+                          Colors.black.withOpacity(0.40),
+                          Colors.black.withOpacity(0.72),
+                        ],
+                        stops: const [0.0, 0.15, 0.55, 1.0],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        Text(
-                          art.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12.5,
-                            letterSpacing: -0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 3),
-                        Row(
-                          children: [
-                            Text(
-                              '${art.gridWidth}×${art.gridHeight}',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).hintColor,
-                              ),
-                            ),
-                            const Spacer(),
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: AppStyle.primary.withAlpha(180),
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '${art.colorCount}',
-                              style: TextStyle(
-                                fontSize: 10.5,
-                                fontWeight: FontWeight.w600,
-                                color: Theme.of(context).hintColor,
-                              ),
-                            ),
-                          ],
-                        ),
+                        _buildColorPaletteChip(context),
+                        _buildGridSizeChip(context),
                       ],
                     ),
                   ),
-                ],
-              ),
+                ),
               // Favorite button (top-right)
               Positioned(
                 top: 6,
@@ -4342,6 +4318,101 @@ class _ShelfArtworkCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    ),
+  );
+}
+
+  Widget _buildColorPaletteChip(BuildContext context) {
+    final maxDots = art.sortedNumbers.length > 3 ? 3 : art.sortedNumbers.length;
+    final extraColors = art.colorCount - maxDots;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.40),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.18),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...List.generate(maxDots, (i) {
+            final num = art.sortedNumbers[i];
+            final color =
+                art.colorForNumber(num) ?? AppStyle.numberToColor(num);
+            return Align(
+              widthFactor: 0.70,
+              child: Container(
+                width: 11,
+                height: 11,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.90),
+                    width: 0.8,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 1.5,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          if (extraColors > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 3),
+              child: Text(
+                '+$extraColors',
+                style: const TextStyle(
+                  fontSize: 9.5,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridSizeChip(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 5.5, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.40),
+        borderRadius: BorderRadius.circular(9),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.18),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.grid_on_rounded,
+            size: 10,
+            color: Colors.white.withOpacity(0.9),
+          ),
+          const SizedBox(width: 3),
+          Text(
+            '${art.gridWidth}×${art.gridHeight}',
+            style: const TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
       ),
     );
   }

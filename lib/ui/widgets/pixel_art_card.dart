@@ -33,196 +33,143 @@ class PixelArtCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return PressableScale(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20),
-          color: Theme.of(context).cardColor,
-          border: Border.all(
-            color: isDark
-                ? Colors.white.withAlpha(15)
-                : Colors.black.withAlpha(10),
-            width: 1,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(isDark ? 50 : 12),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
+    return Semantics(
+      label: art.name,
+      button: true,
+      child: PressableScale(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            color: Theme.of(context).cardColor,
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withAlpha(15)
+                  : Colors.black.withAlpha(10),
+              width: 1,
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(19),
-          child: Stack(
-            children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: isDark
-                              ? [const Color(0xFF222433), const Color(0xFF191A26)]
-                              : [const Color(0xFFF7F8FA), const Color(0xFFECEFF5)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(19),
-                        ),
-                        child: Hero(
-                          tag: 'art_canvas_${art.id}_$index',
-                          child: RepaintBoundary(
-                            child: FittedBox(
-                              fit: BoxFit.fill,
-                              clipBehavior: Clip.hardEdge,
-                              child: SizedBox(
-                                width: art.gridWidth.toDouble(),
-                                height: art.gridHeight.toDouble(),
-                                child: CustomPaint(
-                                  painter: ArtPreviewPainter(
-                                    art: art,
-                                    isCompleted: true,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          art.name,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 13.5,
-                            letterSpacing: -0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 5),
-                        Row(
-                          children: [
-                            ...List.generate(
-                              art.sortedNumbers.length > 4
-                                  ? 4
-                                  : art.sortedNumbers.length,
-                              (i) {
-                                final num = art.sortedNumbers[i];
-                                final color =
-                                    art.colorForNumber(num) ??
-                                    AppStyle.numberToColor(num);
-                                return Align(
-                                  widthFactor: 0.7,
-                                  child: Container(
-                                    width: 15,
-                                    height: 15,
-                                    decoration: BoxDecoration(
-                                      color: color,
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Theme.of(context).cardColor,
-                                        width: 1.5,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withAlpha(20),
-                                          blurRadius: 2,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                            if (art.colorCount > 4)
-                              Padding(
-                                padding: const EdgeInsets.only(left: 5),
-                                child: Text(
-                                  '+${art.colorCount - 4}',
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: Colors.grey.shade500,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                            const Spacer(),
-                            Icon(
-                              Icons.grid_on_rounded,
-                              size: 13,
-                              color: Colors.grey.shade400,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              '${art.gridWidth}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withAlpha(isDark ? 50 : 12),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
               ),
-              if (!isUnlocked)
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.black.withAlpha(140),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.lock, color: Colors.white, size: 28),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 5),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [AppStyle.primary, AppStyle.secondary],
-                            ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.lock_open_rounded,
-                                  color: Colors.white, size: 13),
-                              SizedBox(width: 4),
-                              Text(
-                                'Unlock',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w700,
-                                ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(19),
+            child: Stack(
+              children: [
+                // 1. Full-Bleed Artwork Canvas
+                Positioned.fill(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: isDark
+                            ? [const Color(0xFF222433), const Color(0xFF191A26)]
+                            : [const Color(0xFFF7F8FA), const Color(0xFFECEFF5)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                    ),
+                    child: Hero(
+                      tag: 'art_canvas_${art.id}_$index',
+                      child: RepaintBoundary(
+                        child: FittedBox(
+                          fit: BoxFit.cover,
+                          clipBehavior: Clip.hardEdge,
+                          child: SizedBox(
+                            width: art.gridWidth.toDouble(),
+                            height: art.gridHeight.toDouble(),
+                            child: CustomPaint(
+                              painter: ArtPreviewPainter(
+                                art: art,
+                                isCompleted: true,
                               ),
-                            ],
+                            ),
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+
+                // 2. Bottom Gradient Scrim & Meta Overlay (Idea 1)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 8),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withOpacity(0.0),
+                          Colors.black.withOpacity(0.40),
+                          Colors.black.withOpacity(0.72),
+                        ],
+                        stops: const [0.0, 0.15, 0.55, 1.0],
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _buildColorPaletteChip(context),
+                        _buildGridSizeChip(context),
                       ],
                     ),
                   ),
                 ),
+
+                // 3. Locked Overlay
+                if (!isUnlocked)
+                  Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withAlpha(140),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.lock, color: Colors.white, size: 28),
+                            const SizedBox(height: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 5),
+                              decoration: BoxDecoration(
+                                gradient: const LinearGradient(
+                                  colors: [AppStyle.primary, AppStyle.secondary],
+                                ),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.lock_open_rounded,
+                                      color: Colors.white, size: 13),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Unlock',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
               // Top-left status & tag badges
               Positioned(
                 top: 8,
@@ -350,8 +297,9 @@ class PixelArtCard extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildTagBadge(BuildContext context) {
     final rawTag = art.tag!.trim();
@@ -413,6 +361,100 @@ class PixelArtCard extends StatelessWidget {
                 fontWeight: FontWeight.w900,
                 letterSpacing: 0.4,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildColorPaletteChip(BuildContext context) {
+    final maxDots = art.sortedNumbers.length > 3 ? 3 : art.sortedNumbers.length;
+    final extraColors = art.colorCount - maxDots;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.40),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.18),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ...List.generate(maxDots, (i) {
+            final num = art.sortedNumbers[i];
+            final color =
+                art.colorForNumber(num) ?? AppStyle.numberToColor(num);
+            return Align(
+              widthFactor: 0.70,
+              child: Container(
+                width: 12.5,
+                height: 12.5,
+                decoration: BoxDecoration(
+                  color: color,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.90),
+                    width: 1.0,
+                  ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Colors.black26,
+                      blurRadius: 2,
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+          if (extraColors > 0)
+            Padding(
+              padding: const EdgeInsets.only(left: 4),
+              child: Text(
+                '+$extraColors',
+                style: const TextStyle(
+                  fontSize: 10,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridSizeChip(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6.5, vertical: 3.5),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.40),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: Colors.white.withOpacity(0.18),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.grid_on_rounded,
+            size: 11,
+            color: Colors.white.withOpacity(0.9),
+          ),
+          const SizedBox(width: 3.5),
+          Text(
+            '${art.gridWidth}×${art.gridHeight}',
+            style: const TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              letterSpacing: 0.2,
             ),
           ),
         ],
