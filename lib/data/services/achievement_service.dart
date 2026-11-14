@@ -80,10 +80,18 @@ class AchievementService {
 
     // Connect to Firestore
     final flavorId = currentFlavor.name;
-    final docPath = 'pixel_art/$flavorId/config/achievements';
+    var docPath = 'pixel_art/$flavorId/config/achievements';
 
     try {
-      final snap = await _db.doc(docPath).get().timeout(const Duration(seconds: 4));
+      var snap = await _db.doc(docPath).get().timeout(const Duration(seconds: 4));
+      if ((!snap.exists || snap.data() == null) && currentFlavor == AppFlavor.original) {
+        final altDoc = 'pixel_art/pixelyart/config/achievements';
+        final altSnap = await _db.doc(altDoc).get().timeout(const Duration(seconds: 4));
+        if (altSnap.exists && altSnap.data() != null) {
+          snap = altSnap;
+          docPath = altDoc;
+        }
+      }
       if (snap.exists && snap.data() != null) {
         _applyRemoteConfig(snap.data()!);
       }

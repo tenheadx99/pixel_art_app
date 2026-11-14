@@ -407,13 +407,13 @@ class _PixelCreatorScreenState extends State<PixelCreatorScreen> {
     } catch (_) {
       settings = null;
     }
-    final isPro = settings?.isProUser ?? false;
+    final shouldRemoveAds = settings?.shouldRemoveAds ?? false;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primary = const Color(0xFF6C5CE7);
 
     return Scaffold(
       backgroundColor: isDark ? const Color(0xFF13131F) : const Color(0xFFF7F7FA),
-      bottomNavigationBar: isPro
+      bottomNavigationBar: shouldRemoveAds
           ? null
           : const SafeArea(child: AdBanner()),
       appBar: AppBar(

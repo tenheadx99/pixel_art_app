@@ -39,10 +39,18 @@ class EconomyConfigService {
 
   Future<void> initialize() async {
     final flavorId = currentFlavor.name;
-    final docPath = 'pixel_art/$flavorId/config/economy';
+    var docPath = 'pixel_art/$flavorId/config/economy';
 
     try {
-      final snap = await _db.doc(docPath).get().timeout(const Duration(seconds: 4));
+      var snap = await _db.doc(docPath).get().timeout(const Duration(seconds: 4));
+      if ((!snap.exists || snap.data() == null) && currentFlavor == AppFlavor.original) {
+        final altDoc = 'pixel_art/pixelyart/config/economy';
+        final altSnap = await _db.doc(altDoc).get().timeout(const Duration(seconds: 4));
+        if (altSnap.exists && altSnap.data() != null) {
+          snap = altSnap;
+          docPath = altDoc;
+        }
+      }
       if (snap.exists && snap.data() != null) {
         _currentConfig = EconomyConfig.fromMap(snap.data()!);
         developer.log('Fetched remote economy config for $flavorId: ${_currentConfig.diamondPacks.length} packs');
