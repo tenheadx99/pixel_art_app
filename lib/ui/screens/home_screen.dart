@@ -356,7 +356,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             // Camera/Gallery stay reachable via the header icons; the bottom
             // slot is dedicated to the banner ad (free users only).
-            bottomNavigationBar: settings.isProUser
+            bottomNavigationBar: settings.shouldRemoveAds
                 ? null
                 : const SafeArea(child: AdBanner()),
           ),
@@ -414,7 +414,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final items = gallery.itemsForShelf(shelf);
       if (items.isEmpty) continue;
 
-      if (!settings.isProUser && shelfCount > 0 && shelfCount % 3 == 0) {
+      if (!settings.shouldRemoveAds && shelfCount > 0 && shelfCount % 3 == 0) {
         slivers.add(const SliverToBoxAdapter(child: NativeAdCard()));
       }
 
@@ -1026,7 +1026,7 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
-    if (settings.isProUser) {
+    if (settings.shouldRemoveAds) {
       return [gridSegment(0, catalog.length, last: true)];
     }
     final slivers = <Widget>[];

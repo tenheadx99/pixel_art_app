@@ -463,6 +463,24 @@ class SettingsScreen extends StatelessWidget {
                     trailing: const Icon(Icons.open_in_new_rounded, size: 18),
                     onTap: () => _openUrl(AppConstants.termsUrl),
                   ),
+                  _buildDivider(isDark),
+                  ListTile(
+                    leading: _buildIconCircle(
+                      Icons.subscriptions_outlined,
+                      const Color(0xFF10B981),
+                      isDark,
+                    ),
+                    title: const Text(
+                      'Manage Subscriptions',
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                    subtitle: const Text(
+                      'Cancel or manage plan in Google Play',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.open_in_new_rounded, size: 18),
+                    onTap: _openManageSubscriptions,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
@@ -700,6 +718,19 @@ class SettingsScreen extends StatelessWidget {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _openManageSubscriptions() async {
+    final pkg = FlavorConfig.current.packageName;
+    final uri = Uri.parse(
+      'https://play.google.com/store/account/subscriptions?package=$pkg',
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      await launchUrl(
+        Uri.parse('https://play.google.com/store/account/subscriptions'),
+        mode: LaunchMode.externalApplication,
+      );
     }
   }
 
@@ -1263,7 +1294,8 @@ class SettingsScreen extends StatelessWidget {
                 child: ElevatedButton(
                   onPressed: () async {
                     Navigator.pop(dialogCtx);
-                    await auth.signOut();
+                    final settings = context.read<AppSettingsProvider>();
+                    await auth.signOut(settings: settings);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(

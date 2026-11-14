@@ -202,7 +202,7 @@ class _PartSelectionScreenState extends State<PartSelectionScreen>
       ),
       // Same free-user banner slot as the home screen; AdBanner reserves zero
       // height until an ad actually loads, so there is no layout shift.
-      bottomNavigationBar: context.watch<AppSettingsProvider>().isProUser
+      bottomNavigationBar: context.watch<AppSettingsProvider>().shouldRemoveAds
           ? null
           : const SafeArea(child: AdBanner()),
       body: SafeArea(

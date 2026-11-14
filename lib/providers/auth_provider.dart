@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../config/app_constants.dart';
 import '../data/services/analytics_service.dart';
 import '../data/services/auth_service.dart';
 import '../data/services/cloud_sync_service.dart';
@@ -211,13 +212,17 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// Signs out of permanent account and drops back to anonymous play.
-  Future<void> signOut() async {
+  Future<void> signOut({AppSettingsProvider? settings}) async {
     _isLoading = true;
     notifyListeners();
     try {
       await _authService.signOut();
       _lastSyncedAt = null;
       _lastSyncResult = null;
+      _storage.remove(AppConstants.proPrefKey);
+      _storage.remove(AppConstants.removeAdsPrefKey);
+      _storage.remove(AppConstants.plusExpiryPrefKey);
+      settings?.resetEntitlementsOnSignOut();
       _isLoading = false;
       notifyListeners();
     } catch (e) {

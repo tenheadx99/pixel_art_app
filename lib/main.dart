@@ -185,11 +185,13 @@ class _AppBootstrapState extends State<AppBootstrap>
       }
 
       final storage = _dependencies?.localStorageService;
-      // Lifetime Pro or an unexpired Plus subscription both suppress the ad.
-      final isPro = (storage?.getBool(AppConstants.proPrefKey) ?? false) ||
+      // Lifetime Pro, Remove Ads, or an unexpired Plus subscription all suppress the ad.
+      final shouldRemoveAds =
+          (storage?.getBool(AppConstants.proPrefKey) ?? false) ||
+          (storage?.getBool(AppConstants.removeAdsPrefKey) ?? false) ||
           (storage?.getInt(AppConstants.plusExpiryPrefKey) ?? 0) >
               DateTime.now().millisecondsSinceEpoch;
-      AdService().showAppOpenAdIfAvailable(isProUser: isPro);
+      AdService().showAppOpenAdIfAvailable(isProUser: shouldRemoveAds);
     }
   }
 

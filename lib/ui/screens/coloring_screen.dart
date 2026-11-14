@@ -351,7 +351,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       _gridFadeController.value = _wasComplete ? 1.0 : 0.0;
       // Preload the session-exit interstitial and the "next artwork"
       // rewarded interstitial; the capping logic decides later what shows.
-      if (!(_settings?.isProUser ?? false)) {
+      if (!(_settings?.shouldRemoveAds ?? false)) {
         _adService!
           ..loadInterstitialAd()
           ..preloadRewardedInterstitial();
@@ -663,7 +663,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   /// the session.
   void _maybeShowExitInterstitial() {
     final adService = _adService;
-    if (adService == null || (_settings?.isProUser ?? true)) return;
+    if (adService == null || (_settings?.shouldRemoveAds ?? true)) return;
     final session = DateTime.now().difference(_sessionStart);
     if (adService.canShowSessionInterstitial(
       session,
@@ -680,7 +680,7 @@ class _ColoringScreenState extends State<ColoringScreen>
   void _maybeShowNextArtAd() {
     final adService = _adService;
     final settings = _settings;
-    if (adService == null || (settings?.isProUser ?? true)) return;
+    if (adService == null || (settings?.shouldRemoveAds ?? true)) return;
     final session = DateTime.now().difference(_sessionStart);
     if (adService.canShowRewardedInterstitial(
       session,
@@ -3487,7 +3487,7 @@ class _ColoringScreenState extends State<ColoringScreen>
                   ),
                   // The coloring screen is where users spend their time — the banner
                   // lives here for free users.
-                  if (!settings.isProUser)
+                  if (!settings.shouldRemoveAds)
                     const Padding(
                       padding: EdgeInsets.only(top: 4),
                       child: AdBanner(),
@@ -3517,7 +3517,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     final topSafe = (mediaQuery?.padding.top ?? 24.0) + 70.0;
     final bottomSafe = _viewerSize.height -
         ((mediaQuery?.padding.bottom ?? 16.0) +
-            ((_settings?.isProUser ?? false) ? 115.0 : 175.0));
+            ((_settings?.shouldRemoveAds ?? false) ? 115.0 : 175.0));
     const horizontalSafe = 24.0;
 
     final safeArea = Rect.fromLTRB(

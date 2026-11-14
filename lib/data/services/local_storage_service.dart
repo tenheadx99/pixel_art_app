@@ -79,4 +79,6 @@ class LocalStorageService {
     }
     return false;
   }
+
+  Future<bool> remove(String key) => prefs.remove(key);
 }

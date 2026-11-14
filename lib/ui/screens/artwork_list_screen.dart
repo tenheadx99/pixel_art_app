@@ -402,7 +402,7 @@ class _ArtworkListScreenState extends State<ArtworkListScreen> {
                 ),
               ],
             ),
-      bottomNavigationBar: settings.isProUser
+      bottomNavigationBar: settings.shouldRemoveAds
           ? null
           : const SafeArea(
               top: false,

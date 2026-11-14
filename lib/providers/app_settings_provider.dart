@@ -33,6 +33,7 @@ class AppSettingsProvider extends ChangeNotifier {
   bool _isProUser = false;
   bool _isRemoveAds = false;
   int _plusExpiryMs = 0;
+  Set<String> _processedPurchaseIds = {};
   bool _isDarkMode = false;
   bool _colorblindMode = false;
   bool _hapticsEnabled = true;
@@ -62,8 +63,11 @@ class AppSettingsProvider extends ChangeNotifier {
     _readFromStorage();
   }
 
-  /// Pro entitlement: lifetime Pro purchase OR active Plus subscription OR Remove Ads.
-  bool get isProUser => _isProUser || isPlusActive || _isRemoveAds;
+  /// Pro entitlement: lifetime Pro purchase OR active Plus subscription.
+  bool get isProUser => _isProUser || isPlusActive;
+
+  /// Ad removal entitlement: user has standalone Remove Ads OR is a Pro/Plus user.
+  bool get shouldRemoveAds => _isRemoveAds || _isProUser || isPlusActive;
 
   /// Whether standalone Remove Ads was purchased.
   bool get isRemoveAds => _isRemoveAds;
@@ -129,6 +133,7 @@ class AppSettingsProvider extends ChangeNotifier {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
     _isRemoveAds = _storageService.getBool(AppConstants.removeAdsPrefKey);
     _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
+    _processedPurchaseIds = _storageService.getStringSet('processed_iap_ids');
     // Light theme by default for every flavor; dark mode is opt-in via
     // settings (a saved preference always wins over this default).
     _isDarkMode = _storageService.getBool(AppConstants.darkModePrefKey);
@@ -199,6 +204,7 @@ class AppSettingsProvider extends ChangeNotifier {
     _isProUser = _storageService.getBool(AppConstants.proPrefKey);
     _isRemoveAds = _storageService.getBool(AppConstants.removeAdsPrefKey);
     _plusExpiryMs = _storageService.getInt(AppConstants.plusExpiryPrefKey);
+    _processedPurchaseIds = _storageService.getStringSet('processed_iap_ids');
     notifyListeners();
   }
 
@@ -357,17 +363,44 @@ class AppSettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Extends the Plus entitlement to [days] from now. Called on every
-  /// purchase/restore event for a Plus product, so an active subscription
-  /// re-stamps itself each session and a cancelled one quietly runs out.
-  void extendPlusEntitlement(int days) {
-    final until = DateTime.now()
-        .add(Duration(days: days))
-        .millisecondsSinceEpoch;
+  /// Extends the Plus entitlement to [days] from [purchaseTime].
+  ///
+  /// For fresh purchases, [purchaseTime] defaults to now.
+  /// For restores, [isRestore] ensures that an expired historical subscription
+  /// is not revived past its actual expiration.
+  void extendPlusEntitlement(
+    int days, {
+    DateTime? purchaseTime,
+    bool isRestore = false,
+  }) {
+    final baseTime = purchaseTime ?? DateTime.now();
+    final until = baseTime.add(Duration(days: days)).millisecondsSinceEpoch;
+    final nowMs = DateTime.now().millisecondsSinceEpoch;
+
+    // Do not restore subscriptions that have already expired in the past!
+    if (isRestore && until <= nowMs) {
+      developer.log(
+        'Ignoring expired restored subscription (expired at ${DateTime.fromMillisecondsSinceEpoch(until)})',
+        name: 'IAP',
+      );
+      return;
+    }
+
     // Never shorten: a yearly stamp must survive a later monthly event.
     if (until <= _plusExpiryMs) return;
     _plusExpiryMs = until;
     _storageService.setInt(AppConstants.plusExpiryPrefKey, until);
+    notifyListeners();
+  }
+
+  /// Resets user-specific entitlements on sign out so they do not leak into another user's profile.
+  void resetEntitlementsOnSignOut() {
+    _isProUser = false;
+    _isRemoveAds = false;
+    _plusExpiryMs = 0;
+    _storageService.remove(AppConstants.proPrefKey);
+    _storageService.remove(AppConstants.removeAdsPrefKey);
+    _storageService.remove(AppConstants.plusExpiryPrefKey);
     notifyListeners();
   }
 
@@ -527,11 +560,23 @@ class AppSettingsProvider extends ChangeNotifier {
     _purchaseSub?.cancel();
     _purchaseSub = stream.listen((purchaseDetailsList) async {
       for (final purchase in purchaseDetailsList) {
+        if (purchase.status == PurchaseStatus.pending) {
+          developer.log(
+            'Purchase pending approval for ${purchase.productID}',
+            name: 'IAP',
+          );
+          // Never complete or grant pending transactions until payment clears!
+          continue;
+        }
+
         if (purchase.status == PurchaseStatus.purchased ||
             purchase.status == PurchaseStatus.restored) {
+          final isRestore = purchase.status == PurchaseStatus.restored;
+          final txDate = _parseTransactionDate(purchase.transactionDate);
+
           if (purchase.status == PurchaseStatus.purchased) {
             AnalyticsService().logPurchase(productId: purchase.productID);
-          } else if (purchase.status == PurchaseStatus.restored) {
+          } else if (isRestore) {
             AnalyticsService().logRestoreSuccess(productsRestored: 1);
           }
           // Check dynamic Diamond Packs first
@@ -550,19 +595,28 @@ class AppSettingsProvider extends ChangeNotifier {
 
           if (matchedPack != null) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addDiamonds(matchedPack.totalDiamonds, source: 'iap_diamond_pack');
-              if (matchedPack.bonusWands > 0) {
-                addWands(matchedPack.bonusWands);
+              final orderId = purchase.purchaseID;
+              if (orderId != null && orderId.isNotEmpty && _processedPurchaseIds.contains(orderId)) {
+                developer.log('Skipping duplicate consumable grant for $orderId', name: 'IAP');
+              } else {
+                if (orderId != null && orderId.isNotEmpty) {
+                  _processedPurchaseIds.add(orderId);
+                  _storageService.addToStringSet('processed_iap_ids', orderId);
+                }
+                addDiamonds(matchedPack.totalDiamonds, source: 'iap_diamond_pack');
+                if (matchedPack.bonusWands > 0) {
+                  addWands(matchedPack.bonusWands);
+                }
+                if (matchedPack.bonusBombs > 0) {
+                  final currentBombs = _storageService.getInt('bombs_count', defaultValue: 5);
+                  _storageService.setInt('bombs_count', currentBombs + matchedPack.bonusBombs);
+                  notifyListeners();
+                }
+                developer.log(
+                  'Granted ${matchedPack.totalDiamonds} diamonds, ${matchedPack.bonusBombs} bombs, ${matchedPack.bonusWands} wands for ${purchase.productID}',
+                  name: 'IAP',
+                );
               }
-              if (matchedPack.bonusBombs > 0) {
-                final currentBombs = _storageService.getInt('bombs_count', defaultValue: 5);
-                _storageService.setInt('bombs_count', currentBombs + matchedPack.bonusBombs);
-                notifyListeners();
-              }
-              developer.log(
-                'Granted ${matchedPack.totalDiamonds} diamonds, ${matchedPack.bonusBombs} bombs, ${matchedPack.bonusWands} wands for ${purchase.productID}',
-                name: 'IAP',
-              );
             }
           } else if (pId == AppConstants.proProductId ||
               pId == paywallConfig.lifetimeProductId) {
@@ -575,26 +629,56 @@ class AppSettingsProvider extends ChangeNotifier {
           } else if (pId == rc.plus1DayProductId ||
               pId == AppConstants.plus1DayProductId ||
               pId == paywallConfig.plus1DayProductId) {
-            extendPlusEntitlement(AppConstants.plus1DayEntitlementDays);
+            extendPlusEntitlement(
+              AppConstants.plus1DayEntitlementDays,
+              purchaseTime: txDate,
+              isRestore: isRestore,
+            );
           } else if (pId == rc.plusWeeklyProductId ||
               pId == AppConstants.plusWeeklyProductId ||
               pId == paywallConfig.plusWeeklyProductId) {
-            extendPlusEntitlement(AppConstants.plusWeeklyEntitlementDays);
+            extendPlusEntitlement(
+              AppConstants.plusWeeklyEntitlementDays,
+              purchaseTime: txDate,
+              isRestore: isRestore,
+            );
           } else if (pId == rc.plusMonthlyProductId ||
               pId == AppConstants.plusMonthlyProductId ||
               pId == paywallConfig.plusMonthlyProductId) {
-            extendPlusEntitlement(AppConstants.plusMonthlyEntitlementDays);
+            extendPlusEntitlement(
+              AppConstants.plusMonthlyEntitlementDays,
+              purchaseTime: txDate,
+              isRestore: isRestore,
+            );
           } else if (pId == rc.plusYearlyProductId ||
               pId == AppConstants.plusYearlyProductId ||
               pId == paywallConfig.plusYearlyProductId) {
-            extendPlusEntitlement(AppConstants.plusYearlyEntitlementDays);
+            extendPlusEntitlement(
+              AppConstants.plusYearlyEntitlementDays,
+              purchaseTime: txDate,
+              isRestore: isRestore,
+            );
           } else if (purchase.productID == AppConstants.hintProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addHints(AppConstants.hintsPerPurchase);
+              final orderId = purchase.purchaseID;
+              if (orderId == null || orderId.isEmpty || !_processedPurchaseIds.contains(orderId)) {
+                if (orderId != null && orderId.isNotEmpty) {
+                  _processedPurchaseIds.add(orderId);
+                  _storageService.addToStringSet('processed_iap_ids', orderId);
+                }
+                addHints(AppConstants.hintsPerPurchase);
+              }
             }
           } else if (purchase.productID == AppConstants.wandPackProductId) {
             if (purchase.status == PurchaseStatus.purchased) {
-              addWands(AppConstants.wandsPerPurchase);
+              final orderId = purchase.purchaseID;
+              if (orderId == null || orderId.isEmpty || !_processedPurchaseIds.contains(orderId)) {
+                if (orderId != null && orderId.isNotEmpty) {
+                  _processedPurchaseIds.add(orderId);
+                  _storageService.addToStringSet('processed_iap_ids', orderId);
+                }
+                addWands(AppConstants.wandsPerPurchase);
+              }
             }
           }
 
@@ -617,7 +701,7 @@ class AppSettingsProvider extends ChangeNotifier {
             reason: 'cancelled',
           );
         }
-        if (purchase.pendingCompletePurchase) {
+        if (purchase.pendingCompletePurchase && purchase.status != PurchaseStatus.pending) {
           try {
             await InAppPurchase.instance.completePurchase(purchase);
           } catch (e) {
@@ -637,6 +721,15 @@ class AppSettingsProvider extends ChangeNotifier {
       // escape the subscription as uncaught async errors.
       developer.log('Purchase stream error', name: 'IAP', error: e);
     });
+  }
+
+  DateTime? _parseTransactionDate(String? raw) {
+    if (raw == null || raw.isEmpty) return null;
+    final ms = int.tryParse(raw);
+    if (ms != null) {
+      return DateTime.fromMillisecondsSinceEpoch(ms);
+    }
+    return DateTime.tryParse(raw);
   }
 
   /// Safely records purchase transactions and syncs entitlements to Firestore.

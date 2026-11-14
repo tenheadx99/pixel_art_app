@@ -61,9 +61,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _selectedPlan = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
     }
     _pageController = PageController(viewportFraction: 0.84, initialPage: 0);
+    EconomyConfigService().addListener(_onEconomyChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadPrices();
     });
+  }
+
+  void _onEconomyChanged() {
+    if (mounted) {
+      _loadPrices();
+      setState(() {});
+    }
   }
 
   @override
@@ -71,7 +79,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     super.didChangeDependencies();
     if (_settings == null) {
       _settings = context.read<AppSettingsProvider>();
-      _wasEntitled = _settings!.isProUser;
+      _wasEntitled = _settings!.isProUser || _settings!.isRemoveAds;
       _settings!.addListener(_onSettingsChanged);
     }
   }
@@ -404,7 +412,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   void _onSettingsChanged() {
-    if (!_wasEntitled && (_settings?.isProUser ?? false) && mounted) {
+    final isEntitled = (_settings?.isProUser ?? false) || (_settings?.isRemoveAds ?? false);
+    if (!_wasEntitled && isEntitled && mounted) {
       Navigator.of(context).pop();
     }
   }
@@ -412,7 +421,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
   @override
   void dispose() {
     // Only log dismissed if the user did NOT purchase (settings would have popped)
-    if (!(_settings?.isProUser ?? false)) {
+    final isEntitled = (_settings?.isProUser ?? false) || (_settings?.isRemoveAds ?? false);
+    if (!isEntitled) {
       AnalyticsService().logPaywallDismissed(
         source: widget.source,
         timeOnScreenSeconds:
@@ -421,6 +431,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
     _pageController.dispose();
     _settings?.removeListener(_onSettingsChanged);
+    EconomyConfigService().removeListener(_onEconomyChanged);
     super.dispose();
   }
 
@@ -428,6 +439,67 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final uri = Uri.parse(url);
     if (!await launchUrl(uri, mode: LaunchMode.inAppBrowserView)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  }
+
+  void _openManageSubscriptions() async {
+    final pkg = FlavorConfig.current.packageName;
+    final uri = Uri.parse(
+      'https://play.google.com/store/account/subscriptions?package=$pkg',
+    );
+    if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+      await launchUrl(
+        Uri.parse('https://play.google.com/store/account/subscriptions'),
+        mode: LaunchMode.externalApplication,
+      );
+    }
+  }
+
+  Future<void> _handleRestore() async {
+    AnalyticsService().logRestoreTapped();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(Colors.white),
+              ),
+            ),
+            SizedBox(width: 12),
+            Text('Checking Google Play for past purchases…'),
+          ],
+        ),
+        duration: Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+
+    await context.read<IAPService>().restorePurchases();
+    await Future.delayed(const Duration(milliseconds: 1500));
+    if (!mounted) return;
+
+    final settings = context.read<AppSettingsProvider>();
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    if (settings.isProUser || settings.isRemoveAds || settings.isPlusActive) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Purchases restored successfully! 🎉'),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No active subscriptions or purchases found.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
     }
   }
 
@@ -922,19 +994,23 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
                       const SizedBox(height: 8),
 
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
+                      Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
                           TextButton(
-                            onPressed: () {
-                              AnalyticsService().logRestoreTapped();
-                              context
-                                  .read<IAPService>()
-                                  .restorePurchases();
-                            },
+                            onPressed: _handleRestore,
                             child: Text(
                               AppLocalizations.of(context)?.restorePurchases ?? 'Restore',
                               style: const TextStyle(fontSize: 12),
+                            ),
+                          ),
+                          const Text('•', style: TextStyle(color: Colors.grey)),
+                          TextButton(
+                            onPressed: _openManageSubscriptions,
+                            child: const Text(
+                              'Manage Subscription',
+                              style: TextStyle(fontSize: 12),
                             ),
                           ),
                           const Text('•', style: TextStyle(color: Colors.grey)),
