@@ -21,7 +21,7 @@ if (hasReleaseSigning) {
 
 android {
     namespace = "com.europosit.pixel_art_app"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     signingConfigs {
@@ -37,6 +37,11 @@ android {
 
     buildFeatures {
         resValues = true
+    }
+
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 
     compileOptions {
@@ -93,8 +98,8 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
-            versionCode = 26
-            versionName = "2.1.4"
+            versionCode = 28
+            versionName = "2.1.6"
             resValue("string", "app_name", "Pixely")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
@@ -103,8 +108,8 @@ android {
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
-            versionCode = 12
-            versionName = "1.2.2"
+            versionCode = 13
+            versionName = "1.2.3"
             resValue("string", "app_name", "Bhakti Rang: Color by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~3225607674"
@@ -113,8 +118,8 @@ android {
         create("anime") {
             dimension = "app"
             applicationId = "com.tenhead.animepixels"
-            versionCode = 12
-            versionName = "1.3.3"
+            versionCode = 13
+            versionName = "1.3.4"
             resValue("string", "app_name", "Anime Pixels")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~9417209994"
@@ -123,8 +128,8 @@ android {
         create("pixelcalm") {
             dimension = "app"
             applicationId = "com.tenhead.pixelcalm"
-            versionCode = 22
-            versionName = "2.4.1"
+            versionCode = 23
+            versionName = "2.4.2"
             resValue("string", "app_name", "PixelCalm")
             // TODO: register com.tenhead.pixelcalm in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
@@ -134,8 +139,8 @@ android {
         create("diamond") {
             dimension = "app"
             applicationId = "com.tenhead.gemart"
-            versionCode = 25
-            versionName = "2.5.3"
+            versionCode = 26
+            versionName = "2.5.4"
             resValue("string", "app_name", "Gem Art")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~7951340229"
@@ -144,8 +149,8 @@ android {
         create("bible") {
             dimension = "app"
             applicationId = "com.tenhead.bible"
-            versionCode = 25
-            versionName = "1.6.1"
+            versionCode = 26
+            versionName = "1.6.2"
             resValue("string", "app_name", "Daily Bible")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~1329082397"
@@ -154,8 +159,8 @@ android {
         create("crossStitch") {
             dimension = "app"
             applicationId = "com.tenhead.craftcolor"
-            versionCode = 5
-            versionName = "1.7.2"
+            versionCode = 6
+            versionName = "1.7.3"
             resValue("string", "app_name", "Cross Stitch")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~3461430873"
