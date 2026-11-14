@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/pixel_art.dart';
+import '../../l10n/app_localizations.dart';
 import '../theme/app_style.dart';
 import 'art_preview_painter.dart';
 import 'pressable.dart';
@@ -148,15 +149,15 @@ class PixelArtCard extends StatelessWidget {
                                 ),
                                 borderRadius: BorderRadius.circular(20),
                               ),
-                              child: const Row(
+                              child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(Icons.lock_open_rounded,
+                                  const Icon(Icons.lock_open_rounded,
                                       color: Colors.white, size: 13),
-                                  SizedBox(width: 4),
+                                  const SizedBox(width: 4),
                                   Text(
-                                    'Unlock',
-                                    style: TextStyle(
+                                    AppLocalizations.of(context)?.unlock ?? 'Unlock',
+                                    style: const TextStyle(
                                       color: Colors.white,
                                       fontSize: 12,
                                       fontWeight: FontWeight.w700,

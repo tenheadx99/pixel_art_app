@@ -14,6 +14,7 @@ import '../../data/services/remote_config_service.dart';
 import '../../providers/app_settings_provider.dart';
 import '../theme/app_style.dart';
 import '../widgets/entrance.dart';
+import '../widgets/purchase_auth_gate.dart';
 import '../../l10n/app_localizations.dart';
 
 /// Enhanced Paywall screen featuring subscription plans (Yearly, Monthly,
@@ -195,6 +196,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _handlePurchase(String productId) async {
     if (_isProcessing) return;
+
+    // Sign-in gate: user must be authenticated before purchasing
+    final authenticated = await PurchaseAuthGate.ensureAuthenticated(
+      context,
+      purpose: 'activate VIP Subscription',
+    );
+    if (!authenticated || !mounted) return;
+
     setState(() => _isProcessing = true);
     HapticFeedback.mediumImpact();
     AnalyticsService().logPaywallCtaTapped(
@@ -278,6 +287,14 @@ class _PaywallScreenState extends State<PaywallScreen> {
 
   Future<void> _handleBuyPro() async {
     if (_isProcessing) return;
+
+    // Sign-in gate: user must be authenticated before purchasing
+    final authenticated = await PurchaseAuthGate.ensureAuthenticated(
+      context,
+      purpose: 'activate Lifetime VIP',
+    );
+    if (!authenticated || !mounted) return;
+
     setState(() => _isProcessing = true);
     HapticFeedback.lightImpact();
     AnalyticsService().logPaywallCtaTapped(

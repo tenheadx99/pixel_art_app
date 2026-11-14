@@ -187,6 +187,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Widget _buildEmptyState() {
+    final l10n = AppLocalizations.of(context);
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -218,9 +219,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text(
-              'Your Canvas is Empty',
-              style: TextStyle(
+            Text(
+              l10n?.emptyGalleryTitle ?? 'Your Canvas is Empty',
+              style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
                 fontWeight: FontWeight.bold,
@@ -228,7 +229,8 @@ class _GalleryScreenState extends State<GalleryScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Color artworks from the catalog to build your personal gallery collection!',
+              l10n?.emptyGalleryMessage ??
+                  'Color artworks from the catalog to build your personal gallery collection!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: Colors.white.withAlpha(180),
@@ -240,9 +242,9 @@ class _GalleryScreenState extends State<GalleryScreen> {
             ElevatedButton.icon(
               onPressed: () => Navigator.pop(context),
               icon: const Icon(Icons.brush_rounded, size: 18),
-              label: const Text(
-                'Start Your First Artwork 🎨',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              label: Text(
+                l10n?.startFirstArtwork ?? 'Start Your First Artwork 🎨',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.white,
@@ -261,16 +263,17 @@ class _GalleryScreenState extends State<GalleryScreen> {
   }
 
   Future<void> _deleteArtwork(UserArtwork artwork) async {
+    final l10n = AppLocalizations.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Delete Artwork'),
-        content: const Text('Are you sure you want to delete this?'),
+        title: Text(l10n?.deleteArtwork ?? 'Delete Artwork'),
+        content: Text(l10n?.deleteArtworkConfirm ?? 'Are you sure you want to delete this?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
+            child: Text(l10n?.cancel ?? 'Cancel'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
@@ -278,7 +281,7 @@ class _GalleryScreenState extends State<GalleryScreen> {
               backgroundColor: Colors.red,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Delete'),
+            child: Text(l10n?.delete ?? 'Delete'),
           ),
         ],
       ),

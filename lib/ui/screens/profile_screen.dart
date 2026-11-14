@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/flavor.dart';
@@ -20,6 +21,7 @@ import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
 import '../widgets/transitions.dart';
 import 'gallery_screen.dart';
+import 'paywall_screen.dart';
 import 'settings_screen.dart';
 
 /// Achievement meta description, lore, and rewards.
@@ -1051,7 +1053,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
-                                  if (settings.isProUser) ...[
+                                  if (settings.isLifetimePro) ...[
                                     const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -1062,9 +1064,45 @@ class _ProfileScreenState extends State<ProfileScreen>
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: const Text(
-                                        'PRO',
+                                        'LIFETIME 👑',
                                         style: TextStyle(
                                           color: Colors.black87,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ] else if (settings.isPlusActive) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [Color(0xFF9D4EDD), Color(0xFF7B2CBF)],
+                                        ),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'PLUS VIP ✨',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 9.5,
+                                          fontWeight: FontWeight.w900,
+                                        ),
+                                      ),
+                                    ),
+                                  ] else if (settings.isRemoveAds) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF10B981),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: const Text(
+                                        'AD-FREE 🛡️',
+                                        style: TextStyle(
+                                          color: Colors.white,
                                           fontSize: 9.5,
                                           fontWeight: FontWeight.w900,
                                         ),
@@ -1170,13 +1208,103 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                     const SizedBox(height: 14),
 
+                    // Membership Status Card
+                    Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: isDark ? Colors.white.withAlpha(10) : const Color(0xFFF3F4F9),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: settings.isLifetimePro
+                              ? const Color(0xFFFFD700).withAlpha(120)
+                              : settings.isPlusActive
+                                  ? const Color(0xFF9D4EDD).withAlpha(120)
+                                  : isDark
+                                      ? Colors.white12
+                                      : Colors.black12,
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            settings.isLifetimePro
+                                ? Icons.workspace_premium_rounded
+                                : settings.isPlusActive
+                                    ? Icons.stars_rounded
+                                    : settings.isRemoveAds
+                                        ? Icons.shield_rounded
+                                        : Icons.lock_outline_rounded,
+                            size: 22,
+                            color: settings.isLifetimePro
+                                ? const Color(0xFFFFD700)
+                                : settings.isPlusActive
+                                    ? const Color(0xFF9D4EDD)
+                                    : settings.isRemoveAds
+                                        ? const Color(0xFF10B981)
+                                        : Colors.grey,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  settings.isLifetimePro
+                                      ? 'Lifetime VIP Pass'
+                                      : settings.isPlusActive
+                                          ? 'Plus VIP Subscription'
+                                          : settings.isRemoveAds
+                                              ? 'Ad-Free Tier'
+                                              : 'Free Tier',
+                                  style: TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  settings.isLifetimePro
+                                      ? 'Permanent access to all features'
+                                      : settings.isPlusActive
+                                          ? '${settings.plusDaysRemaining} days left (${settings.plusExpiryDate != null ? DateFormat.yMMMd().format(settings.plusExpiryDate!) : ""})'
+                                          : settings.isRemoveAds
+                                              ? 'All ads permanently removed'
+                                              : 'Upgrade for VIP art & 0 ads',
+                                  style: TextStyle(
+                                    fontSize: 11.5,
+                                    color: isDark ? Colors.white60 : Colors.black54,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (!settings.isLifetimePro && !settings.isPlusActive)
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(sheetContext).pop();
+                                Navigator.push(
+                                  context,
+                                  fadeThroughRoute(
+                                    const PaywallScreen(source: 'profile_status_card'),
+                                  ),
+                                );
+                              },
+                              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+                              child: const Text('Upgrade', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                            ),
+                        ],
+                      ),
+                    ),
+
                     // Sign Out Button
                     SizedBox(
                       width: double.infinity,
                       child: OutlinedButton.icon(
                         onPressed: () {
                           Navigator.of(sheetContext).pop();
-                          auth.signOut();
+                          auth.signOut(settings: settings);
                         },
                         icon: const Icon(Icons.logout_rounded, size: 16, color: Colors.redAccent),
                         label: const Text('Sign Out', style: TextStyle(color: Colors.redAccent)),

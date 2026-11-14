@@ -148,4 +148,157 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get ok => 'OK';
+
+  @override
+  String get jumpBackIn => 'つづきから';
+
+  @override
+  String get resume => '再開';
+
+  @override
+  String get play => 'プレイ';
+
+  @override
+  String get dailyPixel => 'デイリーピクセル';
+
+  @override
+  String get streak => 'ストリーク';
+
+  @override
+  String get dayStreak => '日数ストリーク';
+
+  @override
+  String get streakLost => 'ストリーク途切れ • 48時間以内に修復';
+
+  @override
+  String restoreStreakTitle(int days) {
+    return '$days日間のストリークを修復！';
+  }
+
+  @override
+  String get restoreStreakSubtitle => '300 💎 または広告1回で修復';
+
+  @override
+  String get streakFreeze => 'ストリークフリーズ';
+
+  @override
+  String get streakFreezeEquipped => 'ストリークフリーズを装備しました！ 🧊';
+
+  @override
+  String get maxFreezesHeld => '所持上限です！ (2/2)';
+
+  @override
+  String notEnoughDiamonds(int count) {
+    return 'ダイヤが足りません ($count 💎 必要)';
+  }
+
+  @override
+  String get freeAd => '無料広告1回';
+
+  @override
+  String get repair => '修復';
+
+  @override
+  String get viewAll => 'すべて見る';
+
+  @override
+  String get collections => 'コレクション';
+
+  @override
+  String get favorites => 'お気に入り';
+
+  @override
+  String get shelves => '棚';
+
+  @override
+  String get fullGrid => '全グリッド';
+
+  @override
+  String get clearFilters => 'フィルター解除';
+
+  @override
+  String get notStarted => '未着手';
+
+  @override
+  String get noArtworksFound => '作品が見つかりません';
+
+  @override
+  String get tryAnotherSearch => '検索ワードやフィルターを変更してください';
+
+  @override
+  String get mysteryGift => 'ミステリーダイヤギフト';
+
+  @override
+  String get claim => '受け取る';
+
+  @override
+  String get color => 'カラー';
+
+  @override
+  String get unlock => 'アンロック';
+
+  @override
+  String get premiumArtwork => 'プレミアム作品';
+
+  @override
+  String get unlockThisOne => 'この作品をアンロック';
+
+  @override
+  String get tryWithAd => '広告を見て試す';
+
+  @override
+  String get notNow => 'あとで';
+
+  @override
+  String get noAdAvailable => '現在視聴できる広告がありません。後でもう一度お試しください。';
+
+  @override
+  String get sortDefault => '並び替え: デフォルト';
+
+  @override
+  String get sortEasyFirst => 'かんたん順';
+
+  @override
+  String get sortHardFirst => 'むずかしい順';
+
+  @override
+  String get sortFewColors => '色数少なめ';
+
+  @override
+  String get sortManyColors => '色数多め';
+
+  @override
+  String get exitDialogTitle => 'もう終了しますか？';
+
+  @override
+  String get exitDialogMessage => '終了する前に、他のリラックスゲームをチェックするか塗りを続けましょう！';
+
+  @override
+  String get exitDialogKeepPlaying => '続ける';
+
+  @override
+  String get exitDialogExit => 'アプリを終了';
+
+  @override
+  String get emptyGalleryTitle => '作品がありません';
+
+  @override
+  String get emptyGalleryMessage => 'カタログから作品を塗って、マイギャラリーを作りましょう！';
+
+  @override
+  String get startFirstArtwork => '最初の作品を始める 🎨';
+
+  @override
+  String get deleteArtwork => '作品を削除';
+
+  @override
+  String get deleteArtworkConfirm => '本当にこの作品を削除しますか？';
+
+  @override
+  String get delete => '削除';
+
+  @override
+  String levelLabel(int level) {
+    return 'レベル $level';
+  }
 }

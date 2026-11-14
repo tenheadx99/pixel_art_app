@@ -11,6 +11,7 @@ import 'package:pixel_art_app/data/services/iap_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';
 import 'package:pixel_art_app/ui/widgets/number_toolbar.dart';
+import 'purchase_auth_gate.dart';
 
 class DiamondShopSheet extends StatefulWidget {
   const DiamondShopSheet({super.key});
@@ -196,6 +197,14 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
   Future<void> _handleBuyPack(
       DiamondPackConfig pack, AppSettingsProvider settings) async {
     if (_buyingProductId != null) return;
+
+    // Sign-in gate: user must be authenticated before purchasing
+    final authenticated = await PurchaseAuthGate.ensureAuthenticated(
+      context,
+      purpose: 'purchase Diamond Pack',
+    );
+    if (!authenticated || !mounted) return;
+
     setState(() => _buyingProductId = pack.productId);
 
     final storeProduct = _storeProducts[pack.productId];

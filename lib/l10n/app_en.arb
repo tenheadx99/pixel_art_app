@@ -47,5 +47,75 @@
   "gridSize": "Grid Size",
   "cancel": "Cancel",
   "confirm": "Confirm",
-  "ok": "OK"
+  "ok": "OK",
+  "jumpBackIn": "Jump back in",
+  "resume": "Resume",
+  "play": "Play",
+  "dailyPixel": "Daily Pixel",
+  "streak": "Streak",
+  "dayStreak": "Day Streak",
+  "streakLost": "STREAK LOST • REPAIR WITHIN 48H",
+  "restoreStreakTitle": "Restore {days}-Day Streak!",
+  "@restoreStreakTitle": {
+    "placeholders": {
+      "days": {
+        "type": "int"
+      }
+    }
+  },
+  "restoreStreakSubtitle": "Tap to restore with 300 💎 or 1 Ad",
+  "streakFreeze": "Streak Freeze",
+  "streakFreezeEquipped": "Streak Freeze equipped! 🧊",
+  "maxFreezesHeld": "Maximum freezes held! (2/2)",
+  "notEnoughDiamonds": "Not enough diamonds ({count} 💎 needed)",
+  "@notEnoughDiamonds": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "freeAd": "1 Free Ad",
+  "repair": "Repair",
+  "viewAll": "View All",
+  "collections": "Collections",
+  "favorites": "Favorites",
+  "shelves": "Shelves",
+  "fullGrid": "Full Grid",
+  "clearFilters": "Clear filters",
+  "notStarted": "Not started",
+  "noArtworksFound": "No artworks found",
+  "tryAnotherSearch": "Try adjusting your search or filters",
+  "mysteryGift": "Mystery Diamond Gift",
+  "claim": "Claim",
+  "color": "Color",
+  "unlock": "Unlock",
+  "premiumArtwork": "Premium Artwork",
+  "unlockThisOne": "Unlock this one",
+  "tryWithAd": "Try with Ad",
+  "notNow": "Not now",
+  "noAdAvailable": "No ad available right now — try again later.",
+  "sortDefault": "Sort: Default",
+  "sortEasyFirst": "Easy First",
+  "sortHardFirst": "Hard First",
+  "sortFewColors": "Few Colors",
+  "sortManyColors": "Many Colors",
+  "exitDialogTitle": "Leaving So Soon?",
+  "exitDialogMessage": "Before you go, check out our other relaxing games or keep coloring!",
+  "exitDialogKeepPlaying": "Keep Playing",
+  "exitDialogExit": "Exit App",
+  "emptyGalleryTitle": "Your Canvas is Empty",
+  "emptyGalleryMessage": "Color artworks from the catalog to build your personal gallery collection!",
+  "startFirstArtwork": "Start Your First Artwork 🎨",
+  "deleteArtwork": "Delete Artwork",
+  "deleteArtworkConfirm": "Are you sure you want to delete this?",
+  "delete": "Delete",
+  "levelLabel": "Level {level}",
+  "@levelLabel": {
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  }
 }

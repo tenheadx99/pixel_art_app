@@ -79,6 +79,25 @@ class AppSettingsProvider extends ChangeNotifier {
 
   bool get isPlusActive =>
       DateTime.now().millisecondsSinceEpoch < _plusExpiryMs;
+
+  int get plusExpiryMs => _plusExpiryMs;
+
+  DateTime? get plusExpiryDate =>
+      _plusExpiryMs > 0 ? DateTime.fromMillisecondsSinceEpoch(_plusExpiryMs) : null;
+
+  int get plusDaysRemaining {
+    if (!isPlusActive) return 0;
+    final diff = DateTime.fromMillisecondsSinceEpoch(_plusExpiryMs)
+        .difference(DateTime.now());
+    return diff.inDays + (diff.inHours % 24 > 0 ? 1 : 0);
+  }
+
+  String get membershipLabel {
+    if (isLifetimePro) return 'Lifetime VIP';
+    if (isPlusActive) return 'Plus VIP';
+    if (isRemoveAds) return 'Ad-Free';
+    return 'Free';
+  }
   bool get isDarkMode => _isDarkMode;
   bool get colorblindMode => _colorblindMode;
   bool get hapticsEnabled => _hapticsEnabled;

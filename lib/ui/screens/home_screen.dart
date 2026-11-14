@@ -110,11 +110,14 @@ class _HomeScreenState extends State<HomeScreen> {
       } else {
         final award = settings.maybeClaimDailyPlusStipend();
         if (award > 0) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Daily Plus bonus · +$award 💎'),
-              behavior: SnackBarBehavior.floating,
-            ),
+          showRewardPopup(
+            context,
+            icon: Icons.workspace_premium_rounded,
+            title: 'VIP Daily Reward!',
+            subtitle: 'Thank you for being a Plus Member! Here is your daily VIP diamond stipend.',
+            diamonds: award,
+            buttonLabel: 'Claim VIP Diamonds',
+            badgeColors: const [Color(0xFFFFD700), Color(0xFFFF9D2E)],
           );
         }
       }
@@ -2246,19 +2249,62 @@ class _ContinueRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final arts = gallery.inProgressArts;
+    if (arts.isEmpty) return const SizedBox.shrink();
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 20),
-          child: Text(
-            'Jump back in',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          child: Row(
+            children: [
+              Container(
+                width: 24,
+                height: 24,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [AppStyle.primary, Color(0xFFA29BFE)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: const Icon(
+                  Icons.play_arrow_rounded,
+                  color: Colors.white,
+                  size: 16,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                l10n?.jumpBackIn ?? 'Jump back in',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppStyle.primary.withAlpha(isDark ? 40 : 20),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  '${arts.length}',
+                  style: const TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppStyle.primary,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         SizedBox(
-          height: 84,
+          height: 90,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -2266,25 +2312,86 @@ class _ContinueRow extends StatelessWidget {
             itemBuilder: (context, index) {
               final art = arts[index];
               final pct = gallery.artProgressPercent(art);
-              return PressableScale(
+              return _ContinueArtCard(
+                art: art,
+                pct: pct,
                 onTap: () => onOpen(art),
-                child: Container(
-                  width: 200,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: AppStyle.primary.withAlpha(40)),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _ContinueArtCard extends StatelessWidget {
+  final PixelArt art;
+  final int pct;
+  final VoidCallback onTap;
+
+  const _ContinueArtCard({
+    required this.art,
+    required this.pct,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final l10n = AppLocalizations.of(context);
+
+    return Semantics(
+      label: 'Continue artwork, $pct percent completed',
+      button: true,
+      child: PressableScale(
+        onTap: onTap,
+        child: Container(
+          width: 216,
+          margin: const EdgeInsets.symmetric(horizontal: 4),
+          padding: const EdgeInsets.all(9),
+          decoration: BoxDecoration(
+            color: Theme.of(context).cardColor,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isDark
+                  ? Colors.white.withAlpha(22)
+                  : AppStyle.primary.withAlpha(35),
+              width: 1,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AppStyle.primary.withAlpha(isDark ? 30 : 12),
+                blurRadius: 10,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Artwork visual preview with play overlay badge
+              Container(
+                width: 68,
+                height: 68,
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? const Color(0xFF1E1F2B)
+                      : const Color(0xFFF3F4F8),
+                  borderRadius: BorderRadius.circular(13),
+                  border: Border.all(
+                    color: isDark
+                        ? Colors.white.withAlpha(15)
+                        : Colors.black.withAlpha(8),
+                    width: 0.8,
                   ),
-                  child: Row(
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Stack(
                     children: [
-                      SizedBox(
-                        width: 56,
-                        height: 56,
-                        // Center + AspectRatio so portrait/landscape art
-                        // letterboxes instead of stretching to the square box.
-                        child: Center(
+                      Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
                           child: AspectRatio(
                             aspectRatio: art.gridWidth / art.gridHeight,
                             child: RepaintBoundary(
@@ -2298,57 +2405,156 @@ class _ContinueRow extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              art.name,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w600,
-                                fontSize: 13,
+                      Positioned(
+                        bottom: 3,
+                        right: 3,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: AppStyle.primary,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppStyle.primary.withAlpha(90),
+                                blurRadius: 4,
+                                offset: const Offset(0, 1),
                               ),
-                            ),
-                            const SizedBox(height: 6),
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(4),
-                              child: TweenAnimationBuilder<double>(
-                                tween: Tween(end: pct / 100),
-                                duration: const Duration(milliseconds: 500),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, v, _) =>
-                                    LinearProgressIndicator(
-                                  value: v,
-                                  minHeight: 5,
-                                  backgroundColor:
-                                      AppStyle.primary.withAlpha(25),
-                                  color: AppStyle.primary,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              '$pct% done',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: Colors.grey.shade500,
-                              ),
-                            ),
-                          ],
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.play_arrow_rounded,
+                            color: Colors.white,
+                            size: 13,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-              );
-            },
+              ),
+              const SizedBox(width: 11),
+              // Right side progress & actions (without artwork name)
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Top: Resume pill & percentage
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2.5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: AppStyle.primary.withAlpha(isDark ? 40 : 25),
+                            borderRadius: BorderRadius.circular(7),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.brush_rounded,
+                                size: 9.5,
+                                color: AppStyle.primary,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                l10n?.resume ?? 'Resume',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppStyle.primary,
+                                  letterSpacing: 0.2,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '$pct%',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            color: Theme.of(context).textTheme.bodyMedium?.color,
+                          ),
+                        ),
+                      ],
+                    ),
+                    // Middle: Animated progress indicator
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: TweenAnimationBuilder<double>(
+                        tween: Tween(end: pct / 100),
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeOutCubic,
+                        builder: (context, v, _) => LinearProgressIndicator(
+                          value: v,
+                          minHeight: 5,
+                          backgroundColor: isDark
+                              ? Colors.white.withAlpha(20)
+                              : AppStyle.primary.withAlpha(25),
+                          color: AppStyle.primary,
+                        ),
+                      ),
+                    ),
+                    // Bottom: Grid dimensions & Play affordance
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.grid_on_rounded,
+                              size: 10,
+                              color: Theme.of(context).hintColor,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              art.isSplit
+                                  ? '${art.partsX * art.partsY} parts'
+                                  : '${art.gridWidth}×${art.gridHeight}',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w600,
+                                color: Theme.of(context).hintColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              l10n?.play ?? 'Play',
+                              style: const TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: AppStyle.primary,
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              size: 13,
+                              color: AppStyle.primary,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 }
@@ -2373,6 +2579,7 @@ class _DailyPixelBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     if (gallery.canRepairStreak) {
       return PressableScale(
         onTap: () => _showStreakRepairSheet(
@@ -2415,9 +2622,9 @@ class _DailyPixelBanner extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'STREAK LOST • REPAIR WITHIN 48H',
-                      style: TextStyle(
+                    Text(
+                      l10n?.streakLost ?? 'STREAK LOST • REPAIR WITHIN 48H',
+                      style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
@@ -2426,7 +2633,8 @@ class _DailyPixelBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Restore ${gallery.streakBrokenValue}-Day Streak!',
+                      l10n?.restoreStreakTitle(gallery.streakBrokenValue) ??
+                          'Restore ${gallery.streakBrokenValue}-Day Streak!',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 16,
@@ -2434,9 +2642,10 @@ class _DailyPixelBanner extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 2),
-                    const Text(
-                      'Tap to restore with 300 💎 or 1 Ad',
-                      style: TextStyle(
+                    Text(
+                      l10n?.restoreStreakSubtitle ??
+                          'Tap to restore with 300 💎 or 1 Ad',
+                      style: const TextStyle(
                         color: Colors.white70,
                         fontSize: 11,
                       ),
@@ -2530,9 +2739,9 @@ class _DailyPixelBanner extends StatelessWidget {
                           color: Colors.white.withAlpha(35),
                           borderRadius: BorderRadius.circular(6),
                         ),
-                        child: const Text(
-                          'DAILY PIXEL',
-                          style: TextStyle(
+                        child: Text(
+                          (l10n?.dailyPixel ?? 'Daily Pixel').toUpperCase(),
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 9.5,
                             fontWeight: FontWeight.w800,
@@ -3528,6 +3737,7 @@ class _ShelvesTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 6),
       child: Row(
@@ -3542,12 +3752,12 @@ class _ShelvesTopBar extends StatelessWidget {
                   color: AppStyle.primary,
                 ),
                 const SizedBox(width: 8),
-                const Flexible(
+                Flexible(
                   child: Text(
-                    'Collections',
+                    l10n?.collections ?? 'Collections',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
+                    style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
                       letterSpacing: -0.3,
@@ -3594,18 +3804,18 @@ class _ShelvesTopBar extends StatelessWidget {
                   ),
                 ],
               ),
-              child: const Row(
+              child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.grid_view_rounded,
                     size: 14,
                     color: AppStyle.primary,
                   ),
-                  SizedBox(width: 5),
+                  const SizedBox(width: 5),
                   Text(
-                    'Full Grid',
-                    style: TextStyle(
+                    l10n?.fullGrid ?? 'Full Grid',
+                    style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
                       color: AppStyle.primary,
@@ -3658,6 +3868,7 @@ class _CategoryFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final categories = gallery.categories;
     final isSearching = gallery.searchQuery.isNotEmpty;
 
@@ -3756,7 +3967,7 @@ class _CategoryFilter extends StatelessWidget {
                           ),
                           const SizedBox(width: 6),
                           Text(
-                            'Favorites',
+                            l10n?.favorites ?? 'Favorites',
                             style: TextStyle(
                               color: on ? Colors.white : null,
                               fontWeight: on ? FontWeight.w600 : FontWeight.w500,
@@ -3845,28 +4056,28 @@ class _CategoryFilter extends StatelessWidget {
                   children: [
                     _buildStatusChip(
                       context,
-                      label: 'All',
+                      label: l10n?.categoriesAll ?? 'All',
                       icon: null,
                       filter: ArtworkStatusFilter.all,
                     ),
                     const SizedBox(width: 8),
                     _buildStatusChip(
                       context,
-                      label: 'Not Started',
+                      label: l10n?.notStarted ?? 'Not Started',
                       icon: Icons.star_border_rounded,
                       filter: ArtworkStatusFilter.notStarted,
                     ),
                     const SizedBox(width: 8),
                     _buildStatusChip(
                       context,
-                      label: 'In Progress',
+                      label: l10n?.inProgress ?? 'In Progress',
                       icon: Icons.timelapse_rounded,
                       filter: ArtworkStatusFilter.inProgress,
                     ),
                     const SizedBox(width: 8),
                     _buildStatusChip(
                       context,
-                      label: 'Completed',
+                      label: l10n?.completed ?? 'Completed',
                       icon: Icons.check_circle_outline_rounded,
                       filter: ArtworkStatusFilter.completed,
                     ),
@@ -3893,18 +4104,18 @@ class _CategoryFilter extends StatelessWidget {
                     width: 1,
                   ),
                 ),
-                child: const Row(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
+                    const Icon(
                       Icons.collections_bookmark_rounded,
                       size: 13,
                       color: AppStyle.primary,
                     ),
-                    SizedBox(width: 4),
+                    const SizedBox(width: 4),
                     Text(
-                      'Shelves',
-                      style: TextStyle(
+                      l10n?.shelves ?? 'Shelves',
+                      style: const TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                         color: AppStyle.primary,
@@ -4004,6 +4215,7 @@ class _ArtworkShelf extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -4062,7 +4274,7 @@ class _ArtworkShelf extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'View all',
+                          l10n?.viewAll ?? 'View all',
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w700,
@@ -4434,14 +4646,16 @@ class _ResultsCount extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final q = gallery.searchQuery;
     final status = gallery.statusFilter;
     String statusDesc = '';
-    if (status == ArtworkStatusFilter.notStarted) statusDesc = ' · Not started';
-    if (status == ArtworkStatusFilter.inProgress) statusDesc = ' · In progress';
-    if (status == ArtworkStatusFilter.completed) statusDesc = ' · Completed';
+    if (status == ArtworkStatusFilter.notStarted) statusDesc = ' · ${l10n?.notStarted ?? 'Not started'}';
+    if (status == ArtworkStatusFilter.inProgress) statusDesc = ' · ${l10n?.inProgress ?? 'In progress'}';
+    if (status == ArtworkStatusFilter.completed) statusDesc = ' · ${l10n?.completed ?? 'Completed'}';
 
-    final label = '$count artwork${count == 1 ? '' : 's'}$statusDesc'
+    final artworkWord = count == 1 ? 'artwork' : 'artworks';
+    final label = '$count $artworkWord$statusDesc'
         '${q.isNotEmpty ? ' for "$q"' : ''}';
     return Padding(
       padding: const EdgeInsets.fromLTRB(22, 6, 20, 0),
@@ -4462,11 +4676,11 @@ class _ResultsCount extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.close_rounded,
+                  const Icon(Icons.close_rounded,
                       size: 14, color: AppStyle.primary),
                   const SizedBox(width: 3),
-                  Text('Clear filters',
-                      style: TextStyle(
+                  Text(l10n?.clearFilters ?? 'Clear filters',
+                      style: const TextStyle(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w700,
                         color: AppStyle.primary,
@@ -4614,7 +4828,7 @@ class _EmptyState extends StatelessWidget {
               ElevatedButton.icon(
                 onPressed: onClear ?? gallery.clearFilters,
                 icon: const Icon(Icons.close_rounded, size: 18),
-                label: const Text('Clear filters'),
+                label: Text(AppLocalizations.of(context)?.clearFilters ?? 'Clear filters'),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppStyle.primary,
                   foregroundColor: Colors.white,
@@ -4669,6 +4883,7 @@ class _ExitConfirmationDialogState extends State<_ExitConfirmationDialog>
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final flavor = FlavorConfig.current;
     final titleColor = isDark ? Colors.white : const Color(0xFF231F38);
@@ -4749,7 +4964,7 @@ class _ExitConfirmationDialogState extends State<_ExitConfirmationDialog>
             ),
             const SizedBox(height: 18),
             Text(
-              'Leaving So Soon?',
+              l10n?.exitDialogTitle ?? 'Leaving So Soon?',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 21,
@@ -4760,7 +4975,8 @@ class _ExitConfirmationDialogState extends State<_ExitConfirmationDialog>
             ),
             const SizedBox(height: 8),
             Text(
-              'Before you go, check out our other relaxing games or keep coloring!',
+              l10n?.exitDialogMessage ??
+                  'Before you go, check out our other relaxing games or keep coloring!',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13.5,
@@ -4902,7 +5118,7 @@ class _ExitConfirmationDialogState extends State<_ExitConfirmationDialog>
                     ),
                     onPressed: () => Navigator.of(context).pop(false),
                     child: Text(
-                      'Keep Playing',
+                      l10n?.exitDialogKeepPlaying ?? 'Keep Playing',
                       style: TextStyle(
                         color: isDark ? Colors.white70 : Colors.black87,
                         fontWeight: FontWeight.w600,
@@ -4927,9 +5143,9 @@ class _ExitConfirmationDialogState extends State<_ExitConfirmationDialog>
                       ),
                     ),
                     onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text(
-                      'Exit App',
-                      style: TextStyle(
+                    child: Text(
+                      l10n?.exitDialogExit ?? 'Exit App',
+                      style: const TextStyle(
                         color: Color(0xFFFF5252),
                         fontWeight: FontWeight.w700,
                         fontSize: 14,

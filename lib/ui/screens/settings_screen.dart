@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:intl/intl.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -21,6 +22,7 @@ import '../widgets/transitions.dart';
 import '../widgets/email_auth_sheet.dart';
 import 'more_apps_screen.dart';
 import 'onboarding_screen.dart';
+import 'paywall_screen.dart';
 
 /// Full-screen Settings screen.
 class SettingsScreen extends StatelessWidget {
@@ -75,6 +77,10 @@ class SettingsScreen extends StatelessWidget {
             children: [
               // Section 0: Cloud Save & Account
               _buildAccountCard(context, isDark, flavor, auth),
+              const SizedBox(height: 16),
+
+              // Membership & VIP Status Card
+              _buildMembershipCard(context, isDark, settings, flavor),
               const SizedBox(height: 20),
 
               // Section 1: Appearance & Display
@@ -324,48 +330,8 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 20),
 
-              // Section 4.5: More Games & Apps
-              _buildSectionHeader('MORE GAMES & APPS', isDark, flavor.primary),
-              _buildCard(
-                isDark: isDark,
-                children: [
-                  ListTile(
-                    leading: _buildIconCircle(Icons.grid_view_rounded, const Color(0xFFFF5252), isDark),
-                    title: Row(
-                      children: [
-                        const Text('Discover Other Apps', style: TextStyle(fontWeight: FontWeight.w600)),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            gradient: const LinearGradient(
-                              colors: [Color(0xFF00C6FF), Color(0xFF0072FF)],
-                            ),
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                          child: const Text(
-                            'NEW',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w900,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    subtitle: const Text('Explore our relaxing coloring & puzzle apps', style: TextStyle(fontSize: 12)),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const MoreAppsScreen()),
-                      );
-                    },
-                  ),
-                ],
-              ),
+              // Section 4.5: Eye-Catching More Games & Apps Hero Card
+              _buildEyeCatchingDiscoverAppsCard(context, isDark, flavor),
               const SizedBox(height: 20),
 
               // Section 4.8: Dynamic Community & Social Links (Managed via Admin App)
@@ -647,6 +613,235 @@ class SettingsScreen extends StatelessWidget {
     return _buildIconCircle(link.resolvedIcon, link.resolvedColor, isDark);
   }
 
+  Widget _buildEyeCatchingDiscoverAppsCard(BuildContext context, bool isDark, FlavorConfig flavor) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: isDark
+              ? [const Color(0xFF1E1035), const Color(0xFF2C1654), const Color(0xFF16082F)]
+              : [const Color(0xFF6C5CE7), const Color(0xFF5A49E0), const Color(0xFF4834D4)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(
+          color: isDark ? const Color(0xFF9D4EDD).withAlpha(100) : Colors.white.withAlpha(80),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF6C5CE7).withAlpha(isDark ? 90 : 60),
+            blurRadius: 18,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            Navigator.push(
+              context,
+              fadeThroughRoute(const MoreAppsScreen()),
+            );
+          },
+          child: Padding(
+            padding: const EdgeInsets.all(18),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top Tag Row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withAlpha(35),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white24, width: 0.8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.auto_awesome_rounded, color: Color(0xFFFFD700), size: 14),
+                          SizedBox(width: 5),
+                          Text(
+                            'CROSS-GAME REWARDS',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.6,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF3366), Color(0xFFFF6B6B)],
+                        ),
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: const Color(0xFFFF3366).withAlpha(80),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: const Text(
+                        'NEW TITLES 🔥',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+
+                // Main Content & Avatar Stack
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          Text(
+                            'Discover Other Apps & Games',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                          SizedBox(height: 5),
+                          Text(
+                            'Explore anime manga, divine devotional, sparkling diamond painting & cozy stitch worlds.',
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12.5,
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 14),
+
+                    // Overlapping Avatar Stack
+                    SizedBox(
+                      width: 86,
+                      height: 50,
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned(
+                            left: 0,
+                            top: 4,
+                            child: _buildMiniAppIcon('assets/icons/cross_stitch.png', 42),
+                          ),
+                          Positioned(
+                            left: 22,
+                            top: 2,
+                            child: _buildMiniAppIcon('assets/icons/devotional.png', 44),
+                          ),
+                          Positioned(
+                            left: 44,
+                            top: 0,
+                            child: _buildMiniAppIcon('assets/icons/anime.png', 46),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Action Bar
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withAlpha(25),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.white.withAlpha(40)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.grid_view_rounded, color: Colors.white, size: 17),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Browse All Coloring & Puzzle Games',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: const BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.arrow_forward_rounded,
+                          size: 13,
+                          color: Color(0xFF6C5CE7),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMiniAppIcon(String assetPath, double size) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white, width: 2),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(80),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: Image.asset(
+          assetPath,
+          fit: BoxFit.cover,
+          errorBuilder: (_, _, _) => Container(
+            color: const Color(0xFF9D4EDD),
+            child: const Icon(Icons.apps_rounded, color: Colors.white, size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildSocialLinksSection(
     BuildContext context,
     bool isDark,
@@ -861,6 +1056,393 @@ class SettingsScreen extends StatelessWidget {
         );
       },
     );
+  }
+
+  Widget _buildMembershipCard(
+    BuildContext context,
+    bool isDark,
+    AppSettingsProvider settings,
+    FlavorConfig flavor,
+  ) {
+    if (settings.isLifetimePro) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF2A2311), const Color(0xFF1E1E2D)]
+                : [const Color(0xFFFFF9E6), Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFFFFD700).withAlpha(120),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFFFFD700).withAlpha(20),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFF9D2E)],
+                ),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.workspace_premium_rounded,
+                color: Colors.black87,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Lifetime VIP Pass',
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFFFD700),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'ACTIVE 👑',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.black87,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Permanent access • All artworks & tools unlocked • Ad-free',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (settings.isPlusActive) {
+      final days = settings.plusDaysRemaining;
+      final expiryDate = settings.plusExpiryDate;
+      final dateStr = expiryDate != null
+          ? DateFormat.yMMMd().format(expiryDate)
+          : '';
+
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF24143D), const Color(0xFF1E1E2D)]
+                : [const Color(0xFFF3EBFF), Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFF9D4EDD).withAlpha(120),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF9D4EDD).withAlpha(25),
+              blurRadius: 12,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(9),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF9D4EDD), Color(0xFF7B2CBF)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.stars_rounded,
+                    color: Colors.white,
+                    size: 20,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Plus VIP Subscription',
+                            style: TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w800,
+                              color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF9D4EDD),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'ACTIVE ✨',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        dateStr.isNotEmpty
+                            ? 'Renews or expires on $dateStr ($days days left)'
+                            : '$days days remaining',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white70 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              height: 36,
+              child: OutlinedButton.icon(
+                onPressed: _openManageSubscriptions,
+                icon: const Icon(Icons.open_in_new_rounded, size: 14),
+                label: const Text('Manage in Google Play', style: TextStyle(fontSize: 12.5)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: isDark ? const Color(0xFFC77DFF) : const Color(0xFF7B2CBF),
+                  side: BorderSide(
+                    color: const Color(0xFF9D4EDD).withAlpha(100),
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else if (settings.isRemoveAds) {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: isDark
+                ? [const Color(0xFF122E26), const Color(0xFF1E1E2D)]
+                : [const Color(0xFFE8F8F3), Colors.white],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: const Color(0xFF10B981).withAlpha(100),
+            width: 1.5,
+          ),
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(9),
+              decoration: const BoxDecoration(
+                color: Color(0xFF10B981),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.shield_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Text(
+                        'Ad-Free Tier',
+                        style: TextStyle(
+                          fontSize: 15.5,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: const Text(
+                          'ACTIVE 🛡️',
+                          style: TextStyle(
+                            fontSize: 9.5,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'Banner and interstitial ads permanently removed',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  fadeThroughRoute(
+                    const PaywallScreen(source: 'settings_ad_free_tier'),
+                  ),
+                );
+              },
+              child: const Text('Upgrade'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Free User - Upsell Card
+      return Container(
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF6C5CE7), Color(0xFF8E44AD)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF6C5CE7).withAlpha(60),
+              blurRadius: 14,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(40),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.workspace_premium_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: const [
+                  Text(
+                    'Upgrade to VIP Pass',
+                    style: TextStyle(
+                      fontSize: 15.5,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
+                    ),
+                  ),
+                  SizedBox(height: 2),
+                  Text(
+                    'Unlock all artworks, 64x64 grids & zero ads',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white70,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  fadeThroughRoute(
+                    const PaywallScreen(source: 'settings_upsell'),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFD700),
+                foregroundColor: Colors.black87,
+                elevation: 0,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              ),
+              child: const Text(
+                'View Plans',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildAccountCard(BuildContext context, bool isDark, FlavorConfig flavor, [AuthProvider? authParam]) {

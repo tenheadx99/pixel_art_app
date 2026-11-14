@@ -81,6 +81,29 @@ class PromotedAppsService {
     return _buildFlavorFallbacks(currentFlavorName);
   }
 
+  /// Real-time stream of promoted apps from Firestore so Admin App edits reflect live.
+  Stream<List<PromotedApp>> streamPromotedApps() {
+    final currentFlavorName = currentFlavor.name;
+    final db = FirebaseFirestore.instance;
+    return db
+        .collection(_collectionPath)
+        .where('enabled', isEqualTo: true)
+        .snapshots()
+        .map((snap) {
+      final apps = <PromotedApp>[];
+      for (final d in snap.docs) {
+        final data = d.data();
+        if (!data.containsKey('id') || (data['id'] as String).isEmpty) {
+          data['id'] = d.id;
+        }
+        try {
+          apps.add(PromotedApp.fromJson(data));
+        } catch (_) {}
+      }
+      return _filterAndSort(apps, currentFlavorName);
+    });
+  }
+
   /// Filters out the current flavor and sorts by sortOrder.
   List<PromotedApp> _filterAndSort(List<PromotedApp> apps, String activeFlavor) {
     final filtered = apps.where((app) {

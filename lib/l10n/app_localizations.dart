@@ -385,6 +385,300 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'OK'**
   String get ok;
+
+  /// No description provided for @jumpBackIn.
+  ///
+  /// In en, this message translates to:
+  /// **'Jump back in'**
+  String get jumpBackIn;
+
+  /// No description provided for @resume.
+  ///
+  /// In en, this message translates to:
+  /// **'Resume'**
+  String get resume;
+
+  /// No description provided for @play.
+  ///
+  /// In en, this message translates to:
+  /// **'Play'**
+  String get play;
+
+  /// No description provided for @dailyPixel.
+  ///
+  /// In en, this message translates to:
+  /// **'Daily Pixel'**
+  String get dailyPixel;
+
+  /// No description provided for @streak.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak'**
+  String get streak;
+
+  /// No description provided for @dayStreak.
+  ///
+  /// In en, this message translates to:
+  /// **'Day Streak'**
+  String get dayStreak;
+
+  /// No description provided for @streakLost.
+  ///
+  /// In en, this message translates to:
+  /// **'STREAK LOST • REPAIR WITHIN 48H'**
+  String get streakLost;
+
+  /// No description provided for @restoreStreakTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore {days}-Day Streak!'**
+  String restoreStreakTitle(int days);
+
+  /// No description provided for @restoreStreakSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to restore with 300 💎 or 1 Ad'**
+  String get restoreStreakSubtitle;
+
+  /// No description provided for @streakFreeze.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak Freeze'**
+  String get streakFreeze;
+
+  /// No description provided for @streakFreezeEquipped.
+  ///
+  /// In en, this message translates to:
+  /// **'Streak Freeze equipped! 🧊'**
+  String get streakFreezeEquipped;
+
+  /// No description provided for @maxFreezesHeld.
+  ///
+  /// In en, this message translates to:
+  /// **'Maximum freezes held! (2/2)'**
+  String get maxFreezesHeld;
+
+  /// No description provided for @notEnoughDiamonds.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough diamonds ({count} 💎 needed)'**
+  String notEnoughDiamonds(int count);
+
+  /// No description provided for @freeAd.
+  ///
+  /// In en, this message translates to:
+  /// **'1 Free Ad'**
+  String get freeAd;
+
+  /// No description provided for @repair.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair'**
+  String get repair;
+
+  /// No description provided for @viewAll.
+  ///
+  /// In en, this message translates to:
+  /// **'View All'**
+  String get viewAll;
+
+  /// No description provided for @collections.
+  ///
+  /// In en, this message translates to:
+  /// **'Collections'**
+  String get collections;
+
+  /// No description provided for @favorites.
+  ///
+  /// In en, this message translates to:
+  /// **'Favorites'**
+  String get favorites;
+
+  /// No description provided for @shelves.
+  ///
+  /// In en, this message translates to:
+  /// **'Shelves'**
+  String get shelves;
+
+  /// No description provided for @fullGrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Full Grid'**
+  String get fullGrid;
+
+  /// No description provided for @clearFilters.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear filters'**
+  String get clearFilters;
+
+  /// No description provided for @notStarted.
+  ///
+  /// In en, this message translates to:
+  /// **'Not started'**
+  String get notStarted;
+
+  /// No description provided for @noArtworksFound.
+  ///
+  /// In en, this message translates to:
+  /// **'No artworks found'**
+  String get noArtworksFound;
+
+  /// No description provided for @tryAnotherSearch.
+  ///
+  /// In en, this message translates to:
+  /// **'Try adjusting your search or filters'**
+  String get tryAnotherSearch;
+
+  /// No description provided for @mysteryGift.
+  ///
+  /// In en, this message translates to:
+  /// **'Mystery Diamond Gift'**
+  String get mysteryGift;
+
+  /// No description provided for @claim.
+  ///
+  /// In en, this message translates to:
+  /// **'Claim'**
+  String get claim;
+
+  /// No description provided for @color.
+  ///
+  /// In en, this message translates to:
+  /// **'Color'**
+  String get color;
+
+  /// No description provided for @unlock.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock'**
+  String get unlock;
+
+  /// No description provided for @premiumArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Premium Artwork'**
+  String get premiumArtwork;
+
+  /// No description provided for @unlockThisOne.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock this one'**
+  String get unlockThisOne;
+
+  /// No description provided for @tryWithAd.
+  ///
+  /// In en, this message translates to:
+  /// **'Try with Ad'**
+  String get tryWithAd;
+
+  /// No description provided for @notNow.
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get notNow;
+
+  /// No description provided for @noAdAvailable.
+  ///
+  /// In en, this message translates to:
+  /// **'No ad available right now — try again later.'**
+  String get noAdAvailable;
+
+  /// No description provided for @sortDefault.
+  ///
+  /// In en, this message translates to:
+  /// **'Sort: Default'**
+  String get sortDefault;
+
+  /// No description provided for @sortEasyFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Easy First'**
+  String get sortEasyFirst;
+
+  /// No description provided for @sortHardFirst.
+  ///
+  /// In en, this message translates to:
+  /// **'Hard First'**
+  String get sortHardFirst;
+
+  /// No description provided for @sortFewColors.
+  ///
+  /// In en, this message translates to:
+  /// **'Few Colors'**
+  String get sortFewColors;
+
+  /// No description provided for @sortManyColors.
+  ///
+  /// In en, this message translates to:
+  /// **'Many Colors'**
+  String get sortManyColors;
+
+  /// No description provided for @exitDialogTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Leaving So Soon?'**
+  String get exitDialogTitle;
+
+  /// No description provided for @exitDialogMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Before you go, check out our other relaxing games or keep coloring!'**
+  String get exitDialogMessage;
+
+  /// No description provided for @exitDialogKeepPlaying.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep Playing'**
+  String get exitDialogKeepPlaying;
+
+  /// No description provided for @exitDialogExit.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit App'**
+  String get exitDialogExit;
+
+  /// No description provided for @emptyGalleryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Your Canvas is Empty'**
+  String get emptyGalleryTitle;
+
+  /// No description provided for @emptyGalleryMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Color artworks from the catalog to build your personal gallery collection!'**
+  String get emptyGalleryMessage;
+
+  /// No description provided for @startFirstArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Start Your First Artwork 🎨'**
+  String get startFirstArtwork;
+
+  /// No description provided for @deleteArtwork.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete Artwork'**
+  String get deleteArtwork;
+
+  /// No description provided for @deleteArtworkConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Are you sure you want to delete this?'**
+  String get deleteArtworkConfirm;
+
+  /// No description provided for @delete.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get delete;
+
+  /// No description provided for @levelLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Level {level}'**
+  String levelLabel(int level);
 }
 
 class _AppLocalizationsDelegate

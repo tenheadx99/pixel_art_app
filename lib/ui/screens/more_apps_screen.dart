@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -19,6 +20,7 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
   late final PromotedAppsService _service;
   List<PromotedApp>? _apps;
   bool _isLoading = true;
+  StreamSubscription<List<PromotedApp>>? _subscription;
 
   @override
   void initState() {
@@ -26,6 +28,25 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
     final storage = context.read<LocalStorageService>();
     _service = PromotedAppsService(storage);
     _loadApps();
+    try {
+      _subscription = _service.streamPromotedApps().listen(
+        (apps) {
+          if (mounted && apps.isNotEmpty) {
+            setState(() {
+              _apps = apps;
+              _isLoading = false;
+            });
+          }
+        },
+        onError: (_) {},
+      );
+    } catch (_) {}
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadApps() async {
@@ -69,18 +90,321 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
               color: flavor.primary,
               child: _apps == null || _apps!.isEmpty
                   ? _buildEmptyState(isDark)
-                  : ListView(
-                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-                      children: [
-                        _buildHeaderBanner(isDark, flavor),
-                        const SizedBox(height: 18),
-                        ...List.generate(
-                          _apps!.length,
-                          (index) => _buildAppCard(_apps![index], isDark, flavor),
+                  : _buildAppsList(_apps!, isDark, flavor),
+            ),
+    );
+  }
+
+  Widget _buildAppsList(List<PromotedApp> apps, bool isDark, FlavorConfig flavor) {
+    // Sort apps by sortOrder
+    final sortedApps = List<PromotedApp>.from(apps)
+      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final top3 = sortedApps.take(3).toList();
+    final remaining = sortedApps.skip(3).toList();
+
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+      children: [
+        _buildHeaderBanner(isDark, flavor),
+        const SizedBox(height: 22),
+
+        if (top3.isNotEmpty) ...[
+          _buildSectionHeader(
+            '🔥 TOP FEATURED GAMES',
+            'Our most popular and highest rated coloring experiences',
+            isDark,
+          ),
+          const SizedBox(height: 12),
+          for (int i = 0; i < top3.length; i++)
+            _buildHeroCard(top3[i], i, isDark, flavor),
+        ],
+
+        if (remaining.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _buildSectionHeader(
+            '🎮 ALL GAMES & APPS',
+            'Explore our full collection of creative pixel worlds',
+            isDark,
+          ),
+          const SizedBox(height: 12),
+          for (final app in remaining)
+            _buildAppCard(app, isDark, flavor),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildSectionHeader(String title, String subtitle, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.8,
+              color: isDark ? Colors.white70 : Colors.black87,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: isDark ? Colors.white38 : Colors.black45,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeroCard(PromotedApp app, int index, bool isDark, FlavorConfig flavor) {
+    // Rank-based styling for Top 3
+    final (rankTitle, rankGradient, rankBorderColor) = switch (index) {
+      0 => (
+        '👑 #1 TOP FEATURED',
+        const [Color(0xFFFFD700), Color(0xFFFF9D2E)],
+        const Color(0xFFFFD700),
+      ),
+      1 => (
+        '🔥 #2 POPULAR HIT',
+        const [Color(0xFFFF416C), Color(0xFFFF4B2B)],
+        const Color(0xFFFF416C),
+      ),
+      _ => (
+        '✨ #3 MUST PLAY',
+        const [Color(0xFF8A2387), Color(0xFFE94057)],
+        const Color(0xFFE94057),
+      ),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: PressableScale(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          PromotedAppsService.openAppStore(app);
+        },
+        child: Container(
+          decoration: BoxDecoration(
+            color: isDark ? const Color(0xFF1B1B2D) : Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            border: Border.all(
+              color: isDark
+                  ? rankBorderColor.withAlpha(55)
+                  : rankBorderColor.withAlpha(45),
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: rankBorderColor.withAlpha(isDark ? 30 : 20),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: Colors.black.withAlpha(isDark ? 60 : 10),
+                blurRadius: 10,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top Rank Ribbon & Optional Badge
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4.5),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(colors: rankGradient),
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: rankGradient.first.withAlpha(100),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
-            ),
+                    child: Text(
+                      rankTitle,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  if (app.badge != null && app.badge!.trim().isNotEmpty)
+                    _buildBadge(app.badge!),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              // Main App Info Row
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // Bigger 76x76 Icon with Rounded Squircle
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: SizedBox(
+                      width: 76,
+                      height: 76,
+                      child: _buildAppIcon(app, isDark, size: 76),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  // App Title & Rating Details
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          app.title,
+                          style: TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 18,
+                            color: isDark ? Colors.white : Colors.black87,
+                            letterSpacing: -0.3,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 5),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFFFB300).withAlpha(isDark ? 40 : 30),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(
+                                    Icons.star_rounded,
+                                    size: 15,
+                                    color: Color(0xFFFFB300),
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    app.rating.toStringAsFixed(1),
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w800,
+                                      color: isDark
+                                          ? const Color(0xFFFFD54F)
+                                          : const Color(0xFFD77C00),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                              decoration: BoxDecoration(
+                                color: isDark
+                                    ? Colors.white.withAlpha(15)
+                                    : Colors.black.withAlpha(8),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.download_rounded,
+                                    size: 13,
+                                    color: isDark ? Colors.white70 : Colors.black54,
+                                  ),
+                                  const SizedBox(width: 3),
+                                  Text(
+                                    app.downloadCount,
+                                    style: TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w700,
+                                      color: isDark ? Colors.white70 : Colors.black54,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Descriptive Tagline (up to 2 lines for full hero impact)
+              Text(
+                app.tagline,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isDark ? Colors.white70 : Colors.black87,
+                  height: 1.35,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 14),
+
+              // Full-Width Google Play Install Button
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 11),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: isDark
+                        ? [const Color(0xFF2B2B45), const Color(0xFF222238)]
+                        : [const Color(0xFFF3F5FC), const Color(0xFFE8EBF5)],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isDark ? Colors.white.withAlpha(20) : Colors.black.withAlpha(12),
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const GooglePlayIcon(size: 20),
+                    const SizedBox(width: 9),
+                    Text(
+                      'GET ON GOOGLE PLAY',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: isDark ? Colors.white : Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Icon(
+                      Icons.arrow_forward_rounded,
+                      size: 15,
+                      color: isDark ? Colors.white70 : Colors.black54,
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -289,7 +613,7 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
     );
   }
 
-  Widget _buildAppIcon(PromotedApp app, bool isDark) {
+  Widget _buildAppIcon(PromotedApp app, bool isDark, {double size = 64}) {
     final localAsset = _resolveLocalAsset(app);
     final trimmedUrl = app.iconUrl.trim();
     final isNetwork = trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://');
@@ -297,16 +621,20 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
     if (isNetwork) {
       return Image.network(
         trimmedUrl,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
         errorBuilder: (context, error, stackTrace) {
           if (localAsset != null) {
             return Image.asset(
               localAsset,
+              width: size,
+              height: size,
               fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => _buildFallbackIcon(app, isDark),
+              errorBuilder: (_, _, _) => _buildFallbackIcon(app, isDark, size: size),
             );
           }
-          return _buildFallbackIcon(app, isDark);
+          return _buildFallbackIcon(app, isDark, size: size);
         },
       );
     }
@@ -314,17 +642,27 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
     if (localAsset != null) {
       return Image.asset(
         localAsset,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
-        errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(app, isDark),
+        errorBuilder: (context, error, stackTrace) => _buildFallbackIcon(app, isDark, size: size),
       );
     }
 
-    return _buildFallbackIcon(app, isDark);
+    return _buildFallbackIcon(app, isDark, size: size);
   }
 
   String? _resolveLocalAsset(PromotedApp app) {
-    final raw = app.iconUrl.trim();
+    var raw = app.iconUrl.trim();
     if (raw.isNotEmpty) {
+      // Normalize any flavors/ path coming from Firestore or admin seeds
+      raw = raw.replaceAll('icons/flavors/', 'icons/').replaceAll('flavors/', '');
+
+      // Explicitly check for original / pixely app icon
+      if (raw.contains('original') || raw.contains('pixely') || raw.contains('app_icon')) {
+        return 'assets/icons/original.png';
+      }
+
       if (raw.startsWith('assets/')) return raw;
       if (raw.startsWith('icons/')) return 'assets/$raw';
       if (raw.endsWith('.png')) return 'assets/icons/$raw';
@@ -332,6 +670,9 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
 
     // Map by id, packageName, or title to built-in flavor assets
     final key = '${app.id} ${app.packageName} ${app.title}'.toLowerCase();
+    if (key.contains('pixely') || key.contains('original')) {
+      return 'assets/icons/original.png';
+    }
     if (key.contains('divine') || key.contains('devotional') || key.contains('bhakti')) {
       return 'assets/icons/devotional.png';
     }
@@ -374,18 +715,17 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
     if (key.contains('voxel')) {
       return 'assets/icons/voxel.png';
     }
-    if (key.contains('pixely') || key.contains('original')) {
-      return 'assets/icons/app_icon.png';
-    }
 
     return null;
   }
 
-  Widget _buildFallbackIcon(PromotedApp app, bool isDark) {
+  Widget _buildFallbackIcon(PromotedApp app, bool isDark, {double size = 64}) {
     final initial = app.title.trim().isNotEmpty
         ? app.title.trim().characters.first.toUpperCase()
         : '★';
     return Container(
+      width: size,
+      height: size,
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -396,10 +736,10 @@ class _MoreAppsScreenState extends State<MoreAppsScreen> {
       alignment: Alignment.center,
       child: Text(
         initial,
-        style: const TextStyle(
+        style: TextStyle(
           color: Colors.white,
           fontWeight: FontWeight.w900,
-          fontSize: 26,
+          fontSize: size * 0.4,
         ),
       ),
     );

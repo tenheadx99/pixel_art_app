@@ -56,6 +56,23 @@ void main() {
       expect(settings.isPlusActive, isTrue);
     });
 
+    test('membershipLabel and plusDaysRemaining return accurate status', () {
+      expect(settings.membershipLabel, equals('Free'));
+      expect(settings.plusDaysRemaining, equals(0));
+
+      settings.setRemoveAds(true);
+      expect(settings.membershipLabel, equals('Ad-Free'));
+
+      settings.setRemoveAds(false);
+      settings.extendPlusEntitlement(15);
+      expect(settings.membershipLabel, equals('Plus VIP'));
+      expect(settings.plusDaysRemaining, inInclusiveRange(14, 15));
+      expect(settings.plusExpiryDate, isNotNull);
+
+      settings.setProUser(true);
+      expect(settings.membershipLabel, equals('Lifetime VIP'));
+    });
+
     test('resetEntitlementsOnSignOut clears local state and storage', () {
       settings.setProUser(true);
       settings.setRemoveAds(true);
