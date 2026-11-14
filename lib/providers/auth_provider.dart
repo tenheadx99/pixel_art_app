@@ -35,6 +35,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   User? get user => _authService.currentUser;
+  User? get currentUser => _authService.currentUser;
+  String? get uid => _authService.currentUser?.uid;
   bool get isAuthenticated => _authService.isAuthenticated;
   bool get isAnonymous => _authService.isAnonymous;
   String? get displayName => _authService.displayName;

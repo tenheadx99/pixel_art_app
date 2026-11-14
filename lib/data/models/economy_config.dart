@@ -128,7 +128,7 @@ class PaywallConfig {
     this.plusWeeklyProductId = 'pixel_art_plus_weekly',
     this.plusMonthlyProductId = 'pixel_art_plus_monthly',
     this.plusYearlyProductId = 'pixel_art_plus_yearly',
-    this.removeAdsProductId = 'pixel_art_remove_ads',
+    this.removeAdsProductId = 'remove_ad_test',
     this.lifetimeProductId = 'pixel_art_pro',
     this.plus1DayFallbackPrice = '\$0.99 / day',
     this.plusWeeklyFallbackPrice = '\$2.99 / wk',
@@ -159,9 +159,13 @@ class PaywallConfig {
         ? Map<String, dynamic>.from(map['paywall'] as Map)
         : map;
 
-    String g(String key, String fallback) {
-      final v = m[key] ?? map[key];
-      return (v is String && v.isNotEmpty) ? v : fallback;
+    String g(dynamic keys, String fallback) {
+      final keyList = keys is List<String> ? keys : [keys.toString()];
+      for (final key in keyList) {
+        final v = m[key] ?? map[key];
+        if (v is String && v.trim().isNotEmpty) return v.trim();
+      }
+      return fallback;
     }
 
     final bool isVipSubscriptionEnabled = m['is_vip_subscription_enabled'] as bool? ??
@@ -173,12 +177,15 @@ class PaywallConfig {
 
     return PaywallConfig(
       isVipSubscriptionEnabled: isVipSubscriptionEnabled,
-      plus1DayProductId: g('plus_1day_product_id', 'pixel_art_plus_1day'),
-      plusWeeklyProductId: g('plus_weekly_product_id', 'pixel_art_plus_weekly'),
-      plusMonthlyProductId: g('plus_monthly_product_id', 'pixel_art_plus_monthly'),
-      plusYearlyProductId: g('plus_yearly_product_id', 'pixel_art_plus_yearly'),
-      removeAdsProductId: g('remove_ads_product_id', 'pixel_art_remove_ads'),
-      lifetimeProductId: g('pro_product_id', 'pixel_art_pro'),
+      plus1DayProductId: g(['plus_1day_product_id', 'plus1DayProductId'], 'pixel_art_plus_1day'),
+      plusWeeklyProductId: g(['plus_weekly_product_id', 'plusWeeklyProductId'], 'pixel_art_plus_weekly'),
+      plusMonthlyProductId: g(['plus_monthly_product_id', 'plusMonthlyProductId'], 'pixel_art_plus_monthly'),
+      plusYearlyProductId: g(['plus_yearly_product_id', 'plusYearlyProductId'], 'pixel_art_plus_yearly'),
+      removeAdsProductId: g(
+        ['remove_ads_product_id', 'removeAdsProductId', 'remove_ads_sku', 'removeAdsSku', 'remove_ads_id'],
+        'remove_ad_test',
+      ),
+      lifetimeProductId: g(['pro_product_id', 'lifetimeProductId', 'lifetime_product_id'], 'pixel_art_pro'),
       plus1DayFallbackPrice: g('plus_1day_price', '\$0.99 / day'),
       plusWeeklyFallbackPrice: g('plus_weekly_price', '\$2.99 / wk'),
       plusMonthlyFallbackPrice: g('plus_monthly_price', '\$7.99 / mo'),
@@ -195,8 +202,18 @@ class PaywallConfig {
       showWeeklyPlan: m['show_weekly_plan'] as bool? ?? true,
       showMonthlyPlan: m['show_monthly_plan'] as bool? ?? true,
       showYearlyPlan: m['show_yearly_plan'] as bool? ?? true,
-      showRemoveAdsPlan: m['show_remove_ads_plan'] as bool? ?? true,
-      showLifetimePlan: m['show_lifetime_plan'] as bool? ?? true,
+      showRemoveAdsPlan: m['show_remove_ads_plan'] as bool? ??
+          m['showRemoveAdsPlan'] as bool? ??
+          m['show_no_ads'] as bool? ??
+          m['showNoAds'] as bool? ??
+          map['show_remove_ads_plan'] as bool? ??
+          map['showRemoveAdsPlan'] as bool? ??
+          true,
+      showLifetimePlan: m['show_lifetime_plan'] as bool? ??
+          m['showLifetimePlan'] as bool? ??
+          map['show_lifetime_plan'] as bool? ??
+          map['showLifetimePlan'] as bool? ??
+          true,
       showUrgencyTimer: m['show_urgency_timer'] as bool? ?? true,
       urgencyDurationHours: (m['urgency_duration_hours'] as num?)?.toInt() ?? 24,
       urgencyHeadline: g('urgency_headline', 'Special Welcome Offer • 65% OFF'),

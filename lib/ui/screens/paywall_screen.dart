@@ -12,6 +12,7 @@ import '../../data/models/economy_config.dart';
 import '../../data/services/iap_service.dart';
 import '../../data/services/remote_config_service.dart';
 import '../../providers/app_settings_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../theme/app_style.dart';
 import '../widgets/entrance.dart';
 import '../widgets/purchase_auth_gate.dart';
@@ -21,8 +22,13 @@ import '../../l10n/app_localizations.dart';
 /// Weekly, 1-Day Pass) plus standalone Remove Ads and Lifetime Pro options.
 class PaywallScreen extends StatefulWidget {
   final String source;
+  final String? initialPlan;
 
-  const PaywallScreen({super.key, this.source = 'unknown'});
+  const PaywallScreen({
+    super.key,
+    this.source = 'unknown',
+    this.initialPlan,
+  });
 
   @override
   State<PaywallScreen> createState() => _PaywallScreenState();
@@ -50,14 +56,17 @@ class _PaywallScreenState extends State<PaywallScreen> {
     AnalyticsService().logPaywallShown(source: widget.source);
     final eco = EconomyConfigService().currentConfig.paywall;
     final rc = RemoteConfigService();
-    if (eco.defaultPlan == 'monthly') {
-      _selectedPlan = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
-    } else if (eco.defaultPlan == 'weekly') {
-      _selectedPlan = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
-    } else if (eco.defaultPlan == '1day') {
-      _selectedPlan = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
-    } else if (eco.defaultPlan == 'remove_ads') {
+    final plan = widget.initialPlan ?? eco.defaultPlan;
+    if (plan == 'remove_ads') {
       _selectedPlan = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
+    } else if (plan == 'pro' || plan == 'lifetime') {
+      _selectedPlan = eco.lifetimeProductId.isNotEmpty ? eco.lifetimeProductId : AppConstants.proProductId;
+    } else if (plan == 'monthly') {
+      _selectedPlan = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
+    } else if (plan == 'weekly') {
+      _selectedPlan = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
+    } else if (plan == '1day') {
+      _selectedPlan = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
     } else {
       _selectedPlan = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
     }
@@ -75,12 +84,19 @@ class _PaywallScreenState extends State<PaywallScreen> {
     }
   }
 
+  int _prevPlusExpiryMs = 0;
+  bool _prevProUser = false;
+  bool _prevRemoveAds = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (_settings == null) {
       _settings = context.read<AppSettingsProvider>();
       _wasEntitled = _settings!.isProUser || _settings!.isRemoveAds;
+      _prevPlusExpiryMs = _settings!.plusExpiryMs;
+      _prevProUser = _settings!.isProUser;
+      _prevRemoveAds = _settings!.isRemoveAds;
       _settings!.addListener(_onSettingsChanged);
     }
   }
@@ -98,11 +114,25 @@ class _PaywallScreenState extends State<PaywallScreen> {
     final idRemoveAds = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
     final idLifetime = eco.lifetimeProductId.isNotEmpty ? eco.lifetimeProductId : AppConstants.proProductId;
 
+    // Single batch query for all subscription and product details!
+    await iap.getProductDetails({
+      id1Day,
+      idWeekly,
+      idMonthly,
+      idYearly,
+      idRemoveAds,
+      'remove_ad_test',
+      'pixel_art_remove_ads',
+      idLifetime,
+    });
+
     final p1day = await iap.getPrice(id1Day);
     final pWeekly = await iap.getPrice(idWeekly);
     final pMonthly = await iap.getPrice(idMonthly);
     final pYearly = await iap.getPrice(idYearly);
-    final pRemoveAds = await iap.getPrice(idRemoveAds);
+    final pRemoveAds = await iap.getPrice(idRemoveAds) ??
+        await iap.getPrice('remove_ad_test') ??
+        await iap.getPrice('pixel_art_remove_ads');
     final lifetime = await iap.getPrice(idLifetime);
     if (!mounted) return;
     setState(() {
@@ -233,8 +263,11 @@ class _PaywallScreenState extends State<PaywallScreen> {
       ),
     );
 
-    final launched =
-        await context.read<IAPService>().buySubscription(productId);
+    final auth = context.read<AuthProvider?>();
+    final launched = await context.read<IAPService>().buySubscription(
+      productId,
+      applicationUserName: auth?.uid,
+    );
 
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
@@ -247,7 +280,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
       void activateTestEntitlement() {
         if (productId == eco.removeAdsProductId ||
             productId == rc.removeAdsProductId ||
-            productId == AppConstants.removeAdsProductId) {
+            productId == AppConstants.removeAdsProductId ||
+            productId == AppConstants.legacyRemoveAdsProductId ||
+            productId == 'remove_ad_test' ||
+            productId == 'pixel_art_remove_ads') {
           settings.setRemoveAds(true);
         } else if (productId == eco.plus1DayProductId ||
             productId == rc.plus1DayProductId ||
@@ -325,7 +361,10 @@ class _PaywallScreenState extends State<PaywallScreen> {
       ),
     );
 
-    final launched = await context.read<IAPService>().buyPro();
+    final auth = context.read<AuthProvider?>();
+    final launched = await context.read<IAPService>().buyPro(
+      applicationUserName: auth?.uid,
+    );
     if (!launched && mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       final iapService = context.read<IAPService>();
@@ -429,9 +468,35 @@ class _PaywallScreenState extends State<PaywallScreen> {
   }
 
   void _onSettingsChanged() {
-    final isEntitled = (_settings?.isProUser ?? false) || (_settings?.isRemoveAds ?? false);
-    if (!_wasEntitled && isEntitled && mounted) {
-      Navigator.of(context).pop();
+    if (!mounted || _settings == null) return;
+    final isEntitled = _settings!.isProUser || _settings!.isRemoveAds;
+    final becamePro = !_prevProUser && _settings!.isProUser;
+    final becameRemoveAds = !_prevRemoveAds && _settings!.shouldRemoveAds;
+    final extendedPlus = _settings!.plusExpiryMs > _prevPlusExpiryMs;
+
+    if ((!_wasEntitled && isEntitled) || becamePro || becameRemoveAds || extendedPlus) {
+      HapticFeedback.mediumImpact();
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.stars_rounded, color: Color(0xFFFFD700)),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Subscription Activated! Welcome to VIP 👑',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 3),
+        ),
+      );
+      Navigator.of(context).maybePop();
     }
   }
 

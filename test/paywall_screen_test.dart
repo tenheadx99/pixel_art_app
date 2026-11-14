@@ -29,22 +29,29 @@ class FakeIAPService implements IAPService {
   Future<String?> getPrice(String productId) async => '\$4.99';
 
   @override
+  Map<String, ProductDetails> get cachedProductDetails => const {};
+
+  @override
   Future<List<ProductDetails>> getProductDetails(Set<String> productIds) async => [];
 
   @override
-  Future<bool> buyProduct(ProductDetails productDetails, {bool consumable = true}) async => false;
+  Future<bool> buyProduct(
+    ProductDetails productDetails, {
+    String? applicationUserName,
+    bool consumable = true,
+  }) async => false;
 
   @override
-  Future<bool> buyPro() async => false;
+  Future<bool> buyPro({String? applicationUserName}) async => false;
 
   @override
-  Future<bool> buySubscription(String productId) async => false;
+  Future<bool> buySubscription(String productId, {String? applicationUserName}) async => false;
 
   @override
-  Future<bool> buyConsumable(String productId) async => false;
+  Future<bool> buyConsumable(String productId, {String? applicationUserName}) async => false;
 
   @override
-  Future<bool> buyDiamondPack(String productId) async => false;
+  Future<bool> buyDiamondPack(String productId, {String? applicationUserName}) async => false;
 
   @override
   void dispose() {}

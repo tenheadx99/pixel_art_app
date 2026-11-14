@@ -384,7 +384,7 @@ class AppSettingsProvider extends ChangeNotifier {
 
   /// Extends the Plus entitlement to [days] from [purchaseTime].
   ///
-  /// For fresh purchases, [purchaseTime] defaults to now.
+  /// For fresh purchases, [purchaseTime] defaults to now, or extends from current expiry if already active.
   /// For restores, [isRestore] ensures that an expired historical subscription
   /// is not revived past its actual expiration.
   void extendPlusEntitlement(
@@ -392,9 +392,12 @@ class AppSettingsProvider extends ChangeNotifier {
     DateTime? purchaseTime,
     bool isRestore = false,
   }) {
-    final baseTime = purchaseTime ?? DateTime.now();
-    final until = baseTime.add(Duration(days: days)).millisecondsSinceEpoch;
     final nowMs = DateTime.now().millisecondsSinceEpoch;
+    // For fresh active purchases, stack days if already subscribed
+    final startFrom = (!isRestore && _plusExpiryMs > nowMs)
+        ? DateTime.fromMillisecondsSinceEpoch(_plusExpiryMs)
+        : (purchaseTime ?? DateTime.now());
+    final until = startFrom.add(Duration(days: days)).millisecondsSinceEpoch;
 
     // Do not restore subscriptions that have already expired in the past!
     if (isRestore && until <= nowMs) {
@@ -598,18 +601,23 @@ class AppSettingsProvider extends ChangeNotifier {
           } else if (isRestore) {
             AnalyticsService().logRestoreSuccess(productsRestored: 1);
           }
+          final rawId = purchase.productID.trim();
+          final cleanId = rawId.split(':').first.trim();
+          bool matches(Iterable<String> candidates) {
+            return candidates.any((c) => c.isNotEmpty && (c == rawId || c == cleanId));
+          }
+
           // Check dynamic Diamond Packs first
           final activePacks = EconomyConfigService().currentConfig.diamondPacks;
           DiamondPackConfig? matchedPack;
           for (final p in activePacks) {
-            if (p.productId == purchase.productID) {
+            if (p.productId == rawId || p.productId == cleanId) {
               matchedPack = p;
               break;
             }
           }
 
           final paywallConfig = EconomyConfigService().currentConfig.paywall;
-          final pId = purchase.productID;
           final rc = RemoteConfigService();
 
           if (matchedPack != null) {
@@ -637,41 +645,37 @@ class AppSettingsProvider extends ChangeNotifier {
                 );
               }
             }
-          } else if (pId == AppConstants.proProductId ||
-              pId == paywallConfig.lifetimeProductId) {
+          } else if (matches([AppConstants.proProductId, paywallConfig.lifetimeProductId])) {
             setProUser(true);
             AnalyticsService().setPlayerProperties(isPro: true);
-          } else if (pId == rc.removeAdsProductId ||
-              pId == AppConstants.removeAdsProductId ||
-              pId == paywallConfig.removeAdsProductId) {
+          } else if (matches([
+            rc.removeAdsProductId,
+            AppConstants.removeAdsProductId,
+            AppConstants.legacyRemoveAdsProductId,
+            paywallConfig.removeAdsProductId,
+            'remove_ad_test',
+            'pixel_art_remove_ads',
+          ])) {
             setRemoveAds(true);
-          } else if (pId == rc.plus1DayProductId ||
-              pId == AppConstants.plus1DayProductId ||
-              pId == paywallConfig.plus1DayProductId) {
+          } else if (matches([rc.plus1DayProductId, AppConstants.plus1DayProductId, paywallConfig.plus1DayProductId])) {
             extendPlusEntitlement(
               AppConstants.plus1DayEntitlementDays,
               purchaseTime: txDate,
               isRestore: isRestore,
             );
-          } else if (pId == rc.plusWeeklyProductId ||
-              pId == AppConstants.plusWeeklyProductId ||
-              pId == paywallConfig.plusWeeklyProductId) {
+          } else if (matches([rc.plusWeeklyProductId, AppConstants.plusWeeklyProductId, paywallConfig.plusWeeklyProductId])) {
             extendPlusEntitlement(
               AppConstants.plusWeeklyEntitlementDays,
               purchaseTime: txDate,
               isRestore: isRestore,
             );
-          } else if (pId == rc.plusMonthlyProductId ||
-              pId == AppConstants.plusMonthlyProductId ||
-              pId == paywallConfig.plusMonthlyProductId) {
+          } else if (matches([rc.plusMonthlyProductId, AppConstants.plusMonthlyProductId, paywallConfig.plusMonthlyProductId])) {
             extendPlusEntitlement(
               AppConstants.plusMonthlyEntitlementDays,
               purchaseTime: txDate,
               isRestore: isRestore,
             );
-          } else if (pId == rc.plusYearlyProductId ||
-              pId == AppConstants.plusYearlyProductId ||
-              pId == paywallConfig.plusYearlyProductId) {
+          } else if (matches([rc.plusYearlyProductId, AppConstants.plusYearlyProductId, paywallConfig.plusYearlyProductId])) {
             extendPlusEntitlement(
               AppConstants.plusYearlyEntitlementDays,
               purchaseTime: txDate,

@@ -8,6 +8,8 @@
     <!-- Required by Firebase, Remote Config, Google Mobile Ads and IAP.
          Declared explicitly rather than relying on plugin manifest merge. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Google Play In-App Purchases and Subscriptions billing permission -->
+    <uses-permission android:name="com.android.vending.BILLING"/>
     <!-- Haptic feedback on cell fills (Vibrator-backed impact haptics). -->
     <uses-permission android:name="android.permission.VIBRATE"/>
     <application

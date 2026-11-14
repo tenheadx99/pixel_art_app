@@ -77,7 +77,7 @@ class PixelArtCard extends StatelessWidget {
                       tag: 'art_canvas_${art.id}_$index',
                       child: RepaintBoundary(
                         child: FittedBox(
-                          fit: BoxFit.cover,
+                          fit: BoxFit.fill,
                           clipBehavior: Clip.hardEdge,
                           child: SizedBox(
                             width: art.gridWidth.toDouble(),

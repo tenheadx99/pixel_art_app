@@ -29,8 +29,6 @@ import '../../data/services/ad_service.dart';
 import '../../ui/theme/app_style.dart';
 import '../../ui/screens/coloring_screen.dart';
 import '../../ui/screens/part_selection_screen.dart';
-import '../../ui/screens/camera_screen.dart';
-import '../../ui/screens/gallery_screen.dart';
 import '../../ui/screens/paywall_screen.dart';
 import '../../ui/screens/profile_screen.dart';
 import '../../ui/screens/artwork_list_screen.dart';
@@ -1148,15 +1146,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             ],
                           ),
                         ),
-                        _HeaderIconButton(
-                          icon: Icons.photo_camera,
-                          onTap: () => _openCamera(context),
-                        ),
-                        const SizedBox(width: 8),
-                        _HeaderIconButton(
-                          icon: Icons.photo_library,
-                          onTap: () => _openGallery(context),
-                        ),
+                        _HeaderActionButtons(settings: settings),
                       ],
                     ),
                     const SizedBox(height: 10),
@@ -1925,20 +1915,6 @@ class _HomeScreenState extends State<HomeScreen> {
       // coloring; refresh them on return.
       if (context.mounted) context.read<GalleryProvider>().refresh();
     });
-  }
-
-  void _openCamera(BuildContext context) {
-    Navigator.push(
-      context,
-      fadeThroughRoute(const CameraScreen(), name: 'camera'),
-    );
-  }
-
-  void _openGallery(BuildContext context) {
-    Navigator.push(
-      context,
-      fadeThroughRoute(const GalleryScreen(), name: 'gallery'),
-    );
   }
 
   /// Lets the user watch a rewarded ad to try [art] for this session — both
@@ -3704,24 +3680,125 @@ class _ProBenefit extends StatelessWidget {
   }
 }
 
-class _HeaderIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
+class _HeaderActionButtons extends StatelessWidget {
+  final AppSettingsProvider settings;
 
-  const _HeaderIconButton({required this.icon, required this.onTap});
+  const _HeaderActionButtons({required this.settings});
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.white.withAlpha(30),
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Icon(icon, color: Colors.white, size: 22),
-      ),
+    final eco = EconomyConfigService().currentConfig.paywall;
+    final showNoAds = eco.showRemoveAdsPlan && !settings.shouldRemoveAds;
+    final showPro = eco.isVipSubscriptionEnabled && !settings.isProUser;
+
+    if (!showNoAds && !showPro) return const SizedBox.shrink();
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (showNoAds)
+          PressableScale(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                fadeThroughRoute(
+                  const PaywallScreen(
+                    source: 'home_header_no_ads',
+                    initialPlan: 'remove_ads',
+                  ),
+                  name: 'paywall_no_ads',
+                ),
+              );
+            },
+            scale: 0.95,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(28),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(
+                  color: Colors.white.withAlpha(45),
+                  width: 1,
+                ),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.block_rounded,
+                    color: Color(0xFFFF6B6B),
+                    size: 16,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'NO ADS',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (showNoAds && showPro) const SizedBox(width: 8),
+        if (showPro)
+          PressableScale(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                fadeThroughRoute(
+                  const PaywallScreen(
+                    source: 'home_header_pro',
+                    initialPlan: 'pro',
+                  ),
+                  name: 'paywall_pro',
+                ),
+              );
+            },
+            scale: 0.95,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFD700), Color(0xFFFF9D2E)],
+                ),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFFFFD700).withAlpha(100),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.workspace_premium_rounded,
+                    color: Colors.black87,
+                    size: 16,
+                  ),
+                  SizedBox(width: 4),
+                  Text(
+                    'PRO',
+                    style: TextStyle(
+                      color: Colors.black87,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

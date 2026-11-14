@@ -1,7 +1,24 @@
+import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:pixel_art_app/config/app_constants.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
+
+class _FakePurchaseDetails extends PurchaseDetails {
+  _FakePurchaseDetails({
+    required super.productID,
+    required super.status,
+    super.transactionDate,
+  }) : super(
+          verificationData: PurchaseVerificationData(
+            localVerificationData: 'local',
+            serverVerificationData: 'server',
+            source: 'google_play',
+          ),
+        );
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -56,6 +73,22 @@ void main() {
       expect(settings.isPlusActive, isTrue);
     });
 
+    test('Fresh subscription purchase stacks remaining days onto existing active subscription', () {
+      expect(settings.isPlusActive, isFalse);
+
+      // User buys 10 days
+      settings.extendPlusEntitlement(10);
+      final firstExpiry = settings.plusExpiryMs;
+      expect(settings.isPlusActive, isTrue);
+
+      // User buys another 30 days while active
+      settings.extendPlusEntitlement(30);
+      final secondExpiry = settings.plusExpiryMs;
+
+      // New expiry must be at least 30 days after the FIRST expiry (stacked)
+      expect(secondExpiry, greaterThanOrEqualTo(firstExpiry + const Duration(days: 29).inMilliseconds));
+    });
+
     test('membershipLabel and plusDaysRemaining return accurate status', () {
       expect(settings.membershipLabel, equals('Free'));
       expect(settings.plusDaysRemaining, equals(0));
@@ -87,6 +120,64 @@ void main() {
       expect(settings.isProUser, isFalse);
       expect(settings.isRemoveAds, isFalse);
       expect(settings.isPlusActive, isFalse);
+    });
+
+    test('listenToIAP handles subscription and SKU with offer details without crash', () async {
+      final controller = StreamController<List<PurchaseDetails>>.broadcast();
+      settings.listenToIAP(controller.stream);
+
+      // 1. Pending status: does NOT grant
+      controller.add([
+        _FakePurchaseDetails(
+          productID: 'pixel_art_plus_monthly',
+          status: PurchaseStatus.pending,
+        ),
+      ]);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(settings.isPlusActive, isFalse);
+
+      // 2. Purchased status with Google Play base-plan suffix (e.g. :monthly-base-plan)
+      controller.add([
+        _FakePurchaseDetails(
+          productID: 'pixel_art_plus_monthly:monthly-base-plan',
+          status: PurchaseStatus.purchased,
+          transactionDate: DateTime.now().millisecondsSinceEpoch.toString(),
+        ),
+      ]);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(settings.isPlusActive, isTrue);
+      expect(settings.membershipLabel, equals('Plus VIP'));
+
+      // 3. Lifetime pro purchase
+      controller.add([
+        _FakePurchaseDetails(
+          productID: AppConstants.proProductId,
+          status: PurchaseStatus.purchased,
+        ),
+      ]);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(settings.isProUser, isTrue);
+      expect(settings.isLifetimePro, isTrue);
+
+      // 4. Cancelled status: does not throw or crash
+      controller.add([
+        _FakePurchaseDetails(
+          productID: 'pixel_art_plus_yearly',
+          status: PurchaseStatus.canceled,
+        ),
+      ]);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // 5. Error status: does not throw or crash
+      controller.add([
+        _FakePurchaseDetails(
+          productID: 'pixel_art_plus_yearly',
+          status: PurchaseStatus.error,
+        ),
+      ]);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      await controller.close();
     });
   });
 }

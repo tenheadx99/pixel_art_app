@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:vibration/vibration.dart';
 import 'package:pixel_art_app/data/models/pixel_art.dart';
+import 'package:pixel_art_app/data/services/achievement_service.dart';
 import 'package:pixel_art_app/data/services/local_storage_service.dart';
 import 'package:pixel_art_app/data/services/analytics_service.dart';
 import 'package:pixel_art_app/config/app_config.dart';
@@ -1477,12 +1478,30 @@ class ColoringProvider extends ChangeNotifier {
     if (_consecutiveFills >= 10) _addAchievement('streak_10');
     if (_consecutiveFills >= 25) _addAchievement('streak_25');
     if (_totalEraseCount >= 10) _addAchievement('eraser_10');
+
+    // Also evaluate dynamic achievements configured via Admin panel
+    final dynamicItems = AchievementService().achievements;
+    for (final item in dynamicItems) {
+      if (_achievements.contains(item.id)) continue;
+      bool qualifies = false;
+      if (item.metricType == 'single_session_fills' && _totalFillCount >= item.targetValue) {
+        qualifies = true;
+      } else if (item.metricType == 'combo_streak' && _consecutiveFills >= item.targetValue) {
+        qualifies = true;
+      } else if (item.metricType == 'erasers_used' && _totalEraseCount >= item.targetValue) {
+        qualifies = true;
+      }
+      if (qualifies) {
+        _addAchievement(item.id);
+      }
+    }
   }
 
   void _addAchievement(String id) {
     if (_achievements.contains(id)) return;
     _achievements.add(id);
     _lastUnlockedAchievement = id;
+    AchievementService().unlock(id);
     // Persist just the achievement set now (cheap); the full progress save
     // rides the debounce so an unlock never hitches mid-stroke.
     _storageService.setString(_achieveKey, _achievements.join(','));

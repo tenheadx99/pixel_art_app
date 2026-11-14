@@ -23,6 +23,7 @@ import 'data/services/daily_pixel_service.dart';
 import 'data/services/sound_service.dart';
 import 'data/services/notification_service.dart';
 import 'data/services/deep_link_service.dart';
+import 'data/services/achievement_service.dart';
 import 'data/services/app_config_service.dart';
 import 'data/services/social_links_service.dart';
 import 'data/services/analytics_service.dart';
@@ -237,6 +238,7 @@ class _AppBootstrapState extends State<AppBootstrap>
         EconomyConfigService().initialize(),
         AppConfigService().initialize(),
         SocialLinksService().initialize(storage: localStorageService),
+        AchievementService().initialize(),
       ]).timeout(const Duration(seconds: 5));
     } catch (e) {
       // Remote Config/PackageInfo are non-critical; continue with defaults.

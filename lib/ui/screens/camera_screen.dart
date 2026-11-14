@@ -12,18 +12,46 @@ import '../../ui/widgets/art_preview_painter.dart';
 import '../../l10n/app_localizations.dart';
 
 class CameraScreen extends StatelessWidget {
-  const CameraScreen({super.key});
+  final ImageSource? initialSource;
+  const CameraScreen({super.key, this.initialSource});
+
+  static Future<void> showBlankCanvasDialog(BuildContext context) {
+    return _CameraScreenBodyState.showBlankCanvasDialogStatic(context);
+  }
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
       create: (_) => CameraProvider(),
-      child: _CameraScreenBody(),
+      child: _CameraScreenBody(initialSource: initialSource),
     );
   }
 }
 
-class _CameraScreenBody extends StatelessWidget {
+class _CameraScreenBody extends StatefulWidget {
+  final ImageSource? initialSource;
+  const _CameraScreenBody({this.initialSource});
+
+  @override
+  State<_CameraScreenBody> createState() => _CameraScreenBodyState();
+}
+
+class _CameraScreenBodyState extends State<_CameraScreenBody> {
+  bool _initialPickDone = false;
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialSource != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_initialPickDone) {
+          _initialPickDone = true;
+          _pickImage(context, context.read<CameraProvider>(), widget.initialSource!);
+        }
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Consumer<CameraProvider>(
@@ -554,11 +582,15 @@ class _CameraScreenBody extends StatelessWidget {
   }
 
   void _showBlankCanvasDialog(BuildContext context, CameraProvider camera) {
+    showBlankCanvasDialogStatic(context);
+  }
+
+  static Future<void> showBlankCanvasDialogStatic(BuildContext context) async {
     int selectedSize = 24;
     String selectedStyle = 'retro';
     final nameController = TextEditingController(text: 'My Creation');
 
-    showDialog(
+    await showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlgState) => AlertDialog(

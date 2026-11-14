@@ -79,9 +79,11 @@ class SettingsScreen extends StatelessWidget {
               _buildAccountCard(context, isDark, flavor, auth),
               const SizedBox(height: 16),
 
-              // Membership & VIP Status Card
-              _buildMembershipCard(context, isDark, settings, flavor),
-              const SizedBox(height: 20),
+              // Membership & VIP Status Card (Active VIP/Pro members only; Upgrade to VIP card moved to Profile Screen)
+              if (settings.isProUser) ...[
+                _buildMembershipCard(context, isDark, settings, flavor),
+                const SizedBox(height: 20),
+              ],
 
               // Section 1: Appearance & Display
               _buildSectionHeader('DISPLAY & APPEARANCE', isDark, flavor.primary),
@@ -781,15 +783,19 @@ class SettingsScreen extends StatelessWidget {
                     children: [
                       const Icon(Icons.grid_view_rounded, color: Colors.white, size: 17),
                       const SizedBox(width: 8),
-                      const Text(
-                        'Browse All Coloring & Puzzle Games',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12.5,
-                          fontWeight: FontWeight.w700,
+                      const Expanded(
+                        child: Text(
+                          'Browse All Coloring & Puzzle Games',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.all(4),
                         decoration: const BoxDecoration(
@@ -1360,88 +1366,8 @@ class SettingsScreen extends StatelessWidget {
         ),
       );
     } else {
-      // Free User - Upsell Card
-      return Container(
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF6C5CE7), Color(0xFF8E44AD)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: const Color(0xFF6C5CE7).withAlpha(60),
-              blurRadius: 14,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: Colors.white.withAlpha(40),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.workspace_premium_rounded,
-                color: Colors.white,
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: const [
-                  Text(
-                    'Upgrade to VIP Pass',
-                    style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: FontWeight.w900,
-                      color: Colors.white,
-                    ),
-                  ),
-                  SizedBox(height: 2),
-                  Text(
-                    'Unlock all artworks, 64x64 grids & zero ads',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.white70,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  fadeThroughRoute(
-                    const PaywallScreen(source: 'settings_upsell'),
-                  ),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFFFD700),
-                foregroundColor: Colors.black87,
-                elevation: 0,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              ),
-              child: const Text(
-                'View Plans',
-                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
-              ),
-            ),
-          ],
-        ),
-      );
+      // Free User - 'Upgrade to VIP Pass' card is placed in Profile Screen per configuration
+      return const SizedBox.shrink();
     }
   }
 

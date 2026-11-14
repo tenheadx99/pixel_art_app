@@ -85,7 +85,8 @@ class AppConstants {
   static const String plusYearlyProductId = 'pixel_art_plus_yearly';
 
   // Standalone Remove Ads Product (One-time non-consumable purchase)
-  static const String removeAdsProductId = 'pixel_art_remove_ads';
+  static const String removeAdsProductId = 'remove_ad_test';
+  static const String legacyRemoveAdsProductId = 'pixel_art_remove_ads';
   static const String removeAdsPrefKey = 'is_remove_ads';
 
   // Entitlement is a local expiry stamp refreshed by purchase/restore events

@@ -20,9 +20,13 @@ import '../widgets/entrance.dart';
 import '../widgets/pressable.dart';
 import '../widgets/rolling_count.dart';
 import '../widgets/transitions.dart';
+import 'package:image_picker/image_picker.dart';
+import 'camera_screen.dart';
 import 'gallery_screen.dart';
 import 'paywall_screen.dart';
 import 'settings_screen.dart';
+import '../../data/models/achievement_config.dart';
+import '../../data/services/achievement_service.dart';
 
 /// Achievement meta description, lore, and rewards.
 class _AchievementMeta {
@@ -35,6 +39,9 @@ class _AchievementMeta {
   final IconData icon;
   final List<Color> gradient;
   final Color shadowColor;
+  final String metricType;
+  final int targetValue;
+  final String category;
 
   const _AchievementMeta({
     required this.id,
@@ -46,7 +53,27 @@ class _AchievementMeta {
     required this.icon,
     required this.gradient,
     required this.shadowColor,
+    this.metricType = 'completed_arts',
+    this.targetValue = 1,
+    this.category = 'milestones',
   });
+
+  factory _AchievementMeta.fromItem(AchievementItem item) {
+    return _AchievementMeta(
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      howToUnlock: item.howToUnlock,
+      diamondsReward: item.diamondsReward,
+      xpReward: item.xpReward,
+      icon: item.iconData,
+      gradient: [item.color, item.color.withAlpha(180)],
+      shadowColor: item.color,
+      metricType: item.metricType,
+      targetValue: item.targetValue,
+      category: item.category,
+    );
+  }
 }
 
 /// Upgraded Player Profile screen:
@@ -63,6 +90,7 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _confettiController;
+  String _selectedAchievementCategory = 'all';
 
   static const Map<String, _AchievementMeta> _achievementsData = {
     'complete_first': _AchievementMeta(
@@ -152,15 +180,21 @@ class _ProfileScreenState extends State<ProfileScreen>
       duration: const Duration(milliseconds: 1400),
     );
     EconomyConfigService().addListener(_onEconomyConfigChanged);
+    AchievementService().addListener(_onAchievementsChanged);
   }
 
   void _onEconomyConfigChanged() {
     if (mounted) setState(() {});
   }
 
+  void _onAchievementsChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void dispose() {
     EconomyConfigService().removeListener(_onEconomyConfigChanged);
+    AchievementService().removeListener(_onAchievementsChanged);
     _confettiController.dispose();
     super.dispose();
   }
@@ -185,9 +219,33 @@ class _ProfileScreenState extends State<ProfileScreen>
     final settings = context.watch<AppSettingsProvider>();
     final gallery = context.watch<GalleryProvider>();
     final storage = context.read<LocalStorageService>();
-    final auth = context.watch<AuthProvider>();
+    final auth = context.watch<AuthProvider?>();
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final flavor = FlavorConfig.current;
+
+    final achieveService = AchievementService();
+
+    // Auto-evaluate historical milestones on load so existing players get retroactive credit
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      achieveService.evaluateStats(
+        completedArts: gallery.completedIds.length,
+        dailyStreak: gallery.dailyStreak,
+        playerLevel: settings.playerLevel,
+        bombsUsed: storage.getInt('bombs_used_count', defaultValue: 0),
+        wandsUsed: storage.getInt('wands_used_count', defaultValue: 0),
+        customArtsCreated: storage.getInt('custom_arts_created_count', defaultValue: 0),
+      );
+    });
+
+    final allDynamicItems = achieveService.achievements;
+    final List<_AchievementMeta> allMetas = allDynamicItems.isNotEmpty
+        ? allDynamicItems.map((item) => _AchievementMeta.fromItem(item)).toList()
+        : _achievementsData.values.toList();
+
+    final filteredMetas = _selectedAchievementCategory == 'all'
+        ? allMetas
+        : allMetas.where((m) => m.category == _selectedAchievementCategory).toList();
 
     final earned = storage
         .getString(ColoringProvider.achievementsStorageKey)
@@ -195,8 +253,8 @@ class _ProfileScreenState extends State<ProfileScreen>
         .where((e) => e.isNotEmpty)
         .toSet();
 
-    final totalAchievements = ColoringProvider.achievementCatalog.length;
-    final earnedCount = earned.length;
+    final totalAchievements = allMetas.length;
+    final earnedCount = allMetas.where((m) => earned.contains(m.id)).length;
     final progressFraction = totalAchievements > 0
         ? (earnedCount / totalAchievements).clamp(0.0, 1.0)
         : 0.0;
@@ -331,7 +389,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                 ),
               ),
 
-              if (!auth.isAuthenticated) ...[
+              if (auth == null || !auth.isAuthenticated) ...[
                 const SizedBox(height: 12),
                 StaggeredEntrance(
                   slot: 1,
@@ -344,6 +402,14 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ),
               ],
+
+              // Upgrade to VIP Pass Banner (shown only if enabled by admin and user is not VIP)
+              _buildUpgradeVipPassCard(context, isDark, settings),
+
+              const SizedBox(height: 14),
+
+              // Studio Section: Draw Canvas & My Gallery Cards
+              _buildStudioSection(context, isDark, gallery),
 
               const SizedBox(height: 14),
 
@@ -725,6 +791,38 @@ class _ProfileScreenState extends State<ProfileScreen>
 
               const SizedBox(height: 16),
 
+              // Category Filter Chips
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    _buildCategoryFilterChip(
+                      label: 'All',
+                      isSelected: _selectedAchievementCategory == 'all',
+                      onSelected: () => setState(() => _selectedAchievementCategory = 'all'),
+                      isDark: isDark,
+                    ),
+                    const SizedBox(width: 8),
+                    ...AchievementCategory.values.map((cat) {
+                      final count = allMetas.where((m) => m.category == cat.id).length;
+                      if (count == 0) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: _buildCategoryFilterChip(
+                          label: cat.label,
+                          icon: cat.icon,
+                          isSelected: _selectedAchievementCategory == cat.id,
+                          onSelected: () => setState(() => _selectedAchievementCategory = cat.id),
+                          isDark: isDark,
+                        ),
+                      );
+                    }),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
               // Achievement Badges Grid
               GridView.count(
                 crossAxisCount: 3,
@@ -733,24 +831,9 @@ class _ProfileScreenState extends State<ProfileScreen>
                 mainAxisSpacing: 14,
                 crossAxisSpacing: 12,
                 childAspectRatio: 0.78,
-                children: ColoringProvider.achievementCatalog.entries
-                    .toList()
-                    .indexed
-                    .map((entry) {
-                  final (i, e) = entry;
-                  final isEarned = earned.contains(e.key);
-                  final meta = _achievementsData[e.key] ??
-                      _AchievementMeta(
-                        id: e.key,
-                        title: e.value,
-                        description: 'Special milestone for dedicated artists.',
-                        howToUnlock: 'Keep coloring to unlock.',
-                        diamondsReward: 25,
-                        xpReward: 75,
-                        icon: Icons.emoji_events_rounded,
-                        gradient: [const Color(0xFFFFD24C), const Color(0xFFFF9D2E)],
-                        shadowColor: const Color(0xFFFF9D2E),
-                      );
+                children: filteredMetas.indexed.map((entry) {
+                  final (i, meta) = entry;
+                  final isEarned = earned.contains(meta.id);
 
                   return StaggeredEntrance(
                     slot: 9 + i,
@@ -777,6 +860,540 @@ class _ProfileScreenState extends State<ProfileScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildUpgradeVipPassCard(BuildContext context, bool isDark, AppSettingsProvider settings) {
+    final eco = EconomyConfigService().currentConfig.paywall;
+    final showVipPass = eco.isVipSubscriptionEnabled && !settings.isProUser;
+
+    if (!showVipPass) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 14),
+      child: PressableScale(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          Navigator.push(
+            context,
+            fadeThroughRoute(
+              const PaywallScreen(source: 'profile_vip_upsell'),
+              name: 'paywall',
+            ),
+          );
+        },
+        scale: 0.98,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF6C5CE7), Color(0xFF8E44AD)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: [
+              BoxShadow(
+                color: const Color(0xFF6C5CE7).withAlpha(isDark ? 90 : 60),
+                blurRadius: 14,
+                offset: const Offset(0, 4),
+              ),
+            ],
+            border: Border.all(
+              color: Colors.white.withAlpha(50),
+              width: 1.2,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white.withAlpha(35),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.workspace_premium_rounded,
+                  color: Color(0xFFFFD700),
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Upgrade to VIP Pass',
+                      style: TextStyle(
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w900,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Unlock all artworks, 64x64 grids & zero ads',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.white70,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFD700),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(25),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Text(
+                  'View Plans',
+                  style: TextStyle(
+                    color: Colors.black87,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 12.5,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStudioSection(BuildContext context, bool isDark, GalleryProvider gallery) {
+    return Row(
+      children: [
+        // 1. Draw Canvas Card
+        Expanded(
+          child: PressableScale(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              _showDrawCanvasModal(context);
+            },
+            scale: 0.97,
+            child: Container(
+              height: 116,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF2C1958), const Color(0xFF1E103D)]
+                      : [const Color(0xFF6C5CE7), const Color(0xFF5344C8)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF9D4EDD).withAlpha(90) : Colors.white.withAlpha(60),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF6C5CE7).withAlpha(isDark ? 80 : 45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(35),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.draw_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'STUDIO ✨',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Draw Canvas',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      SizedBox(height: 1),
+                      Text(
+                        'Create or convert',
+                        style: TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+
+        // 2. My Gallery Card
+        Expanded(
+          child: PressableScale(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              Navigator.push(
+                context,
+                fadeThroughRoute(const GalleryScreen(), name: 'gallery'),
+              );
+            },
+            scale: 0.97,
+            child: Container(
+              height: 116,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: isDark
+                      ? [const Color(0xFF0F3B37), const Color(0xFF0A2624)]
+                      : [const Color(0xFF00B894), const Color(0xFF009879)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isDark ? const Color(0xFF00CEC9).withAlpha(80) : Colors.white.withAlpha(60),
+                  width: 1.2,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF00B894).withAlpha(isDark ? 80 : 45),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(35),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.photo_library_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withAlpha(30),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Text(
+                          'SAVED 🎨',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'My Gallery',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.2,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        '${gallery.completedIds.length} completed',
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showDrawCanvasModal(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (ctx) => Container(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF1B1B2C) : Colors.white,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(isDark ? 100 : 30),
+              blurRadius: 20,
+              offset: const Offset(0, -4),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Drag handle
+            Center(
+              child: Container(
+                width: 44,
+                height: 4.5,
+                decoration: BoxDecoration(
+                  color: isDark ? Colors.white24 : Colors.black12,
+                  borderRadius: BorderRadius.circular(3),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Header
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [Color(0xFF6C5CE7), Color(0xFF8E44AD)],
+                    ),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.draw_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Draw Canvas Studio',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Choose how to start your pixel art creation',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark ? Colors.white60 : Colors.black54,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
+
+            // Option 1: Create your own
+            _buildDrawOptionTile(
+              context: context,
+              isDark: isDark,
+              icon: Icons.brush_rounded,
+              gradient: const [Color(0xFF8A2387), Color(0xFFE94057)],
+              title: 'Create Your Own',
+              subtitle: 'Blank canvas with custom grid sizes & 8-bit retro palettes',
+              onTap: () {
+                Navigator.pop(ctx);
+                CameraScreen.showBlankCanvasDialog(context);
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Option 2: Camera
+            _buildDrawOptionTile(
+              context: context,
+              isDark: isDark,
+              icon: Icons.photo_camera_rounded,
+              gradient: const [Color(0xFFFF9900), Color(0xFFFF5E62)],
+              title: 'Take with Camera',
+              subtitle: 'Snap a live photo and convert into a pixel art puzzle',
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  fadeThroughRoute(
+                    const CameraScreen(initialSource: ImageSource.camera),
+                    name: 'camera',
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+
+            // Option 3: From Gallery
+            _buildDrawOptionTile(
+              context: context,
+              isDark: isDark,
+              icon: Icons.photo_library_rounded,
+              gradient: const [Color(0xFF00C6FF), Color(0xFF0072FF)],
+              title: 'Choose from Gallery',
+              subtitle: 'Import any photo from your phone gallery to pixelate',
+              onTap: () {
+                Navigator.pop(ctx);
+                Navigator.push(
+                  context,
+                  fadeThroughRoute(
+                    const CameraScreen(initialSource: ImageSource.gallery),
+                    name: 'camera_gallery',
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawOptionTile({
+    required BuildContext context,
+    required bool isDark,
+    required IconData icon,
+    required List<Color> gradient,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return PressableScale(
+      onTap: () {
+        HapticFeedback.lightImpact();
+        onTap();
+      },
+      scale: 0.98,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF242438) : const Color(0xFFF7F8FC),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(
+            color: isDark ? Colors.white.withAlpha(16) : Colors.black.withAlpha(10),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                gradient: LinearGradient(colors: gradient),
+                borderRadius: BorderRadius.circular(14),
+                boxShadow: [
+                  BoxShadow(
+                    color: gradient.first.withAlpha(80),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
+              child: Icon(icon, color: Colors.white, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: isDark ? Colors.white : const Color(0xFF1E1E2D),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      color: isDark ? Colors.white60 : Colors.black54,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: isDark ? Colors.white38 : Colors.black26,
+              size: 20,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1855,6 +2472,71 @@ class _ProfileScreenState extends State<ProfileScreen>
                         ),
                       ],
                     ),
+                    if (!earned) ...[
+                      const SizedBox(height: 12),
+                      Builder(builder: (context) {
+                        final gallery = context.read<GalleryProvider>();
+                        final settings = context.read<AppSettingsProvider>();
+                        final storage = context.read<LocalStorageService>();
+                        final achieveService = AchievementService();
+                        final item = achieveService.achievements.firstWhere(
+                          (a) => a.id == meta.id,
+                          orElse: () => AchievementItem(
+                            id: meta.id,
+                            title: meta.title,
+                            description: meta.description,
+                            howToUnlock: meta.howToUnlock,
+                            metricType: meta.metricType,
+                            targetValue: meta.targetValue,
+                          ),
+                        );
+                        final p = achieveService.getProgressForItem(
+                          item,
+                          completedArts: gallery.completedIds.length,
+                          dailyStreak: gallery.dailyStreak,
+                          playerLevel: settings.playerLevel,
+                          bombsUsed: storage.getInt('bombs_used_count', defaultValue: 0),
+                          wandsUsed: storage.getInt('wands_used_count', defaultValue: 0),
+                          customArtsCreated: storage.getInt('custom_arts_created_count', defaultValue: 0),
+                        );
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Progress: ${p.current} / ${p.target}',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                    color: isDark ? Colors.white70 : Colors.black87,
+                                  ),
+                                ),
+                                Text(
+                                  '${(p.progress * 100).toInt()}%',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppStyle.primary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: LinearProgressIndicator(
+                                value: p.progress,
+                                minHeight: 6,
+                                backgroundColor: isDark ? Colors.white12 : Colors.black12,
+                                valueColor: AlwaysStoppedAnimation(AppStyle.primary),
+                              ),
+                            ),
+                          ],
+                        );
+                      }),
+                    ],
                   ],
                 ),
               ),
@@ -1920,6 +2602,58 @@ class _ProfileScreenState extends State<ProfileScreen>
           ),
         );
       },
+    );
+  }
+
+  Widget _buildCategoryFilterChip({
+    required String label,
+    IconData? icon,
+    required bool isSelected,
+    required VoidCallback onSelected,
+    required bool isDark,
+  }) {
+    return PressableScale(
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onSelected();
+      },
+      scale: 0.95,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? AppStyle.primary
+              : (isDark ? Colors.white.withAlpha(12) : Colors.black.withAlpha(8)),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? AppStyle.primary
+                : (isDark ? Colors.white12 : Colors.black12),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(
+                icon,
+                size: 14,
+                color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+              ),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                color: isSelected ? Colors.white : (isDark ? Colors.white70 : Colors.black87),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

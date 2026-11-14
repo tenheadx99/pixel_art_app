@@ -9,6 +9,7 @@ import 'package:pixel_art_app/data/models/economy_config.dart';
 import 'package:pixel_art_app/data/services/economy_config_service.dart';
 import 'package:pixel_art_app/data/services/iap_service.dart';
 import 'package:pixel_art_app/providers/app_settings_provider.dart';
+import 'package:pixel_art_app/providers/auth_provider.dart';
 import 'package:pixel_art_app/providers/coloring_provider.dart';
 import 'package:pixel_art_app/ui/widgets/number_toolbar.dart';
 import 'purchase_auth_gate.dart';
@@ -210,10 +211,20 @@ class _DiamondShopSheetState extends State<DiamondShopSheet>
     final storeProduct = _storeProducts[pack.productId];
     bool launched = false;
 
+    final auth = context.read<AuthProvider?>();
+    final uid = auth?.uid;
+
     if (storeProduct != null) {
-      launched = await IAPService().buyProduct(storeProduct, consumable: true);
+      launched = await IAPService().buyProduct(
+        storeProduct,
+        consumable: true,
+        applicationUserName: uid,
+      );
     } else {
-      launched = await IAPService().buyDiamondPack(pack.productId);
+      launched = await IAPService().buyDiamondPack(
+        pack.productId,
+        applicationUserName: uid,
+      );
     }
 
     if (launched) {
