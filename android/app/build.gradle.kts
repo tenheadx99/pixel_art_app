@@ -98,8 +98,8 @@ android {
         create("original") {
             dimension = "app"
             applicationId = "com.tenhead.pixelyart"
-            versionCode = 28
-            versionName = "2.1.6"
+            versionCode = 29
+            versionName = "2.2.0"
             resValue("string", "app_name", "Pixely")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6638258557"
@@ -108,8 +108,8 @@ android {
         create("devotional") {
             dimension = "app"
             applicationId = "com.tenhead.divinepixels"
-            versionCode = 13
-            versionName = "1.2.3"
+            versionCode = 14
+            versionName = "1.3.0"
             resValue("string", "app_name", "Bhakti Rang: Color by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~3225607674"
@@ -118,8 +118,8 @@ android {
         create("anime") {
             dimension = "app"
             applicationId = "com.tenhead.animepixels"
-            versionCode = 13
-            versionName = "1.3.4"
+            versionCode = 14
+            versionName = "1.4.0"
             resValue("string", "app_name", "Anime Pixels")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~9417209994"
@@ -128,10 +128,9 @@ android {
         create("pixelcalm") {
             dimension = "app"
             applicationId = "com.tenhead.pixelcalm"
-            versionCode = 23
-            versionName = "2.4.2"
+            versionCode = 24
+            versionName = "2.5.0"
             resValue("string", "app_name", "PixelCalm")
-            // TODO: register com.tenhead.pixelcalm in AdMob, put its app ID here.
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~8454188516"
         }
@@ -139,8 +138,8 @@ android {
         create("diamond") {
             dimension = "app"
             applicationId = "com.tenhead.gemart"
-            versionCode = 26
-            versionName = "2.5.4"
+            versionCode = 27
+            versionName = "2.6.0"
             resValue("string", "app_name", "Gem Art")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~7951340229"
@@ -149,8 +148,8 @@ android {
         create("bible") {
             dimension = "app"
             applicationId = "com.tenhead.bible"
-            versionCode = 26
-            versionName = "1.6.2"
+            versionCode = 27
+            versionName = "1.7.0"
             resValue("string", "app_name", "Daily Bible")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~1329082397"
@@ -159,8 +158,8 @@ android {
         create("crossStitch") {
             dimension = "app"
             applicationId = "com.tenhead.craftcolor"
-            versionCode = 6
-            versionName = "1.7.3"
+            versionCode = 7
+            versionName = "1.8.0"
             resValue("string", "app_name", "Cross Stitch")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~3461430873"

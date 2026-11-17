@@ -187,4 +187,32 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
     expect(settings.isProUser, isFalse);
   });
+
+  testWidgets('PaywallScreen initializes and rebuilds cleanly with various initialPlan values without LateInitializationError', (tester) async {
+    tester.view.physicalSize = const Size(800, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() => tester.view.resetPhysicalSize());
+
+    for (final plan in ['monthly', 'weekly', '1day', 'remove_ads', null]) {
+      final widget = MultiProvider(
+        providers: [
+          Provider<LocalStorageService>.value(value: storage),
+          ChangeNotifierProvider<AppSettingsProvider>.value(value: settings),
+          Provider<SoundService>.value(value: SoundService()),
+          Provider<IAPService>.value(value: fakeIap),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: PaywallScreen(source: 'test', initialPlan: plan),
+        ),
+      );
+      await tester.pumpWidget(widget);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.takeException(), isNull);
+      expect(find.byType(PaywallScreen), findsOneWidget);
+    }
+  });
 }

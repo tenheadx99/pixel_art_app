@@ -4,7 +4,6 @@ import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:sensors_plus/sensors_plus.dart';
 import 'package:provider/provider.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -59,7 +58,7 @@ class ColoringScreen extends StatefulWidget {
 }
 
 class _ColoringScreenState extends State<ColoringScreen>
-    with TickerProviderStateMixin, WidgetsBindingObserver {
+    with TickerProviderStateMixin {
   double _cellSize = AppConfig.defaultCellSize;
   final TransformationController _transformController =
       TransformationController();
@@ -127,9 +126,6 @@ class _ColoringScreenState extends State<ColoringScreen>
   final ValueNotifier<({Offset position, int row, int col})?> _loupeNotifier =
       ValueNotifier(null);
   final ValueNotifier<Offset> _tiltNotifier = ValueNotifier<Offset>(Offset.zero);
-  StreamSubscription<AccelerometerEvent>? _accelerometerSubscription;
-  double _smoothTiltX = 0.0;
-  double _smoothTiltY = 0.0;
   final DateTime _sessionStart = DateTime.now();
   int? _lastSelectedNumber;
   Timer? _autoMoveTimer;
@@ -163,19 +159,6 @@ class _ColoringScreenState extends State<ColoringScreen>
   }
 
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    // The tilt stream has no visible effect while the app is backgrounded;
-    // pausing it stops sensor wakeups (and the repaints they schedule).
-    if (state == AppLifecycleState.resumed) {
-      if (_accelerometerSubscription?.isPaused ?? false) {
-        _accelerometerSubscription?.resume();
-      }
-    } else if (!(_accelerometerSubscription?.isPaused ?? true)) {
-      _accelerometerSubscription?.pause();
-    }
-  }
-
-  @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     _adjustCellSize();
@@ -184,35 +167,6 @@ class _ColoringScreenState extends State<ColoringScreen>
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    // Tilt only drives the gem/diamond and cross-stitch flavor's specular
-    // highlight / thread shading. On flat flavors the sensor stream would
-    // repaint the whole grid for no visible change, so only subscribe when a
-    // shader-driven flavor is active.
-    if (FlavorConfig.current.cellStyle == CellRenderStyle.gem ||
-        FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch) {
-      try {
-        _accelerometerSubscription = accelerometerEventStream(
-          samplingPeriod: SensorInterval.uiInterval,
-        ).listen((AccelerometerEvent event) {
-          if (!mounted) return;
-          final normX = (event.x / 9.8).clamp(-1.0, 1.0);
-          final normY = (event.y / 9.8).clamp(-1.0, 1.0);
-          _smoothTiltX = _smoothTiltX * 0.8 + normX * 0.2;
-          _smoothTiltY = _smoothTiltY * 0.8 + normY * 0.2;
-          // Dead-zone: don't publish sub-perceptual jitter, so a grid held
-          // still stops repainting instead of chasing sensor noise every tick.
-          final prev = _tiltNotifier.value;
-          if ((_smoothTiltX - prev.dx).abs() < 0.01 &&
-              (_smoothTiltY - prev.dy).abs() < 0.01) {
-            return;
-          }
-          _tiltNotifier.value = Offset(_smoothTiltX, _smoothTiltY);
-        });
-      } catch (e) {
-        debugPrint('Accelerometer sensors not supported: $e');
-      }
-    }
     _confettiController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 3),
@@ -773,10 +727,8 @@ class _ColoringScreenState extends State<ColoringScreen>
     _growController.dispose();
     _canvasPanNotifier.dispose();
     _loupeNotifier.dispose();
-    _accelerometerSubscription?.cancel();
     _tiltNotifier.dispose();
     _MiniMapPainter.releaseCache();
-    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 

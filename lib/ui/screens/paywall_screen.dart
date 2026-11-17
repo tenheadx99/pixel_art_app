@@ -70,7 +70,24 @@ class _PaywallScreenState extends State<PaywallScreen> {
     } else {
       _selectedPlan = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
     }
-    _pageController = PageController(viewportFraction: 0.84, initialPage: 0);
+
+    final id1Day = eco.plus1DayProductId.isNotEmpty ? eco.plus1DayProductId : rc.plus1DayProductId;
+    final idWeekly = eco.plusWeeklyProductId.isNotEmpty ? eco.plusWeeklyProductId : rc.plusWeeklyProductId;
+    final idMonthly = eco.plusMonthlyProductId.isNotEmpty ? eco.plusMonthlyProductId : rc.plusMonthlyProductId;
+    final idYearly = eco.plusYearlyProductId.isNotEmpty ? eco.plusYearlyProductId : rc.plusYearlyProductId;
+    final idRemoveAds = eco.removeAdsProductId.isNotEmpty ? eco.removeAdsProductId : rc.removeAdsProductId;
+
+    final allPlanIds = [
+      if (eco.showYearlyPlan) idYearly,
+      if (eco.showWeeklyPlan) idWeekly,
+      if (eco.showMonthlyPlan) idMonthly,
+      if (eco.show1DayPlan) id1Day,
+      if (eco.showRemoveAdsPlan) idRemoveAds,
+    ];
+    final activeIds = allPlanIds.isNotEmpty ? allPlanIds : [idYearly];
+    final initialIdx = activeIds.indexOf(_selectedPlan);
+    _currentPageIndex = initialIdx != -1 ? initialIdx : 0;
+    _pageController = PageController(viewportFraction: 0.84, initialPage: _currentPageIndex);
     EconomyConfigService().addListener(_onEconomyChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _loadPrices();
@@ -718,9 +735,8 @@ class _PaywallScreenState extends State<PaywallScreen> {
       _currentPageIndex = 0;
     } else {
       final idx = plans.indexWhere((p) => p.id == _selectedPlan);
-      if (idx != -1 && idx != _currentPageIndex && !_pageController.hasClients) {
+      if (idx != -1) {
         _currentPageIndex = idx;
-        _pageController = PageController(viewportFraction: 0.84, initialPage: idx);
       }
     }
 
