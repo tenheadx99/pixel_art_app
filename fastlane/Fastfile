@@ -193,6 +193,19 @@ platform :android do
     UI.success("Successfully uploaded #{flavor} build to Google Play production!")
   end
 
+  desc "Upload all production flavor builds to Google Play production (skip metadata and screenshots)"
+  lane :upload_only_all do |options|
+    rebuild = options[:rebuild] == true || options[:rebuild] == "true"
+    production_flavors = ["original", "crossStitch", "diamond", "anime", "pixelcalm", "devotional", "bible"]
+    production_flavors.each do |flv|
+      UI.message("##################################################")
+      UI.message("Starting production upload for flavor: #{flv}")
+      UI.message("##################################################")
+      upload_only(flavor: flv, rebuild: rebuild)
+    end
+    UI.success("All 7 production flavor builds successfully uploaded to Google Play production!")
+  end
+
   desc "Full deploy to production: build + upload + content rating"
   lane :deploy_all do
     # Validates and uploads everything
