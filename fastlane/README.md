@@ -71,6 +71,14 @@ Deploy to production: build + upload bundle + update listing & screenshots
 
 Upload build to production only (skip metadata and screenshots)
 
+### android upload_only_all
+
+```sh
+[bundle exec] fastlane android upload_only_all
+```
+
+Upload all production flavor builds to Google Play production (skip metadata and screenshots)
+
 ### android deploy_all
 
 ```sh
