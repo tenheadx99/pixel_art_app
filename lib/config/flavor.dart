@@ -151,7 +151,7 @@ class FlavorConfig {
     required this.accent,
     required this.brandGradient,
     required this.manifestPath,
-    this.adsEnabled = true,
+    this.adsEnabled = false,
     this.iapEnabled = true,
     this.fullScreenAdsEnabled = true,
     this.bannerAdsEnabled = true,
