@@ -490,7 +490,15 @@ class _FillEffectsPainter extends CustomPainter {
     _FillEffect e,
   ) {
     final isGem = FlavorConfig.current.cellStyle == CellRenderStyle.gem ||
-        FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch;
+        FlavorConfig.current.cellStyle == CellRenderStyle.crossStitch ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.voxel ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.brick ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.bead ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.glow ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.mosaic ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.sticker ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.quilt ||
+        FlavorConfig.current.cellStyle == CellRenderStyle.knit;
     final tilt = tiltNotifier?.value ?? Offset.zero;
 
     final driftX = isGem ? -tilt.dx * cellPx * 2.2 * t * t : 0.0;

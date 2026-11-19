@@ -81,6 +81,22 @@ Future<void> bootstrapApp() async {
     PixelGrid.preloadCrossStitchShader();
   } else if (flavor.cellStyle == CellRenderStyle.flat) {
     PixelGrid.preloadFlatShader();
+  } else if (flavor.cellStyle == CellRenderStyle.voxel) {
+    PixelGrid.preloadVoxelShader();
+  } else if (flavor.cellStyle == CellRenderStyle.brick) {
+    PixelGrid.preloadBrickShader();
+  } else if (flavor.cellStyle == CellRenderStyle.bead) {
+    PixelGrid.preloadBeadShader();
+  } else if (flavor.cellStyle == CellRenderStyle.glow) {
+    PixelGrid.preloadGlowShader();
+  } else if (flavor.cellStyle == CellRenderStyle.mosaic) {
+    PixelGrid.preloadMosaicShader();
+  } else if (flavor.cellStyle == CellRenderStyle.sticker) {
+    PixelGrid.preloadStickerShader();
+  } else if (flavor.cellStyle == CellRenderStyle.quilt) {
+    PixelGrid.preloadQuiltShader();
+  } else if (flavor.cellStyle == CellRenderStyle.knit) {
+    PixelGrid.preloadKnitShader();
   }
 
   // Initialize Firebase early so Crashlytics can capture errors from the very

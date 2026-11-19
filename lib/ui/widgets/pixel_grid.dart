@@ -94,6 +94,38 @@ class PixelGrid extends StatefulWidget {
   static Future<void> preloadFlatShader() =>
       _PixelGridState.preloadFlatShader();
 
+  /// Warms the 3D isometric voxel block fragment shader.
+  static Future<void> preloadVoxelShader() =>
+      _PixelGridState.preloadVoxelShader();
+
+  /// Warms the 3D studded building brick fragment shader.
+  static Future<void> preloadBrickShader() =>
+      _PixelGridState.preloadBrickShader();
+
+  /// Warms the 3D fuse bead fragment shader.
+  static Future<void> preloadBeadShader() =>
+      _PixelGridState.preloadBeadShader();
+
+  /// Warms the neon lite-brite peg fragment shader.
+  static Future<void> preloadGlowShader() =>
+      _PixelGridState.preloadGlowShader();
+
+  /// Warms the glazed ceramic mosaic tile fragment shader.
+  static Future<void> preloadMosaicShader() =>
+      _PixelGridState.preloadMosaicShader();
+
+  /// Warms the vinyl die-cut sticker fragment shader.
+  static Future<void> preloadStickerShader() =>
+      _PixelGridState.preloadStickerShader();
+
+  /// Warms the patchwork fabric quilt fragment shader.
+  static Future<void> preloadQuiltShader() =>
+      _PixelGridState.preloadQuiltShader();
+
+  /// Warms the interlocking V-stitch woolen yarn fragment shader.
+  static Future<void> preloadKnitShader() =>
+      _PixelGridState.preloadKnitShader();
+
   @override
   State<PixelGrid> createState() => _PixelGridState();
 }
@@ -115,6 +147,30 @@ class _PixelGridState extends State<PixelGrid> {
 
   static ui.FragmentProgram? _flatShaderProgram;
   static Future<void>? _flatShaderLoad;
+
+  static ui.FragmentProgram? _voxelShaderProgram;
+  static Future<void>? _voxelShaderLoad;
+
+  static ui.FragmentProgram? _brickShaderProgram;
+  static Future<void>? _brickShaderLoad;
+
+  static ui.FragmentProgram? _beadShaderProgram;
+  static Future<void>? _beadShaderLoad;
+
+  static ui.FragmentProgram? _glowShaderProgram;
+  static Future<void>? _glowShaderLoad;
+
+  static ui.FragmentProgram? _mosaicShaderProgram;
+  static Future<void>? _mosaicShaderLoad;
+
+  static ui.FragmentProgram? _stickerShaderProgram;
+  static Future<void>? _stickerShaderLoad;
+
+  static ui.FragmentProgram? _quiltShaderProgram;
+  static Future<void>? _quiltShaderLoad;
+
+  static ui.FragmentProgram? _knitShaderProgram;
+  static Future<void>? _knitShaderLoad;
 
   /// Loads the gem fragment shader once per process. Safe to call repeatedly;
   /// concurrent callers share one load, and a failed load allows a retry.
@@ -152,6 +208,110 @@ class _PixelGridState extends State<PixelGrid> {
             .catchError((Object e) {
               debugPrint('Error loading flat GLSL shader: $e');
               _flatShaderLoad = null;
+            });
+  }
+
+  /// Loads the 3D isometric voxel block fragment shader once per process.
+  static Future<void> preloadVoxelShader() {
+    return _voxelShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/voxel_grid.frag')
+            .then((program) {
+              _voxelShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading voxel GLSL shader: $e');
+              _voxelShaderLoad = null;
+            });
+  }
+
+  /// Loads the 3D studded building brick fragment shader once per process.
+  static Future<void> preloadBrickShader() {
+    return _brickShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/brick_grid.frag')
+            .then((program) {
+              _brickShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading brick GLSL shader: $e');
+              _brickShaderLoad = null;
+            });
+  }
+
+  /// Loads the 3D fuse bead fragment shader once per process.
+  static Future<void> preloadBeadShader() {
+    return _beadShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/bead_grid.frag')
+            .then((program) {
+              _beadShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading bead GLSL shader: $e');
+              _beadShaderLoad = null;
+            });
+  }
+
+  /// Loads the neon lite-brite peg fragment shader once per process.
+  static Future<void> preloadGlowShader() {
+    return _glowShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/glow_grid.frag')
+            .then((program) {
+              _glowShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading glow GLSL shader: $e');
+              _glowShaderLoad = null;
+            });
+  }
+
+  /// Loads the glazed ceramic mosaic tile fragment shader once per process.
+  static Future<void> preloadMosaicShader() {
+    return _mosaicShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/mosaic_grid.frag')
+            .then((program) {
+              _mosaicShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading mosaic GLSL shader: $e');
+              _mosaicShaderLoad = null;
+            });
+  }
+
+  /// Loads the vinyl die-cut sticker fragment shader once per process.
+  static Future<void> preloadStickerShader() {
+    return _stickerShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/sticker_grid.frag')
+            .then((program) {
+              _stickerShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading sticker GLSL shader: $e');
+              _stickerShaderLoad = null;
+            });
+  }
+
+  /// Loads the patchwork fabric quilt fragment shader once per process.
+  static Future<void> preloadQuiltShader() {
+    return _quiltShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/quilt_grid.frag')
+            .then((program) {
+              _quiltShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading quilt GLSL shader: $e');
+              _quiltShaderLoad = null;
+            });
+  }
+
+  /// Loads the interlocking V-stitch woolen yarn fragment shader once per process.
+  static Future<void> preloadKnitShader() {
+    return _knitShaderLoad ??=
+        ui.FragmentProgram.fromAsset('shaders/knit_grid.frag')
+            .then((program) {
+              _knitShaderProgram = program;
+            })
+            .catchError((Object e) {
+              debugPrint('Error loading knit GLSL shader: $e');
+              _knitShaderLoad = null;
             });
   }
 
@@ -241,106 +401,114 @@ class _PixelGridState extends State<PixelGrid> {
     _beadBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _beadOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _brickBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _brickOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _knitBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _knitOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _mosaicBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _mosaicOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _glowBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _glowOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _stickerBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _stickerOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _quiltBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _quiltOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
     _voxelBaseRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow?.settled,
+      widget.fillGrow,
       widget.fillGrow?.newlyRevealed,
+      widget.tiltNotifier,
       widget.sectionShimmer,
     ]);
     _voxelOverlayRepaint = Listenable.merge([
       widget.gridFade,
       widget.transform,
-      widget.fillGrow,
-      widget.sectionShimmer,
+      widget.fillGrow?.settled,
+      widget.fillGrow?.newlyRevealed,
     ]);
   }
 
@@ -364,6 +532,46 @@ class _PixelGridState extends State<PixelGrid> {
     if (_flatShaderProgram == null) {
       preloadFlatShader().then((_) {
         if (mounted && _flatShaderProgram != null) setState(() {});
+      });
+    }
+    if (_voxelShaderProgram == null) {
+      preloadVoxelShader().then((_) {
+        if (mounted && _voxelShaderProgram != null) setState(() {});
+      });
+    }
+    if (_brickShaderProgram == null) {
+      preloadBrickShader().then((_) {
+        if (mounted && _brickShaderProgram != null) setState(() {});
+      });
+    }
+    if (_beadShaderProgram == null) {
+      preloadBeadShader().then((_) {
+        if (mounted && _beadShaderProgram != null) setState(() {});
+      });
+    }
+    if (_glowShaderProgram == null) {
+      preloadGlowShader().then((_) {
+        if (mounted && _glowShaderProgram != null) setState(() {});
+      });
+    }
+    if (_mosaicShaderProgram == null) {
+      preloadMosaicShader().then((_) {
+        if (mounted && _mosaicShaderProgram != null) setState(() {});
+      });
+    }
+    if (_stickerShaderProgram == null) {
+      preloadStickerShader().then((_) {
+        if (mounted && _stickerShaderProgram != null) setState(() {});
+      });
+    }
+    if (_quiltShaderProgram == null) {
+      preloadQuiltShader().then((_) {
+        if (mounted && _quiltShaderProgram != null) setState(() {});
+      });
+    }
+    if (_knitShaderProgram == null) {
+      preloadKnitShader().then((_) {
+        if (mounted && _knitShaderProgram != null) setState(() {});
       });
     }
   }
@@ -632,6 +840,14 @@ class _PixelGridState extends State<PixelGrid> {
       shaderProgram: _gemShaderProgram,
       crossStitchShaderProgram: _crossStitchShaderProgram,
       flatShaderProgram: _flatShaderProgram,
+      voxelShaderProgram: _voxelShaderProgram,
+      brickShaderProgram: _brickShaderProgram,
+      beadShaderProgram: _beadShaderProgram,
+      glowShaderProgram: _glowShaderProgram,
+      mosaicShaderProgram: _mosaicShaderProgram,
+      stickerShaderProgram: _stickerShaderProgram,
+      quiltShaderProgram: _quiltShaderProgram,
+      knitShaderProgram: _knitShaderProgram,
       fillVersion: widget.provider.fillVersion,
       changesSince: widget.provider.changesSince,
     );
@@ -954,6 +1170,14 @@ class _PixelGridPainter extends CustomPainter {
   final ui.FragmentProgram? shaderProgram;
   final ui.FragmentProgram? crossStitchShaderProgram;
   final ui.FragmentProgram? flatShaderProgram;
+  final ui.FragmentProgram? voxelShaderProgram;
+  final ui.FragmentProgram? brickShaderProgram;
+  final ui.FragmentProgram? beadShaderProgram;
+  final ui.FragmentProgram? glowShaderProgram;
+  final ui.FragmentProgram? mosaicShaderProgram;
+  final ui.FragmentProgram? stickerShaderProgram;
+  final ui.FragmentProgram? quiltShaderProgram;
+  final ui.FragmentProgram? knitShaderProgram;
 
   /// Monotonic counter from the provider that bumps on every fill (and on art
   /// load). Used as the cache key for the baked gem picture and the shader's
@@ -1000,6 +1224,14 @@ class _PixelGridPainter extends CustomPainter {
     this.shaderProgram,
     this.crossStitchShaderProgram,
     this.flatShaderProgram,
+    this.voxelShaderProgram,
+    this.brickShaderProgram,
+    this.beadShaderProgram,
+    this.glowShaderProgram,
+    this.mosaicShaderProgram,
+    this.stickerShaderProgram,
+    this.quiltShaderProgram,
+    this.knitShaderProgram,
     this.fillVersion = 0,
     this.changesSince,
     // `repaint` is pre-merged per layer by _PixelGridState (see
@@ -2389,7 +2621,33 @@ class _PixelGridPainter extends CustomPainter {
   void _paintBeadBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (beadShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = beadShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -2472,6 +2730,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        beadShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     // Growing beads during animated fills
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
@@ -2486,10 +2748,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawBeadCell(canvas, scaledRect, color);
       });
@@ -2536,6 +2800,9 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _brickShadowPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+  static final Paint _brickStudSidePaint = Paint();
+  static final Paint _brickStudCapPaint = Paint();
+  static final Paint _brickStudGlintPaint = Paint()..color = const Color(0x90FFFFFF);
 
   void _drawBrickCell(Canvas canvas, Rect rect, Color base) {
     final w = rect.width;
@@ -2592,17 +2859,19 @@ class _PixelGridPainter extends CustomPainter {
     );
 
     // Stud Cylindrical Underside (extruded side wall in shadow)
+    _brickStudSidePaint.color = _darken(base, 0.22);
     canvas.drawCircle(
       center + Offset(0.0, studDepth * 0.45),
       studRadius,
-      Paint()..color = _darken(base, 0.22),
+      _brickStudSidePaint,
     );
 
     // Stud Raised Top Face
+    _brickStudCapPaint.color = _lighten(base, 0.08);
     canvas.drawCircle(
       center - Offset(0.0, studDepth * 0.2),
       studRadius,
-      Paint()..color = _lighten(base, 0.08),
+      _brickStudCapPaint,
     );
 
     // Stud Top Specular Rim (crisp plastic arc along top-left)
@@ -2640,14 +2909,40 @@ class _PixelGridPainter extends CustomPainter {
     canvas.drawCircle(
       center - Offset(studRadius * 0.35, studDepth * 0.2 + studRadius * 0.35),
       (studRadius * 0.22).clamp(0.7, 1.8),
-      Paint()..color = const Color(0x90FFFFFF),
+      _brickStudGlintPaint,
     );
   }
 
   void _paintBrickBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (brickShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = brickShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -2725,6 +3020,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        brickShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     // Growing bricks during animated fills
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
@@ -2739,10 +3038,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawBrickCell(canvas, scaledRect, color);
       });
@@ -2782,6 +3083,16 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _knitFiberSheenPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round;
+  static final Paint _knitBgYarnPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _knitKnotHighlightPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _knitCellSeamPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.4
+    ..color = const Color(0x22000000);
+  static final Paint _knitGuideLoopPaint = Paint()
+    ..color = const Color(0x25000000)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.35;
 
   void _drawKnitCell(
     Canvas canvas,
@@ -2790,7 +3101,8 @@ class _PixelGridPainter extends CustomPainter {
     double effectiveCell,
   ) {
     if (effectiveCell < 6.0) {
-      canvas.drawRect(rect, Paint()..color = base);
+      _knitBgYarnPaint.color = base;
+      canvas.drawRect(rect, _knitBgYarnPaint);
       return;
     }
 
@@ -2799,7 +3111,8 @@ class _PixelGridPainter extends CustomPainter {
 
     // Knit cell background (slightly darker base for depth)
     final bgYarn = Color.lerp(Colors.black, base, 0.45)!;
-    canvas.drawRect(rect, Paint()..color = bgYarn);
+    _knitBgYarnPaint.color = bgYarn;
+    canvas.drawRect(rect, _knitBgYarnPaint);
 
     // Points for interlocking "V" knit stitch:
     // Left strand: top-left -> bottom-center
@@ -2837,22 +3150,43 @@ class _PixelGridPainter extends CustomPainter {
     canvas.drawLine(pBC, pTR, _knitFiberSheenPaint);
 
     // 4. Subtle crossover stitch knot highlight at the V point
-    canvas.drawCircle(pBC, (strandWidth * 0.3).clamp(1.0, 3.0), Paint()..color = _lighten(base, 0.42));
+    _knitKnotHighlightPaint.color = _lighten(base, 0.42);
+    canvas.drawCircle(pBC, (strandWidth * 0.3).clamp(1.0, 3.0), _knitKnotHighlightPaint);
 
     // 5. Delicate knit row cell seam
-    canvas.drawRect(
-      rect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.4
-        ..color = const Color(0x22000000),
-    );
+    canvas.drawRect(rect, _knitCellSeamPaint);
   }
 
   void _paintKnitBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (knitShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = knitShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -2899,12 +3233,7 @@ class _PixelGridPainter extends CustomPainter {
               recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             }
             if (detailStep > 0) {
-              // Subtle knit guide loop
-              final loopPaint = Paint()
-                ..color = const Color(0x25000000)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.35;
-              recorderCanvas.drawRect(rect, loopPaint);
+              recorderCanvas.drawRect(rect, _knitGuideLoopPaint);
             }
           }
         }
@@ -2928,6 +3257,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        knitShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     // Growing stitches during animated fills
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
@@ -2942,10 +3275,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawKnitCell(canvas, scaledRect, color, effectiveCell);
       });
@@ -2978,6 +3313,8 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _mosaicTilePaint = Paint()..style = PaintingStyle.fill;
   static final Paint _mosaicBevelPaint = Paint()..style = PaintingStyle.stroke;
   static final Paint _mosaicGlazePaint = Paint()..style = PaintingStyle.fill;
+  static final Path _mosaicLightPath = Path();
+  static final Path _mosaicDarkPath = Path();
 
   void _drawMosaicCell(Canvas canvas, Rect rect, Color base) {
     final w = min(rect.width, rect.height);
@@ -3000,29 +3337,57 @@ class _PixelGridPainter extends CustomPainter {
     canvas.drawRRect(sheenRRect, _mosaicGlazePaint);
 
     final strokeW = (w * 0.07).clamp(0.6, 1.8);
-    final lightPath = Path()
+    _mosaicLightPath
+      ..reset()
       ..moveTo(tileRect.left + r, tileRect.bottom - r)
       ..lineTo(tileRect.left + r, tileRect.top + r)
       ..lineTo(tileRect.right - r, tileRect.top + r);
     _mosaicBevelPaint
       ..color = const Color(0x50FFFFFF)
       ..strokeWidth = strokeW;
-    canvas.drawPath(lightPath, _mosaicBevelPaint);
+    canvas.drawPath(_mosaicLightPath, _mosaicBevelPaint);
 
-    final darkPath = Path()
+    _mosaicDarkPath
+      ..reset()
       ..moveTo(tileRect.right - r, tileRect.top + r)
       ..lineTo(tileRect.right - r, tileRect.bottom - r)
       ..lineTo(tileRect.left + r, tileRect.bottom - r);
     _mosaicBevelPaint
       ..color = const Color(0x38000000)
       ..strokeWidth = strokeW;
-    canvas.drawPath(darkPath, _mosaicBevelPaint);
+    canvas.drawPath(_mosaicDarkPath, _mosaicBevelPaint);
   }
 
   void _paintMosaicBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (mosaicShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = mosaicShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3096,6 +3461,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        mosaicShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     if (fillGrow != null && !fillGrow!.isEmpty) {
@@ -3109,10 +3478,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawMosaicCell(canvas, scaledRect, color);
       });
@@ -3185,7 +3556,33 @@ class _PixelGridPainter extends CustomPainter {
   void _paintGlowBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (glowShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = glowShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3255,6 +3652,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        glowShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     if (fillGrow != null && !fillGrow!.isEmpty) {
@@ -3268,10 +3669,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawGlowCell(canvas, scaledRect, color);
       });
@@ -3349,7 +3752,33 @@ class _PixelGridPainter extends CustomPainter {
   void _paintStickerBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (stickerShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = stickerShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3421,6 +3850,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        stickerShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     if (fillGrow != null && !fillGrow!.isEmpty) {
@@ -3434,10 +3867,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawStickerCell(canvas, scaledRect, color);
       });
@@ -3474,6 +3909,10 @@ class _PixelGridPainter extends CustomPainter {
   static final Paint _quiltWeavePaint = Paint()
     ..color = const Color(0x18FFFFFF)
     ..style = PaintingStyle.stroke;
+  static final Paint _quiltBastingPaint = Paint()
+    ..color = const Color(0x358A7F6E)
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.4;
 
   void _drawQuiltCell(Canvas canvas, Rect rect, Color base) {
     final w = min(rect.width, rect.height);
@@ -3517,7 +3956,33 @@ class _PixelGridPainter extends CustomPainter {
   void _paintQuiltBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (quiltShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = quiltShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3563,11 +4028,7 @@ class _PixelGridPainter extends CustomPainter {
               recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             }
             if (detailStep > 0) {
-              final bastingPaint = Paint()
-                ..color = const Color(0x358A7F6E)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 0.4;
-              recorderCanvas.drawRect(rect, bastingPaint);
+              recorderCanvas.drawRect(rect, _quiltBastingPaint);
             }
           }
         }
@@ -3591,6 +4052,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        quiltShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     if (fillGrow != null && !fillGrow!.isEmpty) {
@@ -3604,10 +4069,12 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
         _drawQuiltCell(canvas, scaledRect, color);
       });
@@ -3657,6 +4124,13 @@ class _PixelGridPainter extends CustomPainter {
     ..style = PaintingStyle.stroke
     ..strokeWidth = 0.6
     ..color = const Color(0x35000000);
+  static final Paint _voxelGlintPaint = Paint()..color = const Color(0x40FFFFFF);
+  static final Path _voxelTopFacetPath = Path();
+  static final Path _voxelLeftFacetPath = Path();
+  static final Path _voxelRightFacetPath = Path();
+  static final Path _voxelBottomFacetPath = Path();
+  static final Path _voxelLightRidgePath = Path();
+  static final Path _voxelDarkRidgePath = Path();
 
   void _drawVoxelCell(Canvas canvas, Rect rect, Color base, [double grow = 1.0]) {
     final blockRect = rect.deflate(0.5);
@@ -3666,44 +4140,48 @@ class _PixelGridPainter extends CustomPainter {
     final innerRect = blockRect.deflate(bevel);
 
     // 1. Top Bevel Facet (illuminated from above)
-    final topFacet = Path()
+    _voxelTopFacetPath
+      ..reset()
       ..moveTo(blockRect.left, blockRect.top)
       ..lineTo(blockRect.right, blockRect.top)
       ..lineTo(innerRect.right, innerRect.top)
       ..lineTo(innerRect.left, innerRect.top)
       ..close();
     _voxelTopFacetPaint.color = _lighten(base, 0.28);
-    canvas.drawPath(topFacet, _voxelTopFacetPaint);
+    canvas.drawPath(_voxelTopFacetPath, _voxelTopFacetPaint);
 
     // 2. Left Bevel Facet (ambient light from left)
-    final leftFacet = Path()
+    _voxelLeftFacetPath
+      ..reset()
       ..moveTo(blockRect.left, blockRect.bottom)
       ..lineTo(blockRect.left, blockRect.top)
       ..lineTo(innerRect.left, innerRect.top)
       ..lineTo(innerRect.left, innerRect.bottom)
       ..close();
     _voxelLeftFacetPaint.color = _lighten(base, 0.12);
-    canvas.drawPath(leftFacet, _voxelLeftFacetPaint);
+    canvas.drawPath(_voxelLeftFacetPath, _voxelLeftFacetPaint);
 
     // 3. Right Bevel Facet (shadow facet)
-    final rightFacet = Path()
+    _voxelRightFacetPath
+      ..reset()
       ..moveTo(blockRect.right, blockRect.top)
       ..lineTo(blockRect.right, blockRect.bottom)
       ..lineTo(innerRect.right, innerRect.bottom)
       ..lineTo(innerRect.right, innerRect.top)
       ..close();
     _voxelRightFacetPaint.color = _darken(base, 0.18);
-    canvas.drawPath(rightFacet, _voxelRightFacetPaint);
+    canvas.drawPath(_voxelRightFacetPath, _voxelRightFacetPaint);
 
     // 4. Bottom Bevel Facet (deep cast shadow)
-    final bottomFacet = Path()
+    _voxelBottomFacetPath
+      ..reset()
       ..moveTo(innerRect.left, innerRect.bottom)
       ..lineTo(innerRect.right, innerRect.bottom)
       ..lineTo(blockRect.right, blockRect.bottom)
       ..lineTo(blockRect.left, blockRect.bottom)
       ..close();
     _voxelBottomFacetPaint.color = _darken(base, 0.32);
-    canvas.drawPath(bottomFacet, _voxelBottomFacetPaint);
+    canvas.drawPath(_voxelBottomFacetPath, _voxelBottomFacetPaint);
 
     // 5. Raised Center Face
     _voxelCenterFacePaint.color = _lighten(base, 0.04);
@@ -3715,19 +4193,21 @@ class _PixelGridPainter extends CustomPainter {
 
     // 7. Specular highlight line along top and left ridges
     _voxelHighlightEdgePaint.strokeWidth = (bevel * 0.22).clamp(0.6, 1.4);
-    final lightRidge = Path()
+    _voxelLightRidgePath
+      ..reset()
       ..moveTo(blockRect.left, blockRect.bottom)
       ..lineTo(blockRect.left, blockRect.top)
       ..lineTo(blockRect.right, blockRect.top);
-    canvas.drawPath(lightRidge, _voxelHighlightEdgePaint);
+    canvas.drawPath(_voxelLightRidgePath, _voxelHighlightEdgePaint);
 
     // 8. Seam shadow groove along right and bottom ridges
     _voxelShadowEdgePaint.strokeWidth = (bevel * 0.22).clamp(0.6, 1.4);
-    final darkRidge = Path()
+    _voxelDarkRidgePath
+      ..reset()
       ..moveTo(blockRect.right, blockRect.top)
       ..lineTo(blockRect.right, blockRect.bottom)
       ..lineTo(blockRect.left, blockRect.bottom);
-    canvas.drawPath(darkRidge, _voxelShadowEdgePaint);
+    canvas.drawPath(_voxelDarkRidgePath, _voxelShadowEdgePaint);
 
     // 9. Crisp specular highlight glint inside top-left corner
     final glintW = (innerRect.width * 0.35).clamp(1.0, 5.0);
@@ -3735,14 +4215,40 @@ class _PixelGridPainter extends CustomPainter {
     final glintRect = Rect.fromLTWH(innerRect.left + 0.6, innerRect.top + 0.6, glintW, glintH);
     canvas.drawRRect(
       RRect.fromRectAndRadius(glintRect, const Radius.circular(0.8)),
-      Paint()..color = const Color(0x40FFFFFF),
+      _voxelGlintPaint,
     );
   }
 
   void _paintVoxelBase(Canvas canvas, Size size) {
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
-    final (cw, ch, cellGap, _, detailStep, _) = _layout(size);
+    final (cw, ch, cellGap, effectiveCell, detailStep, _) = _layout(size);
+
+    if (voxelShaderProgram != null && !colorblindMode) {
+      _updateGridTextureIfNeeded();
+      final gridImage = _cachedGridImage;
+      final ageImage = _cachedAgeImage;
+      if (gridImage != null && ageImage != null) {
+        final shader = voxelShaderProgram!.fragmentShader();
+        shader.setFloat(0, size.width);
+        shader.setFloat(1, size.height);
+        shader.setFloat(2, gridWidth.toDouble());
+        shader.setFloat(3, gridHeight.toDouble());
+        final tilt = tiltNotifier?.value ?? Offset.zero;
+        shader.setFloat(4, tilt.dx);
+        shader.setFloat(5, tilt.dy);
+        shader.setFloat(6, effectiveCell);
+        shader.setFloat(
+          7,
+          (DateTime.now().millisecondsSinceEpoch - _ageEpochMs) / 1000.0,
+        );
+        shader.setFloat(8, sectionShimmer?.value ?? 1.0);
+        shader.setImageSampler(0, gridImage);
+        shader.setImageSampler(1, ageImage);
+        canvas.drawRect(Offset.zero & size, Paint()..shader = shader);
+        return;
+      }
+    }
 
     final lowDetail = detailStep == 0;
     if (_bakedBasePicture == null ||
@@ -3846,6 +4352,10 @@ class _PixelGridPainter extends CustomPainter {
     final statics = _overlayStaticPicture;
     if (statics != null) canvas.drawPicture(statics);
 
+    final shaderActive =
+        voxelShaderProgram != null && !colorblindMode && _cachedGridImage != null;
+    if (shaderActive) return;
+
     final gridWidth = art.gridWidth as int;
     final gridHeight = art.gridHeight as int;
     if (fillGrow != null && !fillGrow!.isEmpty) {
@@ -3859,12 +4369,14 @@ class _PixelGridPainter extends CustomPainter {
         final expectedNumber = art.grid[row][col] as int;
         final color = filledColors[expectedNumber] ?? AppStyle.numberToColor(expectedNumber);
         final baseRect = Rect.fromLTWH(col * cw + cellGap, row * ch + cellGap, cw - cellGap * 2, ch - cellGap * 2);
+        final springT = Curves.easeOutBack.transform(grow.clamp(0.0, 1.0));
+        final springScale = 0.3 + 0.75 * springT;
         final scaledRect = Rect.fromCenter(
           center: baseRect.center,
-          width: baseRect.width * (0.2 + 0.8 * grow),
-          height: baseRect.height * (0.2 + 0.8 * grow),
+          width: baseRect.width * springScale,
+          height: baseRect.height * springScale,
         );
-        _drawVoxelCell(canvas, scaledRect, color, grow);
+        _drawVoxelCell(canvas, scaledRect, color, springT);
       });
     }
 

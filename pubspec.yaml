@@ -82,3 +82,11 @@ flutter:
     - shaders/gem_grid.frag
     - shaders/cross_stitch_grid.frag
     - shaders/flat_grid.frag
+    - shaders/voxel_grid.frag
+    - shaders/brick_grid.frag
+    - shaders/bead_grid.frag
+    - shaders/glow_grid.frag
+    - shaders/mosaic_grid.frag
+    - shaders/sticker_grid.frag
+    - shaders/quilt_grid.frag
+    - shaders/knit_grid.frag
