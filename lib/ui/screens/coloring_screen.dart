@@ -314,17 +314,20 @@ class _ColoringScreenState extends State<ColoringScreen>
         ..addListener(_onProviderChanged)
         ..onCellFilledCorrectly = () {
           if (_settings?.soundsEnabled ?? true) {
-            if (_settings?.soundType == 'bubble_pop') {
-              soundService.playBubblePop();
-            } else {
-              soundService.playLightClick();
-            }
+            soundService.playFlavorTap(
+              style: FlavorConfig.current.cellStyle,
+              userSoundType: _settings?.soundType,
+              streak: provider.consecutiveFills,
+            );
           }
           if (!provider.isStroking) {
             _scheduleAutoMoveToNextHintedCell();
           }
         }
         ..onSectionCompleted = () {
+          if (_settings?.soundsEnabled ?? true) {
+            soundService.playNumberClear();
+          }
           if (_settings?.hapticsEnabled ?? true) {
             _playSectionCompletedHaptic();
           }

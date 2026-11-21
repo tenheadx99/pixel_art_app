@@ -141,10 +141,19 @@ class _NumberPaletteState extends State<NumberPalette> {
             ),
             child: Center(
               child: isCompleted
-                  ? Icon(
-                      Icons.check_rounded,
-                      color: _textColorForBg(color),
-                      size: 22,
+                  ? TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.2, end: 1.0),
+                      duration: const Duration(milliseconds: 320),
+                      curve: Curves.elasticOut,
+                      builder: (context, scale, child) => Transform.scale(
+                        scale: scale,
+                        child: child,
+                      ),
+                      child: Icon(
+                        Icons.check_rounded,
+                        color: _textColorForBg(color),
+                        size: 22,
+                      ),
                     )
                   : Text(
                       '$number',
@@ -179,9 +188,19 @@ class _NumberPaletteState extends State<NumberPalette> {
             chip = TweenAnimationBuilder<double>(
               tween: Tween(begin: 0.0, end: 1.0),
               duration: const Duration(milliseconds: _celebrationMs),
-              builder: (context, t, child) => Transform.scale(
-                scale: _celebrationScale(t),
-                child: child,
+              builder: (context, t, child) => Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
+                children: [
+                  CustomPaint(
+                    size: Size(chipSize, chipSize),
+                    painter: _ChipBurstPainter(progress: t, baseColor: color),
+                  ),
+                  Transform.scale(
+                    scale: _celebrationScale(t),
+                    child: child,
+                  ),
+                ],
               ),
               child: chip,
             );
@@ -264,4 +283,46 @@ class ProgressRingPainter extends CustomPainter {
         oldDelegate.backgroundColor != backgroundColor ||
         oldDelegate.strokeWidth != strokeWidth;
   }
+}
+
+class _ChipBurstPainter extends CustomPainter {
+  final double progress;
+  final Color baseColor;
+
+  _ChipBurstPainter({required this.progress, required this.baseColor});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (progress <= 0.0 || progress >= 1.0) return;
+    final center = size.center(Offset.zero);
+    final maxR = size.width * 0.72;
+    final currentR = size.width * 0.35 + maxR * progress;
+
+    // Expanding golden celebration shockwave ring
+    final alpha = (1.0 - progress).clamp(0.0, 1.0);
+    final ringPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (2.6 * (1.0 - progress)).clamp(0.5, 3.0)
+      ..color = const Color(0xFFFFD700).withValues(alpha: alpha * 0.9);
+    canvas.drawCircle(center, currentR, ringPaint);
+
+    // 8 radial golden sparkle star bursts
+    final dotPaint = Paint()..style = PaintingStyle.fill;
+    const numRays = 8;
+    for (int i = 0; i < numRays; i++) {
+      final angle = (i * 2 * pi / numRays) + progress * 0.45;
+      final dist = currentR * 1.08;
+      final dotRadius = (2.5 * (1.0 - progress)).clamp(0.4, 2.8);
+      final dotCenter = Offset(
+        center.dx + cos(angle) * dist,
+        center.dy + sin(angle) * dist,
+      );
+      dotPaint.color = (i % 2 == 0 ? const Color(0xFFFFE082) : const Color(0xFFFFD700))
+          .withValues(alpha: alpha);
+      canvas.drawCircle(dotCenter, dotRadius, dotPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_ChipBurstPainter old) => old.progress != progress;
 }

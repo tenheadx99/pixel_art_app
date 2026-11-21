@@ -1,5 +1,6 @@
 import 'package:audioplayers/audioplayers.dart';
 import 'dart:developer' as developer;
+import 'package:pixel_art_app/config/flavor.dart';
 
 class SoundService {
   final List<AudioPlayer> _players = [];
@@ -61,6 +62,55 @@ class SoundService {
     try {
       await _ambientPlayer?.setVolume(volume.clamp(0.0, 1.0));
     } catch (_) {}
+  }
+
+  static const List<double> _pentatonicRates = [
+    1.0,      // C
+    1.122,    // D (+2 semitones)
+    1.260,    // E (+4 semitones)
+    1.498,    // G (+7 semitones)
+    1.682,    // A (+9 semitones)
+    2.0,      // C' (+12 semitones)
+    2.245,    // D' (+14 semitones)
+    2.520,    // E' (+16 semitones)
+  ];
+
+  /// Plays tactile placement audio customized for each craft flavor with
+  /// smooth pentatonic pitch ascension during rapid coloring streaks.
+  void playFlavorTap({
+    CellRenderStyle? style,
+    String? userSoundType,
+    int streak = 0,
+  }) {
+    final rate = (streak <= 0)
+        ? 1.0
+        : _pentatonicRates[(streak - 1) % _pentatonicRates.length];
+
+    if (userSoundType == 'light_click') {
+      _playAsset('audio/light_click.wav', rate: rate);
+      return;
+    } else if (userSoundType == 'bubble_pop' && style == null) {
+      _playAsset('audio/bubble_pop.wav', rate: rate);
+      return;
+    }
+
+    final path = switch (style) {
+      CellRenderStyle.brick => 'audio/brick_snap.wav',
+      CellRenderStyle.bead => 'audio/bead_click.wav',
+      CellRenderStyle.sticker => 'audio/sticker_slap.wav',
+      CellRenderStyle.glow => 'audio/glow_pop.wav',
+      CellRenderStyle.mosaic => 'audio/mosaic_clink.wav',
+      CellRenderStyle.quilt || CellRenderStyle.knit => 'audio/fabric_soft.wav',
+      CellRenderStyle.gem => 'audio/light_click.wav',
+      _ => 'audio/bubble_pop.wav',
+    };
+
+    _playAsset(path, rate: rate);
+  }
+
+  /// Triumphant ascending arpeggio chime chord when a color section is 100% completed.
+  void playNumberClear() {
+    _playAsset('audio/number_clear.wav', throttled: false);
   }
 
   void playBubblePop() {
