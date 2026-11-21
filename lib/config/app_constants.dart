@@ -165,7 +165,9 @@ class AppConstants {
   static const int fillEffectMaxConcurrent = 64; // hard cap (allows juicy explosions & wave bursts)
   static const int fillEffectStrokeThrottleMs = 45; // full effect rate on swipe
   // Combo "xN" callouts at these consecutive-fill counts.
-  static const List<int> comboThresholds = [5, 10, 20, 35, 50];
+  static const List<int> comboThresholds = [5, 10, 20, 30, 50];
+  static const int zenOverdriveComboThreshold = 30;
+  static const int zenOverdriveBonusDiamonds = 5;
 
   // How long a cell takes to "grow in" from the preview to full color (taps
   // only; strokes snap so fast swipes stay smooth). Cap bounds the registry.

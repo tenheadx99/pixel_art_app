@@ -47,6 +47,8 @@ import '../../ui/widgets/rating_dialog.dart';
 import '../../ui/widgets/art_preview_painter.dart';
 import '../../ui/widgets/magnifier_loupe.dart';
 import '../../ui/widgets/before_after_slider.dart';
+import '../widgets/combo_meter_badge.dart';
+import '../widgets/zen_overdrive_vignette.dart';
 
 class ColoringScreen extends StatefulWidget {
   final PixelArt art;
@@ -74,6 +76,9 @@ class _ColoringScreenState extends State<ColoringScreen>
   int _lastFillRow = 0;
   int _lastFillCol = 0;
   int _comboThresholdShown = 0;
+  bool _isInOverdrive = false;
+  bool _hasAwardedOverdriveBonus = false;
+  Timer? _overdriveIdleTimer;
   late AnimationController _confettiController;
   late AnimationController _replayController;
   late AnimationController _gridFadeController;
@@ -343,6 +348,16 @@ class _ColoringScreenState extends State<ColoringScreen>
         }
         ..onCellFilledAt = _onCellFilledAt
         ..onWrongTap = (row, col) {
+          // Break combo streak and exit Zen Overdrive mode immediately
+          if (_isInOverdrive) {
+            _isInOverdrive = false;
+            _hasAwardedOverdriveBonus = false;
+            _fxKey.currentState?.setOverdrive(false);
+            _overdriveIdleTimer?.cancel();
+            if (mounted) setState(() {});
+          } else {
+            _hasAwardedOverdriveBonus = false;
+          }
           // Gentle "not this one": shake + soft thud (haptic fires in the
           // provider alongside the fill haptics).
           if (_settings?.fillEffectsEnabled ?? true) {
@@ -407,7 +422,10 @@ class _ColoringScreenState extends State<ColoringScreen>
 
     // Combo callouts: fire once per crossed threshold; reset when the streak
     // drops back below what we last announced.
-    if (combo < _comboThresholdShown) _comboThresholdShown = 0;
+    if (combo < _comboThresholdShown) {
+      _comboThresholdShown = 0;
+      _hasAwardedOverdriveBonus = false;
+    }
     for (final threshold in AppConstants.comboThresholds) {
       if (combo >= threshold && threshold > _comboThresholdShown) {
         _comboThresholdShown = threshold;
@@ -424,6 +442,56 @@ class _ColoringScreenState extends State<ColoringScreen>
         }
       }
     }
+
+    // Zen Overdrive (triggered at combo >= 30):
+    // Shimmering chromatic edge vignette, upgraded prismatic particle sparkles,
+    // bonus diamonds reward (+5 Diamonds), and heavy dopamine sound/haptic.
+    if (combo >= AppConstants.zenOverdriveComboThreshold) {
+      final wasOverdrive = _isInOverdrive;
+      _isInOverdrive = true;
+      _fxKey.currentState?.setOverdrive(true);
+      _resetOverdriveIdleTimer();
+
+      if (!wasOverdrive) {
+        // Triumphant entry fanfare & micro-dopamine currency grant
+        if (!_hasAwardedOverdriveBonus) {
+          _hasAwardedOverdriveBonus = true;
+          _fxKey.currentState?.spawnOverdriveBanner(
+            row,
+            col,
+            bonusDiamonds: AppConstants.zenOverdriveBonusDiamonds,
+          );
+          context.read<AppSettingsProvider>().addDiamonds(
+            AppConstants.zenOverdriveBonusDiamonds,
+            source: 'zen_overdrive',
+          );
+        }
+        if (_settings?.soundsEnabled ?? true) {
+          context.read<SoundService>().playComboChime(rate: 1.6);
+        }
+        if (_settings?.hapticsEnabled ?? true) {
+          HapticFeedback.heavyImpact();
+        }
+        if (mounted) setState(() {});
+      }
+    } else if (_isInOverdrive) {
+      _isInOverdrive = false;
+      _fxKey.currentState?.setOverdrive(false);
+      _overdriveIdleTimer?.cancel();
+      if (mounted) setState(() {});
+    }
+  }
+
+  void _resetOverdriveIdleTimer() {
+    _overdriveIdleTimer?.cancel();
+    _overdriveIdleTimer = Timer(const Duration(milliseconds: 4500), () {
+      if (mounted && _isInOverdrive) {
+        setState(() {
+          _isInOverdrive = false;
+          _fxKey.currentState?.setOverdrive(false);
+        });
+      }
+    });
   }
 
   /// Triggers a dynamic wave animation across the grid when Bomb or Fill is used.
@@ -711,6 +779,7 @@ class _ColoringScreenState extends State<ColoringScreen>
       _savedGridState = null;
     }
     _autoMoveTimer?.cancel();
+    _overdriveIdleTimer?.cancel();
     _coloringProvider?.setReplaying(false);
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
@@ -874,6 +943,13 @@ class _ColoringScreenState extends State<ColoringScreen>
                   ),
                 ),
 
+              // Glowing chromatic edge vignette active during Zen Overdrive mode
+              Positioned.fill(
+                child: ZenOverdriveVignette(
+                  active: _isInOverdrive,
+                ),
+              ),
+
               // 1. Top Bar (Overlay)
               Positioned(
                 top: statusBarHeight + 6,
@@ -926,6 +1002,24 @@ class _ColoringScreenState extends State<ColoringScreen>
                         ignoring: provider.isStroking,
                         child: _buildMiniMap(provider, isDark),
                       ),
+                    );
+                  },
+                ),
+              ),
+
+              // 3. Floating HUD Combo Meter Badge
+              Positioned(
+                top: statusBarHeight + 74,
+                right: 12,
+                child: ListenableBuilder(
+                  listenable: provider,
+                  builder: (context, _) {
+                    if (provider.currentArt?.id != widget.art.id || _isReplaying) {
+                      return const SizedBox.shrink();
+                    }
+                    return ComboMeterBadge(
+                      combo: provider.consecutiveFills,
+                      isOverdrive: _isInOverdrive,
                     );
                   },
                 ),

@@ -5,7 +5,17 @@ import '../../config/app_constants.dart';
 import '../../config/flavor.dart';
 
 /// The kinds of joyful flourish spawned when a cell is colored.
-enum _EffectKind { pop, ripple, splash, sparkle, combo, wrong, bombExplosion, bombEmber }
+enum _EffectKind {
+  pop,
+  ripple,
+  splash,
+  sparkle,
+  combo,
+  wrong,
+  bombExplosion,
+  bombEmber,
+  overdriveBanner,
+}
 
 class _FillEffect {
   final _EffectKind kind;
@@ -18,6 +28,7 @@ class _FillEffect {
   final int combo;
   final double velocityX;
   final double velocityY;
+  final bool isOverdrive;
 
   _FillEffect({
     required this.kind,
@@ -30,6 +41,7 @@ class _FillEffect {
     this.combo = 0,
     this.velocityX = 0.0,
     this.velocityY = 0.0,
+    this.isOverdrive = false,
   });
 }
 
@@ -68,6 +80,14 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
   late final AnimationController _ticker;
   final math.Random _rnd = math.Random();
   int _lastFullSpawnMs = 0;
+  bool _isOverdrive = false;
+
+  void setOverdrive(bool active) {
+    if (_isOverdrive != active) {
+      _isOverdrive = active;
+      if (active) _ensureTicking();
+    }
+  }
 
   static const int _lifetime = AppConstants.fillEffectLifetimeMs;
   static const int _maxConcurrent = AppConstants.fillEffectMaxConcurrent;
@@ -140,8 +160,9 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
         col: col,
         color: color,
         startMs: now,
-        sparkleCount: 3,
+        sparkleCount: _isOverdrive ? 6 : 3,
         seed: _rnd.nextDouble() * math.pi * 2,
+        isOverdrive: _isOverdrive,
       ));
       return;
     }
@@ -170,7 +191,8 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
       color: color,
       startMs: now,
     ));
-    final sparkles = (3 + combo ~/ 5).clamp(3, 6);
+    final baseSparkles = (3 + combo ~/ 5).clamp(3, 6);
+    final sparkles = _isOverdrive ? (baseSparkles * 2).clamp(6, 12) : baseSparkles;
     _add(_FillEffect(
       kind: _EffectKind.sparkle,
       row: row,
@@ -179,6 +201,20 @@ class FillEffectsOverlayState extends State<FillEffectsOverlay>
       startMs: now,
       sparkleCount: sparkles,
       seed: _rnd.nextDouble() * math.pi * 2,
+      isOverdrive: _isOverdrive,
+    ));
+  }
+
+  /// Floating "ZEN OVERDRIVE! +N💎" celebration banner near a cell.
+  void spawnOverdriveBanner(int row, int col, {int bonusDiamonds = 5}) {
+    _add(_FillEffect(
+      kind: _EffectKind.overdriveBanner,
+      row: row,
+      col: col,
+      color: const Color(0xFFFFD700),
+      startMs: _nowMs,
+      combo: bonusDiamonds,
+      isOverdrive: true,
     ));
   }
 
@@ -412,6 +448,9 @@ class _FillEffectsPainter extends CustomPainter {
         case _EffectKind.bombEmber:
           _paintBombEmber(canvas, paint, center, cellPx, t, e);
           break;
+        case _EffectKind.overdriveBanner:
+          _paintOverdriveBanner(canvas, paint, center, cellPx, t, e.combo);
+          break;
       }
     }
   }
@@ -505,8 +544,9 @@ class _FillEffectsPainter extends CustomPainter {
     final driftY = isGem ? tilt.dy * cellPx * 2.2 * t * t : 0.0;
 
     final alpha = (1.0 - t).clamp(0.0, 1.0);
-    final dist = cellPx * (0.4 + Curves.easeOutCubic.transform(t) * 1.6);
-    final pSize = cellPx * 0.24 * (1.0 - t * 0.8);
+    final distMult = e.isOverdrive ? 1.45 : 1.0;
+    final dist = cellPx * (0.4 + Curves.easeOutCubic.transform(t) * 1.6) * distMult;
+    final pSize = cellPx * (e.isOverdrive ? 0.32 : 0.24) * (1.0 - t * 0.8);
     if (pSize <= 0.2) return;
 
     for (var i = 0; i < e.sparkleCount; i++) {
@@ -520,10 +560,15 @@ class _FillEffectsPainter extends CustomPainter {
       }
 
       final pos = Offset(px, py);
-      final rotation = (e.seed * 5.0 + t * 5.0 * math.pi + i * 0.8);
+      final rotation = (e.seed * 5.0 + t * (e.isOverdrive ? 8.0 : 5.0) * math.pi + i * 0.8);
       
       final Color pColor;
-      if (particleStyle == 'neon') {
+      if (e.isOverdrive) {
+        final hue = (e.seed * 360.0 + i * 45.0 + t * 360.0) % 360.0;
+        pColor = i % 3 == 0
+            ? const Color(0xFFFFD700)
+            : HSVColor.fromAHSV(1.0, hue, 0.9, 1.0).toColor();
+      } else if (particleStyle == 'neon') {
         const neonColors = [Color(0xFF00E5FF), Color(0xFFFF007F), Color(0xFF00FF66), Color(0xFFFFE500)];
         pColor = neonColors[i % neonColors.length];
       } else if (particleStyle == 'hearts') {
@@ -737,6 +782,76 @@ class _FillEffectsPainter extends CustomPainter {
     );
     canvas.translate(center.dx, center.dy);
     canvas.scale(scale);
+    tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
+    canvas.restore();
+  }
+
+  static TextPainter? _overdriveBannerPainter;
+
+  void _paintOverdriveBanner(
+    Canvas canvas,
+    Paint paint,
+    Offset c,
+    double cellPx,
+    double t,
+    int bonusDiamonds,
+  ) {
+    final rise = t * (cellPx * 2.2 + 36);
+    final scale = (0.7 + Curves.easeOutBack.transform(t.clamp(0.0, 1.0)) * 0.45)
+        .clamp(0.7, 1.15);
+    final alpha = (t < 0.72 ? 1.0 : (1.0 - (t - 0.72) / 0.28)).clamp(0.0, 1.0);
+
+    final tp = _overdriveBannerPainter ??= TextPainter(
+      text: const TextSpan(
+        text: '⚡ ZEN OVERDRIVE! +5 💎 ⚡',
+        style: TextStyle(
+          fontSize: 15,
+          fontWeight: FontWeight.w900,
+          color: Color(0xFFFFD700),
+          letterSpacing: 0.5,
+          shadows: [
+            Shadow(color: Color(0xFFFF007F), blurRadius: 8),
+            Shadow(color: Colors.black, blurRadius: 4),
+          ],
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+
+    final center = Offset(c.dx, c.dy - rise);
+    final bounds = Rect.fromCenter(
+      center: center,
+      width: tp.width * scale + 24,
+      height: tp.height * scale + 16,
+    );
+
+    canvas.saveLayer(
+      bounds,
+      Paint()..color = Colors.white.withValues(alpha: alpha),
+    );
+    canvas.translate(center.dx, center.dy);
+    canvas.scale(scale);
+
+    // Pill background
+    final bgRect = Rect.fromCenter(
+      center: Offset.zero,
+      width: tp.width + 20,
+      height: tp.height + 10,
+    );
+    final bgRRect = RRect.fromRectAndRadius(bgRect, const Radius.circular(16));
+    paint
+      ..style = PaintingStyle.fill
+      ..color = Colors.black.withValues(alpha: 0.85);
+    canvas.drawRRect(bgRRect, paint);
+
+    // Golden border
+    paint
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..color = const Color(0xFFFFD700);
+    canvas.drawRRect(bgRRect, paint);
+    paint.style = PaintingStyle.fill;
+
     tp.paint(canvas, Offset(-tp.width / 2, -tp.height / 2));
     canvas.restore();
   }
