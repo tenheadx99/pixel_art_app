@@ -1,0 +1,1 @@
+Welcome to the initial release of Voxel Art: 3D Color by Number! Enjoy extruded 3D isometric voxel blocks, dynamic lighting, and offline dimensional coloring.

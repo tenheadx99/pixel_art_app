@@ -144,7 +144,15 @@ platform :android do
       "bible" => "com.tenhead.bible",
       "crossStitch" => "com.tenhead.craftcolor",
       "cross_stitch" => "com.tenhead.craftcolor",
-      "stitch" => "com.tenhead.craftcolor"
+      "stitch" => "com.tenhead.craftcolor",
+      "brick" => "com.tenhead.brickart",
+      "bead" => "com.tenhead.beadart",
+      "knit" => "com.tenhead.knitart",
+      "mosaic" => "com.tenhead.mosaicart",
+      "glow" => "com.tenhead.glowart",
+      "sticker" => "com.tenhead.stickerart",
+      "quilt" => "com.tenhead.quiltart",
+      "voxel" => "com.tenhead.voxelart"
     }
 
     package_name = package_names[flavor]
@@ -381,7 +389,15 @@ platform :android do
       "bible" => "com.tenhead.bible",
       "crossStitch" => "com.tenhead.craftcolor",
       "cross_stitch" => "com.tenhead.craftcolor",
-      "stitch" => "com.tenhead.craftcolor"
+      "stitch" => "com.tenhead.craftcolor",
+      "brick" => "com.tenhead.brickart",
+      "bead" => "com.tenhead.beadart",
+      "knit" => "com.tenhead.knitart",
+      "mosaic" => "com.tenhead.mosaicart",
+      "glow" => "com.tenhead.glowart",
+      "sticker" => "com.tenhead.stickerart",
+      "quilt" => "com.tenhead.quiltart",
+      "voxel" => "com.tenhead.voxelart"
     }
 
     package_name = package_names[flavor]
@@ -443,19 +459,20 @@ platform :android do
 
     upload_params = {
       package_name: package_name,
-      track: "production",
-      release_status: release_status,
       skip_upload_apk: true,
       skip_upload_aab: metadata_only,
       skip_upload_metadata: build_only || bundle_only,
       skip_upload_images: build_only || bundle_only,
       skip_upload_screenshots: build_only || bundle_only || skip_screenshots,
-      skip_upload_changelogs: metadata_only || bundle_only,
+      skip_upload_changelogs: true,
       metadata_path: File.join(PROJECT_ROOT, "fastlane", "metadata", flavor_meta_dir)
     }
 
     unless metadata_only
+      upload_params[:track] = "production"
+      upload_params[:release_status] = release_status
       upload_params[:aab] = aab_path
+      upload_params[:skip_upload_changelogs] = false
     end
 
     if play_key

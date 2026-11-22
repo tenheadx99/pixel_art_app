@@ -172,7 +172,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Bead Art: Color by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~5626514468"
         }
         // "Brick Art" — plastic brick building craft flavor.
         create("brick") {
@@ -182,7 +182,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Brick Art: Build by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~2046362100"
         }
         // "Knit Art" — cozy yarn knitting craft flavor.
         create("knit") {
@@ -192,7 +192,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Knit Art: Stitch by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~9182616097"
         }
         // "Mosaic Art" — ceramic & glass tile craft flavor.
         create("mosaic") {
@@ -202,7 +202,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Mosaic Art: Tile by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~6230195873"
         }
         // "Glow Art" — Lite-Brite neon light pegs craft flavor.
         create("glow") {
@@ -212,7 +212,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Glow Art: Light by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~4725542518"
         }
         // "Sticker Art" — vinyl die-cut stickers & badges flavor.
         create("sticker") {
@@ -222,7 +222,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Sticker Art: Stick by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~9071981631"
         }
         // "Quilt Art" — patchwork fabric & quilting flavor.
         create("quilt") {
@@ -232,7 +232,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Quilt Art: Sew by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~3819654950"
         }
         // "Voxel Art" — 3D isometric voxel blocks flavor.
         create("voxel") {
@@ -242,7 +242,7 @@ android {
             versionName = "1.0.0"
             resValue("string", "app_name", "Voxel Art: 3D Color by Number")
             manifestPlaceholders["admobAppId"] =
-                "ca-app-pub-7469053965996793~6638258557"
+                "ca-app-pub-7469053965996793~1112554386"
         }
     }
 
