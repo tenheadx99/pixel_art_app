@@ -3,16 +3,20 @@ precision highp float;
 
 #include <flutter/runtime_effect.glsl>
 
-uniform vec2 u_resolution;
-uniform vec2 u_grid_size;
-uniform vec2 u_tilt;
-uniform float u_cell_size;
-uniform float u_time;
-uniform float u_shimmer;
-uniform sampler2D u_texture;
-uniform sampler2D u_age_texture;
+uniform vec2 uSize;
+uniform vec2 uGrid;
+uniform vec2 uTilt;
+uniform float uEffectiveCell;
+uniform float uTime;
+uniform float uShimmer;
+uniform sampler2D uTexture;
+uniform sampler2D uFillAge;
 
 out vec4 fragColor;
+
+vec2 getTexUV(vec2 coord) {
+    return (coord + vec2(0.5)) / uGrid;
+}
 
 // Distance from point p to line segment A-B, returning vec2(dist, h_t)
 vec2 dist_segment(vec2 p, vec2 a, vec2 b) {
@@ -23,36 +27,32 @@ vec2 dist_segment(vec2 p, vec2 a, vec2 b) {
 }
 
 void main() {
-    vec2 frag_coord = FlutterFragCoord().xy;
-    vec2 grid_px = u_grid_size * u_cell_size;
-    vec2 offset = (u_resolution - grid_px) * 0.5;
-    vec2 pos = frag_coord - offset;
+    vec2 pos = FlutterFragCoord().xy;
+    vec2 cellSize = uSize / uGrid;
+    vec2 cellCoord = floor(pos / cellSize);
 
     vec4 out_col = vec4(0.0);
 
-    if (pos.x < 0.0 || pos.y < 0.0 || pos.x >= grid_px.x || pos.y >= grid_px.y) {
+    if (cellCoord.x < 0.0 || cellCoord.y < 0.0 || cellCoord.x >= uGrid.x || cellCoord.y >= uGrid.y) {
         // Out of bounds - cozy oatmeal fleece backing
-        vec2 fleece_uv = frag_coord * 0.2;
+        vec2 fleece_uv = pos * 0.2;
         float noise = sin(fleece_uv.x * 12.0) * cos(fleece_uv.y * 12.0) * 0.025;
         out_col = vec4(vec3(0.91, 0.88, 0.83) + noise, 1.0);
     } else {
-        vec2 cell_coord = pos / u_cell_size;
-        vec2 cell_index = floor(cell_coord);
-        vec2 in_cell = fract(cell_coord);
+        vec2 in_cell = fract(pos / cellSize);
 
-        vec2 uv = (cell_index + 0.5) / u_grid_size;
-        vec4 sample_col = texture(u_texture, uv);
-        vec4 age_data = texture(u_age_texture, uv);
+        vec2 uv = getTexUV(cellCoord);
+        vec4 sample_col = texture(uTexture, uv);
+        float fillAge = texture(uFillAge, uv).r;
 
         bool is_revealed = sample_col.a > 0.5;
         vec3 base_color = sample_col.rgb;
 
-        float fill_time = age_data.r * 255.0 + age_data.g * 255.0 * 256.0 + age_data.b * 255.0 * 65536.0;
-        float age = u_time - fill_time;
+        float age = fillAge * 1.6 + uTime;
 
         float grow = 1.0;
         float flash = 0.0;
-        if (fill_time > 0.0 && age >= 0.0 && age < 0.6) {
+        if (age >= 0.0 && age < 0.6) {
             float t = clamp(age / 0.42, 0.0, 1.0);
             float c1 = 1.70158;
             float c3 = c1 + 1.0;
@@ -131,7 +131,7 @@ void main() {
                 vec2 strand_norm = vec2(-strand_dir.y, strand_dir.x);
                 float lateral = dot(p_scaled - (right_on_top ? (pt_bc + (pt_tr - pt_bc) * h_pos) : (pt_tl + (pt_bc - pt_tl) * h_pos)), strand_norm) / radius;
 
-                vec3 light_dir = normalize(vec3(-0.4 + u_tilt.x * 0.35, -0.6 - u_tilt.y * 0.35, 0.7));
+                vec3 light_dir = normalize(vec3(-0.4 + uTilt.x * 0.35, -0.6 - uTilt.y * 0.35, 0.7));
                 vec3 surf_norm = normalize(vec3(strand_norm * lateral, normal_z));
                 float diff = max(0.0, dot(surf_norm, light_dir));
 
@@ -153,9 +153,9 @@ void main() {
                 }
 
                 // 5. Section complete shimmer celebration wave
-                if (u_shimmer < 1.0) {
-                    float shimmer_diag = (cell_coord.x + cell_coord.y * 0.35) / (u_grid_size.x + u_grid_size.y * 0.35);
-                    float shimmer_band = u_shimmer * 1.4 - 0.2;
+                if (uShimmer < 1.0) {
+                    float shimmer_diag = (cellCoord.x + cellCoord.y * 0.35) / (uGrid.x + uGrid.y * 0.35);
+                    float shimmer_band = uShimmer * 1.4 - 0.2;
                     float s_dist = abs(shimmer_diag - shimmer_band);
                     if (s_dist < 0.08) {
                         float s = (1.0 - s_dist / 0.08);
