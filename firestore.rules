@@ -1,0 +1,94 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: Checks if the user is a verified admin in pixel_art_admins
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/pixel_art_admins/$(request.auth.uid));
+    }
+
+    // Helper: Checks if the authenticated user is the document owner
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    // Helper: Checks legacy user document ID (either uid or {flavor}_{uid})
+    function isLegacyOwner(docId) {
+      return request.auth != null && (
+        docId == request.auth.uid ||
+        docId.matches('.*_' + request.auth.uid)
+      );
+    }
+
+    // =========================================================================
+    // 1. Pixel Art Content, Catalog, Remote Config & Telemetry
+    // =========================================================================
+    match /pixel_art/{flavor} {
+      // Content & app configuration: readable by anyone (including unauthenticated app clients).
+      // Writes are strictly restricted to verified admins.
+      allow read: if true;
+      allow write: if isAdmin();
+
+      // Completion counters: apps report artwork completions.
+      // Narrow public write surface: only single integer 'completions' field, only incrementing.
+      match /stats/{artId} {
+        allow read: if true;
+        allow write: if isAdmin()
+          || (request.resource.data.keys().hasOnly(['completions'])
+              && request.resource.data.completions is int
+              && request.resource.data.completions > (resource == null ? 0 : resource.data.completions));
+      }
+
+      // Daily completion telemetry: apps report daily completion count.
+      match /daily_stats/{dateKey} {
+        allow read: if true;
+        allow write: if isAdmin()
+          || (request.resource.data.completions is int);
+      }
+
+      // All nested collections (artworks, config, daily_schedule, promoted_apps, etc.)
+      match /{allChildren=**} {
+        allow read: if true;
+        allow write: if isAdmin();
+      }
+    }
+
+    // =========================================================================
+    // 2. Admin Allowlist
+    // =========================================================================
+    match /pixel_art_admins/{uid} {
+      // Signed-in user may only read their own entry to verify admin permissions.
+      // Writes are strictly forbidden from clients (Firebase Console only).
+      allow read: if request.auth != null && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // =========================================================================
+    // 3. User Cloud Sync Collections (*_users)
+    // =========================================================================
+    // Each user can ONLY read, write, and delete THEIR OWN data (request.auth.uid == userId).
+    // No user can access or tamper with any other user's progress, diamonds, or purchases.
+    match /{userCollection}/{userId} {
+      allow read, write, delete: if userCollection.matches('.*_users')
+        && (isOwner(userId) || isAdmin());
+
+      // Purchases & other subcollections for this user
+      match /{subCollection}/{docId} {
+        allow read, write, delete: if userCollection.matches('.*_users')
+          && (isOwner(userId) || isAdmin());
+      }
+    }
+
+    // =========================================================================
+    // 4. Legacy 'users' Collection
+    // =========================================================================
+    match /users/{docId} {
+      allow read, write, delete: if isLegacyOwner(docId) || isAdmin();
+
+      match /{subCollection}/{docId} {
+        allow read, write, delete: if isLegacyOwner(docId) || isAdmin();
+      }
+    }
+  }
+}

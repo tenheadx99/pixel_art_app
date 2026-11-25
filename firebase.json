@@ -1,9 +1,14 @@
 {
+  "firestore": {
+    "rules": "firestore.rules"
+  },
   "remoteconfig": {
     "template": "remoteconfig.json"
   },
   "hosting": {
     "public": "public",
+    "cleanUrls": true,
+    "trailingSlash": false,
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -22,6 +27,10 @@
       }
     ],
     "rewrites": [
+      {
+        "source": "/art",
+        "destination": "/art/index.html"
+      },
       {
         "source": "/art/**",
         "destination": "/art/index.html"
