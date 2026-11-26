@@ -2182,12 +2182,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               final borderPaint = Paint()
                 ..color = const Color(0xFFE0E0E0)
@@ -2331,12 +2327,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               final borderPaint = Paint()
                 ..color = const Color(0xFFE5E5E5)
@@ -2389,8 +2381,8 @@ class _PixelGridPainter extends CustomPainter {
       return;
     }
 
-    // Stitch cell background: darker color of the thread (dark cell background box)
-    final cellBg = Color.lerp(Colors.black, base, 0.48)!;
+    // Stitch cell background: natural Aida fabric with ambient thread shadow
+    final cellBg = Color.lerp(const Color(0xFFF7F5F0), base, 0.28)!;
     cellPaint
       ..shader = null
       ..style = PaintingStyle.fill
@@ -2687,12 +2679,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               // Pegboard socket guide ring & center pin
               final socketPaint = Paint()
@@ -2786,7 +2774,7 @@ class _PixelGridPainter extends CustomPainter {
   }
 
   // Brick-path static paints for high-speed rendering
-  static final Paint _brickBaseplateBgPaint = Paint()..color = const Color(0xFF1E222B);
+  static final Paint _brickBaseplateBgPaint = Paint()..color = const Color(0xFFF7F8FA);
   static final Paint _brickPegPinPaint = Paint()
     ..style = PaintingStyle.fill
     ..color = const Color(0x35FFFFFF);
@@ -2982,12 +2970,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               // Unfilled stud pin on baseplate
               final studRadius = (rect.width * 0.18).clamp(1.0, 3.5);
@@ -3226,12 +3210,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               recorderCanvas.drawRect(rect, _knitGuideLoopPaint);
             }
@@ -3309,7 +3289,7 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
-  static final Paint _mosaicGroutBgPaint = Paint()..color = const Color(0xFFD6CDBF);
+  static final Paint _mosaicGroutBgPaint = Paint()..color = const Color(0xFFF7F8FA);
   static final Paint _mosaicTilePaint = Paint()..style = PaintingStyle.fill;
   static final Paint _mosaicBevelPaint = Paint()..style = PaintingStyle.stroke;
   static final Paint _mosaicGlazePaint = Paint()..style = PaintingStyle.fill;
@@ -3426,12 +3406,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF808080));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               final groutGuide = Paint()
                 ..color = const Color(0x30B5A895)
@@ -3511,7 +3487,7 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
-  static final Paint _glowBoardBgPaint = Paint()..color = const Color(0xFF0C0E14);
+  static final Paint _glowBoardBgPaint = Paint()..color = const Color(0xFFF7F8FA);
   static final Paint _glowHolePaint = Paint()..color = const Color(0xFF181C26);
   static final Paint _glowPegPaint = Paint()..style = PaintingStyle.fill;
   static final Paint _glowBloomPaint = Paint()..style = PaintingStyle.fill;
@@ -3623,12 +3599,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFF353C4D));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             recorderCanvas.drawCircle(rect.center, holeRadius, _glowHolePaint);
           }
         }
@@ -3819,12 +3791,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFFE2E7EE));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               recorderCanvas.drawCircle(rect.center, dotRadius, _stickerDotPaint);
             }
@@ -4021,12 +3989,8 @@ class _PixelGridPainter extends CustomPainter {
               _drawPattern(recorderCanvas, rect, expectedNumber, cw, ch);
             }
           } else if (expectedNumber > 0) {
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              recorderCanvas.drawRect(rect, Paint()..color = const Color(0xFFDCD5C5));
-            } else {
-              final previewColor = _previewColor(expectedNumber, detailStep);
-              recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-            }
+            final previewColor = _previewColor(expectedNumber, detailStep);
+            recorderCanvas.drawRect(rect, Paint()..color = previewColor);
             if (detailStep > 0) {
               recorderCanvas.drawRect(rect, _quiltBastingPaint);
             }
@@ -4102,7 +4066,7 @@ class _PixelGridPainter extends CustomPainter {
     }
   }
 
-  static final Paint _voxelBoardBgPaint = Paint()..color = const Color(0xFF222834);
+  static final Paint _voxelBoardBgPaint = Paint()..color = const Color(0xFFF7F8FA);
   static final Paint _voxelTopFacetPaint = Paint()..style = PaintingStyle.fill;
   static final Paint _voxelLeftFacetPaint = Paint()..style = PaintingStyle.fill;
   static final Paint _voxelRightFacetPaint = Paint()..style = PaintingStyle.fill;
@@ -4289,21 +4253,6 @@ class _PixelGridPainter extends CustomPainter {
           } else if (expectedNumber > 0) {
             final previewColor = _previewColor(expectedNumber, detailStep);
             recorderCanvas.drawRect(rect, Paint()..color = previewColor);
-
-            if (!isEraseMode && selectedNumber > 0 && expectedNumber == selectedNumber) {
-              // Active selected number: luminous cyan/mint selection outline
-              recorderCanvas.drawRect(
-                rect,
-                Paint()..color = const Color(0x2500BFA5),
-              );
-              recorderCanvas.drawRect(
-                rect.deflate(0.5),
-                Paint()
-                  ..style = PaintingStyle.stroke
-                  ..strokeWidth = 1.2
-                  ..color = const Color(0xFF00BFA5),
-              );
-            }
 
             if (detailStep > 0) {
               // Recessed 2.5D voxel socket groove
@@ -4557,14 +4506,6 @@ class _PixelGridPainter extends CustomPainter {
           } else if (expectedNumber == 0) {
             cellPaint.color = const Color(0xFFE8E8E8);
             c.drawRect(rect, cellPaint);
-          } else if (!isEraseMode &&
-              selectedNumber > 0 &&
-              expectedNumber == selectedNumber) {
-            cellPaint.color = const Color(0xFF808080);
-            c.drawRect(rect, cellPaint);
-            if (colorblindMode) {
-              _drawPattern(c, rect, expectedNumber, cw, ch);
-            }
           } else {
             cellPaint.color = _previewColor(expectedNumber, detailStep);
             c.drawRect(rect, cellPaint);

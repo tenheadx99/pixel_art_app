@@ -149,9 +149,9 @@ void main() {
     vec3 threadDark = threadColor * 0.48;
     vec3 sheenColor = min(threadColor * 1.40 + vec3(0.16), vec3(1.0));
 
-    // Stitch cell background: darker color of the thread (dark cell background box)
-    vec3 stitchCellBg = threadDark;
-    stitchCellBg = mix(stitchCellBg, vec3(0.12, 0.12, 0.12), cornerHole);
+    // Stitch cell background: natural Aida fabric with ambient thread shadow
+    vec3 stitchCellBg = mix(fabric, threadDark * 0.35, 0.35);
+    stitchCellBg = mix(stitchCellBg, vec3(0.70, 0.68, 0.64), cornerHole);
 
     // ================================================================
     // FULL CORNER-TO-CORNER ANCHORS

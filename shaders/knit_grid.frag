@@ -45,7 +45,7 @@ void main() {
         vec4 sample_col = texture(uTexture, uv);
         float fillAge = texture(uFillAge, uv).r;
 
-        bool is_revealed = sample_col.a > 0.5;
+        bool is_revealed = sample_col.a > 0.75;
         vec3 base_color = sample_col.rgb;
 
         float age = fillAge * 1.6 + uTime;

@@ -31,6 +31,11 @@ void main() {
         vec2 cellUV = fract(pos / cellSize);
         vec2 center = vec2(0.5);
 
+        // Hairline Cell Outline Border (0.18 threshold = ultra-thin 0.36px grid line)
+        vec2 borderThresh = vec2(0.18 / cellSize.x, 0.18 / cellSize.y);
+        bool isCellBorder = cellUV.x < borderThresh.x || cellUV.x > (1.0 - borderThresh.x) ||
+                            cellUV.y < borderThresh.y || cellUV.y > (1.0 - borderThresh.y);
+
         // Grid lines / border fade factor
         float gridLineOpacity = clamp((uEffectiveCell - 6.0) / 6.0, 0.0, 1.0);
 
@@ -57,33 +62,26 @@ void main() {
             }
         }
 
-        // 1. Sandy Mortar Grout Background
+        // 1. Clean Canvas Background
         if (cellColor.a < 0.01) {
-            vec3 groutBg = vec3(0.23, 0.21, 0.19); // Sandy warm mortar
-            // Subtle recessed tile impression
-            if (cellUV.x > groutInset && cellUV.x < (1.0 - groutInset) &&
-                cellUV.y > groutInset && cellUV.y < (1.0 - groutInset)) {
-                groutBg += vec3(0.02);
-            }
-            groutBg *= (1.0 - contactShadow);
-            fragColor = vec4(groutBg, 1.0);
+            vec3 canvasBg = vec3(0.965, 0.968, 0.972);
+            canvasBg *= (1.0 - contactShadow);
+            fragColor = vec4(canvasBg, 1.0);
+            return;
         }
-        // 2. Unfilled cell: subtle preview tint with mortar grout separation
+        // 2. Unfilled cell: direct transition from color to grey-out (just like Gem flavor)
         else if (cellColor.a < 0.75) {
             vec3 color = cellColor.rgb / max(cellColor.a, 0.001);
-            float lum = dot(color, vec3(0.299, 0.587, 0.114));
-            vec3 darkTone = mix(vec3(0.28, 0.26, 0.24), color * 0.45, 0.30);
-            float t = clamp((uEffectiveCell - 11.0) / 7.0, 0.0, 1.0);
-            vec3 cellBody = mix(color * 0.65, darkTone, t);
-
-            // Mortar gap border
-            vec3 pixelColor = vec3(0.23, 0.21, 0.19);
-            if (cellUV.x > groutInset && cellUV.x < (1.0 - groutInset) &&
-                cellUV.y > groutInset && cellUV.y < (1.0 - groutInset)) {
-                pixelColor = cellBody;
+            float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+            vec3 gray = vec3(clamp(0.62 + luminance * 0.32, 0.62, 0.94));
+            float t = clamp((uEffectiveCell - 8.0) / 8.0, 0.0, 1.0);
+            vec3 cellBody = mix(color, gray, t);
+            if (isCellBorder && t > 0.1) {
+                cellBody = mix(cellBody, vec3(0.80, 0.80, 0.80), t);
             }
-            pixelColor *= (1.0 - contactShadow);
-            fragColor = vec4(pixelColor, 1.0);
+            cellBody *= (1.0 - contactShadow);
+            fragColor = vec4(cellBody, 1.0);
+            return;
         }
         // 3. Filled Cell: Glazed Ceramic Mosaic Tile
         else {

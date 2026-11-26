@@ -168,8 +168,8 @@ android {
         create("bead") {
             dimension = "app"
             applicationId = "com.tenhead.beadart"
-            versionCode = 2
-            versionName = "1.0.1"
+            versionCode = 3
+            versionName = "1.0.2"
             resValue("string", "app_name", "Bead Art: Color by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~5626514468"
@@ -178,8 +178,8 @@ android {
         create("brick") {
             dimension = "app"
             applicationId = "com.tenhead.brickart"
-            versionCode = 2
-            versionName = "1.0.1"
+            versionCode = 3
+            versionName = "1.0.2"
             resValue("string", "app_name", "Brick Art: Build by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~2046362100"
@@ -188,8 +188,8 @@ android {
         create("knit") {
             dimension = "app"
             applicationId = "com.tenhead.knitart"
-            versionCode = 2
-            versionName = "1.0.1"
+            versionCode = 3
+            versionName = "1.0.2"
             resValue("string", "app_name", "Knit Art: Stitch by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~9182616097"
@@ -198,8 +198,8 @@ android {
         create("mosaic") {
             dimension = "app"
             applicationId = "com.tenhead.mosaicart"
-            versionCode = 2
-            versionName = "1.0.1"
+            versionCode = 3
+            versionName = "1.0.2"
             resValue("string", "app_name", "Mosaic Art: Tile by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~6230195873"
@@ -208,8 +208,8 @@ android {
         create("glow") {
             dimension = "app"
             applicationId = "com.tenhead.glowart"
-            versionCode = 2
-            versionName = "1.0.1"
+            versionCode = 3
+            versionName = "1.0.2"
             resValue("string", "app_name", "Glow Art: Light by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~4725542518"
@@ -218,8 +218,8 @@ android {
         create("sticker") {
             dimension = "app"
             applicationId = "com.tenhead.stickerart"
-            versionCode = 2
-            versionName = "1.0.1"
+            versionCode = 3
+            versionName = "1.0.2"
             resValue("string", "app_name", "Sticker Art: Stick by Number")
             manifestPlaceholders["admobAppId"] =
                 "ca-app-pub-7469053965996793~9071981631"

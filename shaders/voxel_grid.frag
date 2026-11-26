@@ -30,6 +30,11 @@ void main() {
         // Normalized UV inside current cell [0, 1]
         vec2 cellUV = fract(pos / cellSize);
 
+        // Hairline Cell Outline Border (0.18 threshold = ultra-thin 0.36px grid line)
+        vec2 borderThresh = vec2(0.18 / cellSize.x, 0.18 / cellSize.y);
+        bool isCellBorder = cellUV.x < borderThresh.x || cellUV.x > (1.0 - borderThresh.x) ||
+                            cellUV.y < borderThresh.y || cellUV.y > (1.0 - borderThresh.y);
+
         // Grid lines / border fade factor
         float gridLineOpacity = clamp((uEffectiveCell - 6.0) / 6.0, 0.0, 1.0);
 
@@ -53,32 +58,26 @@ void main() {
             }
         }
 
-        // 1. Empty board background: dark blueprint / isometric grid slate
+        // 1. Clean Canvas Background
         if (cellColor.a < 0.01) {
-            vec3 boardBg = vec3(0.11, 0.12, 0.15); // Tech dark slate
-            // Subtle grid seam lines
-            vec2 seam = step(vec2(0.96), cellUV) + step(cellUV, vec2(0.04));
-            if ((seam.x + seam.y) > 0.5) {
-                boardBg += vec3(0.03);
-            }
-            boardBg *= (1.0 - contactShadow);
-            fragColor = vec4(boardBg, 1.0);
+            vec3 canvasBg = vec3(0.965, 0.968, 0.972);
+            canvasBg *= (1.0 - contactShadow);
+            fragColor = vec4(canvasBg, 1.0);
+            return;
         }
-        // 2. Unfilled cell: subtle preview tint with guide outline
+        // 2. Unfilled cell: direct transition from color to grey-out (just like Gem flavor)
         else if (cellColor.a < 0.75) {
             vec3 color = cellColor.rgb / max(cellColor.a, 0.001);
-            float lum = dot(color, vec3(0.299, 0.587, 0.114));
-            vec3 darkTone = mix(vec3(0.18, 0.19, 0.22), color * 0.35, 0.25);
-            float t = clamp((uEffectiveCell - 11.0) / 7.0, 0.0, 1.0);
-            vec3 cellBody = mix(color * 0.55, darkTone, t);
-
-            // Guide border
-            vec2 border = step(vec2(0.95), cellUV) + step(cellUV, vec2(0.05));
-            if ((border.x + border.y) > 0.5 && gridLineOpacity > 0.1) {
-                cellBody = mix(cellBody, vec3(0.32, 0.35, 0.40), gridLineOpacity * 0.6);
+            float luminance = dot(color, vec3(0.299, 0.587, 0.114));
+            vec3 gray = vec3(clamp(0.62 + luminance * 0.32, 0.62, 0.94));
+            float t = clamp((uEffectiveCell - 8.0) / 8.0, 0.0, 1.0);
+            vec3 cellBody = mix(color, gray, t);
+            if (isCellBorder && t > 0.1) {
+                cellBody = mix(cellBody, vec3(0.80, 0.80, 0.80), t);
             }
             cellBody *= (1.0 - contactShadow);
             fragColor = vec4(cellBody, 1.0);
+            return;
         }
         // 3. Filled Voxel: 3D Isometric Extruded Block
         else {
