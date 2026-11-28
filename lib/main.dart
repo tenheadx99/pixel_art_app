@@ -166,49 +166,96 @@ class _AppBootstrapState extends State<AppBootstrap>
   List<PixelArt> _preMadeArts = [];
   bool _ready = false;
   bool _bootstrapError = false;
+  DateTime? _lastBackgroundedAt;
+  DateTime? _lastCatalogFetchAt;
+  static const Duration _catalogRefreshCooldown = Duration(minutes: 15);
 
   @override
   void initState() {
     super.initState();
+    _lastCatalogFetchAt = DateTime.now();
     WidgetsBinding.instance.addObserver(this);
     _bootstrap();
   }
 
+  void _maybeRefreshCatalogOnResume() {
+    final lastFetch = _lastCatalogFetchAt;
+    final now = DateTime.now();
+    if (lastFetch != null && now.difference(lastFetch) < _catalogRefreshCooldown) {
+      return; // Skip heavy remote fetch & JSON deserialization on quick app switches
+    }
+    _lastCatalogFetchAt = now;
+
+    AppConfigService().refreshVersion();
+    final remoteCatalog = _dependencies?.remoteCatalogService;
+    if (remoteCatalog != null) {
+      remoteCatalog.fetchCatalog(_preMadeArts).then((merged) async {
+        try {
+          final catalog = await remoteCatalog
+              .withRestoredCachedArts(merged ?? _preMadeArts);
+          if (mounted && appNavigatorKey.currentContext != null) {
+            final gallery = appNavigatorKey.currentContext!
+                .read<GalleryProvider>();
+            gallery.updateCatalog(
+              catalog,
+              retiredIds: remoteCatalog.retiredIds,
+            );
+          }
+        } catch (_) {}
+      });
+    }
+  }
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      AppConfigService().refreshVersion();
-    }
-    // App-open ad on return from background (never on cold start); AdService
-    // applies the pro/first-session/cooldown caps.
-    if (state == AppLifecycleState.resumed && _ready) {
-      // Re-fetch cloud catalog, shelves, festive campaigns & engagement features
-      final remoteCatalog = _dependencies?.remoteCatalogService;
-      if (remoteCatalog != null) {
-        remoteCatalog.fetchCatalog(_preMadeArts).then((merged) async {
-          try {
-            final catalog = await remoteCatalog
-                .withRestoredCachedArts(merged ?? _preMadeArts);
-            if (mounted && appNavigatorKey.currentContext != null) {
-              final gallery = appNavigatorKey.currentContext!
-                  .read<GalleryProvider>();
-              gallery.updateCatalog(
-                catalog,
-                retiredIds: remoteCatalog.retiredIds,
-              );
-            }
-          } catch (_) {}
-        });
-      }
+    if (state == AppLifecycleState.paused) {
+      _lastBackgroundedAt = DateTime.now();
+      // Pause ambient audio playback so audio threads, decoder and CPU wake locks sleep.
+      _dependencies?.soundService.pauseAmbientOnBackground();
 
-      final storage = _dependencies?.localStorageService;
-      // Lifetime Pro, Remove Ads, or an unexpired Plus subscription all suppress the ad.
-      final shouldRemoveAds =
-          (storage?.getBool(AppConstants.proPrefKey) ?? false) ||
-          (storage?.getBool(AppConstants.removeAdsPrefKey) ?? false) ||
-          (storage?.getInt(AppConstants.plusExpiryPrefKey) ?? 0) >
-              DateTime.now().millisecondsSinceEpoch;
-      AdService().showAppOpenAdIfAvailable(isProUser: shouldRemoveAds);
+      // Immediately flush any in-progress coloring progress to disk so background
+      // termination (LMK) does not lose recent strokes.
+      final currentCtx = appNavigatorKey.currentContext;
+      if (currentCtx != null) {
+        try {
+          currentCtx.read<ColoringProvider>().saveProgress();
+        } catch (_) {}
+      }
+      return;
+    }
+
+    if (state == AppLifecycleState.resumed) {
+      final wasBackgroundedAt = _lastBackgroundedAt;
+      _lastBackgroundedAt = null;
+
+      _dependencies?.soundService.resumeAmbientOnForeground();
+
+      if (_ready) {
+        // Cooldown-throttled catalog check (at most once every 15 minutes) to ensure
+        // resume from background to foreground remains instantaneous and smooth.
+        _maybeRefreshCatalogOnResume();
+
+        // Only show AppOpenAd if the app was backgrounded for at least 3 seconds,
+        // and defer until post-frame so the Flutter SurfaceView is active and touches work.
+        final backgroundDuration = wasBackgroundedAt != null
+            ? DateTime.now().difference(wasBackgroundedAt)
+            : Duration.zero;
+
+        if (backgroundDuration.inSeconds >= 3) {
+          final storage = _dependencies?.localStorageService;
+          // Lifetime Pro, Remove Ads, or an unexpired Plus subscription all suppress the ad.
+          final shouldRemoveAds =
+              (storage?.getBool(AppConstants.proPrefKey) ?? false) ||
+              (storage?.getBool(AppConstants.removeAdsPrefKey) ?? false) ||
+              (storage?.getInt(AppConstants.plusExpiryPrefKey) ?? 0) >
+                  DateTime.now().millisecondsSinceEpoch;
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            AdService().showAppOpenAdIfAvailable(isProUser: shouldRemoveAds);
+          });
+        }
+      }
     }
   }
 

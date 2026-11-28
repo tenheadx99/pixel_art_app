@@ -13,6 +13,7 @@ class SoundService {
 
   AudioPlayer? _ambientPlayer;
   String _currentAmbientTrack = 'none';
+  bool _wasAmbientPlayingBeforePause = false;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -52,10 +53,35 @@ class SoundService {
   }
 
   Future<void> stopAmbient() async {
+    _wasAmbientPlayingBeforePause = false;
     _currentAmbientTrack = 'none';
     try {
       await _ambientPlayer?.stop();
     } catch (_) {}
+  }
+
+  /// Pauses ambient music when the app moves to the background so the phone's
+  /// audio subsystem and CPU can enter deep low-power sleep states.
+  Future<void> pauseAmbientOnBackground() async {
+    if (_ambientPlayer != null && _currentAmbientTrack != 'none') {
+      _wasAmbientPlayingBeforePause = true;
+      try {
+        await _ambientPlayer?.pause();
+      } catch (_) {}
+    }
+  }
+
+  /// Resumes ambient playback when the user returns to the app if it was
+  /// playing when backgrounded.
+  Future<void> resumeAmbientOnForeground() async {
+    if (_wasAmbientPlayingBeforePause &&
+        _ambientPlayer != null &&
+        _currentAmbientTrack != 'none') {
+      _wasAmbientPlayingBeforePause = false;
+      try {
+        await _ambientPlayer?.resume();
+      } catch (_) {}
+    }
   }
 
   Future<void> setAmbientVolume(double volume) async {
@@ -174,6 +200,7 @@ class SoundService {
       _ambientPlayer?.dispose();
     } catch (_) {}
     _ambientPlayer = null;
+    _wasAmbientPlayingBeforePause = false;
     _initialized = false;
   }
 }

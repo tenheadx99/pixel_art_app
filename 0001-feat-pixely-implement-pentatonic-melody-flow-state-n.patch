@@ -1,0 +1,302 @@
+From f6b8644db545d71cd805f3ac7484ca020f709d69 Mon Sep 17 00:00:00 2001
+From: tenheadx99 <tenheadx99@users.noreply.github.com>
+Date: Mon, 23 Nov 2026 23:32:51 +0530
+Subject: [PATCH] feat(pixely): implement pentatonic melody flow state, number
+ clear burst, and brand-adaptive zen overdrive mode
+
+---
+ lib/data/services/sound_service.dart       |  5 +-
+ lib/providers/coloring_provider.dart       |  8 +--
+ lib/ui/screens/coloring_screen.dart        |  1 +
+ lib/ui/widgets/zen_overdrive_vignette.dart | 32 ++++++---
+ test/combo_overdrive_test.dart             | 77 ++++++++++++++++++++++
+ 5 files changed, 109 insertions(+), 14 deletions(-)
+
+diff --git a/lib/data/services/sound_service.dart b/lib/data/services/sound_service.dart
+index 12086f0..17c8f41 100644
+--- a/lib/data/services/sound_service.dart
++++ b/lib/data/services/sound_service.dart
+@@ -19,6 +19,9 @@ class SoundService {
+     try {
+       for (int i = 0; i < 6; i++) {
+         final player = AudioPlayer();
++        try {
++          player.setPlayerMode(PlayerMode.lowLatency);
++        } catch (_) {}
+         _players.add(player);
+         _playerRates.add(1.0);
+       }
+@@ -89,7 +92,7 @@ class SoundService {
+     if (userSoundType == 'light_click') {
+       _playAsset('audio/light_click.wav', rate: rate);
+       return;
+-    } else if (userSoundType == 'bubble_pop' && style == null) {
++    } else if (userSoundType == 'bubble_pop') {
+       _playAsset('audio/bubble_pop.wav', rate: rate);
+       return;
+     }
+diff --git a/lib/providers/coloring_provider.dart b/lib/providers/coloring_provider.dart
+index 0e2d3b5..8802f6f 100644
+--- a/lib/providers/coloring_provider.dart
++++ b/lib/providers/coloring_provider.dart
+@@ -1022,6 +1022,8 @@ class ColoringProvider extends ChangeNotifier {
+           _setCell(r, c, expectedNumber);
+           _recordTimeLapse(r, c);
+           anyFilled = true;
++          _totalFillCount++;
++          _consecutiveFills++;
+           onCellFilledCorrectly?.call();
+           onCellFilledAt?.call(r, c);
+         }
+@@ -1045,8 +1047,6 @@ class ColoringProvider extends ChangeNotifier {
+ 
+       _fillVibrate();
+ 
+-      _totalFillCount++;
+-      _consecutiveFills++;
+       _checkCompletion();
+       _checkAchievements();
+       _updateNextFillable();
+@@ -1161,6 +1161,8 @@ class ColoringProvider extends ChangeNotifier {
+             _setCell(r, c, expectedNumber);
+             _recordTimeLapse(r, c);
+             changed = true;
++            _totalFillCount++;
++            _consecutiveFills++;
+             onCellFilledCorrectly?.call();
+             onCellFilledAt?.call(r, c);
+           }
+@@ -1191,8 +1193,6 @@ class ColoringProvider extends ChangeNotifier {
+       _isComplete = false;
+     } else {
+       _fillVibrate();
+-      _totalFillCount++;
+-      _consecutiveFills++;
+       _checkCompletion();
+     }
+     _checkAchievements();
+diff --git a/lib/ui/screens/coloring_screen.dart b/lib/ui/screens/coloring_screen.dart
+index 9fa352f..b52e6bb 100644
+--- a/lib/ui/screens/coloring_screen.dart
++++ b/lib/ui/screens/coloring_screen.dart
+@@ -947,6 +947,7 @@ class _ColoringScreenState extends State<ColoringScreen>
+               Positioned.fill(
+                 child: ZenOverdriveVignette(
+                   active: _isInOverdrive,
++                  colors: FlavorConfig.current.brandGradient,
+                 ),
+               ),
+ 
+diff --git a/lib/ui/widgets/zen_overdrive_vignette.dart b/lib/ui/widgets/zen_overdrive_vignette.dart
+index 05c4abf..7caa362 100644
+--- a/lib/ui/widgets/zen_overdrive_vignette.dart
++++ b/lib/ui/widgets/zen_overdrive_vignette.dart
+@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
+ class ZenOverdriveVignette extends StatefulWidget {
+   final bool active;
+   final Widget? child;
++  final List<Color>? colors;
+ 
+   const ZenOverdriveVignette({
+     super.key,
+     required this.active,
+     this.child,
++    this.colors,
+   });
+ 
+   @override
+@@ -73,6 +75,7 @@ class _ZenOverdriveVignetteState extends State<ZenOverdriveVignette>
+                   size: Size.infinite,
+                   painter: _ZenVignettePainter(
+                     pulse: _pulseController.value,
++                    colors: widget.colors,
+                   ),
+                 );
+               },
+@@ -86,8 +89,9 @@ class _ZenOverdriveVignetteState extends State<ZenOverdriveVignette>
+ 
+ class _ZenVignettePainter extends CustomPainter {
+   final double pulse; // 0.0 -> 1.0
++  final List<Color>? colors;
+ 
+-  _ZenVignettePainter({required this.pulse});
++  _ZenVignettePainter({required this.pulse, this.colors});
+ 
+   @override
+   void paint(Canvas canvas, Size size) {
+@@ -96,6 +100,16 @@ class _ZenVignettePainter extends CustomPainter {
+     final rect = Offset.zero & size;
+     final baseAlpha = 0.35 + 0.35 * pulse; // 0.35 -> 0.70 breathing intensity
+ 
++    final primary = (colors != null && colors!.isNotEmpty)
++        ? colors![0]
++        : const Color(0xFFFFD700);
++    final secondary = (colors != null && colors!.length > 1)
++        ? colors![1]
++        : const Color(0xFFFF007F);
++    final accent = (colors != null && colors!.length > 2)
++        ? colors![2]
++        : const Color(0xFF00E5FF);
++
+     // 1. Edge Vignette Gradients: Neon Prismatic / Golden Shimmer
+     // Top gradient
+     final topPaint = Paint()
+@@ -103,8 +117,8 @@ class _ZenVignettePainter extends CustomPainter {
+         begin: Alignment.topCenter,
+         end: Alignment.bottomCenter,
+         colors: [
+-          const Color(0xFFFFD700).withValues(alpha: (baseAlpha * 0.75).clamp(0.0, 1.0)),
+-          const Color(0xFFFF007F).withValues(alpha: (baseAlpha * 0.35).clamp(0.0, 1.0)),
++          primary.withValues(alpha: (baseAlpha * 0.75).clamp(0.0, 1.0)),
++          secondary.withValues(alpha: (baseAlpha * 0.35).clamp(0.0, 1.0)),
+           Colors.transparent,
+         ],
+         stops: const [0.0, 0.45, 1.0],
+@@ -117,8 +131,8 @@ class _ZenVignettePainter extends CustomPainter {
+         begin: Alignment.bottomCenter,
+         end: Alignment.topCenter,
+         colors: [
+-          const Color(0xFF00E5FF).withValues(alpha: (baseAlpha * 0.75).clamp(0.0, 1.0)),
+-          const Color(0xFFFF007F).withValues(alpha: (baseAlpha * 0.35).clamp(0.0, 1.0)),
++          accent.withValues(alpha: (baseAlpha * 0.75).clamp(0.0, 1.0)),
++          secondary.withValues(alpha: (baseAlpha * 0.35).clamp(0.0, 1.0)),
+           Colors.transparent,
+         ],
+         stops: const [0.0, 0.45, 1.0],
+@@ -131,7 +145,7 @@ class _ZenVignettePainter extends CustomPainter {
+         begin: Alignment.centerLeft,
+         end: Alignment.centerRight,
+         colors: [
+-          const Color(0xFFFF9100).withValues(alpha: (baseAlpha * 0.6).clamp(0.0, 1.0)),
++          primary.withValues(alpha: (baseAlpha * 0.6).clamp(0.0, 1.0)),
+           Colors.transparent,
+         ],
+       ).createShader(Rect.fromLTWH(0, 0, size.width * 0.12, size.height));
+@@ -143,7 +157,7 @@ class _ZenVignettePainter extends CustomPainter {
+         begin: Alignment.centerRight,
+         end: Alignment.centerLeft,
+         colors: [
+-          const Color(0xFF00E5FF).withValues(alpha: (baseAlpha * 0.6).clamp(0.0, 1.0)),
++          accent.withValues(alpha: (baseAlpha * 0.6).clamp(0.0, 1.0)),
+           Colors.transparent,
+         ],
+       ).createShader(Rect.fromLTWH(size.width * 0.88, 0, size.width * 0.12, size.height));
+@@ -153,14 +167,14 @@ class _ZenVignettePainter extends CustomPainter {
+     final borderPaint = Paint()
+       ..style = PaintingStyle.stroke
+       ..strokeWidth = 3.0 + pulse * 2.0
+-      ..color = const Color(0xFFFFD700).withValues(alpha: (baseAlpha * 0.5).clamp(0.0, 1.0))
++      ..color = primary.withValues(alpha: (baseAlpha * 0.5).clamp(0.0, 1.0))
+       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+     canvas.drawRect(rect.deflate(2), borderPaint);
+   }
+ 
+   @override
+   bool shouldRepaint(covariant _ZenVignettePainter oldDelegate) {
+-    return oldDelegate.pulse != pulse;
++    return oldDelegate.pulse != pulse || oldDelegate.colors != colors;
+   }
+ }
+ 
+diff --git a/test/combo_overdrive_test.dart b/test/combo_overdrive_test.dart
+index 1a76f85..a832d31 100644
+--- a/test/combo_overdrive_test.dart
++++ b/test/combo_overdrive_test.dart
+@@ -1,10 +1,15 @@
+ import 'package:flutter/material.dart';
+ import 'package:flutter_test/flutter_test.dart';
++import 'package:shared_preferences/shared_preferences.dart';
+ import 'package:pixel_art_app/config/app_constants.dart';
++import 'package:pixel_art_app/data/models/pixel_art.dart';
++import 'package:pixel_art_app/data/services/local_storage_service.dart';
++import 'package:pixel_art_app/providers/coloring_provider.dart';
+ import 'package:pixel_art_app/ui/widgets/combo_meter_badge.dart';
+ import 'package:pixel_art_app/ui/widgets/zen_overdrive_vignette.dart';
+ 
+ void main() {
++  TestWidgetsFlutterBinding.ensureInitialized();
+   group('Combo & Zen Overdrive Configuration', () {
+     test('AppConstants contains Zen Overdrive thresholds', () {
+       expect(AppConstants.zenOverdriveComboThreshold, 30);
+@@ -138,6 +143,78 @@ void main() {
+       );
+       expect(activeOpacity.opacity, 1.0);
+     });
++
++    testWidgets('Renders with custom brand colors (Pixely theme)', (tester) async {
++      await tester.pumpWidget(
++        const MaterialApp(
++          home: Scaffold(
++            body: ZenOverdriveVignette(
++              active: true,
++              colors: [Color(0xFF8A2BE2), Color(0xFFFF007F), Color(0xFF00F0FF)],
++              child: Center(child: Text('Pixely Canvas')),
++            ),
++          ),
++        ),
++      );
++      await tester.pump();
++
++      expect(find.text('Pixely Canvas'), findsOneWidget);
++      expect(find.byType(ZenOverdriveVignette), findsOneWidget);
++    });
++  });
++
++  group('ColoringProvider Streak & Pentatonic Flow State', () {
++    testWidgets('Continuous drag stroke increments consecutiveFills per cell', (tester) async {
++      SharedPreferences.setMockInitialValues({});
++      final storage = LocalStorageService();
++      await storage.init();
++      final provider = ColoringProvider(storage);
++
++      final art = PixelArt(
++        id: 'test_art',
++        name: 'Test',
++        category: 'Shapes',
++        gridWidth: 5,
++        gridHeight: 5,
++        grid: [
++          [1, 1, 1, 1, 1],
++          [2, 2, 2, 2, 2],
++          [0, 0, 0, 0, 0],
++          [0, 0, 0, 0, 0],
++          [0, 0, 0, 0, 0],
++        ],
++        colorMap: {
++          1: const Color(0xFFFF0000),
++          2: const Color(0xFF00FF00),
++        },
++      );
++
++      provider.loadArt(art);
++      provider.selectNumber(1);
++
++      final streaks = <int>[];
++      provider.onCellFilledCorrectly = () {
++        streaks.add(provider.consecutiveFills);
++      };
++
++      provider.beginStroke();
++      provider.strokeFill(0, 0);
++      provider.strokeFill(0, 4); // fills cells along row 0: (0,0), (0,1), (0,2), (0,3), (0,4)
++      provider.endStroke();
++
++      expect(provider.consecutiveFills, 5);
++      expect(streaks, [1, 2, 3, 4, 5]);
++
++      // Auto-advance moved to number 2 because number 1 was 100% completed!
++      // Manually select number 1 again so tapping number 2 triggers a wrong tap:
++      provider.selectNumber(1);
++      provider.tryFillCell(1, 0); // expects 2, but 1 is selected
++      expect(provider.consecutiveFills, 0);
++
++      // Drain debounced save timer and clean up
++      await tester.pump(const Duration(seconds: 1));
++      provider.dispose();
++    });
+   });
+ }
+ 
+-- 
+2.43.0
+

@@ -270,9 +270,15 @@ class ColoringProvider extends ChangeNotifier {
     }
   }
 
+  DateTime _lastStrokeVibrateTime = DateTime.fromMillisecondsSinceEpoch(0);
+
   /// Crisp micro-tick for individual cells filled during a continuous swipe/drag.
+  /// Throttled to avoid saturating platform channels and native vibrator queues.
   void _strokeFillVibrate() {
     if (!_hapticsOn) return;
+    final now = DateTime.now();
+    if (now.difference(_lastStrokeVibrateTime).inMilliseconds < 45) return;
+    _lastStrokeVibrateTime = now;
     HapticFeedback.selectionClick();
   }
 

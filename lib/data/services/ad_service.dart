@@ -32,6 +32,8 @@ class AdService {
   RewardedInterstitialAd? _rewardedInterstitialAd;
   AppOpenAd? _appOpenAd;
   bool _showingAppOpen = false;
+  bool _isShowingFullScreenAd = false;
+  bool get isShowingFullScreenAd => _isShowingFullScreenAd;
 
   /// Backs the per-day interstitial cap; attached during bootstrap. Without
   /// it (tests) the per-day cap is simply skipped.
@@ -310,11 +312,16 @@ class AdService {
   void showInterstitialAd() {
     final ad = _interstitialAd;
     _interstitialAd = null;
-    if (ad == null) return;
+    if (ad == null || _isShowingFullScreenAd) return;
+    _isShowingFullScreenAd = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (a) {
+        _isShowingFullScreenAd = true;
+      },
       onAdDismissedFullScreenContent: (a) {
         AnalyticsService().logAdDismissed(adFormat: 'interstitial', placement: 'session_exit');
         a.dispose();
+        _isShowingFullScreenAd = false;
         loadInterstitialAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
@@ -325,6 +332,7 @@ class AdService {
           errorMessage: error.message,
         );
         a.dispose();
+        _isShowingFullScreenAd = false;
         loadInterstitialAd();
       },
     );
@@ -404,11 +412,16 @@ class AdService {
   }) {
     final ad = _rewardedInterstitialAd;
     _rewardedInterstitialAd = null;
-    if (ad == null) return;
+    if (ad == null || _isShowingFullScreenAd) return;
+    _isShowingFullScreenAd = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (a) {
+        _isShowingFullScreenAd = true;
+      },
       onAdDismissedFullScreenContent: (a) {
         AnalyticsService().logAdDismissed(adFormat: 'rewarded_interstitial', placement: placement);
         a.dispose();
+        _isShowingFullScreenAd = false;
         preloadRewardedInterstitial();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
@@ -422,6 +435,7 @@ class AdService {
           errorMessage: error.message,
         );
         a.dispose();
+        _isShowingFullScreenAd = false;
         preloadRewardedInterstitial();
       },
     );
@@ -512,16 +526,21 @@ class AdService {
       }
     }
     final ad = _rewardedAd;
-    if (ad == null || !_isFresh(_rewardedLoadedAt, _fullScreenAdTtl)) {
+    if (ad == null || _isShowingFullScreenAd || !_isFresh(_rewardedLoadedAt, _fullScreenAdTtl)) {
       AnalyticsService().logAdUnavailable(adFormat: 'rewarded', placement: placement);
       onUnavailable?.call();
       return;
     }
     _rewardedAd = null;
+    _isShowingFullScreenAd = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (a) {
+        _isShowingFullScreenAd = true;
+      },
       onAdDismissedFullScreenContent: (a) {
         AnalyticsService().logAdDismissed(adFormat: 'rewarded', placement: placement);
         a.dispose();
+        _isShowingFullScreenAd = false;
         preloadRewardedAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
@@ -533,6 +552,7 @@ class AdService {
           errorMessage: error.message,
         );
         a.dispose();
+        _isShowingFullScreenAd = false;
         preloadRewardedAd();
       },
     );
@@ -592,10 +612,20 @@ class AdService {
   }
 
   void showAppOpenAdIfAvailable({required bool isProUser}) {
-    if (!_fullScreenAdsEnabled || isProUser || _showingAppOpen || isFirstSession) {
+    if (!_fullScreenAdsEnabled ||
+        isProUser ||
+        _isShowingFullScreenAd ||
+        _showingAppOpen ||
+        isFirstSession) {
       return;
     }
     final now = DateTime.now();
+    // Do not show AppOpenAd if an interstitial or rewarded ad was shown recently
+    if (_lastInterstitialAt != null &&
+        now.difference(_lastInterstitialAt!).inSeconds <
+            RemoteConfigService().appOpenCooldownSeconds) {
+      return;
+    }
     if (_lastAppOpenAt != null &&
         now.difference(_lastAppOpenAt!).inSeconds <
             RemoteConfigService().appOpenCooldownSeconds) {
@@ -614,11 +644,17 @@ class AdService {
     }
     _appOpenAd = null;
     _showingAppOpen = true;
+    _isShowingFullScreenAd = true;
     ad.fullScreenContentCallback = FullScreenContentCallback(
+      onAdShowedFullScreenContent: (a) {
+        _showingAppOpen = true;
+        _isShowingFullScreenAd = true;
+      },
       onAdDismissedFullScreenContent: (a) {
         AnalyticsService().logAdDismissed(adFormat: 'app_open', placement: 'resume');
         a.dispose();
         _showingAppOpen = false;
+        _isShowingFullScreenAd = false;
         loadAppOpenAd();
       },
       onAdFailedToShowFullScreenContent: (a, error) {
@@ -630,6 +666,7 @@ class AdService {
         );
         a.dispose();
         _showingAppOpen = false;
+        _isShowingFullScreenAd = false;
         loadAppOpenAd();
       },
     );

@@ -784,6 +784,7 @@ class _ColoringScreenState extends State<ColoringScreen>
     // Flush any pending debounced autosave so the last few strokes before
     // leaving are never lost (e.g. a quick back-press after painting).
     _coloringProvider?.saveProgress();
+    _soundService?.stopAmbient();
     _coloringProvider?.removeListener(_onProviderChanged);
     _settings?.removeListener(_onSettingsChanged);
     _transformController.dispose();
