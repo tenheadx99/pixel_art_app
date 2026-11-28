@@ -359,3 +359,109 @@ Ensure you copy `play-store-key.json` to `pixel_art_app/` so Fastlane can authen
 3. **Gradle Keystore Path Failure**:
    If `./gradlew assembleRelease` fails with `Cannot find keystore file`:
    Verify `android/key.properties` has `storeFile=../../universal_signing_key.jks` and that `universal_signing_key.jks` is placed in the project root.
+
+---
+
+## 8. Deep Dive: Python Toolchain & Exact Dependencies
+
+### 8.1 Python Environment & Version
+- **Recommended Version**: Python **3.10**, **3.11**, or **3.12** (Apple Silicon native ARM64).
+- **macOS Installation**:
+  ```bash
+  brew install python
+  ```
+
+### 8.2 What Pip Packages Are ACTUALLY Needed?
+Only **two (2)** external packages are required from PyPI:
+```bash
+pip3 install Pillow firebase-admin
+```
+*(Optional: `requests` for general HTTP utilities).*
+
+### 8.3 Complete Inventory of Python Scripts
+Here is what every script does and why it requires those dependencies:
+
+| Script Path | Purpose | External Dependencies | Standard Library Used |
+|---|---|---|---|
+| `tool/build_artworks.py` | Converts PNG/JPG source images into quantized pixel art JSON contracts (`PixelArt`) with color palettes. | `Pillow` (`PIL`) | `json`, `os`, `sys` |
+| `tool/generate_sounds.py` | Synthesizes pure PCM `.wav` sound effects (taps, gem clicks, completion chimes) without external audio files. | **None (Pure Python!)** | `wave`, `struct`, `math`, `os` |
+| `tool/build_and_upload_all_flavors.py` | CLI automation orchestrating Flutter release builds and Fastlane uploads for all 15+ flavors in batches. | **None** | `subprocess`, `os`, `sys`, `time` |
+| `tool/upload_all_flavor_metadata.py` | Automates running Fastlane metadata syncing across all flavors. | **None** | `subprocess`, `os`, `sys` |
+| `tool/generate_flavor_store_metadata.py` | Generates localized store descriptions and graphic assets across languages. | `Pillow` (`PIL`) | `json`, `math`, `os`, `shutil`, `sys` |
+| `tool/ganesha_pixel.py` | Generates devotional deity pixel art matrices. | `Pillow` (`PIL`) | `os` |
+| `tool/make_devotional_store_assets.py` | Generates feature banners and icons for Divine Pixels. | `Pillow` (`PIL`) | `ganesha_pixel`, `json`, `math`, `os`, `sys` |
+| `tool/make_diamond_sources.py` | Generates gem patterns and color grids for Gem Art flavor. | `Pillow` (`PIL`) | `math`, `os`, `random`, `sys` |
+| `tool/make_original_sources.py` | Generates base pixel art artwork sources. | `Pillow` (`PIL`) | `make_diamond_sources`, `math`, `os`, `random`, `sys` |
+| `tool/make_original_batch2.py` | Batch 2 generator for base artworks. | `Pillow` (`PIL`) | `make_diamond_sources`, `math`, `os`, `random`, `sys` |
+| `tool/upload_new_anime_artworks.py` | Direct Firestore uploader for new Anime artwork batches. | `firebase-admin` | `os`, `sys`, `time` |
+| `tool/upload_more_anime_artworks.py` | Direct Firestore uploader for supplementary anime artworks. | `firebase-admin` | `time` |
+| `tool/upload_anime_archetypes.py` | Uploads anime archetype definitions to Firestore. | `firebase-admin` | `pathlib`, `time` |
+| `pixel_art_admin/tool/seed_firestore.py` | Reads app bundled assets and seeds Firestore `bundled_index` and bumps `catalogVersion`. | `firebase-admin` | `argparse`, `json`, `pathlib`, `sys` |
+| `pixel_art_admin/tool/generate_icons.py` | Generates web and launcher icons. | `Pillow` (`PIL`) | `os` |
+| `pixel_art_admin/tool/check_core_sync.py` | Verifies code parity between `pixel_art_app/lib` and `pixel_art_admin/lib/core`. | **None** | `argparse`, `pathlib`, `re`, `sys` |
+
+### 8.4 ⚠️ Hardcoded Secret Path to Fix on Mac
+Notice that `upload_new_anime_artworks.py`, `upload_anime_archetypes.py`, and `upload_more_anime_artworks.py` contain:
+```python
+SERVICE_KEY = "/home/rameshx99/Downloads/om108-5c015-firebase-adminsdk-fbsvc-d17fdb4254.json"
+```
+**Action on Mac:**
+1. Copy `om108-5c015-firebase-adminsdk-fbsvc-d17fdb4254.json` from your Linux `~/Downloads` to your Mac.
+2. Update the `SERVICE_KEY` variable or use:
+   ```python
+   SERVICE_KEY = os.environ.get("GOOGLE_APPLICATION_CREDENTIALS", os.path.expanduser("~/Downloads/om108-5c015-firebase-adminsdk-fbsvc-d17fdb4254.json"))
+   ```
+
+---
+
+## 9. Deep Dive: Fastlane Setup & Details
+
+### 9.1 How Fastlane is Structured
+- Configuration directory: `pixel_art_app/fastlane/`
+- Primary files:
+  - `Fastfile` (23,000+ characters, 580+ lines defining all deployment lanes)
+  - `Appfile` (defines package name and Google Play API credentials)
+  - `Metadata.json` and `Metadata.<flavor>.json` (localized store text for titles, short descriptions, and full descriptions)
+  - `metadata/android/` (per-locale directory tree formatted for Google Play Store upload)
+
+### 9.2 Ruby & Fastlane Requirements on macOS
+macOS ships with a restricted system Ruby (`/usr/bin/ruby`). **Do NOT run `sudo gem install fastlane` into the system Ruby.**
+
+**Best Practice on Apple Silicon Mac:**
+Install Fastlane via Homebrew:
+```bash
+brew install fastlane
+```
+Homebrew packages Fastlane in its own self-contained Ruby environment, avoiding path conflicts, permissions issues, and Apple Silicon architecture errors.
+
+### 9.3 Credentials Required by Fastlane
+1. **Google Play Console API Key**:
+   - Location: `pixel_art_app/play-store-key.json`
+   - Referenced in `fastlane/Appfile`:
+     ```ruby
+     json_key_file(File.expand_path("../play-store-key.json", __dir__))
+     ```
+   - Make sure this file exists in the root of `pixel_art_app`.
+
+2. **Android Keystore**:
+   - `universal_signing_key.jks` and `android/key.properties` (needed when Fastlane invokes `flutter build appbundle`).
+
+### 9.4 Fastlane Lanes Cheat Sheet
+Run these commands from `pixel_art_app/`:
+
+```bash
+# 1. Sync store listings & descriptions from Metadata.json
+fastlane sync_metadata
+
+# 2. Deploy a single flavor to Google Play Production (builds + uploads AAB)
+fastlane deploy_flavor flavor:diamond
+
+# 3. Upload only store text & screenshots (skip compilation)
+fastlane upload_metadata_only
+
+# 4. Upload to Internal App Sharing
+fastlane upload_internal_sharing flavor:devotional
+
+# 5. Upload to Google Play Internal Testing Track
+fastlane upload_internal_testing flavor:anime
+```
