@@ -109,7 +109,15 @@ class AdService {
     // EEA/UK users see the consent form before any ad request is made.
     try {
       await _gatherConsent();
-      await MobileAds.instance.initialize();
+      final initStatus = await MobileAds.instance.initialize();
+      if (kDebugMode) {
+        initStatus.adapterStatuses.forEach((key, value) {
+          developer.log(
+            'Adapter $key: ${value.state} (${value.description})',
+            name: 'Ads',
+          );
+        });
+      }
       _initialized = true;
       for (final l in List.of(_initListeners)) {
         try {
